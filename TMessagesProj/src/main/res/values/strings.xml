@@ -11239,4 +11239,6 @@
     <string name="FluxGramPlugins">Plugins</string>
     <string name="FluxGramLogging">Plugin event logging</string>
     <string name="FluxGramLoggingInfo">Logs outgoing text events without message contents. Logging must also be enabled in the app build.</string>
+    <string name="FluxGramPythonLogging">Python event logger</string>
+    <string name="FluxGramPythonLoggingInfo">Test plugin: processes outgoing message metadata in Python and writes the result to Logcat. Message contents are not passed to the handler.</string>
 </resources>

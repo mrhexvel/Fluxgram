@@ -267,4 +267,6 @@
     <string name="FluxGramPlugins">Плагины</string>
     <string name="FluxGramLogging">Журнал событий плагинов</string>
     <string name="FluxGramLoggingInfo">Записывает события отправки текста без содержимого сообщений. Логирование также должно быть включено в сборке приложения.</string>
+    <string name="FluxGramPythonLogging">Журнал событий Python</string>
+    <string name="FluxGramPythonLoggingInfo">Тестовый плагин: обрабатывает метаданные исходящих сообщений в Python и выводит результат в Logcat. Содержимое сообщений обработчику не передаётся.</string>
 </resources>

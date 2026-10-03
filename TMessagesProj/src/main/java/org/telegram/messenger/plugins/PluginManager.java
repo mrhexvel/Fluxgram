@@ -55,10 +55,12 @@ public final class PluginManager {
         if (plugin == null) {
             throw new IllegalArgumentException("plugin must not be null");
         }
+
         String id = plugin.getId();
         if (id == null || id.trim().isEmpty() || !id.equals(id.trim())) {
             throw new IllegalArgumentException("plugin ID must be non-empty and have no surrounding whitespace");
         }
+
         Entry existing = plugins.get(id);
         if (existing != null) {
             if (existing.plugin == plugin) {
@@ -66,6 +68,7 @@ public final class PluginManager {
             }
             throw new IllegalArgumentException("Plugin ID already registered: " + id);
         }
+
         Entry entry = new Entry(id, plugin);
         entry.enabled = preferences.getBoolean(enabledKey(id), true);
         plugins.put(id, entry);
