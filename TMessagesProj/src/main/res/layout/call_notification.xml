@@ -57,12 +57,12 @@
 			android:id="@+id/title"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:textSize="14dip"
-			android:textColor="#FFF"
-			android:singleLine="true"
 			android:ellipsize="end"
 			android:gravity="left"
-			tools:text="Telegram Call"/>
+			android:singleLine="true"
+			android:textColor="#FFF"
+			android:textSize="14dip"
+			tools:text="FluxGram Call" />
 
 		<TextView
 			android:id="@+id/subtitle"

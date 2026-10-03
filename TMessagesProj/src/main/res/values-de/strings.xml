@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Telegram</string>
-    <string name="AppNameBeta">Telegram Beta</string>
+    <string name="AppName">FluxGram</string>
+    <string name="AppNameBeta">FluxGram Beta</string>
     <string name="LanguageName">Deutsch</string>
     <string name="English">Englisch</string>
     <string name="LanguageNameInEnglish">German</string>
@@ -387,7 +387,7 @@
     <string name="AskButton">Eine Frage stellen</string>
     <string name="TelegramFAQ">Telegram FAQ</string>
     <string name="TelegramFaq">Telegram FAQ</string>
-    <string name="TelegramFeatures">Telegram Funktionen</string>
+    <string name="TelegramFeatures">FluxGram Funktionen</string>
     <string name="TelegramFeaturesUrl">https://t.me/TelegramTipsDE</string>
     <string name="AddAccount">Konto hinzufügen</string>
     <string name="SelectAccount">Konto auswählen</string>
@@ -1313,19 +1313,19 @@
     <string name="TosUpdateDecline">Leider gibt es keine anderen Alternativen. Im Gegensatz zu anderen Apps verwendet Telegram die Nutzerdaten nicht für Werbezwecke oder andere kommerzielle Zwecke. Telegram speichert nur die Informationen, die es braucht, um als funktionsreicher Clouddienst zu funktionieren. Du kannst in den Privatsphäre- und Sicherheitseinstellungen einstellen, wie deine Daten verwendet werden.\n\nWenn du mit diesen bescheidenen Anforderungen von Telegram nicht einverstanden bist, ist es uns nicht möglich, dir den Dienst zur Verfügung zu stellen.</string>
     <string name="TosDeclineDeleteAccount">Warnung! Das wird dein Konto mit all deinen Daten aus der Telegram-Cloud unwiderruflich löschen.\n\nWichtig: Du kannst jetzt abbrechen und deine Daten vor der Löschung noch exportieren. (Öffne dazu die aktuellste Version von Telegram Desktop &gt; Einstellungen &gt; Erweitert &gt; Daten exportieren.)</string>
     <!--permissions-->
-    <string name="PermissionStorageWithHint">**Telegram** benötigt Zugriff auf deinen **Speicher**, damit du Bilder, Videos, Musik und weitere Medien senden und speichern kannst. Tippe unten auf Einstellungen -&gt; Berechtigungen und schalte den Zugriff ein.</string>
-    <string name="PermissionNoAudioWithHint">**Telegram** benötigt Zugriff auf dein **Mikrofon**, damit du Sprachnachrichten senden kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
-    <string name="PermissionNoAudioVideoWithHint">**Telegram** benötigt Zugriff auf dein **Mikrofon**, damit du Sprachnachrichten senden kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
-    <string name="PermissionNoCameraWithHint">**Telegram** benötigt Zugriff auf deine **Kamera**, damit du Bilder und Videos aufnehmen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
-    <string name="PermissionNoCameraMicVideo">**Telegram** benötigt Zugriff auf deine **Kamera** und dein **Mikrofon**, damit du Videonachrichten aufnehmen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff für beides.</string>
-    <string name="PermissionNoLocation">"Telegram benötigt Zugriff auf deinen Standort, damit du ihn mit Freunden teilen kannst. "</string>
-    <string name="PermissionNoLocationStory">Telegram braucht Zugriff auf deinen Standort, damit du das Wetter-Widget deiner Story hinzufügen kannst.</string>
-    <string name="PermissionNoLocationFriends">**Telegram** benötigt Zugriff auf deinen **Standort**, damit du ihn mit Freunden teilen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
-    <string name="PermissionNoLocationNavigation">**Telegram** benötigt Zugriff auf deinen **Standort**, damit du Anweisungen erhalten kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
-    <string name="PermissionNoContactsSharing">**Telegram** benötigt Zugriff auf deine **Kontakte**, damit du sie mit deinen Freunden teilen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
-    <string name="PermissionNoStorageAvatar">**Telegram** benötigt Zugriff auf deinen **Speicher**, damit du ein Profilbild hochladen kannst. Tippe auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
-    <string name="PermissionNoAudioStorageStory">**Telegram** benötigt Zugriff auf Musikdateien, damit du diese mit deiner Story hochladen kannst. Tippe auf Einstellungen &gt; Berechtigungen und aktiviere **Musik und Audio**.</string>
-    <string name="PermissionDrawAboveOtherApps">Telegram braucht Zugriff auf die Funktion \'Über andere Apps einblenden\'. Nur so können Videos im Bild in Bild Modus wiedergegeben werden.</string>
+    <string name="PermissionStorageWithHint">**FluxGram** benötigt Zugriff auf deinen **Speicher**, damit du Bilder, Videos, Musik und weitere Medien senden und speichern kannst. Tippe unten auf Einstellungen -&gt; Berechtigungen und schalte den Zugriff ein.</string>
+    <string name="PermissionNoAudioWithHint">**FluxGram** benötigt Zugriff auf dein **Mikrofon**, damit du Sprachnachrichten senden kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
+    <string name="PermissionNoAudioVideoWithHint">**FluxGram** benötigt Zugriff auf dein **Mikrofon**, damit du Sprachnachrichten senden kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
+    <string name="PermissionNoCameraWithHint">**FluxGram** benötigt Zugriff auf deine **Kamera**, damit du Bilder und Videos aufnehmen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
+    <string name="PermissionNoCameraMicVideo">**FluxGram** benötigt Zugriff auf deine **Kamera** und dein **Mikrofon**, damit du Videonachrichten aufnehmen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff für beides.</string>
+    <string name="PermissionNoLocation">"FluxGram benötigt Zugriff auf deinen Standort, damit du ihn mit Freunden teilen kannst. "</string>
+    <string name="PermissionNoLocationStory">FluxGram braucht Zugriff auf deinen Standort, damit du das Wetter-Widget deiner Story hinzufügen kannst.</string>
+    <string name="PermissionNoLocationFriends">**FluxGram** benötigt Zugriff auf deinen **Standort**, damit du ihn mit Freunden teilen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
+    <string name="PermissionNoLocationNavigation">**FluxGram** benötigt Zugriff auf deinen **Standort**, damit du Anweisungen erhalten kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
+    <string name="PermissionNoContactsSharing">**FluxGram** benötigt Zugriff auf deine **Kontakte**, damit du sie mit deinen Freunden teilen kannst. Tippe unten auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
+    <string name="PermissionNoStorageAvatar">**FluxGram** benötigt Zugriff auf deinen **Speicher**, damit du ein Profilbild hochladen kannst. Tippe auf Einstellungen &gt; Berechtigungen und aktiviere den Zugriff.</string>
+    <string name="PermissionNoAudioStorageStory">**FluxGram** benötigt Zugriff auf Musikdateien, damit du diese mit deiner Story hochladen kannst. Tippe auf Einstellungen &gt; Berechtigungen und aktiviere **Musik und Audio**.</string>
+    <string name="PermissionDrawAboveOtherApps">FluxGram braucht Zugriff auf die Funktion \'Über andere Apps einblenden\'. Nur so können Videos im Bild in Bild Modus wiedergegeben werden.</string>
     <string name="PermissionDrawAboveOtherAppsGroupCall">Der Überlagerungsmodus erlaubt dir die Verwendung von Push-To-Talk und die Anzeige, wer gerade spricht, selbst wenn du dich ausserhalb von Telegram befindest.</string>
     <string name="PermissionOpenSettings">Einstellungen</string>
     <string name="PermissionXiaomiLockscreen">Bitte erlaube Telegram auf dem Sperrbildschirm, damit Anrufe signalisiert werden können.</string>
