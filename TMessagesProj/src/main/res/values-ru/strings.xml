@@ -266,5 +266,5 @@
     <string name="FluxGramSettings">Настройки FluxGram</string>
     <string name="FluxGramPlugins">Плагины</string>
     <string name="FluxGramLogging">Журнал событий плагинов</string>
-    <string name="FluxGramLoggingInfo">Записывает события отправки текста без содержимого сообщений. Логирование также должно быть включено в сборке приложения. Переключатель сбрасывается при перезапуске приложения.</string>
+    <string name="FluxGramLoggingInfo">Записывает события отправки текста без содержимого сообщений. Логирование также должно быть включено в сборке приложения.</string>
 </resources>

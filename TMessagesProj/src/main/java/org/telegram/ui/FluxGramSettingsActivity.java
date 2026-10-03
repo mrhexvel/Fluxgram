@@ -1,13 +1,14 @@
 package org.telegram.ui;
 
+import static org.telegram.messenger.AndroidUtilities.dp;
+
 import android.content.Context;
 import android.view.View;
 import android.widget.FrameLayout;
 
-import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
-import org.telegram.messenger.plugins.LoggingPlugin;
+import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -17,7 +18,6 @@ import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
 
 public class FluxGramSettingsActivity extends BaseFragment {
-    private static final int LOGGING = 1;
     private UniversalRecyclerView listView;
 
     @Override
@@ -37,20 +37,41 @@ public class FluxGramSettingsActivity extends BaseFragment {
         content.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
 
         listView = new UniversalRecyclerView(this, (items, adapter) -> {
-            items.add(UItem.asHeader(LocaleController.getString(R.string.FluxGramPlugins)));
-            items.add(UItem.asSwitch(LOGGING, LocaleController.getString(R.string.FluxGramLogging))
-                    .setChecked(PluginManager.getInstance().isEnabled(LoggingPlugin.ID)));
-            items.add(UItem.asShadow(LocaleController.getString(R.string.FluxGramLoggingInfo)));
-        }, (item, view, position, x, y) -> {
-            if (item.id == LOGGING) {
-                PluginManager manager = PluginManager.getInstance();
-                manager.setEnabled(LoggingPlugin.ID, !manager.isEnabled(LoggingPlugin.ID));
-                listView.adapter.update(true);
+            PluginManager manager = PluginManager.getInstance();
+
+            items.add(UItem.asHeader(
+                    LocaleController.getString(R.string.FluxGramPlugins)
+            ));
+
+            int rowId = 1;
+
+            for (Plugin plugin : manager.getPlugins()) {
+                UItem row = UItem.asSwitch(rowId++, plugin.getName())
+                        .setChecked(manager.isEnabled(plugin.getId()));
+
+                row.object = plugin.getId();
+                items.add(row);
+
+                items.add(UItem.asShadow(
+                        plugin.getDescription() + "\n\nv" + plugin.getVersion()
+                ));
             }
+        }, (item, view, position, x, y) -> {
+            if (!(item.object instanceof String)) {
+                return;
+            }
+
+            String pluginId = (String) item.object;
+            PluginManager manager = PluginManager.getInstance();
+
+            boolean enabled = manager.isEnabled(pluginId);
+            manager.setEnabled(pluginId, !enabled);
+
+            listView.adapter.update(true);
         }, null);
 
         listView.adapter.setApplyBackground(false);
-        listView.setSections(AndroidUtilities.dp(12), AndroidUtilities.dp(20), false);
+        listView.setSections(dp(12), dp(20), false);
 
         content.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
