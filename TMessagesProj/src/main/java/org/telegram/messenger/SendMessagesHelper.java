@@ -8,6 +8,9 @@
 
 package org.telegram.messenger;
 
+import org.telegram.messenger.plugins.BeforeSendEvent;
+import org.telegram.messenger.plugins.PluginManager;
+
 import android.annotation.SuppressLint;
 import android.content.ClipDescription;
 import android.content.Context;
@@ -4555,6 +4558,10 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                             type = 9;
                         } else {
                             type = 0;
+                        }
+                        if (type == 0) {
+                            PluginManager.getInstance().beforeSend(
+                                    new BeforeSendEvent(currentAccount, peer, message, scheduleDate));
                         }
                         newMsg.message = message;
                     }

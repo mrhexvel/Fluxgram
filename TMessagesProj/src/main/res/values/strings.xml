@@ -11235,4 +11235,8 @@
     <string name="RoundVideoComposition">Composition</string>
     <string name="RoundVideoCompositionEnabled">Round video styling</string>
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
+    <string name="FluxGramSettings">FluxGram Settings</string>
+    <string name="FluxGramPlugins">Plugins</string>
+    <string name="FluxGramLogging">Plugin event logging</string>
+    <string name="FluxGramLoggingInfo">Log outgoing text events without message contents. Logging must also be enabled in the app build. This switch resets when the app restarts.</string>
 </resources>

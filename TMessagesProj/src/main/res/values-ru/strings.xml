@@ -263,4 +263,8 @@
     <string name="RemindTodayAt">\'Отправить сегодня в\' HH:mm</string>
     <string name="RemindDayAt">\'Отправить\' d MMM \'в\' HH:mm</string>
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
+    <string name="FluxGramSettings">Настройки FluxGram</string>
+    <string name="FluxGramPlugins">Плагины</string>
+    <string name="FluxGramLogging">Журнал событий плагинов</string>
+    <string name="FluxGramLoggingInfo">Записывает события отправки текста без содержимого сообщений. Логирование также должно быть включено в сборке приложения. Переключатель сбрасывается при перезапуске приложения.</string>
 </resources>

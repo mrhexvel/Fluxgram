@@ -151,6 +151,7 @@ import me.vkryl.android.animator.FactorAnimator;
 public class SettingsActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate, ImageUpdater.ImageUpdaterDelegate, MainTabsActivity.TabFragmentDelegate, FactorAnimator.Target {
 
     private static final int ANIMATOR_ID_SEARCH_PAGE_VISIBLE = 0;
+    private static final int FLUXGRAM_SETTINGS = 10001;
 
     private final BoolAnimator animatorSearchPageVisible = new BoolAnimator(ANIMATOR_ID_SEARCH_PAGE_VISIBLE,
             this, CubicBezierInterpolator.EASE_OUT_QUINT, 350);
@@ -346,7 +347,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
         listView.adapter.setApplyBackground(false);
-        listView.setSections();
+        listView.setSections(dp(12), dp(20), false);
         listView.setPadding(0, AndroidUtilities.statusBarHeight + dp(12), 0, AndroidUtilities.navigationBarHeight + additionNavigationBarHeight);
         listView.setClipToPadding(false);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -619,6 +620,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
 
         items.add(UItem.asCustomShadow(topView, 200 - 12));
+        items.add(SettingCell.FluxGramFactory.of(FLUXGRAM_SETTINGS, R.drawable.settings_features,
+                getString(R.string.FluxGramSettings), null));
+        items.add(UItem.asShadow(null));
 
         accountNumbers.clear();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
@@ -685,15 +689,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
-        items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
-        items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
-        items.add(SettingCell.Factory.of(5, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.settings_sounds, getString(R.string.SettingsNotifications), getString(R.string.SettingsNotificationsInfo)));
-        items.add(SettingCell.Factory.of(6, IconBackgroundColors.BLUE_DEEP.top, IconBackgroundColors.BLUE_DEEP.bottom, R.drawable.settings_data, getString(R.string.SettingsData), getString(R.string.SettingsDataInfo)));
-        items.add(SettingCell.Factory.of(7, IconBackgroundColors.BLUE_ALT.top, IconBackgroundColors.BLUE_ALT.bottom, R.drawable.settings_folders, getString(R.string.SettingsFolders), getString(R.string.SettingsFoldersInfo)));
-        items.add(SettingCell.Factory.of(8, IconBackgroundColors.CYAN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_devices, getString(R.string.SettingsDevices), getString(R.string.SettingsDevicesInfo)));
-        items.add(SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.top, IconBackgroundColors.ORANGE_DEEP.bottom, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), getString(R.string.SettingsPowerSavingInfo)));
-        items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
+        items.add(SettingCell.FluxGramFactory.of(1, R.drawable.settings_account, getString(R.string.SettingsAccount), null));
+        items.add(SettingCell.FluxGramFactory.of(2, R.drawable.settings_chat, getString(R.string.SettingsChat), null));
+        items.add(SettingCell.FluxGramFactory.of(3, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), null));
+        items.add(SettingCell.FluxGramFactory.of(5, R.drawable.settings_sounds, getString(R.string.SettingsNotifications), null));
+        items.add(SettingCell.FluxGramFactory.of(6, R.drawable.settings_data, getString(R.string.SettingsData), null));
+        items.add(SettingCell.FluxGramFactory.of(7, R.drawable.settings_folders, getString(R.string.SettingsFolders), null));
+        items.add(SettingCell.FluxGramFactory.of(8, R.drawable.settings_devices, getString(R.string.SettingsDevices), null));
+        items.add(SettingCell.FluxGramFactory.of(9, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), null));
+        items.add(SettingCell.FluxGramFactory.of(10, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
 
         items.add(UItem.asShadow(null));
 
@@ -812,6 +816,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             return;
         }
         switch (item.id) {
+            case FLUXGRAM_SETTINGS:
+                presentSettingFragment(new FluxGramSettingsActivity());
+                break;
             case 1:
                 presentSettingFragment(new UserInfoActivity());
                 break;
@@ -1195,6 +1202,19 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
             valueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
             iconBackground.setDrawBorder(resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark());
+            if (fluxGramStyle) {
+                applyFluxGramColors();
+            }
+        }
+
+        private boolean fluxGramStyle;
+
+        private void applyFluxGramColors() {
+            boolean dark = resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark();
+            int accent = dark ? 0xFFB5C4F6 : 0xFFDCE4FF;
+            iconBackground.setColor(accent, accent);
+            iconBackground.setDrawBorder(false);
+            iconView.setColorFilter(new PorterDuffColorFilter(0xFF23365D, PorterDuff.Mode.SRC_IN));
         }
 
         private boolean twoLines;
@@ -1277,6 +1297,27 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             @Override
             public int getOpacity() {
                 return PixelFormat.TRANSPARENT;
+            }
+        }
+
+        public static class FluxGramFactory extends Factory {
+            static { setup(new FluxGramFactory()); }
+
+            @Override
+            public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
+                super.bindView(view, item, divider, adapter, listView);
+                SettingCell cell = (SettingCell) view;
+                cell.fluxGramStyle = true;
+                cell.applyFluxGramColors();
+            }
+
+            public static UItem of(int id, int icon, CharSequence title, CharSequence value) {
+                UItem item = UItem.ofFactory(FluxGramFactory.class);
+                item.id = id;
+                item.iconResId = icon;
+                item.text = title;
+                item.textValue = value;
+                return item;
             }
         }
 
