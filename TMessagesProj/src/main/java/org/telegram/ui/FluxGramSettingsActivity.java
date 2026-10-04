@@ -56,6 +56,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
                         plugin.getDescription() + "\n\nv" + plugin.getVersion()
                 ));
             }
+
         }, (item, view, position, x, y) -> {
             if (!(item.object instanceof String)) {
                 return;

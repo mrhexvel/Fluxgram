@@ -11237,8 +11237,6 @@
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
     <string name="FluxGramSettings">FluxGram Settings</string>
     <string name="FluxGramPlugins">Plugins</string>
-    <string name="FluxGramLogging">Plugin event logging</string>
-    <string name="FluxGramLoggingInfo">Logs outgoing text events without message contents. Logging must also be enabled in the app build.</string>
-    <string name="FluxGramPythonLogging">Python event logger</string>
-    <string name="FluxGramPythonLoggingInfo">Test plugin: processes outgoing message metadata in Python and writes the result to Logcat. Message contents are not passed to the handler.</string>
+    <string name="FluxGramInAppNotifications">In-app notifications</string>
+    <string name="FluxGramInAppNotificationsInfo">Message previews with chat avatars. Tap to open the conversation. Also shows muted chats; skips the currently open chat. Replaces system message notifications while the app is open. In the background, standard notifications remain enabled.</string>
 </resources>

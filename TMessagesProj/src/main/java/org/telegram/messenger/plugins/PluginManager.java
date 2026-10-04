@@ -46,6 +46,17 @@ public final class PluginManager {
         return "enabled." + id;
     }
 
+    private void notifyEnabledChanged(Entry entry) {
+        try {
+            entry.plugin.onEnabledChanged(entry.enabled);
+        } catch (Exception e) {
+            FileLog.e(
+                    "FluxGram plugin state change failed: " + entry.id,
+                    e
+            );
+        }
+    }
+
     /** New plugins start enabled. Re-registering the same instance preserves its state. */
     public synchronized void register(Plugin plugin) {
         if (preferences == null) {
@@ -72,17 +83,29 @@ public final class PluginManager {
         Entry entry = new Entry(id, plugin);
         entry.enabled = preferences.getBoolean(enabledKey(id), true);
         plugins.put(id, entry);
+
+        notifyEnabledChanged(entry);
     }
 
     /** Returns false for an unknown ID. Disabling does not interrupt a running callback. */
     public synchronized boolean setEnabled(String id, boolean enabled) {
         Entry entry = plugins.get(id);
+
         if (entry == null) {
             return false;
         }
-        entry.enabled = enabled;
-        preferences.edit().putBoolean(enabledKey(id), enabled).apply();
 
+        if (entry.enabled == enabled) {
+            return true;
+        }
+
+        entry.enabled = enabled;
+
+        preferences.edit()
+                .putBoolean(enabledKey(id), enabled)
+                .apply();
+
+        notifyEnabledChanged(entry);
         return true;
     }
 
@@ -94,10 +117,13 @@ public final class PluginManager {
 
     public synchronized boolean unregister(String id) {
         Entry entry = plugins.remove(id);
+
         if (entry == null) {
             return false;
         }
+
         entry.enabled = false;
+        notifyEnabledChanged(entry);
         return true;
     }
 

@@ -10,5 +10,8 @@ public interface Plugin {
 
     String getVersion();
 
+    default void onEnabledChanged(boolean enabled) {
+    }
+
     void beforeSend(BeforeSendEvent event);
 }

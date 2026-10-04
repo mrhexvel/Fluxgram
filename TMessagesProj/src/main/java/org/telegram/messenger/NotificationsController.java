@@ -43,6 +43,7 @@ import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
@@ -67,6 +68,7 @@ import androidx.core.graphics.drawable.IconCompat;
 import com.google.common.collect.Lists;
 
 import org.telegram.messenger.support.LongSparseIntArray;
+import org.telegram.messenger.plugins.PluginNotifications;
 import org.telegram.messenger.utils.tlutils.TLKeyboardHelper;
 import org.telegram.messenger.utils.tlutils.TlUtils;
 import org.telegram.messenger.voip.VoIPGroupNotification;
@@ -1020,6 +1022,28 @@ public class NotificationsController extends BaseController implements Notificat
     }
 
     public void processNewMessages(ArrayList<MessageObject> messageObjects, boolean isLast, boolean isFcm, CountDownLatch countDownLatch) {
+        if (messageObjects != null && !messageObjects.isEmpty() && PluginNotifications.canOffer()) {
+            final ArrayList<MessageObject> pending = new ArrayList<>(messageObjects);
+            Runnable offer = () -> {
+                ArrayList<MessageObject> remaining = new ArrayList<>(pending.size());
+                for (MessageObject message : pending) {
+                    if (!PluginNotifications.offer(currentAccount, message)) {
+                        remaining.add(message);
+                    }
+                }
+                processNewMessagesInternal(remaining, isLast, isFcm, countDownLatch);
+            };
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                offer.run();
+            } else {
+                AndroidUtilities.runOnUIThread(offer);
+            }
+            return;
+        }
+        processNewMessagesInternal(messageObjects, isLast, isFcm, countDownLatch);
+    }
+
+    private void processNewMessagesInternal(ArrayList<MessageObject> messageObjects, boolean isLast, boolean isFcm, CountDownLatch countDownLatch) {
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("NotificationsController: processNewMessages msgs.size()=" + (messageObjects == null ? "null" : messageObjects.size()) + " isLast=" + isLast + " isFcm=" + isFcm + ")");
         }

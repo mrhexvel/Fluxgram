@@ -265,8 +265,6 @@
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
     <string name="FluxGramSettings">Настройки FluxGram</string>
     <string name="FluxGramPlugins">Плагины</string>
-    <string name="FluxGramLogging">Журнал событий плагинов</string>
-    <string name="FluxGramLoggingInfo">Записывает события отправки текста без содержимого сообщений. Логирование также должно быть включено в сборке приложения.</string>
-    <string name="FluxGramPythonLogging">Журнал событий Python</string>
-    <string name="FluxGramPythonLoggingInfo">Тестовый плагин: обрабатывает метаданные исходящих сообщений в Python и выводит результат в Logcat. Содержимое сообщений обработчику не передаётся.</string>
+    <string name="FluxGramInAppNotifications">Уведомления внутри приложения</string>
+    <string name="FluxGramInAppNotificationsInfo">Карточки сообщений с аватарками чатов. Нажмите, чтобы открыть переписку. Показывает и заглушённые чаты, кроме уже открытого. Заменяет системные уведомления о сообщениях, пока приложение открыто. В фоне работают обычные уведомления.</string>
 </resources>
