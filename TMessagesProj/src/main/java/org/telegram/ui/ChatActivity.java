@@ -41302,6 +41302,7 @@ public class ChatActivity extends BaseFragment implements
                         }
                     };
 
+                    if (PluginInstallSheet.openMessage(ChatActivity.this, message)) return;
                     boolean handled = false;
                     if (MessageObject.canPreviewDocument(media.document)) {
                         PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
@@ -41581,6 +41582,7 @@ public class ChatActivity extends BaseFragment implements
                     presentFragment(fragment);
                 }
             } else if (message.type == MessageObject.TYPE_FILE || message.type == MessageObject.TYPE_TEXT) {
+                if (PluginInstallSheet.openMessage(ChatActivity.this, message)) return;
                 if (message.getDocumentName().toLowerCase().endsWith("attheme")) {
                     File locFile = null;
                     if (message.messageOwner.attachPath != null && message.messageOwner.attachPath.length() != 0) {

@@ -24,6 +24,7 @@ class _MessageObserver(dynamic_proxy(Delegate)):
 
     def didReceivedNotification(self, event_id, account, args):
         subscription = self.subscription
+
         if subscription is None:
             return
 
@@ -49,12 +50,15 @@ class _NotificationObserver(dynamic_proxy(NotificationListener)):
 
     def isActive(self):
         sub = self.subscription
+
         return sub is not None and not sub.closed and sub.is_active()
 
     def onMessage(self, account, message):
         sub = self.subscription
+
         if sub is None:
             return False
+
         return sub.deliver_message(account, message)
 
 
@@ -85,6 +89,7 @@ class _MessageSubscription:
                     NotificationCenter.didReceiveNewMessages,
                 )
                 self.centers.append(center)
+
             if self.notification_mode:
                 self.notification_observer = _NotificationObserver(self)
                 PluginNotifications.addListener(self.notification_observer)
@@ -100,8 +105,7 @@ class _MessageSubscription:
         if event_id != NotificationCenter.didReceiveNewMessages:
             return
 
-        # Arguments in this client version:
-        # args = dialogId, messages, scheduled, mode
+
         if len(args) < 4:
             return
 
@@ -112,6 +116,7 @@ class _MessageSubscription:
             return
 
         messages = args[1]
+
         if messages is None:
             return
 
@@ -124,30 +129,37 @@ class _MessageSubscription:
     def deliver_message(self, account, message):
         if self.closed or not self.is_active():
             return False
+
         if message is None or message.isOut():
             return False
+
         if self.notification_mode and not PluginNotifications.isEligible(message):
             return False
 
         key = (int(account), int(message.getDialogId()), int(message.getId()))
+
         if key in self.seen:
             timestamp, shown = self.seen[key]
-            # Keep deduplication, but never suppress based on an old receipt.
+
             return shown and time.monotonic() - timestamp < 120
 
         self.seen[key] = (time.monotonic(), False)
+
         if len(self.seen) > 512:
             self.seen.popitem(last=False)
+
         try:
             event = build_message_event(account, message)
             shown = self.callback(event) is True
             self.seen[key] = (time.monotonic(), shown)
+
             return shown
         except Exception:
             Log.e(
                 "FluxGramPython",
                 f"[{self.plugin_id}] message callback failed\n{traceback.format_exc()}",
             )
+
             return False
 
     def unsubscribe(self):
@@ -158,25 +170,35 @@ class _MessageSubscription:
         post_ui(self.detach)
 
     def detach(self):
+        errors = []
+
         if self.notification_observer is not None:
-            PluginNotifications.removeListener(self.notification_observer)
             self.notification_observer.subscription = None
-            self.notification_observer = None
+
+            try:
+                PluginNotifications.removeListener(self.notification_observer)
+                self.notification_observer = None
+            except BaseException as error:
+                errors.append(error)
+
         observer = self.observer
 
         if observer is not None:
             observer.subscription = None
 
-        for center in self.centers:
+        for center in tuple(self.centers):
             try:
                 center.removeObserver(
                     observer,
                     NotificationCenter.didReceiveNewMessages,
                 )
-            except Exception:
-                Log.e("FluxGramPython", traceback.format_exc())
+                self.centers.remove(center)
+            except BaseException as error:
+                errors.append(error)
 
-        self.centers.clear()
+        if errors:
+            raise RuntimeError("Could not detach plugin observers") from errors[0]
+
         self.seen.clear()
         self.observer = None
         self.callback = None
@@ -194,12 +216,8 @@ class EventBus:
         self._is_active = lambda: host.isGenerationActive(generation)
 
     def subscribe(self, name, callback, *, thread="ui"):
-        """notification.received runs before system notification processing.
 
-        Its callback must return True only after successfully displaying a card.
-        False/None/errors preserve native notification handling. The regular
-        message.received event never suppresses system notifications.
-        """
+
         if self._closed:
             raise RuntimeError("Plugin event bus is closed")
 
@@ -225,13 +243,18 @@ class EventBus:
         return subscription
 
     def close(self):
-        if self._closed:
-            return
-
         self._closed = True
-
-        for subscription in self._subscriptions:
-            subscription.unsubscribe()
-
-        self._subscriptions.clear()
         self._is_active = lambda: False
+        errors = []
+
+        for subscription in tuple(self._subscriptions):
+            subscription.closed = True
+
+            try:
+                subscription.detach()
+                self._subscriptions.remove(subscription)
+            except BaseException as error:
+                errors.append(error)
+
+        if errors:
+            raise RuntimeError("Could not close plugin subscriptions") from errors[0]

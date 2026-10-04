@@ -8,7 +8,7 @@ class ChatInfo:
     id: int
     title: str | None
 
-    # private / group / channel / secret / unknown
+
     kind: str
 
     is_forum: bool | None

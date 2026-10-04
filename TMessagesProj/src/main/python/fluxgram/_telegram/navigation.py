@@ -5,25 +5,31 @@ from org.telegram.ui import LaunchActivity
 
 
 def foreground_fragment():
-    """Return a usable foreground fragment, never one behind the app lock."""
+
     if (
         ApplicationLoader.mainInterfacePaused
         or SharedConfig.appLocked
         or SharedConfig.isWaitingForPasscodeEnter
     ):
         return None
+
     fragment = LaunchActivity.getLastFragmentIncludeMainTabs()
+
     if fragment is None:
         return None
+
     activity = fragment.getParentActivity()
+
     if activity is None or activity.isFinishing() or activity.isDestroyed():
         return None
+
     return fragment
 
 
 def open_chat(account, dialog_id, topic_id=0, message_id=0):
-    """Use Telegram's notification route, including account and topic loading."""
+
     fragment = foreground_fragment()
+
     if fragment is None:
         return False
 
@@ -46,4 +52,5 @@ def open_chat(account, dialog_id, topic_id=0, message_id=0):
         raise ValueError("Unsupported dialog_id")
 
     activity.startActivity(intent)
+
     return True

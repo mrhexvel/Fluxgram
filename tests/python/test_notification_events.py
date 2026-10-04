@@ -1,7 +1,3 @@
-"""Run with: python3 -m unittest discover -s tests/python
-
-Android is replaced only at the boundary; tests load the actual SDK event bus.
-"""
 import importlib.util
 from pathlib import Path
 import sys
@@ -10,7 +6,10 @@ import unittest
 from unittest.mock import patch
 
 
-SOURCE = (Path(__file__).resolve().parents[2] / 'TMessagesProj/src/main/python/fluxgram/_event_bus.py')
+SOURCE = (
+    Path(__file__).resolve().parents[2]
+    / "TMessagesProj/src/main/python/fluxgram/_event_bus.py"
+)
 
 
 class Message:
@@ -18,14 +17,22 @@ class Message:
         self.dialog, self.mid = dialog, mid
         self.outgoing, self.eligible = outgoing, eligible
 
-    def getDialogId(self): return self.dialog
-    def getId(self): return self.mid
-    def isOut(self): return self.outgoing
+    def getDialogId(self):
+        return self.dialog
+
+    def getId(self):
+        return self.mid
+
+    def isOut(self):
+        return self.outgoing
 
 
 class JavaList(list):
-    def size(self): return len(self)
-    def get(self, index): return self[index]
+    def size(self):
+        return len(self)
+
+    def get(self, index):
+        return self[index]
 
 
 class NotificationEventsTest(unittest.TestCase):
@@ -45,27 +52,48 @@ class NotificationEventsTest(unittest.TestCase):
             modules[name] = m
             return m
 
-        for name in ('android', 'org', 'org.telegram', 'fluxgram'):
+        for name in ("android", "org", "org.telegram", "fluxgram"):
             module(name)
-        module('java', dynamic_proxy=lambda interface: object, jclass=lambda name: object)
-        module('android.util', Log=types.SimpleNamespace(e=lambda *args: self.errors.append(args)))
-        center = types.SimpleNamespace(addObserver=lambda *args: None, removeObserver=lambda *args: None)
-        module('org.telegram.messenger',
-               UserConfig=types.SimpleNamespace(MAX_ACCOUNT_COUNT=2),
-               NotificationCenter=types.SimpleNamespace(didReceiveNewMessages=1, getInstance=lambda account: center))
-        module('org.telegram.ui', ChatActivity=types.SimpleNamespace(MODE_DEFAULT=0))
-        module('org.telegram.messenger.plugins', PluginNotifications=types.SimpleNamespace(
-            addListener=self.listeners.append, removeListener=self.listeners.remove,
-            isEligible=lambda message: message.eligible))
-        module('fluxgram._context', build_message_event=lambda account, message: (account, message))
-        module('fluxgram._ui_thread', post_ui=self.pending.append)
+        module(
+            "java", dynamic_proxy=lambda interface: object, jclass=lambda name: object
+        )
+        module(
+            "android.util",
+            Log=types.SimpleNamespace(e=lambda *args: self.errors.append(args)),
+        )
+        center = types.SimpleNamespace(
+            addObserver=lambda *args: None, removeObserver=lambda *args: None
+        )
+        module(
+            "org.telegram.messenger",
+            UserConfig=types.SimpleNamespace(MAX_ACCOUNT_COUNT=2),
+            NotificationCenter=types.SimpleNamespace(
+                didReceiveNewMessages=1, getInstance=lambda account: center
+            ),
+        )
+        module("org.telegram.ui", ChatActivity=types.SimpleNamespace(MODE_DEFAULT=0))
+        module(
+            "org.telegram.messenger.plugins",
+            PluginNotifications=types.SimpleNamespace(
+                addListener=self.listeners.append,
+                removeListener=self.listeners.remove,
+                isEligible=lambda message: message.eligible,
+            ),
+        )
+        module(
+            "fluxgram._context",
+            build_message_event=lambda account, message: (account, message),
+        )
+        module("fluxgram._ui_thread", post_ui=self.pending.append)
         self.module_patch = patch.dict(sys.modules, modules)
         self.module_patch.start()
         self.addCleanup(self.module_patch.stop)
-        spec = importlib.util.spec_from_file_location('fluxgram._event_bus', SOURCE)
+        spec = importlib.util.spec_from_file_location("fluxgram._event_bus", SOURCE)
         self.sdk = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.sdk)
-        self.sub = self.sdk._MessageSubscription('test', self.callback, lambda: self.active, True)
+        self.sub = self.sdk._MessageSubscription(
+            "test", self.callback, lambda: self.active, True
+        )
         self.sub.attach()
         self.native = self.listeners[0]
 
@@ -76,7 +104,9 @@ class NotificationEventsTest(unittest.TestCase):
         return self.result
 
     def receive(self, message, account=0, scheduled=False, mode=0):
-        self.sub.deliver(1, account, [message.dialog, JavaList([message]), scheduled, mode])
+        self.sub.deliver(
+            1, account, [message.dialog, JavaList([message]), scheduled, mode]
+        )
 
     def test_message_event_first_confirms_without_second_card(self):
         message = Message()
@@ -91,14 +121,14 @@ class NotificationEventsTest(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
 
     def test_no_confirmation_means_native_fallback(self):
-        for result in (False, None, 1, 'yes'):
+        for result in (False, None, 1, "yes"):
             with self.subTest(result=result):
                 self.sub.seen.clear()
                 self.result = result
                 self.assertFalse(self.native.onMessage(0, Message()))
 
     def test_callback_failure_and_repeat_keep_native_path(self):
-        self.result = RuntimeError('failed to display')
+        self.result = RuntimeError("failed to display")
         self.assertFalse(self.native.onMessage(0, Message()))
         self.assertFalse(self.native.onMessage(0, Message()))
         self.assertEqual(len(self.errors), 1)
@@ -141,11 +171,55 @@ class NotificationEventsTest(unittest.TestCase):
         self.assertEqual(len(self.sub.seen), 512)
 
     def test_regular_event_subscription_does_not_register_native_listener(self):
-        normal = self.sdk._MessageSubscription('normal', self.callback, lambda: True)
+        normal = self.sdk._MessageSubscription("normal", self.callback, lambda: True)
         normal.attach()
         self.assertEqual(len(self.listeners), 1)
         normal.detach()
 
+    def test_close_retries_only_failed_subscriptions(self):
+        calls = []
+        failed = [True]
 
-if __name__ == '__main__':
+        def detach_bad():
+            calls.append("bad")
+            if failed[0]:
+                raise RuntimeError("detach failed")
+
+        bad = types.SimpleNamespace(closed=False, detach=detach_bad)
+        good = types.SimpleNamespace(closed=False, detach=lambda: calls.append("good"))
+        bus = self.sdk.EventBus("test")
+        bus._subscriptions = [bad, good]
+
+        with self.assertRaises(RuntimeError):
+            bus.close()
+        self.assertEqual(calls, ["bad", "good"])
+        self.assertEqual(bus._subscriptions, [bad])
+        self.assertTrue(bad.closed)
+        self.assertTrue(good.closed)
+
+        failed[0] = False
+        bus.close()
+        self.assertEqual(calls, ["bad", "good", "bad"])
+        self.assertEqual(bus._subscriptions, [])
+
+    def test_detach_retains_failed_centers_for_retry(self):
+        calls = []
+
+        def fail(*args):
+            calls.append("bad")
+            raise RuntimeError("center failed")
+
+        bad = types.SimpleNamespace(removeObserver=fail)
+        good = types.SimpleNamespace(removeObserver=lambda *args: calls.append("good"))
+        self.sub.centers = [bad, good]
+        with self.assertRaises(RuntimeError):
+            self.sub.detach()
+        self.assertEqual(calls, ["bad", "good"])
+        self.assertEqual(self.sub.centers, [bad])
+        bad.removeObserver = lambda *args: None
+        self.sub.detach()
+        self.assertEqual(self.sub.centers, [])
+
+
+if __name__ == "__main__":
     unittest.main()

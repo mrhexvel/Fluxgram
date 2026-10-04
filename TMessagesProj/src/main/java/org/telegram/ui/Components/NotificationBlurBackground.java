@@ -10,8 +10,8 @@ import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
-import android.view.View;
 import android.os.SystemClock;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -21,8 +21,9 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.Utilities;
 
-/** Live, downscaled backdrop blur with at most one background calculation in flight. */
-public final class NotificationBlurBackground extends Drawable implements View.OnAttachStateChangeListener {
+public final class NotificationBlurBackground extends Drawable
+        implements View.OnAttachStateChangeListener {
+
     private static final float SCALE = 8f;
     private static final long FRAME_INTERVAL_MS = 33;
     private final View source;
@@ -58,103 +59,154 @@ public final class NotificationBlurBackground extends Drawable implements View.O
     }
 
     private void scheduleNext() {
-        if (!attached || disposed || failed || processing) return;
+        if (!attached || disposed || failed || processing) {
+            return;
+        }
+
         target.removeCallbacks(refresh);
+
         long delay = Math.max(0, FRAME_INTERVAL_MS - (SystemClock.uptimeMillis() - lastCapture));
         target.postDelayed(refresh, delay);
     }
 
     private void capture() {
-        if (!attached || disposed || failed || processing) return;
-        lastCapture = SystemClock.uptimeMillis();
-        if (!target.isShown() || source.getWindowVisibility() != View.VISIBLE
-                || getBounds().isEmpty() || source.getWidth() <= 0 || source.getHeight() <= 0) {
-            scheduleNext();
+        if (!attached || disposed || failed || processing) {
             return;
         }
+
+        lastCapture = SystemClock.uptimeMillis();
+
+        if (!target.isShown()
+                || source.getWindowVisibility() != View.VISIBLE
+                || getBounds().isEmpty()
+                || source.getWidth() <= 0
+                || source.getHeight() <= 0) {
+            scheduleNext();
+
+            return;
+        }
+
         Bitmap snapshot = null;
         View overlay = null;
         float overlayAlpha = 1f;
+
         try {
             source.getLocationOnScreen(sourceLocation);
             target.getLocationOnScreen(targetLocation);
-            // Capture a padded crop so blur does not smear the crop edges into the card.
+
             int padding = AndroidUtilities.dp(24);
-            int left = Math.max(0, targetLocation[0] - sourceLocation[0] + getBounds().left - padding);
-            int top = Math.max(0, targetLocation[1] - sourceLocation[1] + getBounds().top - padding);
-            int right = Math.min(source.getWidth(), targetLocation[0] - sourceLocation[0] + getBounds().right + padding);
-            int bottom = Math.min(source.getHeight(), targetLocation[1] - sourceLocation[1] + getBounds().bottom + padding);
+            int left =
+                    Math.max(0, targetLocation[0] - sourceLocation[0] + getBounds().left - padding);
+            int top =
+                    Math.max(0, targetLocation[1] - sourceLocation[1] + getBounds().top - padding);
+            int right =
+                    Math.min(
+                            source.getWidth(),
+                            targetLocation[0] - sourceLocation[0] + getBounds().right + padding);
+            int bottom =
+                    Math.min(
+                            source.getHeight(),
+                            targetLocation[1] - sourceLocation[1] + getBounds().bottom + padding);
+
             if (right <= left || bottom <= top) {
                 scheduleNext();
+
                 return;
             }
-            snapshot = Bitmap.createBitmap(
-                    Math.max(1, (int) Math.ceil((right - left) / SCALE)),
-                    Math.max(1, (int) Math.ceil((bottom - top) / SCALE)),
-                    Bitmap.Config.ARGB_8888);
+
+            snapshot =
+                    Bitmap.createBitmap(
+                            Math.max(1, (int) Math.ceil((right - left) / SCALE)),
+                            Math.max(1, (int) Math.ceil((bottom - top) / SCALE)),
+                            Bitmap.Config.ARGB_8888);
+
             final int screenX = sourceLocation[0] + left;
             final int screenY = sourceLocation[1] + top;
-            // Capture on a software canvas between frames, with this bulletin excluded.
-            // Restoring alpha in finally prevents flicker in the actual window draw.
+
             if (target.getParent() instanceof View) {
                 overlay = (View) target.getParent();
                 overlayAlpha = overlay.getAlpha();
                 overlay.setAlpha(0f);
             }
+
             Canvas canvas = new Canvas(snapshot);
             canvas.drawColor(color);
             canvas.scale(1f / SCALE, 1f / SCALE);
             canvas.translate(-left, -top);
             source.draw(canvas);
+
             final Bitmap result = snapshot;
             processing = true;
-            Utilities.globalQueue.postRunnable(() -> {
-                boolean success = false;
-                try {
-                    Utilities.stackBlurBitmap(result, Math.max(2, AndroidUtilities.dp(20) / 8));
-                    success = true;
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
-                final boolean ready = success;
-                AndroidUtilities.runOnUIThread(() -> {
-                    processing = false;
-                    if (disposed || !ready) {
-                        result.recycle();
-                        failed = !ready;
-                        return;
-                    }
-                    bitmapScreenX = screenX;
-                    bitmapScreenY = screenY;
-                    // Do not recycle the old shader bitmap: the renderer may still use it.
-                    shader = new BitmapShader(result, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                    imagePaint.setShader(shader);
-                    target.invalidate();
-                    scheduleNext();
-                });
-            });
+
+            Utilities.globalQueue.postRunnable(
+                    () -> {
+                        boolean success = false;
+
+                        try {
+                            Utilities.stackBlurBitmap(
+                                    result, Math.max(2, AndroidUtilities.dp(20) / 8));
+                            success = true;
+                        } catch (Exception e) {
+                            FileLog.e(e);
+                        }
+
+                        final boolean ready = success;
+
+                        AndroidUtilities.runOnUIThread(
+                                () -> {
+                                    processing = false;
+
+                                    if (disposed || !ready) {
+                                        result.recycle();
+                                        failed = !ready;
+
+                                        return;
+                                    }
+
+                                    bitmapScreenX = screenX;
+                                    bitmapScreenY = screenY;
+
+                                    shader =
+                                            new BitmapShader(
+                                                    result,
+                                                    Shader.TileMode.CLAMP,
+                                                    Shader.TileMode.CLAMP);
+                                    imagePaint.setShader(shader);
+                                    target.invalidate();
+                                    scheduleNext();
+                                });
+                    });
         } catch (Exception e) {
             FileLog.e(e);
             failed = true;
             processing = false;
-            if (snapshot != null) snapshot.recycle();
+
+            if (snapshot != null) {
+                snapshot.recycle();
+            }
         } finally {
-            if (overlay != null) overlay.setAlpha(overlayAlpha);
+            if (overlay != null) {
+                overlay.setAlpha(overlayAlpha);
+            }
         }
     }
 
     @Override
     public void draw(@NonNull Canvas canvas) {
         rect.set(getBounds());
+
         float radius = AndroidUtilities.dp(20);
+
         if (shader != null) {
             target.getLocationOnScreen(targetLocation);
             matrix.setScale(SCALE, SCALE);
-            matrix.postTranslate(bitmapScreenX - targetLocation[0], bitmapScreenY - targetLocation[1]);
+            matrix.postTranslate(
+                    bitmapScreenX - targetLocation[0], bitmapScreenY - targetLocation[1]);
             shader.setLocalMatrix(matrix);
             imagePaint.setAlpha(alpha);
             canvas.drawRoundRect(rect, radius, radius, imagePaint);
         }
+
         tintPaint.setColor(ColorUtils.setAlphaComponent(color, shader == null ? 255 : 185));
         tintPaint.setAlpha(tintPaint.getAlpha() * alpha / 255);
         canvas.drawRoundRect(rect, radius, radius, tintPaint);
@@ -163,9 +215,20 @@ public final class NotificationBlurBackground extends Drawable implements View.O
         canvas.drawRoundRect(rect, radius, radius, strokePaint);
     }
 
-    @Override public void setAlpha(int alpha) { this.alpha = alpha; target.invalidate(); }
-    @Override public void setColorFilter(@Nullable ColorFilter filter) { }
-    @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    @Override
+    public void setAlpha(int alpha) {
+        this.alpha = alpha;
+        target.invalidate();
+    }
+
+    @Override
+    public void setColorFilter(@Nullable ColorFilter filter) {}
+
+    @Override
+    public int getOpacity() {
+        return PixelFormat.TRANSLUCENT;
+    }
+
     @Override
     public void onViewAttachedToWindow(View view) {
         attached = true;

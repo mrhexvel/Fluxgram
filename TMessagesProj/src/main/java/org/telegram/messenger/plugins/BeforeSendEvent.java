@@ -1,8 +1,5 @@
 package org.telegram.messenger.plugins;
 
-/** Read-only snapshot of one new outgoing text part, before local storage and dispatch.
- * This event does not confirm delivery. Retries, forwards, inline results and media are excluded.
- */
 public final class BeforeSendEvent {
     public final int account;
     public final long dialogId;

@@ -2,7 +2,7 @@ from ..models import MessageInfo
 
 
 def read_message(message):
-    """Copy message data into an immutable Python snapshot."""
+
     sender_id = int(message.getFromChatId())
 
     return MessageInfo(

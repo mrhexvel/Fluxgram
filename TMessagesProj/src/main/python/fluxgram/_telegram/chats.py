@@ -56,7 +56,7 @@ def _read_chat_identity(controller, dialog_id):
 
 
 def read_chat(account, dialog_id, topic_id=0):
-    """Read a chat snapshot from the client cache on the UI thread."""
+
     account = int(account)
     dialog_id = int(dialog_id)
     topic_id = int(topic_id)

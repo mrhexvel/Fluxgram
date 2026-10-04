@@ -1,3 +1,7 @@
+## FluxGram project decisions
+
+- [Модель доверия плагинов FluxGram](docs/decisions/0001-plugin-trust-model.md) — принятое решение о полном доступе, установке и восстановлении.
+
 ## Telegram messenger for Android
 
 [Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.

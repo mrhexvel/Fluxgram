@@ -251,6 +251,7 @@ public class ApplicationLoader extends Application {
 
         PluginManager.getInstance().initialize(applicationContext);
         BuiltInPlugins.register();
+        org.telegram.messenger.plugins.ExternalPlugins.initialize(applicationContext);
 
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
             UserConfig.getInstance(a).loadConfig();

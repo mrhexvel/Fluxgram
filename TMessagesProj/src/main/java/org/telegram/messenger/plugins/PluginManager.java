@@ -12,11 +12,13 @@ public final class PluginManager {
     private static final PluginManager INSTANCE = new PluginManager();
     private final LinkedHashMap<String, Entry> plugins = new LinkedHashMap<>();
     private SharedPreferences preferences;
+    private volatile boolean systemEnabled;
 
     private static final class Entry {
         final String id;
         final Plugin plugin;
         volatile boolean enabled = true;
+        boolean blockedUntilRestart;
 
         Entry(String id, Plugin plugin) {
             this.id = id;
@@ -24,8 +26,7 @@ public final class PluginManager {
         }
     }
 
-    private PluginManager() {
-    }
+    private PluginManager() {}
 
     public static PluginManager getInstance() {
         return INSTANCE;
@@ -36,10 +37,25 @@ public final class PluginManager {
             return;
         }
 
-        preferences = context.getSharedPreferences(
-                "fluxgram_plugins",
-                Context.MODE_PRIVATE
-        );
+        preferences = context.getSharedPreferences("fluxgram_plugins", Context.MODE_PRIVATE);
+        systemEnabled = preferences.getBoolean("system.enabled", false);
+    }
+
+    public boolean isSystemEnabled() {
+        return systemEnabled;
+    }
+
+    public synchronized void setSystemEnabled(boolean enabled) {
+        if (systemEnabled == enabled) {
+            return;
+        }
+
+        systemEnabled = enabled;
+        preferences.edit().putBoolean("system.enabled", enabled).apply();
+
+        for (Entry entry : plugins.values()) {
+            notifyEnabledChanged(entry);
+        }
     }
 
     private static String enabledKey(String id) {
@@ -48,17 +64,17 @@ public final class PluginManager {
 
     private void notifyEnabledChanged(Entry entry) {
         try {
-            entry.plugin.onEnabledChanged(entry.enabled);
+            entry.plugin.onEnabledChanged(systemEnabled && entry.enabled);
         } catch (Exception e) {
-            FileLog.e(
-                    "FluxGram plugin state change failed: " + entry.id,
-                    e
-            );
+            FileLog.e("FluxGram plugin state change failed: " + entry.id, e);
         }
     }
 
-    /** New plugins start enabled. Re-registering the same instance preserves its state. */
     public synchronized void register(Plugin plugin) {
+        register(plugin, false);
+    }
+
+    public synchronized void register(Plugin plugin, boolean enabledByDefault) {
         if (preferences == null) {
             throw new IllegalStateException("PluginManager is not initialized");
         }
@@ -68,30 +84,33 @@ public final class PluginManager {
         }
 
         String id = plugin.getId();
+
         if (id == null || id.trim().isEmpty() || !id.equals(id.trim())) {
-            throw new IllegalArgumentException("plugin ID must be non-empty and have no surrounding whitespace");
+            throw new IllegalArgumentException(
+                    "plugin ID must be non-empty and have no surrounding whitespace");
         }
 
         Entry existing = plugins.get(id);
+
         if (existing != null) {
             if (existing.plugin == plugin) {
                 return;
             }
+
             throw new IllegalArgumentException("Plugin ID already registered: " + id);
         }
 
         Entry entry = new Entry(id, plugin);
-        entry.enabled = preferences.getBoolean(enabledKey(id), true);
+        entry.enabled = preferences.getBoolean(enabledKey(id), enabledByDefault);
         plugins.put(id, entry);
 
         notifyEnabledChanged(entry);
     }
 
-    /** Returns false for an unknown ID. Disabling does not interrupt a running callback. */
     public synchronized boolean setEnabled(String id, boolean enabled) {
         Entry entry = plugins.get(id);
 
-        if (entry == null) {
+        if (entry == null || (enabled && entry.blockedUntilRestart)) {
             return false;
         }
 
@@ -101,17 +120,33 @@ public final class PluginManager {
 
         entry.enabled = enabled;
 
-        preferences.edit()
-                .putBoolean(enabledKey(id), enabled)
-                .apply();
+        preferences.edit().putBoolean(enabledKey(id), enabled).apply();
 
         notifyEnabledChanged(entry);
+
         return true;
     }
 
-    /** Returns false for a disabled or unknown plugin. */
+    public synchronized Plugin getPlugin(String id) {
+        Entry entry = plugins.get(id);
+
+        return entry == null ? null : entry.plugin;
+    }
+
+    public synchronized void blockUntilRestart(String id) {
+        Entry entry = plugins.get(id);
+
+        if (entry == null) {
+            return;
+        }
+
+        entry.blockedUntilRestart = true;
+        setEnabled(id, false);
+    }
+
     public synchronized boolean isEnabled(String id) {
         Entry entry = plugins.get(id);
+
         return entry != null && entry.enabled;
     }
 
@@ -124,6 +159,7 @@ public final class PluginManager {
 
         entry.enabled = false;
         notifyEnabledChanged(entry);
+
         return true;
     }
 
@@ -139,14 +175,16 @@ public final class PluginManager {
 
     public void beforeSend(BeforeSendEvent event) {
         ArrayList<Entry> snapshot;
+
         synchronized (this) {
             snapshot = new ArrayList<>(plugins.values());
         }
-        // Call plugin code outside the registry lock, in registration order.
+
         for (Entry entry : snapshot) {
-            if (!entry.enabled) {
+            if (!systemEnabled || !entry.enabled) {
                 continue;
             }
+
             try {
                 entry.plugin.beforeSend(event);
             } catch (Exception e) {

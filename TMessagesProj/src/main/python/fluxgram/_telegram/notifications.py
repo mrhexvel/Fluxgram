@@ -32,6 +32,7 @@ def _read_override(preferences, dialog_id, topic_id):
         mute_until = int(
             preferences.getInt("notifyuntil_" + key, 0)
         )
+
         return NotificationOverride("until", mute_until)
 
     return NotificationOverride("unknown")

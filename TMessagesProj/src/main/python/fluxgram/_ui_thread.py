@@ -1,4 +1,5 @@
 import traceback
+from threading import Event
 
 from java import dynamic_proxy
 from java.lang import Runnable
@@ -27,3 +28,28 @@ class _UiTask(dynamic_proxy(Runnable)):
 def post_ui(callback):
     if not _handler.post(_UiTask(callback)):
         raise RuntimeError("Could not schedule a UI task")
+
+
+def call_ui(callback):
+    if Looper.myLooper() == Looper.getMainLooper():
+        return callback()
+
+    completed = Event()
+    result = []
+    errors = []
+
+    def run():
+        try:
+            result.append(callback())
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            completed.set()
+
+    post_ui(run)
+    completed.wait()
+
+    if errors:
+        raise errors[0]
+
+    return result[0]

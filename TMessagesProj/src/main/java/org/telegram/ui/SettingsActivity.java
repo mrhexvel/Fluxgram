@@ -620,8 +620,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
 
         items.add(UItem.asCustomShadow(topView, 200 - 12));
-        items.add(SettingCell.FluxGramFactory.of(FLUXGRAM_SETTINGS, R.drawable.settings_features,
-                getString(R.string.FluxGramSettings), null));
+        items.add(SettingCell.Factory.of(FLUXGRAM_SETTINGS, 0, 0, R.mipmap.ic_launcher, getString(R.string.FluxGramSettings), null, null));
         items.add(UItem.asShadow(null));
 
         accountNumbers.clear();
@@ -689,15 +688,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.FluxGramFactory.of(1, R.drawable.settings_account, getString(R.string.SettingsAccount), null));
-        items.add(SettingCell.FluxGramFactory.of(2, R.drawable.settings_chat, getString(R.string.SettingsChat), null));
-        items.add(SettingCell.FluxGramFactory.of(3, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), null));
-        items.add(SettingCell.FluxGramFactory.of(5, R.drawable.settings_sounds, getString(R.string.SettingsNotifications), null));
-        items.add(SettingCell.FluxGramFactory.of(6, R.drawable.settings_data, getString(R.string.SettingsData), null));
-        items.add(SettingCell.FluxGramFactory.of(7, R.drawable.settings_folders, getString(R.string.SettingsFolders), null));
-        items.add(SettingCell.FluxGramFactory.of(8, R.drawable.settings_devices, getString(R.string.SettingsDevices), null));
-        items.add(SettingCell.FluxGramFactory.of(9, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), null));
-        items.add(SettingCell.FluxGramFactory.of(10, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
+        items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), null, null));
+        items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), null, null));
+        items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), null, null));
+        items.add(SettingCell.Factory.of(5, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.settings_sounds, getString(R.string.SettingsNotifications), null, null));
+        items.add(SettingCell.Factory.of(6, IconBackgroundColors.BLUE_DEEP.top, IconBackgroundColors.BLUE_DEEP.bottom, R.drawable.settings_data, getString(R.string.SettingsData), null, null));
+        items.add(SettingCell.Factory.of(7, IconBackgroundColors.BLUE_ALT.top, IconBackgroundColors.BLUE_ALT.bottom, R.drawable.settings_folders, getString(R.string.SettingsFolders), null, null));
+        items.add(SettingCell.Factory.of(8, IconBackgroundColors.CYAN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_devices, getString(R.string.SettingsDevices), null, null));
+        items.add(SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.top, IconBackgroundColors.ORANGE_DEEP.bottom, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), null, null));
+        items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), null, LocaleController.getCurrentLanguageName()));
 
         items.add(UItem.asShadow(null));
 
@@ -1202,19 +1201,6 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
             valueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
             iconBackground.setDrawBorder(resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark());
-            if (fluxGramStyle) {
-                applyFluxGramColors();
-            }
-        }
-
-        private boolean fluxGramStyle;
-
-        private void applyFluxGramColors() {
-            boolean dark = resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark();
-            int accent = dark ? 0xFFB5C4F6 : 0xFFDCE4FF;
-            iconBackground.setColor(accent, accent);
-            iconBackground.setDrawBorder(false);
-            iconView.setColorFilter(new PorterDuffColorFilter(0xFF23365D, PorterDuff.Mode.SRC_IN));
         }
 
         private boolean twoLines;
@@ -1229,6 +1215,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             titleView.setTranslationX(icon == 0 ? dp(2) : 0);
             subtitleView.setTranslationX(icon == 0 ? dp(2) : 0);
 
+            boolean appIcon = icon == R.mipmap.ic_launcher;
+            iconLayout.setBackground(appIcon ? null : iconBackground);
+            iconView.setLayoutParams(LayoutHelper.createFrame(appIcon ? 28 : 24, appIcon ? 28 : 24, Gravity.CENTER));
             iconBackground.setColor(iconColorTop, iconColorBottom);
             iconView.setImageResource(icon);
             titleView.setText(title);
@@ -1297,27 +1286,6 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             @Override
             public int getOpacity() {
                 return PixelFormat.TRANSPARENT;
-            }
-        }
-
-        public static class FluxGramFactory extends Factory {
-            static { setup(new FluxGramFactory()); }
-
-            @Override
-            public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
-                super.bindView(view, item, divider, adapter, listView);
-                SettingCell cell = (SettingCell) view;
-                cell.fluxGramStyle = true;
-                cell.applyFluxGramColors();
-            }
-
-            public static UItem of(int id, int icon, CharSequence title, CharSequence value) {
-                UItem item = UItem.ofFactory(FluxGramFactory.class);
-                item.id = id;
-                item.iconResId = icon;
-                item.text = title;
-                item.textValue = value;
-                return item;
             }
         }
 

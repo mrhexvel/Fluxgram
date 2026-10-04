@@ -4268,6 +4268,13 @@ public class AndroidUtilities {
     }
 
     public static boolean openForView(File f, String fileName, String mimeType, final Activity activity, Theme.ResourcesProvider resourcesProvider, boolean restrict) {
+        if (org.telegram.ui.PluginInstallSheet.isPluginFile(fileName)) {
+            if (!restrict && activity instanceof LaunchActivity) {
+                org.telegram.ui.PluginInstallSheet.openFile(LaunchActivity.getLastFragment(), f);
+            }
+
+            return true;
+        }
         if (f != null && f.exists()) {
             String realMimeType = null;
             Intent intent = new Intent(Intent.ACTION_VIEW);
@@ -4332,6 +4339,10 @@ public class AndroidUtilities {
 
     public static boolean openForView(TLRPC.Document document, boolean forceCache, Activity activity) {
         String fileName = FileLoader.getAttachFileName(document);
+        String documentName = FileLoader.getDocumentFileName(document);
+        if (org.telegram.ui.PluginInstallSheet.isPluginFile(documentName)) {
+            fileName = documentName;
+        }
         File f = FileLoader.getInstance(UserConfig.selectedAccount).getPathToAttach(document, true);
         return openForView(f, fileName, document.mime_type, activity, null, false);
     }
@@ -4433,6 +4444,10 @@ public class AndroidUtilities {
     }
 
     public static boolean openForView(TLObject media, Activity activity) {
+        if (media instanceof TLRPC.Document && org.telegram.ui.PluginInstallSheet.isPluginFile(
+                FileLoader.getDocumentFileName((TLRPC.Document) media))) {
+            return openForView((TLRPC.Document) media, true, activity);
+        }
         if (media == null || activity == null) {
             return false;
         }

@@ -165,12 +165,12 @@ public class CheckBoxSquare extends View {
         rectF.set(bounce, bounce, AndroidUtilities.dp(18) - bounce, AndroidUtilities.dp(18) - bounce);
 
         drawBitmap.eraseColor(0);
-        drawCanvas.drawRoundRect(rectF, AndroidUtilities.dp(4), AndroidUtilities.dp(4), Theme.checkboxSquare_backgroundPaint);
+        drawCanvas.drawCircle(rectF.centerX(), rectF.centerY(), Math.max(0, rectF.width() / 2f), Theme.checkboxSquare_backgroundPaint);
 
         if (checkProgress != 1) {
             float rad = Math.min(AndroidUtilities.dp(7), AndroidUtilities.dp(7) * checkProgress + bounce);
             rectF.set(AndroidUtilities.dp(1.33f) + rad, AndroidUtilities.dp(1.33f) + rad, AndroidUtilities.dp(16.66f) - rad, AndroidUtilities.dp(16.66f) - rad);
-            drawCanvas.drawRoundRect(rectF, AndroidUtilities.dp(3), AndroidUtilities.dp(3), Theme.checkboxSquare_eraserPaint);
+            drawCanvas.drawCircle(rectF.centerX(), rectF.centerY(), Math.max(0, rectF.width() / 2f), Theme.checkboxSquare_eraserPaint);
         }
 
         if (progress > 0.5f) {
