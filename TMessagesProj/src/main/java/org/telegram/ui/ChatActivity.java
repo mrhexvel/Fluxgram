@@ -33308,10 +33308,17 @@ public class ChatActivity extends BaseFragment implements
         MediaController.saveFile(path, getParentActivity(), messageObject.isVideo() ? 1 : 0, null, null);
     }
 
+    private static final int OPTION_FLUXGRAM_EDIT_HISTORY = 10001;
+
     private void processSelectedOption(int option) {
         if (selectedObject == null || getParentActivity() == null) {
             return;
         }
+        if (option == OPTION_FLUXGRAM_EDIT_HISTORY) {
+            presentFragment(new EditHistoryActivity(currentAccount, selectedObject));
+            return;
+        }
+
         boolean preserveDim = false;
         switch (option) {
             case OPTION_RETRY: {
@@ -45690,6 +45697,14 @@ public class ChatActivity extends BaseFragment implements
         final int type = getMessageType(message);
         final boolean isEphemeral = message.isEphemeral();
         final boolean isEphemeralFromBot = isEphemeral && !message.isOut();
+
+        if (chatMode == MODE_DEFAULT && currentEncryptedChat == null && !isEphemeral
+                && message.getId() > 0 && message.messageOwner.edit_date > 0) {
+            items.add(LocaleController.getString(R.string.FluxGramEditHistory));
+            options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
+            icons.add(R.drawable.msg_recent);
+        }
+
 
 
         boolean allowChatActions = true;

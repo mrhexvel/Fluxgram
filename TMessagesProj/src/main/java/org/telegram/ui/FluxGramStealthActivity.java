@@ -27,6 +27,8 @@ public final class FluxGramStealthActivity extends BaseFragment {
 
     @Override
     public View createView(Context context) {
+        checked[1] = org.telegram.messenger.fluxgram.EditHistory.isEnabled(currentAccount);
+        checked[2] = org.telegram.messenger.fluxgram.EditHistory.includesBots(currentAccount);
         actionBar.setTitle(text(R.string.FluxGramStealth));
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
@@ -116,6 +118,12 @@ public final class FluxGramStealthActivity extends BaseFragment {
         cell.setOnClickListener(view -> {
             checked[index] = !checked[index];
             cell.setChecked(checked[index]);
+
+            if (index == 1) {
+                org.telegram.messenger.fluxgram.EditHistory.setEnabled(currentAccount, checked[index]);
+            } else if (index == 2) {
+                org.telegram.messenger.fluxgram.EditHistory.setIncludesBots(currentAccount, checked[index]);
+            }
         });
         items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
     }

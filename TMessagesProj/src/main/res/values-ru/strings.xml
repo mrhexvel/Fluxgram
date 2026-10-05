@@ -312,7 +312,7 @@
     <string name="FluxGramPluginSettingsUnavailable">Плагин больше недоступен.</string>
     <string name="FluxGramStealth">Скрытность</string>
     <string name="FluxGramStealthDescription">История сообщений и локальное хранение</string>
-    <string name="FluxGramStealthPreview">Предпросмотр настроек. Функции пока не работают, изменения не сохраняются.</string>
+    <string name="FluxGramStealthPreview">История изменений работает для текста и подписей. Сохранение в чатах с ботами включается отдельно. Остальные функции — предпросмотр.</string>
     <string name="FluxGramStealthHistory">История переписки</string>
     <string name="FluxGramStealthDeleted">Сохранять удалённые сообщения</string>
     <string name="FluxGramStealthEdits">Сохранять историю изменений</string>
@@ -335,4 +335,12 @@
     <string name="FluxGramStealthLimit2Gb">2 ГБ</string>
     <string name="FluxGramStealthLimit5Gb">5 ГБ</string>
     <string name="FluxGramStealthLimit16Gb">16 ГБ</string>
+    <string name="FluxGramEditHistory">История изменений</string>
+    <string name="FluxGramEditHistoryEmpty">Сохранённых версий нет. История записывается только при включённой настройке, если предыдущая версия доступна на устройстве.</string>
+    <string name="FluxGramEditHistoryError">Не удалось прочитать историю изменений.</string>
+    <string name="FluxGramEditHistoryLocal">Предыдущие версии на этом устройстве, от новых к старым. Показаны до 100 последних версий; пропущенные изменения восстановить нельзя.</string>
+    <string name="FluxGramEditHistoryNoText">Без текста</string>
+    <string name="FluxGramEditHistoryChatInfo">Сохранённые версии на этом устройстве</string>
+    <string name="FluxGramEditHistoryCurrent">Текущая версия</string>
+    <string name="FluxGramEditHistoryVersion">Версия %1$d</string>
 </resources>

@@ -11284,7 +11284,7 @@
     <string name="FluxGramPluginSettingsUnavailable">Plugin is no longer available.</string>
     <string name="FluxGramStealth">Stealth</string>
     <string name="FluxGramStealthDescription">Message history and local storage</string>
-    <string name="FluxGramStealthPreview">Settings preview. Features are not active yet; changes are not saved.</string>
+    <string name="FluxGramStealthPreview">Edit history works for text and captions. Bot chat history is enabled separately. Other features are previews.</string>
     <string name="FluxGramStealthHistory">Conversation history</string>
     <string name="FluxGramStealthDeleted">Keep deleted messages</string>
     <string name="FluxGramStealthEdits">Keep edit history</string>
@@ -11307,4 +11307,12 @@
     <string name="FluxGramStealthLimit2Gb">2 GB</string>
     <string name="FluxGramStealthLimit5Gb">5 GB</string>
     <string name="FluxGramStealthLimit16Gb">16 GB</string>
+    <string name="FluxGramEditHistory">Edit history</string>
+    <string name="FluxGramEditHistoryEmpty">No saved versions. History is recorded only while enabled and when the previous version is available on this device.</string>
+    <string name="FluxGramEditHistoryError">Could not load edit history.</string>
+    <string name="FluxGramEditHistoryLocal">Previous versions on this device, newest first. Up to 100 latest versions are shown; missed edits cannot be recovered.</string>
+    <string name="FluxGramEditHistoryNoText">No text</string>
+    <string name="FluxGramEditHistoryChatInfo">Versions saved on this device</string>
+    <string name="FluxGramEditHistoryCurrent">Current version</string>
+    <string name="FluxGramEditHistoryVersion">Version %1$d</string>
 </resources>
