@@ -26,6 +26,23 @@ class EditHistoryTest(unittest.TestCase):
                 "java", "-cp", directory, "EditHistoryPolicyCheck",
             ], check=True, capture_output=True)
 
+    def test_media_replacement_detection(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        source = (SOURCE / "EditHistory.java").read_text()
+        start = source.index("    private static void writeMediaIdentity(")
+        end = source.index("    private static void restoreBeforePendingEdit", start)
+        method = source[start:end]
+        fixture = (ROOT / "tests/java/EditHistoryMediaCheck.java.in").read_text()
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "EditHistoryMediaCheck.java"
+            path.write_text(fixture.replace("MEDIA_IDENTITY_METHOD", method))
+            subprocess.run(["javac", "-d", directory, str(path)], check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory, "EditHistoryMediaCheck"],
+                           check=True, capture_output=True)
+
     def test_history_is_persistent_deduplicated_and_scoped(self):
         source = (SOURCE / "EditHistory.java").read_text()
         schema = re.search(r'db.execSQL\("(CREATE TABLE.*?)"\);', source)[1]

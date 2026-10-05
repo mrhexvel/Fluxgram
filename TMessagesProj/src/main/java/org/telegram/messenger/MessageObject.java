@@ -10046,6 +10046,10 @@ public class MessageObject {
     }
 
     public boolean canStreamVideo() {
+        if (messageOwner != null && messageOwner.fluxgramDeleted) {
+            return false;
+        }
+
         if (hasVideoQualities()) return true;
         TLRPC.Document document = getDocument();
         if (document == null || document instanceof TLRPC.TL_documentEncrypted) {
@@ -10134,11 +10138,13 @@ public class MessageObject {
     }
 
     public boolean canSetReaction() {
-        if (isEphemeral()) {
+        if (messageOwner.fluxgramDeleted || isEphemeral()) {
             return false;
         }
-        if (messageOwner instanceof TLRPC.TL_messageService)
+        if (messageOwner instanceof TLRPC.TL_messageService) {
             return messageOwner.reactions_are_possible;
+        }
+
         return true;
     }
 
@@ -11590,6 +11596,10 @@ public class MessageObject {
         return messageOwner.replies != null ? messageOwner.replies.replies : 0;
     }
 
+    public boolean isDeletedFromChat() {
+        return deleted && !messageOwner.fluxgramDeleted;
+    }
+
     public boolean canEditMessage(TLRPC.Chat chat) {
         return !isEphemeralAndNotWelcome() && canEditMessage(currentAccount, messageOwner, chat, scheduled);
     }
@@ -11662,6 +11672,10 @@ public class MessageObject {
     }
 
     public static boolean canEditMessage(int currentAccount, TLRPC.Message message, TLRPC.Chat chat, boolean scheduled) {
+        if (message != null && message.fluxgramDeleted) {
+            return false;
+        }
+
         if (scheduled && message.date < ConnectionsManager.getInstance(currentAccount).getCurrentTime() - 60) {
             return false;
         }
@@ -11922,6 +11936,19 @@ public class MessageObject {
         File cacheFile = null;
         attachPathExists = false;
         mediaExists = false;
+
+        if (messageOwner.fluxgramDeleted
+                && org.telegram.messenger.fluxgram.SavedAttachments.get(currentAccount).apply(messageOwner)) {
+            if (!TextUtils.isEmpty(messageOwner.attachPath)) {
+                attachPathExists = new File(messageOwner.attachPath).isFile();
+
+                if (attachPathExists) {
+                    mediaExists = true;
+                    return;
+                }
+            }
+        }
+
         if (type == TYPE_EXTENDED_MEDIA_PREVIEW) {
             TLRPC.TL_messageExtendedMediaPreview preview = (TLRPC.TL_messageExtendedMediaPreview) messageOwner.media.extended_media.get(0);
             if (preview.thumb != null) {
@@ -13082,6 +13109,10 @@ public class MessageObject {
     }
 
     public boolean hasVideoQualities(boolean useFileDatabaseQueue) {
+        if (messageOwner != null && messageOwner.fluxgramDeleted) {
+            return false;
+        }
+
         if (videoQualitiesCached == null) {
             try {
                 if (messageOwner == null || messageOwner.media == null || messageOwner.media.document == null || messageOwner.media.alt_documents.isEmpty()) {

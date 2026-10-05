@@ -1,12 +1,14 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.view.View;
 import android.widget.FrameLayout;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.SavedAttachments;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -20,13 +22,18 @@ import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 public final class FluxGramStealthActivity extends BaseFragment {
     private final boolean[] checked = new boolean[5];
-    private int storageLimit = 2;
+    private int storageLimit;
+    private UniversalRecyclerView list;
 
     @Override
     public View createView(Context context) {
+        checked[4] = SavedAttachments.get(currentAccount).isEnabled();
+        storageLimit = SavedAttachments.get(currentAccount).totalLimitIndex();
+        checked[0] = org.telegram.messenger.fluxgram.EditHistory.keepsDeleted(currentAccount);
         checked[1] = org.telegram.messenger.fluxgram.EditHistory.isEnabled(currentAccount);
         checked[2] = org.telegram.messenger.fluxgram.EditHistory.includesBots(currentAccount);
         actionBar.setTitle(text(R.string.FluxGramStealth));
@@ -44,7 +51,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
         content.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
         fragmentView = content;
 
-        UniversalRecyclerView list = new UniversalRecyclerView(
+        list = new UniversalRecyclerView(
                 this, (items, adapter) -> fillItems(items), null, null
         );
         list.setItemAnimator(null);
@@ -75,21 +82,67 @@ public final class FluxGramStealthActivity extends BaseFragment {
         addSwitch(items, 4, R.string.FluxGramStealthSaveAttachments,
                 R.string.FluxGramStealthAttachmentOptions, true);
 
-        TextSettingsCell folder = new TextSettingsCell(getParentActivity(), getResourceProvider());
-        folder.setTextAndValue(text(R.string.FluxGramStealthFolder), "Saved Attachments", false);
-        folder.setBackground(Theme.getSelectorDrawable(false));
-        folder.setOnClickListener(view -> showPlaceholder());
-        items.add(UItem.asCustom(folder, LayoutHelper.WRAP_CONTENT));
-        items.add(UItem.asShadow(null));
+        SavedAttachments archive = SavedAttachments.get(currentAccount);
+        TextSettingsCell chats = new TextSettingsCell(getParentActivity(), getResourceProvider());
+        chats.setTextAndValue(text(R.string.FluxGramAttachmentChats), archive.allChats()
+                ? text(R.string.FluxGramAttachmentAllChats)
+                : LocaleController.formatString(R.string.FluxGramAttachmentSelectedChats, archive.selectedChats().size()), true);
+        chats.setBackground(Theme.getSelectorDrawable(false));
+        chats.setOnClickListener(view -> showChatSelection());
+        items.add(UItem.asCustom(chats, LayoutHelper.WRAP_CONTENT));
+
+        TextSettingsCell fileLimit = new TextSettingsCell(getParentActivity(), getResourceProvider());
+        String[] limits = {"10 MB", "50 MB", "100 MB", "500 MB"};
+        fileLimit.setTextAndValue(text(R.string.FluxGramAttachmentFileLimit), limits[archive.fileLimitIndex()], false);
+        fileLimit.setBackground(Theme.getSelectorDrawable(false));
+        fileLimit.setOnClickListener(view -> showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(text(R.string.FluxGramAttachmentFileLimit))
+                .setItems(limits, (dialog, which) -> {
+                    archive.setFileLimit(which);
+                    list.adapter.update(false);
+                })
+                .create()));
+        items.add(UItem.asCustom(fileLimit, LayoutHelper.WRAP_CONTENT));
+        items.add(UItem.asShadow(text(R.string.FluxGramAttachmentInfo)));
+
+        if (archive.failureCount() > 0) {
+            items.add(UItem.asShadow(LocaleController.formatString(R.string.FluxGramAttachmentFailures, archive.failureCount())));
+        }
 
         addHeader(items, R.string.FluxGramStealthStorageLimit);
         SlideChooseView slider = new SlideChooseView(getParentActivity(), getResourceProvider());
         slider.setOptions(storageLimit, text(R.string.FluxGramStealthLimit300Mb),
                 text(R.string.FluxGramStealthLimit1Gb), text(R.string.FluxGramStealthLimit2Gb),
                 text(R.string.FluxGramStealthLimit5Gb), text(R.string.FluxGramStealthLimit16Gb), "∞");
-        slider.setCallback(index -> storageLimit = index);
+        slider.setCallback(index -> {
+            storageLimit = index;
+            archive.setTotalLimit(index);
+        });
         items.add(UItem.asCustom(slider, LayoutHelper.WRAP_CONTENT));
         items.add(UItem.asShadow(text(R.string.FluxGramStealthStorageInfo)));
+
+        TextSettingsCell clear = new TextSettingsCell(getParentActivity(), getResourceProvider());
+        clear.setTextAndIcon(text(R.string.FluxGramAttachmentClear), R.drawable.msg_clearcache, false);
+        clear.setBackground(Theme.getSelectorDrawable(false));
+        clear.setOnClickListener(view -> showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(text(R.string.FluxGramAttachmentClear))
+                .setMessage(text(R.string.FluxGramAttachmentClearInfo))
+                .setNegativeButton(text(R.string.Cancel), null)
+                .setPositiveButton(text(R.string.Delete), (dialog, which) -> archive.clearFiles(success -> {
+                    if (!isFinished && list != null && getParentActivity() != null) {
+                        list.adapter.update(false);
+
+                        if (!success) {
+                            showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                                    .setMessage(text(R.string.ErrorOccurred))
+                                    .setPositiveButton(text(R.string.OK), null)
+                                    .create());
+                        }
+                    }
+                }))
+                .create()));
+        items.add(UItem.asCustom(clear, LayoutHelper.WRAP_CONTENT));
+        items.add(UItem.asShadow(null));
 
         addHeader(items, R.string.FluxGramStealthData);
         addAction(items, R.string.FluxGramStealthExport, R.drawable.msg_share, true);
@@ -119,13 +172,56 @@ public final class FluxGramStealthActivity extends BaseFragment {
             checked[index] = !checked[index];
             cell.setChecked(checked[index]);
 
-            if (index == 1) {
+            if (index == 0) {
+                org.telegram.messenger.fluxgram.EditHistory.setKeepsDeleted(currentAccount, checked[index]);
+            } else if (index == 1) {
                 org.telegram.messenger.fluxgram.EditHistory.setEnabled(currentAccount, checked[index]);
             } else if (index == 2) {
                 org.telegram.messenger.fluxgram.EditHistory.setIncludesBots(currentAccount, checked[index]);
+            } else if (index == 4) {
+                SavedAttachments.get(currentAccount).setEnabled(checked[index]);
             }
         });
         items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private void showChatSelection() {
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(text(R.string.FluxGramAttachmentChats))
+                .setItems(new CharSequence[] {
+                        text(R.string.FluxGramAttachmentAllChats), text(R.string.SelectChats)
+                }, (dialog, which) -> {
+                    if (which == 0) {
+                        SavedAttachments.get(currentAccount).setChats(null);
+                        list.adapter.update(false);
+                        return;
+                    }
+
+                    Bundle args = new Bundle();
+                    args.putBoolean("onlySelect", true);
+                    args.putBoolean("checkCanWrite", false);
+                    args.putBoolean("allowGlobalSearch", false);
+                    args.putBoolean("allowSwitchAccount", false);
+                    args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_WIDGET);
+                    DialogsActivity picker = new DialogsActivity(args);
+                    picker.setCurrentAccount(currentAccount);
+                    picker.setDelegate((fragment, dialogs, message, param, notify, date, repeat, topics) -> {
+                        HashSet<String> selected = new HashSet<>();
+
+                        for (org.telegram.messenger.MessagesStorage.TopicKey key : dialogs) {
+                            if (!org.telegram.messenger.DialogObject.isEncryptedDialog(key.dialogId)) {
+                                selected.add(Long.toString(key.dialogId));
+                            }
+                        }
+
+                        SavedAttachments.get(currentAccount).setChats(selected);
+                        fragment.finishFragment();
+                        list.adapter.update(false);
+                        return true;
+                    });
+                    presentFragment(picker);
+                })
+                .create());
     }
 
     private void addAction(ArrayList<UItem> items, int title, int icon, boolean divider) {

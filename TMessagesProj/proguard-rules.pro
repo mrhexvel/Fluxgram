@@ -54,3 +54,27 @@
 # Use -keep to explicitly keep any other classes shrinking would remove
 #-dontoptimize
 #-dontobfuscate
+
+-keep class org.telegram.messenger.plugins.** { *; }
+-keep class org.telegram.ui.ChatActivity { *; }
+-keep class org.telegram.ui.ChatActivity$* { *; }
+-keep class org.telegram.ui.LaunchActivity { *; }
+-keep class org.telegram.ui.LaunchActivity$* { *; }
+-keep class org.telegram.ui.ActionBar.BaseFragment { *; }
+-keep class org.telegram.ui.ActionBar.BaseFragment$* { *; }
+-keep class org.telegram.ui.ActionBar.Theme { *; }
+-keep class org.telegram.ui.ActionBar.Theme$* { *; }
+-keep class org.telegram.ui.Components.AvatarDrawable { *; }
+-keep class org.telegram.ui.Components.AvatarDrawable$* { *; }
+-keep class org.telegram.ui.Components.BackupImageView { *; }
+-keep class org.telegram.ui.Components.BackupImageView$* { *; }
+-keep class org.telegram.ui.Components.Bulletin { *; }
+-keep class org.telegram.ui.Components.Bulletin$* { *; }
+-keep class org.telegram.ui.Components.BulletinFactory { *; }
+-keep class org.telegram.ui.Components.BulletinFactory$* { *; }
+-keep class org.telegram.ui.Components.LayoutHelper { *; }
+-keep class org.telegram.ui.Components.LayoutHelper$* { *; }
+-keep class org.telegram.ui.Components.NotificationBlurBackground { *; }
+-keep class org.telegram.ui.Components.NotificationBlurBackground$* { *; }
+-keep class org.telegram.ui.Components.LinkSpanDrawable$LinksTextView { *; }
+-keep class org.telegram.ui.Components.LinkSpanDrawable$LinksTextView$* { *; }

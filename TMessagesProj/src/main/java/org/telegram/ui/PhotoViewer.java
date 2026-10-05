@@ -16813,6 +16813,15 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     imageReceiver.setImageBitmap(parentActivity.getResources().getDrawable(R.drawable.photoview_placeholder));
                     return;
                 } else if (messageObject.isVideo()) {
+                    if (messageObject.messageOwner.fluxgramDeleted && messageObject.attachPathExists) {
+                        int size = Math.max(1, (int) (1280 / AndroidUtilities.density));
+                        imageReceiver.setNeedsQualityThumb(false);
+                        imageReceiver.setImage(ImageLocation.getForVideoPath(messageObject.messageOwner.attachPath),
+                                String.format(Locale.US, "%d_%d_firstframe", size, size), null, null,
+                                null, messageObject.getDocument().size, null, messageObject, 0);
+                        return;
+                    }
+
                     if (messageObject.photoThumbs != null && !messageObject.photoThumbs.isEmpty()) {
                         ImageReceiver.BitmapHolder placeHolder = null;
                         if (currentThumb != null && imageReceiver == centerImage) {
@@ -16863,6 +16872,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
             long[] size = new long[1];
             ImageLocation imageLocation = getImageLocation(index, size);
+
+            if (messageObject != null && messageObject.messageOwner.fluxgramDeleted && messageObject.attachPathExists) {
+                imageLocation = ImageLocation.getForPath(messageObject.messageOwner.attachPath);
+            }
+
             TLObject fileLocation = getFileLocation(index, size);
             imageReceiver.setNeedsQualityThumb(true);
 

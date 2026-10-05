@@ -11284,7 +11284,7 @@
     <string name="FluxGramPluginSettingsUnavailable">Plugin is no longer available.</string>
     <string name="FluxGramStealth">Stealth</string>
     <string name="FluxGramStealthDescription">Message history and local storage</string>
-    <string name="FluxGramStealthPreview">Edit history works for text and captions. Bot chat history is enabled separately. Other features are previews.</string>
+    <string name="FluxGramStealthPreview">Deleted messages, edit history and attachments are enabled separately. Read timestamps, export and import are not available yet.</string>
     <string name="FluxGramStealthHistory">Conversation history</string>
     <string name="FluxGramStealthDeleted">Keep deleted messages</string>
     <string name="FluxGramStealthEdits">Keep edit history</string>
@@ -11315,4 +11315,14 @@
     <string name="FluxGramEditHistoryChatInfo">Versions saved on this device</string>
     <string name="FluxGramEditHistoryCurrent">Current version</string>
     <string name="FluxGramEditHistoryVersion">Version %1$d</string>
+    <string name="FluxGramDeletedMark">deleted</string>
+    <string name="FluxGramDeleteLocalMessage">Delete the saved copy of this message from this device?</string>
+    <string name="FluxGramAttachmentChats">Chats to save attachments from</string>
+    <string name="FluxGramAttachmentAllChats">All chats</string>
+    <string name="FluxGramAttachmentSelectedChats">Selected: %1$d</string>
+    <string name="FluxGramAttachmentFileLimit">Maximum file size</string>
+    <string name="FluxGramAttachmentInfo">Fully downloaded photos, videos, video messages, voice messages and documents are saved when a message is deleted, if deleted message retention is enabled. Copies are stored privately outside the cache. Self-destructing files, music, GIFs and stickers are not saved.</string>
+    <string name="FluxGramAttachmentClear">Delete saved attachments</string>
+    <string name="FluxGramAttachmentClearInfo">Delete all saved attachments? Message text and edit history will remain.</string>
+    <string name="FluxGramAttachmentFailures">Attachments not saved: %1$d. Possible causes: insufficient space, a read error or a full queue.</string>
 </resources>

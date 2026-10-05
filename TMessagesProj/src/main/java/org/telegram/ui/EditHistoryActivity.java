@@ -1,6 +1,7 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -9,6 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
@@ -124,11 +126,22 @@ public final class EditHistoryActivity extends BaseFragment {
         display.dialog_id = source.getDialogId();
         display.out = source.isOutOwner();
         display.date = version.edit_date == 0 ? version.date : version.edit_date;
-        display.message = version.message == null || version.message.isEmpty()
-                ? LocaleController.getString(R.string.FluxGramEditHistoryNoText) : version.message;
+        boolean hasMedia = version.media != null && !(version.media instanceof TLRPC.TL_messageMediaEmpty);
+        display.message = version.message == null ? "" : version.message;
+
+        if (!hasMedia && display.message.isEmpty()) {
+            display.message = LocaleController.getString(R.string.FluxGramEditHistoryNoText);
+        }
+
         display.entities = new ArrayList<>(version.entities);
-        display.media = new TLRPC.TL_messageMediaEmpty();
+        display.media = hasMedia ? version.media : new TLRPC.TL_messageMediaEmpty();
+        display.attachPath = version.attachPath;
+        display.noforwards = true;
         display.flags = 256;
+
+        if (hasMedia) {
+            display.flags |= 512;
+        }
 
         if (!display.entities.isEmpty()) {
             display.flags |= 128;
@@ -160,7 +173,24 @@ public final class EditHistoryActivity extends BaseFragment {
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             Context context = parent.getContext();
-            LinearLayout row = new LinearLayout(context);
+            LinearLayout row = new LinearLayout(context) {
+                @Override
+                protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+                    boolean drawn = super.drawChild(canvas, child, drawingTime);
+
+                    if (child instanceof ChatMessageCell) {
+                        ChatMessageCell cell = (ChatMessageCell) child;
+                        ImageReceiver avatar = cell.getAvatarImage();
+
+                        if (avatar != null) {
+                            avatar.setImageY(cell.getBottom() - AndroidUtilities.dp(44));
+                            avatar.draw(canvas);
+                        }
+                    }
+
+                    return drawn;
+                }
+            };
             row.setOrientation(LinearLayout.VERTICAL);
             row.setLayoutParams(new RecyclerView.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT

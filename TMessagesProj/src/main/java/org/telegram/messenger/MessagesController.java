@@ -9326,6 +9326,11 @@ public class MessagesController extends BaseController implements NotificationCe
         ArrayList<Integer> toSend = null;
         long channelId;
         if (taskId == 0) {
+            if (mode == ChatActivity.MODE_DEFAULT) {
+                ArrayList<Integer> localIds = new ArrayList<>(messages);
+                getMessagesStorage().getStorageQueue().postRunnable(() ->
+                        getMessagesStorage().getDeletedArchive().remove(dialogId, localIds));
+            }
             if (dialogId != 0 && DialogObject.isChatDialog(dialogId)) {
                 TLRPC.Chat chat = getChat(-dialogId);
                 channelId = ChatObject.isChannel(chat) ? chat.id : 0;
@@ -12101,7 +12106,7 @@ public class MessagesController extends BaseController implements NotificationCe
             final MessageObject messageObject = new MessageObject(currentAccount, message, usersDict, chatsDict, true, false, mode == ChatActivity.MODE_SAVED);
             messageObject.scheduled = mode == 1;
             objects.add(messageObject);
-            if (isCache) {
+            if (isCache && !message.fluxgramDeleted) {
                 if (message.legacy && message.layer < TLRPC.LAYER) {
                     messagesToReload.add(message.id);
                 } else if (MessageObject.getMedia(message) instanceof TLRPC.TL_messageMediaUnsupported) {
@@ -14394,7 +14399,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void markMessageContentAsRead(MessageObject messageObject) {
-        if (messageObject.scheduled) {
+        if (messageObject.scheduled || messageObject.messageOwner.fluxgramDeleted) {
             return;
         }
         ArrayList<Integer> arrayList = new ArrayList<>();
@@ -17597,8 +17602,9 @@ public class MessagesController extends BaseController implements NotificationCe
 
     protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> ids, long channelId) {
         getMessagesStorage().getStorageQueue().postRunnable(() -> {
+            HashMap<Long, HashSet<Integer>> saved = getMessagesStorage().getDeletedArchive().capture(dialogId, ids);
             AndroidUtilities.runOnUIThread(() -> {
-                getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, channelId, false);
+                getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, channelId, false, false, false, 0, null, saved);
                 if (channelId == 0) {
                     for (int b = 0, size2 = ids.size(); b < size2; b++) {
                         Integer id = ids.get(b);
@@ -21001,6 +21007,19 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;
         SparseIntArray markAsReadEncryptedFinal = markAsReadEncrypted;
         LongSparseArray<ArrayList<Integer>> deletedMessagesFinal = deletedMessages;
+        HashMap<Long, HashSet<Integer>> archivedDeletedMessages = new HashMap<>();
+        if (deletedMessagesFinal != null) {
+            getMessagesStorage().getStorageQueue().postRunnable(() -> {
+                for (int i = 0; i < deletedMessagesFinal.size(); i++) {
+                    HashMap<Long, HashSet<Integer>> saved = getMessagesStorage().getDeletedArchive()
+                            .capture(deletedMessagesFinal.keyAt(i), deletedMessagesFinal.valueAt(i));
+                    for (Map.Entry<Long, HashSet<Integer>> entry : saved.entrySet()) {
+                        archivedDeletedMessages.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).addAll(entry.getValue());
+                    }
+                }
+            });
+        }
+
         LongSparseArray<ArrayList<Integer>> deletedQuickRepliesMessagesFinal = deletedQuickReplyMessages;
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesFinal = scheduledDeletedMessages;
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesSentFinal = scheduledDeletedMessagesSent;
@@ -21094,7 +21113,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     if (arrayList == null) {
                         continue;
                     }
-                    getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false);
+                    getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false, false, false, 0, null, archivedDeletedMessages);
                     if (dialogId == 0) {
                         for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
                             Integer id = arrayList.get(b);

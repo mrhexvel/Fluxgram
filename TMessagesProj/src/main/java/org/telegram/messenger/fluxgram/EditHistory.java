@@ -46,6 +46,52 @@ public final class EditHistory {
         preferences(account).edit().putBoolean("bots", enabled).apply();
     }
 
+    public static boolean keepsDeleted(int account) {
+        return preferences(account).getBoolean("deleted", false);
+    }
+
+    public static void setKeepsDeleted(int account, boolean enabled) {
+        preferences(account).edit().putBoolean("deleted", enabled).apply();
+    }
+
+    public static void removeMessages(int account, long dialog, java.util.List<Integer> ids) {
+        if (!databaseFile(account).exists() || ids.isEmpty()) {
+            return;
+        }
+
+        String placeholders = android.text.TextUtils.join(",", java.util.Collections.nCopies(ids.size(), "?"));
+        ArrayList<String> args = new ArrayList<>();
+
+        for (int id : ids) {
+            args.add(Integer.toString(id));
+        }
+
+        String where = "message IN(" + placeholders + ")";
+
+        if (dialog != 0) {
+            where += " AND dialog = ?";
+            args.add(Long.toString(dialog));
+        }
+
+        try (SQLiteDatabase db = open(account)) {
+            db.delete("edit_versions", where, args.toArray(new String[0]));
+        } catch (Exception error) {
+            FileLog.e(error);
+        }
+    }
+
+    public static void removeDialog(int account, long dialog) {
+        if (!databaseFile(account).exists()) {
+            return;
+        }
+
+        try (SQLiteDatabase db = open(account)) {
+            db.delete("edit_versions", "dialog = ?", new String[] {Long.toString(dialog)});
+        } catch (Exception error) {
+            FileLog.e(error);
+        }
+    }
+
     private static File databaseFile(int account) {
         return new File(ApplicationLoader.applicationContext.getFilesDir(),
                 "fluxgram_history_" + account + ".db");
@@ -69,9 +115,28 @@ public final class EditHistory {
                 entity.serializeToStream(data);
             }
 
+            writeMediaIdentity(data, message.media);
+
             return data.toByteArray();
         } finally {
             data.cleanup();
+        }
+    }
+
+    private static void writeMediaIdentity(SerializedData data, TLRPC.MessageMedia media) {
+        if (media == null || media instanceof TLRPC.TL_messageMediaEmpty) {
+            data.writeInt32(0);
+        } else if (media instanceof TLRPC.TL_messageMediaPhoto) {
+            data.writeInt32(1);
+            data.writeInt64(media.photo == null ? 0 : media.photo.id);
+            data.writeBool(media.spoiler);
+        } else if (media instanceof TLRPC.TL_messageMediaDocument) {
+            data.writeInt32(2);
+            data.writeInt64(media.document == null ? 0 : media.document.id);
+            data.writeBool(media.spoiler);
+        } else {
+            data.writeInt32(3);
+            data.writeString(media.getClass().getName());
         }
     }
 
@@ -123,6 +188,14 @@ public final class EditHistory {
                 fingerprint.append(Character.forDigit(value & 15, 16));
             }
 
+            if (previous.media != null && !(previous.media instanceof TLRPC.TL_messageMediaEmpty)) {
+                previous.flags |= 512;
+            } else {
+                previous.flags &= ~512;
+            }
+
+            previous.flags = previous.entities.isEmpty() ? previous.flags & ~128 : previous.flags | 128;
+
             SerializedData data = new SerializedData();
             byte[] snapshot;
 
@@ -149,6 +222,35 @@ public final class EditHistory {
         }
     }
 
+    public static void hasVersions(int account, long dialog, int message, java.util.function.Consumer<Boolean> callback) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+
+        MessagesStorage.getInstance(account).getStorageQueue().postRunnable(() -> {
+            boolean exists = false;
+
+            try {
+                if (databaseFile(account).exists()) {
+                    try (SQLiteDatabase db = open(account);
+                            Cursor cursor = db.rawQuery(
+                                    "SELECT 1 FROM edit_versions WHERE owner = ? AND dialog = ? AND message = ? LIMIT 1",
+                                    new String[] {Long.toString(owner), Long.toString(dialog), Integer.toString(message)})) {
+                        exists = cursor.moveToFirst();
+                    }
+                }
+            } catch (Exception error) {
+                FileLog.e(error);
+            }
+
+            boolean hasVersions = exists;
+
+            AndroidUtilities.runOnUIThread(() -> {
+                if (owner == UserConfig.getInstance(account).getClientUserId()) {
+                    callback.accept(hasVersions);
+                }
+            });
+        });
+    }
+
     public static void load(int account, long dialog, int message, Callback callback) {
         long owner = UserConfig.getInstance(account).getClientUserId();
         MessagesStorage.getInstance(account).getStorageQueue().postRunnable(() -> {
@@ -166,6 +268,7 @@ public final class EditHistory {
 
                             try {
                                 TLRPC.Message version = TLRPC.Message.TLdeserialize(data, data.readInt32(true), true);
+                                version.readAttachPath(data, owner);
                                 version.dialog_id = dialog;
                                 result.add(version);
                             } finally {
@@ -189,6 +292,7 @@ public final class EditHistory {
     }
 
     public static void clearAccount(int account) {
+        SavedAttachments.clearAccount(account);
         preferences(account).edit().clear().apply();
         SQLiteDatabase.deleteDatabase(databaseFile(account));
     }

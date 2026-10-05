@@ -2923,6 +2923,7 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.didLoadSendAsPeers)
             .add(NotificationCenter.closeChatActivity)
             .add(NotificationCenter.messagesDeleted)
+            .add(NotificationCenter.fluxgramAttachmentsChanged)
             .add(NotificationCenter.historyCleared)
             .add(NotificationCenter.messageReceivedByServer)
             .add(NotificationCenter.messageReceivedByAck)
@@ -5838,7 +5839,7 @@ public class ChatActivity extends BaseFragment implements
                             if (group == null || (k == 0 && group.messages.size() == 1) || (k == 1 && !group.transitionParams.drawBackgroundForDeletedItems)) {
                                 continue;
                             }
-                            if ((k == 0 && cell.getMessageObject().deleted) || (k == 1 && !cell.getMessageObject().deleted)) {
+                            if ((k == 0 && cell.getMessageObject().isDeletedFromChat()) || (k == 1 && !cell.getMessageObject().isDeletedFromChat())) {
                                 continue;
                             }
                             if ((k == 2 && !cell.willRemovedAfterAnimation()) || (k != 2 && cell.willRemovedAfterAnimation())) {
@@ -6139,7 +6140,7 @@ public class ChatActivity extends BaseFragment implements
                     final ImageReceiver imageReceiver = mcell.getAvatarImage();
                     if (imageReceiver != null && getSideMenuAlpha() < 1.f) {
                         final MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
-                        boolean updateVisibility = !mcell.getMessageObject().deleted && chatListView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION;
+                        boolean updateVisibility = !mcell.getMessageObject().isDeletedFromChat() && chatListView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION;
 
                         boolean replaceAnimation = chatListView.isFastScrollAnimationRunning() || (groupedMessages != null && groupedMessages.transitionParams.backgroundChangeBounds);
                         int top = (replaceAnimation ? child.getTop() : (int) child.getY()) + child.getPaddingTop();
@@ -14701,11 +14702,19 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void showFieldPanelForReply(MessageObject messageObjectToReply) {
+        if (messageObjectToReply != null && messageObjectToReply.messageOwner.fluxgramDeleted) {
+            return;
+        }
+
         showFieldPanel(true, messageObjectToReply, null, null, null, true, 0, null, false, 0, true);
     }
 
     private Runnable onHideFieldPanelRunnable;
     public void showFieldPanelForReplyQuote(MessageObject messageObjectToReply, ReplyQuote quote) {
+        if (messageObjectToReply != null && messageObjectToReply.messageOwner.fluxgramDeleted) {
+            return;
+        }
+
         showFieldPanel(true, messageObjectToReply, null, null, null, true, 0, quote, false, 0, true);
     }
 
@@ -14724,7 +14733,9 @@ public class ChatActivity extends BaseFragment implements
     private int fieldPanelShown;
 
     public void showFieldPanel(boolean show, MessageObject messageObjectToReply, MessageObject messageObjectToEdit, ArrayList<MessageObject> messageObjectsToForward, TLRPC.WebPage webPage, boolean notify, int scheduleDate, ReplyQuote quote, boolean cancel, long payStars, MessageSuggestionParams suggestionParams, boolean animated) {
-        if (chatActivityEnterView == null) {
+        if (chatActivityEnterView == null
+                || messageObjectToReply != null && messageObjectToReply.messageOwner.fluxgramDeleted
+                || messageObjectToEdit != null && messageObjectToEdit.messageOwner.fluxgramDeleted) {
             return;
         }
 
@@ -22267,6 +22278,31 @@ public class ChatActivity extends BaseFragment implements
             if (updated && chatAdapter != null) {
                 chatAdapter.notifyDataSetChanged(false);
             }
+        } else if (id == NotificationCenter.fluxgramAttachmentsChanged) {
+            Map<Long, HashSet<Integer>> changes = (Map<Long, HashSet<Integer>>) args[0];
+            boolean updated = false;
+
+            for (int index = 0; index < 2; index++) {
+                HashSet<Integer> ids = changes.get(index == 0 ? dialog_id : mergeDialogId);
+
+                if (ids == null) {
+                    continue;
+                }
+
+                for (int i = 0; i < messagesDict[index].size(); i++) {
+                    MessageObject object = messagesDict[index].valueAt(i);
+
+                    if (object.messageOwner.fluxgramDeleted && ids.contains(object.getId())) {
+                        object.checkMediaExistance();
+                        object.forceUpdate = true;
+                        updated = true;
+                    }
+                }
+            }
+
+            if (updated) {
+                updateVisibleRows();
+            }
         } else if (id == NotificationCenter.messagesDeleted) {
             boolean scheduled = (Boolean) args[2];
             if (scheduled != (chatMode == MODE_SCHEDULED)) {
@@ -22274,6 +22310,49 @@ public class ChatActivity extends BaseFragment implements
             }
             ArrayList<Integer> markAsDeletedMessages = (ArrayList<Integer>) args[0];
             long channelId = (Long) args[1];
+            if (args.length > 7 && args[7] instanceof Map && chatMode == MODE_DEFAULT) {
+                Map<Long, HashSet<Integer>> saved =
+                        (Map<Long, HashSet<Integer>>) args[7];
+                long targetDialog = channelId == 0 && ChatObject.isChannel(currentChat) ? mergeDialogId : dialog_id;
+                HashSet<Integer> kept = saved.get(targetDialog);
+
+                if (kept != null && (channelId == 0 || channelId == -dialog_id)) {
+                    int dictionary = targetDialog == mergeDialogId && mergeDialogId != 0 ? 1 : 0;
+                    ArrayList<Integer> removed = new ArrayList<>();
+
+                    for (int messageId : markAsDeletedMessages) {
+                        if (kept.contains(messageId)) {
+                            MessageObject object = messagesDict[dictionary].get(messageId);
+
+                            if (object != null) {
+                                object.messageOwner.fluxgramDeleted = true;
+                                object.checkMediaExistance();
+                                object.messageOwner.unread = false;
+                                object.messageOwner.media_unread = false;
+                                object.forceUpdate = true;
+                            }
+
+                            if (editingMessageObject != null && editingMessageObject.getId() == messageId
+                                    && editingMessageObject.getDialogId() == targetDialog) {
+                                hideFieldPanel(true);
+                            }
+
+                            if (replyingMessageObject != null && replyingMessageObject.getId() == messageId
+                                    && replyingMessageObject.getDialogId() == targetDialog) {
+                                replyingMessageObject = null;
+                                replyingQuote = null;
+                                fallbackFieldPanel();
+                            }
+                        } else {
+                            removed.add(messageId);
+                        }
+                    }
+
+                    markAsDeletedMessages = removed;
+                    updateVisibleRows();
+                }
+            }
+
             boolean update = args.length > 2 && (boolean) args[2];
             boolean sent = args.length > 3 && (boolean) args[3];
             int scheduledMessageId = args.length > 5 ? (int) args[5] : 0;
@@ -26361,6 +26440,7 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                 }
+                obj.messageOwner.fluxgramDeleted = false;
                 obj.deleted = true;
                 if (obj.scheduled && sent) {
                     obj.scheduledSent = true;
@@ -29980,6 +30060,8 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onPause() {
+        historyMenuRequestId++;
+
         super.onPause();
         scrolling = false;
         if (scrimPopupWindow != null) {
@@ -30638,6 +30720,55 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    private MessageObject historyMenuMessage;
+    private boolean historyMenuHasVersions;
+    private int historyMenuRequestId;
+
+    private boolean prepareHistoryMenu(View cell, MessageObject message, Runnable openMenu) {
+        if (historyMenuMessage == message) {
+            return false;
+        }
+
+        int requestId = ++historyMenuRequestId;
+
+        if (chatMode != MODE_DEFAULT || currentEncryptedChat != null || message.isEphemeral()
+                || message.getId() <= 0 || message.messageOwner.edit_date <= 0) {
+            return false;
+        }
+
+        org.telegram.messenger.fluxgram.EditHistory.hasVersions(
+                currentAccount, message.getDialogId(), message.getId(), hasVersions -> {
+                    if (requestId != historyMenuRequestId || isPaused || isFinishing()
+                            || getParentActivity() == null || !cell.isAttachedToWindow()) {
+                        return;
+                    }
+
+                    if (cell instanceof ChatMessageCell
+                            && ((ChatMessageCell) cell).getMessageObject() != message
+                            && ((ChatMessageCell) cell).getPrimaryMessageObject() != message) {
+                        return;
+                    }
+
+                    if (cell instanceof ChatActionCell
+                            && ((ChatActionCell) cell).getMessageObject() != message) {
+                        return;
+                    }
+
+                    historyMenuMessage = message;
+                    historyMenuHasVersions = hasVersions;
+
+                    try {
+                        openMenu.run();
+                    } finally {
+                        historyMenuMessage = null;
+                        historyMenuHasVersions = false;
+                    }
+                }
+        );
+
+        return true;
+    }
+
     private boolean createMenu(View v, boolean single, boolean listView, float x, float y, boolean longpress) {
         return createMenu(v, single, listView, x, y, true, longpress);
     }
@@ -30708,6 +30839,13 @@ public class ChatActivity extends BaseFragment implements
         if (message == null) {
             return false;
         }
+        final boolean singleMessageMenu = single;
+
+        if (prepareHistoryMenu(v, message,
+                () -> createMenu(v, singleMessageMenu, listView, x, y, searchGroup, longpress, suggestEdit))) {
+            return true;
+        }
+
         if (!single && TlUtils.isInstance(message.messageOwner.action,
                 TLRPC.TL_messageActionChangeCommunity.class,
                 TLRPC.TL_messageActionGiftPremium.class,
@@ -31013,9 +31151,11 @@ public class ChatActivity extends BaseFragment implements
 
             List<TLRPC.TL_availableReaction> availableReacts = getMediaDataController().getEnabledReactionsList();
             final boolean isEphemeral = message != null && message.isEphemeral();
-            final boolean isReactionsViewAvailable = !isEphemeral && !suggestEdit && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia();
+            final boolean isArchivedMessage = message.messageOwner.fluxgramDeleted || primaryMessage.messageOwner.fluxgramDeleted;
+
+            final boolean isReactionsViewAvailable = !isArchivedMessage && !isEphemeral && !suggestEdit && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia();
             final boolean isReactionsAvailable;
-            if (suggestEdit || isEphemeral) {
+            if (isArchivedMessage || suggestEdit || isEphemeral) {
                 isReactionsAvailable = false;
             } else if (message.isForwardedChannelPost()) {
                 TLRPC.ChatFull chatInfo = getMessagesController().getChatFull(-message.getFromChatId());
@@ -31048,9 +31188,9 @@ public class ChatActivity extends BaseFragment implements
                     )
                     && (currentChat == null || ChatObject.isChannelAndNotMegaGroup(currentChat) || ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_SEND_REACTIONS));
             }
-            final boolean showMessageSeen = !suggestEdit && !isEphemeral && !isReactionsViewAvailable && !isInScheduleMode() && currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().chatReadMarkExpirePeriod) && (ChatObject.isMegagroup(currentChat) || !ChatObject.isChannel(currentChat)) && chatInfo != null && chatInfo.participants_count <= getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && chatMode != MODE_SAVED && message.canSetReaction() && !ChatObject.isMonoForum(currentChat);
+            final boolean showMessageSeen = !isArchivedMessage && !suggestEdit && !isEphemeral && !isReactionsViewAvailable && !isInScheduleMode() && currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().chatReadMarkExpirePeriod) && (ChatObject.isMegagroup(currentChat) || !ChatObject.isChannel(currentChat)) && chatInfo != null && chatInfo.participants_count <= getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && chatMode != MODE_SAVED && message.canSetReaction() && !ChatObject.isMonoForum(currentChat);
             final boolean showMessageAuthor = !suggestEdit && !isEphemeral && currentChat != null && !message.isOut() && ChatObject.isMonoForum(currentChat) && ChatObject.canManageMonoForum(currentAccount, currentChat) && -currentChat.linked_monoforum_id == message.getFromChatId();
-            final boolean showPrivateMessageSeen = !suggestEdit && !isEphemeral && !isReactionsViewAvailable && currentChat == null && currentEncryptedChat == null && (currentUser != null && !UserObject.isUserSelf(currentUser) && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser) && !currentUser.bot && !UserObject.isService(currentUser.id)) && (userInfo == null || !userInfo.read_dates_private) && !isInScheduleMode() && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().pmReadDateExpirePeriod) && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
+            final boolean showPrivateMessageSeen = !isArchivedMessage && !suggestEdit && !isEphemeral && !isReactionsViewAvailable && currentChat == null && currentEncryptedChat == null && (currentUser != null && !UserObject.isUserSelf(currentUser) && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser) && !currentUser.bot && !UserObject.isService(currentUser.id)) && (userInfo == null || !userInfo.read_dates_private) && !isInScheduleMode() && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().pmReadDateExpirePeriod) && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
             final boolean showPrivateMessageEdit = !suggestEdit && !isEphemeral && (currentUser == null || !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) && !isInScheduleMode() && message.isEdited() && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
             final boolean showPrivateMessageFwdOriginal = !suggestEdit && !isEphemeral && false && (currentUser == null || !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) && !isInScheduleMode() && message.isForwarded() && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
             final boolean showSponsorInfo = !suggestEdit && !isEphemeral && selectedObject != null && selectedObject.isSponsored() && (selectedObject.sponsoredInfo != null || selectedObject.sponsoredAdditionalInfo != null || selectedObject.sponsoredUrl != null && !selectedObject.sponsoredUrl.startsWith("https://" + getMessagesController().linkPrefix));
@@ -33314,6 +33454,32 @@ public class ChatActivity extends BaseFragment implements
         if (selectedObject == null || getParentActivity() == null) {
             return;
         }
+        if (option == OPTION_DELETE && selectedObject.messageOwner.fluxgramDeleted) {
+            MessageObject local = selectedObject;
+            showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                    .setTitle(LocaleController.getString(R.string.Delete))
+                    .setMessage(LocaleController.getString(R.string.FluxGramDeleteLocalMessage))
+                    .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                    .setPositiveButton(LocaleController.getString(R.string.Delete), (dialog, which) -> {
+                        ArrayList<Integer> ids = new ArrayList<>();
+                        ids.add(local.getId());
+                        getMessagesStorage().getStorageQueue().postRunnable(() -> {
+                            boolean removed = getMessagesStorage().getDeletedArchive().remove(local.getDialogId(), ids);
+
+                            AndroidUtilities.runOnUIThread(() -> {
+                                if (removed) {
+                                    getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted,
+                                            ids, local.messageOwner.peer_id.channel_id, false);
+                                } else if (getParentActivity() != null) {
+                                    BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.ErrorOccurred)).show();
+                                }
+                            });
+                        });
+                    })
+                    .create());
+            return;
+        }
+
         if (option == OPTION_FLUXGRAM_EDIT_HISTORY) {
             presentFragment(new EditHistoryActivity(currentAccount, selectedObject));
             return;
@@ -33389,7 +33555,7 @@ public class ChatActivity extends BaseFragment implements
                 } else if (copyRichMessage != null) {
                     String html = null;
                     try {
-                        final java.util.HashMap<Long, TL_iv.RichText> quoteAuthors = new java.util.HashMap<>();
+                        final HashMap<Long, TL_iv.RichText> quoteAuthors = new HashMap<>();
                         ArrayList<BlockRow> flat = RichEditorListView.flattenForCopy(copyRichMessage, quoteAuthors);
                         if (!flat.isEmpty()) {
                             html = RichHtml.serialize(flat, 0, flat.size() - 1, 0, Integer.MAX_VALUE, quoteAuthors);
@@ -34874,7 +35040,7 @@ public class ChatActivity extends BaseFragment implements
                     cell.setChecked(false, false, true);
                 }
 
-                if (messageObject != null && (!messageObject.deleted || cell.linkedChatId != linkedChatId) && !suppressUpdateMessageObject) {
+                if (messageObject != null && (!messageObject.isDeletedFromChat() || cell.linkedChatId != linkedChatId) && !suppressUpdateMessageObject) {
                     cell.setIsUpdating(true);
                     cell.linkedChatId = chatInfo != null ? chatInfo.linked_chat_id : 0;
                     cell.setMessageObject(messageObject, cell.getCurrentMessagesGroup(), cell.isPinnedBottom(), cell.isPinnedTop(), cell.isFirstInChat(), cell.isLastInChatList());
@@ -40239,6 +40405,10 @@ public class ChatActivity extends BaseFragment implements
             if (!(_media instanceof TLRPC.TL_messageMediaToDo)) return false;
             final TLRPC.TL_messageMediaToDo media = (TLRPC.TL_messageMediaToDo) _media;
 
+            if (prepareHistoryMenu(cell, messageObject, () -> didLongPressToDoButton(cell, task))) {
+                return true;
+            }
+
             if (true) {
                 selectedObject = messageObject;
                 selectedObjectGroup = null;
@@ -40542,6 +40712,10 @@ public class ChatActivity extends BaseFragment implements
             if (messageObject == null) return false;
             if (!(_media instanceof TLRPC.TL_messageMediaPoll)) return false;
             final TLRPC.TL_messageMediaPoll media = (TLRPC.TL_messageMediaPoll) _media;
+
+            if (prepareHistoryMenu(cell, messageObject, () -> didLongPressPollOption(cell, answer))) {
+                return true;
+            }
 
             selectedObject = messageObject;
             selectedObjectGroup = null;
@@ -45231,7 +45405,10 @@ public class ChatActivity extends BaseFragment implements
         } else {
             return;
         }
-        if (messageObject == null) return;
+        if (messageObject == null || messageObject.messageOwner.fluxgramDeleted) {
+            return;
+        }
+
         if (getUserConfig().getClientUserId() == getDialogId() && messageObject.areTags() && !getUserConfig().isPremium()) {
             if (longpress) return;
             new PremiumFeatureBottomSheet(ChatActivity.this, PremiumPreviewFragment.PREMIUM_FEATURE_SAVED_TAGS, true).show();
@@ -45698,8 +45875,26 @@ public class ChatActivity extends BaseFragment implements
         final boolean isEphemeral = message.isEphemeral();
         final boolean isEphemeralFromBot = isEphemeral && !message.isOut();
 
+        if (message.messageOwner.fluxgramDeleted) {
+            items.add(LocaleController.getString(R.string.Copy));
+            options.add(OPTION_COPY);
+            icons.add(R.drawable.msg_copy);
+
+            if (historyMenuMessage == message && historyMenuHasVersions) {
+                items.add(LocaleController.getString(R.string.FluxGramEditHistory));
+                options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
+                icons.add(R.drawable.msg_recent);
+            }
+
+            items.add(LocaleController.getString(R.string.Delete));
+            options.add(OPTION_DELETE);
+            icons.add(R.drawable.msg_delete);
+            return;
+        }
+
+
         if (chatMode == MODE_DEFAULT && currentEncryptedChat == null && !isEphemeral
-                && message.getId() > 0 && message.messageOwner.edit_date > 0) {
+                && historyMenuMessage == message && historyMenuHasVersions) {
             items.add(LocaleController.getString(R.string.FluxGramEditHistory));
             options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
             icons.add(R.drawable.msg_recent);

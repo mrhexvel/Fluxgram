@@ -1,0 +1,88 @@
+import java.util.Objects;
+
+public final class EditHistoryMediaCheck {
+    private static final class SerializedData {
+        private final StringBuilder value = new StringBuilder();
+
+        void writeInt32(int number) {
+            value.append(number).append(':');
+        }
+
+        void writeInt64(long number) {
+            value.append(number).append(':');
+        }
+
+        void writeBool(boolean flag) {
+            value.append(flag).append(':');
+        }
+
+        void writeString(String text) {
+            value.append(text).append(':');
+        }
+    }
+
+    private static final class TLRPC {
+        static class MessageMedia {
+            Photo photo;
+            Document document;
+            boolean spoiler;
+        }
+
+        static class Photo {
+            long id;
+            byte[] file_reference;
+        }
+
+        static class Document {
+            long id;
+        }
+
+        static class TL_messageMediaEmpty extends MessageMedia {}
+        static class TL_messageMediaPhoto extends MessageMedia {}
+        static class TL_messageMediaDocument extends MessageMedia {}
+    }
+
+    MEDIA_IDENTITY_METHOD
+
+    private static String identity(TLRPC.MessageMedia media) {
+        SerializedData data = new SerializedData();
+        writeMediaIdentity(data, media);
+        return data.value.toString();
+    }
+
+    private static void expect(boolean condition) {
+        if (!condition) {
+            throw new AssertionError();
+        }
+    }
+
+    public static void main(String[] args) {
+        String text = identity(null);
+        expect(Objects.equals(text, identity(new TLRPC.TL_messageMediaEmpty())));
+
+        TLRPC.MessageMedia photo = new TLRPC.TL_messageMediaPhoto();
+        photo.photo = new TLRPC.Photo();
+        photo.photo.id = 123;
+        String first = identity(photo);
+        expect(!Objects.equals(text, first));
+
+        photo.photo.file_reference = new byte[] {1, 2, 3};
+        expect(Objects.equals(first, identity(photo)));
+
+        photo.photo.id = 456;
+        expect(!Objects.equals(first, identity(photo)));
+
+        photo.photo.id = 123;
+        photo.spoiler = true;
+        expect(!Objects.equals(first, identity(photo)));
+
+        TLRPC.MessageMedia document = new TLRPC.TL_messageMediaDocument();
+        document.document = new TLRPC.Document();
+        document.document.id = 123;
+        expect(!Objects.equals(first, identity(document)));
+
+        String oldDocument = identity(document);
+        document.document.id = 456;
+        expect(!Objects.equals(oldDocument, identity(document)));
+    }
+}

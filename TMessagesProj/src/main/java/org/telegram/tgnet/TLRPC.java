@@ -57469,6 +57469,7 @@ public class TLRPC {
         public String from_rank;
         public TLRPC.Peer guestchat_via_from;
         public TL_iv.RichMessage rich_message;
+        public boolean fluxgramDeleted;
         public int send_state = 0; //custom
         public int fwd_msg_id = 0; //custom
         public String attachPath = ""; //custom

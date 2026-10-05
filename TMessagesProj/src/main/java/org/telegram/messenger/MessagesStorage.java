@@ -30,6 +30,7 @@ import androidx.annotation.UiThread;
 import androidx.collection.LongSparseArray;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.fluxgram.DeletedMessagesArchive;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLiteException;
@@ -234,6 +235,16 @@ public class MessagesStorage extends BaseController {
         storageQueue = new DispatchQueue("storageQueue_" + instance);
         storageQueue.setPriority(8);
         storageQueue.postRunnable(() -> openDatabase(1));
+    }
+
+    private DeletedMessagesArchive deletedArchive;
+
+    public DeletedMessagesArchive getDeletedArchive() {
+        if (deletedArchive == null) {
+            deletedArchive = new DeletedMessagesArchive(this, currentAccount);
+        }
+
+        return deletedArchive;
     }
 
     public SQLiteDatabase getDatabase() {
@@ -4510,6 +4521,8 @@ public class MessagesStorage extends BaseController {
                     cursor = null;
                     return;
                 }
+
+                getDeletedArchive().removeDialog(did);
 
                 database.executeFast("UPDATE dialogs SET unread_count = 0, unread_count_i = 0 WHERE did = " + did).stepThis().dispose();
                 database.executeFast("DELETE FROM messages_v2 WHERE uid = " + did).stepThis().dispose();
@@ -8919,6 +8932,11 @@ public class MessagesStorage extends BaseController {
         final boolean scheduled = mode == ChatActivity.MODE_SCHEDULED;
         final boolean quickReplies = mode == ChatActivity.MODE_QUICK_REPLIES;
         final boolean welcomeMessages = mode == ChatActivity.MODE_WELCOME_MESSAGES;
+        boolean archiveReady = mode == ChatActivity.MODE_DEFAULT && !DialogObject.isEncryptedDialog(dialogId)
+                && getDeletedArchive().prepare();
+        String timelineMessages = archiveReady ? "fg_timeline_messages" : "messages_v2";
+        String timelineTopics = archiveReady ? "fg_timeline_topics" : "messages_topics";
+        String archiveColumn = archiveReady ? "m.fluxgram_deleted" : "0";
         try {
             ArrayList<Long> usersToLoad = new ArrayList<>();
             ArrayList<Long> chatsToLoad = new ArrayList<>();
@@ -8929,9 +8947,9 @@ public class MessagesStorage extends BaseController {
             ArrayList<Long> replyMessageRandomIds = new ArrayList<>();
             final String messageSelect;
             if (threadMessageId != 0) {
-                messageSelect = "SELECT m.read_state, m.data, m.send_state, m.mid, m.date, r.random_id, m.replydata, m.media, m.ttl, m.mention, m.imp, m.forwards, m.replies_data, m.custom_params, m.reply_to_story_id FROM messages_topics as m LEFT JOIN randoms_v2 as r ON r.mid = m.mid AND r.uid = m.uid";
+                messageSelect = "SELECT m.read_state, m.data, m.send_state, m.mid, m.date, r.random_id, m.replydata, m.media, m.ttl, m.mention, m.imp, m.forwards, m.replies_data, m.custom_params, m.reply_to_story_id, " + archiveColumn + " FROM " + timelineTopics + " as m LEFT JOIN randoms_v2 as r ON r.mid = m.mid AND r.uid = m.uid";
             } else {
-                messageSelect = "SELECT m.read_state, m.data, m.send_state, m.mid, m.date, r.random_id, m.replydata, m.media, m.ttl, m.mention, m.imp, m.forwards, m.replies_data, m.custom_params, m.reply_to_story_id FROM messages_v2 as m LEFT JOIN randoms_v2 as r ON r.mid = m.mid AND r.uid = m.uid";
+                messageSelect = "SELECT m.read_state, m.data, m.send_state, m.mid, m.date, r.random_id, m.replydata, m.media, m.ttl, m.mention, m.imp, m.forwards, m.replies_data, m.custom_params, m.reply_to_story_id, " + archiveColumn + " FROM " + timelineMessages + " as m LEFT JOIN randoms_v2 as r ON r.mid = m.mid AND r.uid = m.uid";
             }
             if (scheduled) {
                 isEnd = true;
@@ -9256,9 +9274,9 @@ public class MessagesStorage extends BaseController {
                         cursor.dispose();
                         cursor = null;
                         if (threadMessageId != 0) {
-                            cursor = database.queryFinalized(String.format(Locale.US, "SELECT min(mid) FROM messages_topics WHERE uid = %d AND topic_id = %d AND mid > 0", dialogId, threadMessageId));
+                            cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineTopics, false, String.format(Locale.US, "uid = %d AND topic_id = %d AND mid > 0", dialogId, threadMessageId)));
                         } else {
-                            cursor = database.queryFinalized(String.format(Locale.US, "SELECT min(mid) FROM messages_v2 WHERE uid = %d AND mid > 0", dialogId));
+                            cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, false, String.format(Locale.US, "uid = %d AND mid > 0", dialogId)));
                         }
                         if (cursor.next()) {
                             int mid = cursor.intValue(0);
@@ -9287,9 +9305,9 @@ public class MessagesStorage extends BaseController {
 
                     if (load_type == LOAD_AROUND_MESSAGE || load_type == LOAD_AROUND_DATE || queryFromServer && load_type == LOAD_FROM_UNREAD) {
                         if (threadMessageId != 0) {
-                            cursor = database.queryFinalized(String.format(Locale.US, "SELECT max(mid) FROM messages_topics WHERE uid = %d AND topic_id = %d AND mid > 0", dialogId, threadMessageId));
+                            cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineTopics, true, String.format(Locale.US, "uid = %d AND topic_id = %d AND mid > 0", dialogId, threadMessageId)));
                         } else {
-                            cursor = database.queryFinalized(String.format(Locale.US, "SELECT max(mid) FROM messages_v2 WHERE uid = %d AND mid > 0", dialogId));
+                            cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, true, String.format(Locale.US, "uid = %d AND mid > 0", dialogId)));
                         }
                         if (cursor.next()) {
                             last_message_id = cursor.intValue(0);
@@ -9302,9 +9320,9 @@ public class MessagesStorage extends BaseController {
                             int endMid;
 
                             if (threadMessageId != 0) {
-                                cursor = database.queryFinalized(String.format(Locale.US, "SELECT max(mid) FROM messages_topics WHERE uid = %d AND topic_id = %d AND date <= %d AND mid > 0", dialogId, threadMessageId, offset_date));
+                                cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineTopics, true, String.format(Locale.US, "uid = %d AND topic_id = %d AND date <= %d AND mid > 0", dialogId, threadMessageId, offset_date)));
                             } else {
-                                cursor = database.queryFinalized(String.format(Locale.US, "SELECT max(mid) FROM messages_v2 WHERE uid = %d AND date <= %d AND mid > 0", dialogId, offset_date));
+                                cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, true, String.format(Locale.US, "uid = %d AND date <= %d AND mid > 0", dialogId, offset_date)));
                             }
                             if (cursor.next()) {
                                 startMid = cursor.intValue(0);
@@ -9314,9 +9332,9 @@ public class MessagesStorage extends BaseController {
                             cursor.dispose();
                             cursor = null;
                             if (threadMessageId != 0) {
-                                cursor = database.queryFinalized(String.format(Locale.US, "SELECT min(mid) FROM messages_topics WHERE uid = %d AND topic_id = %d AND date >= %d AND mid > 0", dialogId, threadMessageId, offset_date));
+                                cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineTopics, false, String.format(Locale.US, "uid = %d AND topic_id = %d AND date >= %d AND mid > 0", dialogId, threadMessageId, offset_date)));
                             } else {
-                                cursor = database.queryFinalized(String.format(Locale.US, "SELECT min(mid) FROM messages_v2 WHERE uid = %d AND date >= %d AND mid > 0", dialogId, offset_date));
+                                cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, false, String.format(Locale.US, "uid = %d AND date >= %d AND mid > 0", dialogId, offset_date)));
                             }
                             if (cursor.next()) {
                                 endMid = cursor.intValue(0);
@@ -9504,9 +9522,9 @@ public class MessagesStorage extends BaseController {
                         }
                     } else {
                         if (threadMessageId != 0) {
-                            cursor = database.queryFinalized(String.format(Locale.US, "SELECT max(mid) FROM messages_topics WHERE uid = %d AND topic_id = %d AND mid > 0", dialogId, threadMessageId));
+                            cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineTopics, true, String.format(Locale.US, "uid = %d AND topic_id = %d AND mid > 0", dialogId, threadMessageId)));
                         } else {
-                            cursor = database.queryFinalized(String.format(Locale.US, "SELECT max(mid) FROM messages_v2 WHERE uid = %d AND mid > 0", dialogId));
+                            cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, true, String.format(Locale.US, "uid = %d AND mid > 0", dialogId)));
                         }
                         if (cursor.next()) {
                             last_message_id = cursor.intValue(0);
@@ -9544,7 +9562,7 @@ public class MessagesStorage extends BaseController {
                     isEnd = true;
 
                     if (load_type == LOAD_AROUND_MESSAGE && minDate == 0) {
-                        cursor = database.queryFinalized(String.format(Locale.US, "SELECT min(mid) FROM messages_v2 WHERE uid = %d AND mid < 0", dialogId));
+                        cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, false, String.format(Locale.US, "uid = %d AND mid < 0", dialogId)));
                         if (cursor.next()) {
                             min_unread_id = cursor.intValue(0);
                         }
@@ -9571,7 +9589,7 @@ public class MessagesStorage extends BaseController {
                     }
 
                     if (load_type == LOAD_AROUND_MESSAGE || load_type == LOAD_AROUND_DATE) {
-                        cursor = database.queryFinalized(String.format(Locale.US, "SELECT min(mid) FROM messages_v2 WHERE uid = %d AND mid < 0", dialogId));
+                        cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, false, String.format(Locale.US, "uid = %d AND mid < 0", dialogId)));
                         if (cursor.next()) {
                             last_message_id = cursor.intValue(0);
                         }
@@ -9590,7 +9608,7 @@ public class MessagesStorage extends BaseController {
                         }
                     } else {
                         if (load_type == LOAD_FROM_UNREAD) {
-                            cursor = database.queryFinalized(String.format(Locale.US, "SELECT min(mid) FROM messages_v2 WHERE uid = %d AND mid < 0", dialogId));
+                            cursor = database.queryFinalized(DeletedMessagesArchive.boundaryQuery(timelineMessages, false, String.format(Locale.US, "uid = %d AND mid < 0", dialogId)));
                             if (cursor.next()) {
                                 last_message_id = cursor.intValue(0);
                             }
@@ -9648,6 +9666,7 @@ public class MessagesStorage extends BaseController {
                         message.send_state = cursor.intValue(2);
                         long fullMid = cursor.longValue(3);
                         message.id = (int) fullMid;
+                        message.fluxgramDeleted = cursor.intValue(15) != 0;
                         if ((fullMid & 0xffffffff00000000L) == 0xffffffff00000000L && message.id > 0) {
                             if (messageIdsToFix == null) {
                                 messageIdsToFix = new ArrayList<>();

@@ -1274,6 +1274,14 @@ public class FileLoader extends BaseController {
     }
 
     public File getPathToMessage(TLRPC.Message message, boolean forceCache, boolean useFileDatabaseQueue) {
+        if (message != null && message.fluxgramDeleted && !TextUtils.isEmpty(message.attachPath)) {
+            File archived = new File(message.attachPath);
+
+            if (archived.isFile()) {
+                return archived;
+            }
+        }
+
         if (message == null) {
             return new File("");
         }

@@ -21,6 +21,15 @@ dependencies {
     implementation files('../TMessagesProj/libs/libgsaverification-client.aar')
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream {
+        keystoreProperties.load(it)
+    }
+}
+
 android {
     compileSdkVersion 36
     buildToolsVersion '36.0.0'
@@ -56,10 +65,13 @@ android {
         }
 
         release {
-            storeFile file("../TMessagesProj/config/release.keystore")
-            storePassword RELEASE_STORE_PASSWORD
-            keyAlias RELEASE_KEY_ALIAS
-            keyPassword RELEASE_KEY_PASSWORD
+            storeFile keystoreProperties["storeFile"]
+                    ? rootProject.file(keystoreProperties["storeFile"])
+                    : null
+
+            storePassword keystoreProperties["storePassword"]
+            keyAlias keystoreProperties["keyAlias"]
+            keyPassword keystoreProperties["keyPassword"]
         }
     }
 
