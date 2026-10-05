@@ -121,6 +121,8 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
+import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
+import org.telegram.ui.fluxgram.EditHistoryMenuController;
 import org.telegram.ui.recyclerview.ChatListItemAnimator;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.GridLayoutManagerFixed;
@@ -22310,14 +22312,13 @@ public class ChatActivity extends BaseFragment implements
             }
             ArrayList<Integer> markAsDeletedMessages = (ArrayList<Integer>) args[0];
             long channelId = (Long) args[1];
-            if (args.length > 7 && args[7] instanceof Map && chatMode == MODE_DEFAULT) {
-                Map<Long, HashSet<Integer>> saved =
-                        (Map<Long, HashSet<Integer>>) args[7];
-                long targetDialog = channelId == 0 && ChatObject.isChannel(currentChat) ? mergeDialogId : dialog_id;
-                HashSet<Integer> kept = saved.get(targetDialog);
+            if (args.length > 7 && args[7] instanceof DeletedMessagesRetention && chatMode == MODE_DEFAULT) {
+                DeletedMessagesRetention.Selection kept = ((DeletedMessagesRetention) args[7])
+                        .forChat(channelId, ChatObject.isChannel(currentChat), dialog_id, mergeDialogId);
 
-                if (kept != null && (channelId == 0 || channelId == -dialog_id)) {
-                    int dictionary = targetDialog == mergeDialogId && mergeDialogId != 0 ? 1 : 0;
+                if (kept != null) {
+                    long targetDialog = kept.dialogId;
+                    int dictionary = kept.dictionary;
                     ArrayList<Integer> removed = new ArrayList<>();
 
                     for (int messageId : markAsDeletedMessages) {
@@ -30060,7 +30061,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onPause() {
-        historyMenuRequestId++;
+        historyMenuController.cancel();
 
         super.onPause();
         scrolling = false;
@@ -30720,53 +30721,13 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    private MessageObject historyMenuMessage;
-    private boolean historyMenuHasVersions;
-    private int historyMenuRequestId;
+    private final EditHistoryMenuController historyMenuController = new EditHistoryMenuController();
 
     private boolean prepareHistoryMenu(View cell, MessageObject message, Runnable openMenu) {
-        if (historyMenuMessage == message) {
-            return false;
-        }
-
-        int requestId = ++historyMenuRequestId;
-
-        if (chatMode != MODE_DEFAULT || currentEncryptedChat != null || message.isEphemeral()
-                || message.getId() <= 0 || message.messageOwner.edit_date <= 0) {
-            return false;
-        }
-
-        org.telegram.messenger.fluxgram.EditHistory.hasVersions(
-                currentAccount, message.getDialogId(), message.getId(), hasVersions -> {
-                    if (requestId != historyMenuRequestId || isPaused || isFinishing()
-                            || getParentActivity() == null || !cell.isAttachedToWindow()) {
-                        return;
-                    }
-
-                    if (cell instanceof ChatMessageCell
-                            && ((ChatMessageCell) cell).getMessageObject() != message
-                            && ((ChatMessageCell) cell).getPrimaryMessageObject() != message) {
-                        return;
-                    }
-
-                    if (cell instanceof ChatActionCell
-                            && ((ChatActionCell) cell).getMessageObject() != message) {
-                        return;
-                    }
-
-                    historyMenuMessage = message;
-                    historyMenuHasVersions = hasVersions;
-
-                    try {
-                        openMenu.run();
-                    } finally {
-                        historyMenuMessage = null;
-                        historyMenuHasVersions = false;
-                    }
-                }
-        );
-
-        return true;
+        return historyMenuController.prepare(currentAccount, cell, message,
+                chatMode == MODE_DEFAULT && currentEncryptedChat == null,
+                () -> !isPaused && !isFinishing() && getParentActivity() != null,
+                openMenu);
     }
 
     private boolean createMenu(View v, boolean single, boolean listView, float x, float y, boolean longpress) {
@@ -45880,7 +45841,7 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_COPY);
             icons.add(R.drawable.msg_copy);
 
-            if (historyMenuMessage == message && historyMenuHasVersions) {
+            if (historyMenuController.hasVersions(message)) {
                 items.add(LocaleController.getString(R.string.FluxGramEditHistory));
                 options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
                 icons.add(R.drawable.msg_recent);
@@ -45894,7 +45855,7 @@ public class ChatActivity extends BaseFragment implements
 
 
         if (chatMode == MODE_DEFAULT && currentEncryptedChat == null && !isEphemeral
-                && historyMenuMessage == message && historyMenuHasVersions) {
+                && historyMenuController.hasVersions(message)) {
             items.add(LocaleController.getString(R.string.FluxGramEditHistory));
             options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
             icons.add(R.drawable.msg_recent);

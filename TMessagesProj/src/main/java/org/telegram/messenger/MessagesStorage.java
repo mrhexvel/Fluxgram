@@ -31,6 +31,7 @@ import androidx.collection.LongSparseArray;
 
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.fluxgram.DeletedMessagesArchive;
+import org.telegram.messenger.fluxgram.EditHistoryCapture;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLiteException;
@@ -11880,70 +11881,6 @@ public class MessagesStorage extends BaseController {
 
     }
 
-    private TLRPC.Message getMessageForEditHistory(long dialogId, int messageId) {
-        SQLiteCursor cursor = null;
-
-        try {
-            cursor = database.queryFinalized(
-                    "SELECT data, send_state FROM messages_v2 WHERE uid = ? AND mid = ?",
-                    dialogId, messageId
-            );
-
-            if (cursor.next()) {
-                NativeByteBuffer data = cursor.byteBufferValue(0);
-
-                if (data != null) {
-                    try {
-                        TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(true), true);
-                        message.send_state = cursor.intValue(1);
-                        message.readAttachPath(data, getUserConfig().clientUserId);
-                        return message;
-                    } finally {
-                        data.reuse();
-                    }
-                }
-            }
-        } catch (Exception error) {
-            FileLog.e(error);
-        } finally {
-            if (cursor != null) {
-                cursor.dispose();
-            }
-        }
-
-        return null;
-    }
-
-    private void archiveEditedMessages(ArrayList<TLRPC.Message> messages, int mode) {
-        if (mode != ChatActivity.MODE_DEFAULT || messages == null
-                || !org.telegram.messenger.fluxgram.EditHistory.isEnabled(currentAccount)) {
-            return;
-        }
-
-        for (TLRPC.Message incoming : messages) {
-            if (!(incoming instanceof TLRPC.TL_message) || incoming.edit_date <= 0 || incoming.id <= 0) {
-                continue;
-            }
-
-            long dialogId = MessageObject.getDialogId(incoming);
-
-            if (DialogObject.isEncryptedDialog(dialogId)) {
-                continue;
-            }
-
-            if (dialogId > 0 && !org.telegram.messenger.fluxgram.EditHistory.includesBots(currentAccount)) {
-                TLRPC.User user = getUser(dialogId);
-
-                if (user == null || user.bot) {
-                    continue;
-                }
-            }
-
-            TLRPC.Message previous = getMessageForEditHistory(dialogId, incoming.id);
-            org.telegram.messenger.fluxgram.EditHistory.save(currentAccount, dialogId, previous, incoming);
-        }
-    }
-
     private void putMessagesInternal(ArrayList<TLRPC.Message> messages, boolean withTransaction, boolean doNotUpdateDialogDate, int downloadMask, boolean ifNoLastMessage, int mode, long threadMessageId) {
         if (messages != null) {
             ArrayList<TL_ephemeral.EphemeralMessage> ephemeralMessages = null;
@@ -12008,7 +11945,7 @@ public class MessagesStorage extends BaseController {
                     }
                 }
             }
-            archiveEditedMessages(messages, mode);
+            EditHistoryCapture.capture(this, currentAccount, messages, mode == ChatActivity.MODE_DEFAULT);
             final boolean scheduled = mode == ChatActivity.MODE_SCHEDULED;
             final boolean saved = mode == ChatActivity.MODE_SAVED;
             final boolean quickReplies = mode == ChatActivity.MODE_QUICK_REPLIES;
@@ -16174,7 +16111,7 @@ public class MessagesStorage extends BaseController {
             SQLitePreparedStatement state3 = null;
             SQLiteCursor cursor = null;
             try {
-                archiveEditedMessages(messages.messages, mode);
+                EditHistoryCapture.capture(this, currentAccount, messages.messages, mode == ChatActivity.MODE_DEFAULT);
                 final long selfId = getUserConfig().getClientUserId();
                 final boolean scheduled = mode == ChatActivity.MODE_SCHEDULED;
                 final boolean quickReplies = mode == ChatActivity.MODE_QUICK_REPLIES;

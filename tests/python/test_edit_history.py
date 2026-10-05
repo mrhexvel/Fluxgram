@@ -26,6 +26,24 @@ class EditHistoryTest(unittest.TestCase):
                 "java", "-cp", directory, "EditHistoryPolicyCheck",
             ], check=True, capture_output=True)
 
+    def test_capture_filters_and_releases_database_resources(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        source = (SOURCE / "EditHistoryCapture.java").read_text()
+        source = re.sub(r"^(?:package org\.telegram\..*|import org\.telegram\..*);\n", "", source, flags=re.M)
+        fixture = (ROOT / "tests/java/EditHistoryCaptureCheck.java.in").read_text()
+
+        with tempfile.TemporaryDirectory() as directory:
+            capture = Path(directory) / "EditHistoryCapture.java"
+            check = Path(directory) / "EditHistoryCaptureCheck.java"
+            capture.write_text(source)
+            check.write_text(fixture)
+            subprocess.run(["javac", "-d", directory, str(capture), str(check)],
+                           check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory, "EditHistoryCaptureCheck"],
+                           check=True, capture_output=True)
+
     def test_media_replacement_detection(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")

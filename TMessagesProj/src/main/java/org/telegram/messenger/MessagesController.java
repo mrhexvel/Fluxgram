@@ -51,6 +51,7 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.util.Consumer;
 
+import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLiteException;
@@ -17602,7 +17603,8 @@ public class MessagesController extends BaseController implements NotificationCe
 
     protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> ids, long channelId) {
         getMessagesStorage().getStorageQueue().postRunnable(() -> {
-            HashMap<Long, HashSet<Integer>> saved = getMessagesStorage().getDeletedArchive().capture(dialogId, ids);
+            DeletedMessagesRetention saved = DeletedMessagesRetention.copyOf(
+                    getMessagesStorage().getDeletedArchive().capture(dialogId, ids));
             AndroidUtilities.runOnUIThread(() -> {
                 getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, channelId, false, false, false, 0, null, saved);
                 if (channelId == 0) {
@@ -21007,15 +21009,12 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;
         SparseIntArray markAsReadEncryptedFinal = markAsReadEncrypted;
         LongSparseArray<ArrayList<Integer>> deletedMessagesFinal = deletedMessages;
-        HashMap<Long, HashSet<Integer>> archivedDeletedMessages = new HashMap<>();
+        DeletedMessagesRetention.Builder archivedDeletedMessages = new DeletedMessagesRetention.Builder();
         if (deletedMessagesFinal != null) {
             getMessagesStorage().getStorageQueue().postRunnable(() -> {
                 for (int i = 0; i < deletedMessagesFinal.size(); i++) {
-                    HashMap<Long, HashSet<Integer>> saved = getMessagesStorage().getDeletedArchive()
-                            .capture(deletedMessagesFinal.keyAt(i), deletedMessagesFinal.valueAt(i));
-                    for (Map.Entry<Long, HashSet<Integer>> entry : saved.entrySet()) {
-                        archivedDeletedMessages.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).addAll(entry.getValue());
-                    }
+                    archivedDeletedMessages.add(getMessagesStorage().getDeletedArchive()
+                            .capture(deletedMessagesFinal.keyAt(i), deletedMessagesFinal.valueAt(i)));
                 }
             });
         }
@@ -21024,7 +21023,7 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesFinal = scheduledDeletedMessages;
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesSentFinal = scheduledDeletedMessagesSent;
         LongSparseIntArray clearHistoryMessagesFinal = clearHistoryMessages;
-        getMessagesStorage().getStorageQueue().postRunnable(() -> AndroidUtilities.runOnUIThread(() -> {
+        getMessagesStorage().getStorageQueue().postRunnable(() -> archivedDeletedMessages.deliverOnUiThread(retained -> {
             int updateMask = 0;
             if (markAsReadMessagesInboxFinal != null || markAsReadMessagesOutboxFinal != null) {
                 getNotificationCenter().postNotificationName(NotificationCenter.messagesRead, markAsReadMessagesInboxFinal, markAsReadMessagesOutboxFinal);
@@ -21113,7 +21112,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     if (arrayList == null) {
                         continue;
                     }
-                    getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false, false, false, 0, null, archivedDeletedMessages);
+                    getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false, false, false, 0, null, retained);
                     if (dialogId == 0) {
                         for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
                             Integer id = arrayList.get(b);
