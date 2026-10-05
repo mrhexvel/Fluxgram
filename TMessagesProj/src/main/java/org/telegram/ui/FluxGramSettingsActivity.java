@@ -125,7 +125,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     getResourceProvider(),
                     PluginManager.getInstance().isSystemEnabled(),
                     () -> presentFragment(new FluxGramSettingsActivity(GENERAL)),
-                    () -> presentFragment(new FluxGramSettingsActivity(PLUGINS))
+                    () -> presentFragment(new FluxGramSettingsActivity(PLUGINS)),
+                    () -> presentFragment(new FluxGramStealthActivity())
             );
             items.add(UItem.asCustom(home, LayoutHelper.WRAP_CONTENT));
 

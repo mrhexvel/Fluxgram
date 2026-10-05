@@ -28,7 +28,8 @@ public final class FluxGramSettingsHomeView extends LinearLayout {
             Theme.ResourcesProvider resourcesProvider,
             boolean pluginsEnabled,
             Runnable openGeneral,
-            Runnable openPlugins
+            Runnable openPlugins,
+            Runnable openStealth
     ) {
         super(context);
         this.resourcesProvider = resourcesProvider;
@@ -55,6 +56,14 @@ public final class FluxGramSettingsHomeView extends LinearLayout {
                 R.string.FluxGramGeneralDescription,
                 R.drawable.msg_settings,
                 openGeneral
+        );
+
+        addCategory(
+                context,
+                R.string.FluxGramStealth,
+                R.string.FluxGramStealthDescription,
+                R.drawable.settings_privacy,
+                openStealth
         );
 
         addCategory(
