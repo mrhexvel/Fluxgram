@@ -5,6 +5,8 @@ apply plugin: 'org.telegram.build-plugin'
 apply plugin: 'idea'
 apply plugin: 'com.chaquo.python'
 
+apply from: rootProject.file('gradle/fluxgram-config.gradle')
+
 idea {
     module {
         excludeDirs += [

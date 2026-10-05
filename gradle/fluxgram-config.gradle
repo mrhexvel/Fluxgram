@@ -1,0 +1,46 @@
+def credentials = new Properties()
+def credentialsFile = rootProject.file('fluxgram.local.properties')
+
+if (credentialsFile.exists()) {
+    credentialsFile.withInputStream {
+        credentials.load(it)
+    }
+}
+
+def apiId = providers.environmentVariable('TELEGRAM_API_ID')
+        .orElse(credentials.getProperty('telegram.api_id', '')).get().trim()
+def apiHash = providers.environmentVariable('TELEGRAM_API_HASH')
+        .orElse(credentials.getProperty('telegram.api_hash', '')).get().trim()
+
+def validApiId = apiId ==~ /[1-9][0-9]{0,9}/
+
+if (validApiId) {
+    validApiId = apiId.toLong() <= Integer.MAX_VALUE
+}
+
+def validApiHash = apiHash ==~ /[a-fA-F0-9]{32}/
+
+android.defaultConfig {
+    buildConfigField 'int', 'TELEGRAM_API_ID', validApiId ? apiId : '0'
+    buildConfigField 'String', 'TELEGRAM_API_HASH', validApiHash ? '"' + apiHash + '"' : '""'
+}
+
+def validateCredentials = tasks.register('validateFluxGramCredentials') {
+    doLast {
+        if (!validApiId || !validApiHash) {
+            throw new GradleException(
+                    'Configure telegram.api_id and telegram.api_hash in fluxgram.local.properties '
+                            + '(see fluxgram.local.properties.example), or set TELEGRAM_API_ID and TELEGRAM_API_HASH. '
+                            + 'API ID must be a positive 32-bit integer; API hash must contain 32 hexadecimal characters.'
+            )
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(validateCredentials)
+}
+
+tasks.matching { it.name.startsWith('generate') && it.name.endsWith('BuildConfig') }.configureEach {
+    dependsOn(validateCredentials)
+}
