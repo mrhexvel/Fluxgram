@@ -78,3 +78,6 @@
 -keep class org.telegram.ui.Components.NotificationBlurBackground$* { *; }
 -keep class org.telegram.ui.Components.LinkSpanDrawable$LinksTextView { *; }
 -keep class org.telegram.ui.Components.LinkSpanDrawable$LinksTextView$* { *; }
+
+-keep class org.telegram.ui.Components.NotificationCardLayout { *; }
+-keep class org.telegram.ui.Components.NotificationCardLayout$* { *; }

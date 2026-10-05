@@ -39,6 +39,9 @@ public final class NotificationBlurBackground extends Drawable
     private final int[] targetLocation = new int[2];
     private BitmapShader shader;
     private boolean disposed;
+    private boolean frozen;
+    private int frozenTargetX;
+    private int frozenTargetY;
     private boolean attached;
     private boolean processing;
     private boolean failed;
@@ -58,8 +61,20 @@ public final class NotificationBlurBackground extends Drawable
         target.addOnAttachStateChangeListener(this);
     }
 
+    public void freeze() {
+        if (frozen) {
+            return;
+        }
+
+        frozen = true;
+        target.removeCallbacks(refresh);
+        target.getLocationOnScreen(targetLocation);
+        frozenTargetX = targetLocation[0];
+        frozenTargetY = targetLocation[1];
+    }
+
     private void scheduleNext() {
-        if (!attached || disposed || failed || processing) {
+        if (!attached || disposed || frozen || failed || processing) {
             return;
         }
 
@@ -70,7 +85,7 @@ public final class NotificationBlurBackground extends Drawable
     }
 
     private void capture() {
-        if (!attached || disposed || failed || processing) {
+        if (!attached || disposed || frozen || failed || processing) {
             return;
         }
 
@@ -156,7 +171,7 @@ public final class NotificationBlurBackground extends Drawable
                                 () -> {
                                     processing = false;
 
-                                    if (disposed || !ready) {
+                                    if (disposed || frozen || !ready) {
                                         result.recycle();
                                         failed = !ready;
 
@@ -198,7 +213,13 @@ public final class NotificationBlurBackground extends Drawable
         float radius = AndroidUtilities.dp(20);
 
         if (shader != null) {
-            target.getLocationOnScreen(targetLocation);
+            if (frozen) {
+                targetLocation[0] = frozenTargetX;
+                targetLocation[1] = frozenTargetY;
+            } else {
+                target.getLocationOnScreen(targetLocation);
+            }
+
             matrix.setScale(SCALE, SCALE);
             matrix.postTranslate(
                     bitmapScreenX - targetLocation[0], bitmapScreenY - targetLocation[1]);

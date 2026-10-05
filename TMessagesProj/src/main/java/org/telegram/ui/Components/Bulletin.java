@@ -445,7 +445,7 @@ public class Bulletin {
                     layout.transitionRunningExit = true;
                     layout.delegate = currentDelegate;
                     layout.invalidate();
-                    if (duration >= 0) {
+                    if (duration >= 0 && !layout.useCustomHideTransition()) {
                         Layout.DefaultTransition transition = new Layout.DefaultTransition();
                         transition.duration = duration;
                         layoutTransition = transition;
@@ -1046,6 +1046,10 @@ public class Bulletin {
         @NonNull
         public Transition createTransition() {
             return new SpringTransition();
+        }
+
+        public boolean useCustomHideTransition() {
+            return false;
         }
 
         public interface Transition {

@@ -12,7 +12,7 @@ from org.telegram.ui.Components import (
 )
 
 
-CardLayout = jclass("org.telegram.ui.Components.Bulletin$TwoLineBackupLayout")
+CardLayout = jclass("org.telegram.ui.Components.NotificationCardLayout")
 JavaLong = jclass("java.lang.Long")
 JavaInteger = jclass("java.lang.Integer")
 Strings = jclass("org.telegram.messenger.R$string")
