@@ -31,3 +31,38 @@ class EditHistoryPresenceTest(unittest.TestCase):
             db.execute('DELETE FROM edit_versions WHERE owner = ? AND dialog = ? AND message = ?',
                        (1, 20, 30))
             self.assertIsNone(db.execute(query, (1, 20, 30)).fetchone())
+
+    def test_clear_versions_is_owner_scoped_and_async(self):
+        source = SOURCE.read_text()
+        schema = re.search(r'"(CREATE TABLE IF NOT EXISTS edit_versions .*?)"', source)[1]
+        query = re.search(r'"(SELECT 1 FROM edit_versions .*?)"', source)[1]
+        clear_start = source.index('    public static void clearVersions(')
+        clear_end = source.index('    public static void load(', clear_start)
+        method = source[clear_start:clear_end]
+        where = re.search(
+            r'db\.delete\("edit_versions", "(owner = \?)", '
+            r'new String\[\] \{Long\.toString\(owner\)\}\);',
+            method,
+        )[1]
+
+        self.assertIn('MessagesStorage.getInstance(account).getStorageQueue().postRunnable', method)
+        self.assertIn('AndroidUtilities.runOnUIThread', method)
+        self.assertIn('owner == UserConfig.getInstance(account).getClientUserId()', method)
+        self.assertNotIn('SavedAttachments.clearAccount', method)
+        self.assertNotIn('preferences(account).edit().clear()', method)
+        self.assertNotIn('SQLiteDatabase.deleteDatabase', method)
+
+        with sqlite3.connect(':memory:') as db:
+            db.execute(schema)
+            records = [
+                (1, 20, 30, 100, 'first', b'first version'),
+                (1, 21, 31, 101, 'second', b'second version'),
+                (2, 20, 30, 100, 'other', b'other owner'),
+            ]
+            db.executemany('INSERT INTO edit_versions VALUES (?, ?, ?, ?, ?, ?)', records)
+
+            db.execute('DELETE FROM edit_versions WHERE ' + where, (1,))
+
+            self.assertIsNone(db.execute(query, (1, 20, 30)).fetchone())
+            self.assertIsNone(db.execute(query, (1, 21, 31)).fetchone())
+            self.assertEqual(db.execute(query, (2, 20, 30)).fetchone(), (1,))

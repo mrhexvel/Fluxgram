@@ -8,6 +8,7 @@ import android.widget.FrameLayout;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.EditHistory;
 import org.telegram.messenger.fluxgram.SavedAttachments;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -33,9 +34,9 @@ public final class FluxGramStealthActivity extends BaseFragment {
     public View createView(Context context) {
         checked[4] = SavedAttachments.get(currentAccount).isEnabled();
         storageLimit = SavedAttachments.get(currentAccount).totalLimitIndex();
-        checked[0] = org.telegram.messenger.fluxgram.EditHistory.keepsDeleted(currentAccount);
-        checked[1] = org.telegram.messenger.fluxgram.EditHistory.isEnabled(currentAccount);
-        checked[2] = org.telegram.messenger.fluxgram.EditHistory.includesBots(currentAccount);
+        checked[0] = EditHistory.keepsDeleted(currentAccount);
+        checked[1] = EditHistory.isEnabled(currentAccount);
+        checked[2] = EditHistory.includesBots(currentAccount);
         actionBar.setTitle(text(R.string.FluxGramStealth));
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
@@ -72,7 +73,24 @@ public final class FluxGramStealthActivity extends BaseFragment {
         addSwitch(items, 1, R.string.FluxGramStealthEdits, 0, false);
         items.add(UItem.asShadow(null));
 
-        addSwitch(items, 2, R.string.FluxGramStealthBots, 0, false);
+        addSwitch(items, 2, R.string.FluxGramStealthBots, 0, true);
+        TextSettingsCell clearHistory = new TextSettingsCell(getParentActivity(), getResourceProvider());
+        clearHistory.setTextAndIcon(text(R.string.FluxGramEditHistoryClear), R.drawable.msg_clearcache, false);
+        clearHistory.setBackground(Theme.getSelectorDrawable(false));
+        clearHistory.setOnClickListener(view -> showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(text(R.string.FluxGramEditHistoryClear))
+                .setMessage(text(R.string.FluxGramEditHistoryClearInfo))
+                .setNegativeButton(text(R.string.Cancel), null)
+                .setPositiveButton(text(R.string.Delete), (dialog, which) -> EditHistory.clearVersions(currentAccount, success -> {
+                    if (!isFinished && getParentActivity() != null && !success) {
+                        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                                .setMessage(text(R.string.ErrorOccurred))
+                                .setPositiveButton(text(R.string.OK), null)
+                                .create());
+                    }
+                }))
+                .create()));
+        items.add(UItem.asCustom(clearHistory, LayoutHelper.WRAP_CONTENT));
         items.add(UItem.asShadow(null));
 
         addSwitch(items, 3, R.string.FluxGramStealthReadDate, 0, false);
@@ -173,11 +191,11 @@ public final class FluxGramStealthActivity extends BaseFragment {
             cell.setChecked(checked[index]);
 
             if (index == 0) {
-                org.telegram.messenger.fluxgram.EditHistory.setKeepsDeleted(currentAccount, checked[index]);
+                EditHistory.setKeepsDeleted(currentAccount, checked[index]);
             } else if (index == 1) {
-                org.telegram.messenger.fluxgram.EditHistory.setEnabled(currentAccount, checked[index]);
+                EditHistory.setEnabled(currentAccount, checked[index]);
             } else if (index == 2) {
-                org.telegram.messenger.fluxgram.EditHistory.setIncludesBots(currentAccount, checked[index]);
+                EditHistory.setIncludesBots(currentAccount, checked[index]);
             } else if (index == 4) {
                 SavedAttachments.get(currentAccount).setEnabled(checked[index]);
             }

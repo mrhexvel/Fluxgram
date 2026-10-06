@@ -251,6 +251,33 @@ public final class EditHistory {
         });
     }
 
+    public static void clearVersions(int account, java.util.function.Consumer<Boolean> callback) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+
+        MessagesStorage.getInstance(account).getStorageQueue().postRunnable(() -> {
+            boolean success = true;
+
+            try {
+                if (databaseFile(account).exists()) {
+                    try (SQLiteDatabase db = open(account)) {
+                        db.delete("edit_versions", "owner = ?", new String[] {Long.toString(owner)});
+                    }
+                }
+            } catch (Exception error) {
+                FileLog.e(error);
+                success = false;
+            }
+
+            boolean cleared = success;
+
+            AndroidUtilities.runOnUIThread(() -> {
+                if (owner == UserConfig.getInstance(account).getClientUserId()) {
+                    callback.accept(cleared);
+                }
+            });
+        });
+    }
+
     public static void load(int account, long dialog, int message, Callback callback) {
         long owner = UserConfig.getInstance(account).getClientUserId();
         MessagesStorage.getInstance(account).getStorageQueue().postRunnable(() -> {

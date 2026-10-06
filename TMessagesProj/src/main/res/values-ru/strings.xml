@@ -343,6 +343,8 @@
     <string name="FluxGramEditHistoryChatInfo">Сохранённые версии на этом устройстве</string>
     <string name="FluxGramEditHistoryCurrent">Текущая версия</string>
     <string name="FluxGramEditHistoryVersion">Версия %1$d</string>
+    <string name="FluxGramEditHistoryClear">Удалить историю изменений</string>
+    <string name="FluxGramEditHistoryClearInfo">Удалить всю сохранённую историю изменений этого аккаунта? Настройки, удалённые сообщения и сохранённые вложения останутся.</string>
     <string name="FluxGramDeletedMark">удалено</string>
     <string name="FluxGramDeleteLocalMessage">Удалить сохранённую копию сообщения с этого устройства?</string>
     <string name="FluxGramAttachmentChats">Чаты для сохранения</string>

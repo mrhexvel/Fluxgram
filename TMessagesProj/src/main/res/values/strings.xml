@@ -11315,6 +11315,8 @@
     <string name="FluxGramEditHistoryChatInfo">Versions saved on this device</string>
     <string name="FluxGramEditHistoryCurrent">Current version</string>
     <string name="FluxGramEditHistoryVersion">Version %1$d</string>
+    <string name="FluxGramEditHistoryClear">Delete edit history</string>
+    <string name="FluxGramEditHistoryClearInfo">Delete all saved edit history for this account? Settings, deleted messages and saved attachments will remain.</string>
     <string name="FluxGramDeletedMark">deleted</string>
     <string name="FluxGramDeleteLocalMessage">Delete the saved copy of this message from this device?</string>
     <string name="FluxGramAttachmentChats">Chats to save attachments from</string>
