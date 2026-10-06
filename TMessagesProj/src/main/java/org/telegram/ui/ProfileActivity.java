@@ -166,6 +166,10 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
+import org.telegram.messenger.fluxgram.appearance.LocalAppearanceFixture;
+import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
+import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLObject;
@@ -292,6 +296,7 @@ import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceColor;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.voip.VoIPHelper;
+import org.telegram.ui.fluxgram.appearance.FluxGramProfileBadgeRenderer;
 import org.telegram.ui.Gifts.GiftSheet;
 import org.telegram.ui.Stars.BotStarsActivity;
 import org.telegram.ui.Stars.BotStarsController;
@@ -365,6 +370,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private Long emojiStatusGiftId;
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[] emojiStatusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[2];
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[] botVerificationDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[2];
+    private final FluxGramProfileBadgeRenderer[] fluxGramBadgeRenderers = new FluxGramProfileBadgeRenderer[2];
+    private LocalAppearanceFixture localAppearanceFixture;
     private final Drawable[] verifiedCheckDrawable = new Drawable[2];
     private final CrossfadeDrawable[] verifiedCrossfadeDrawable = new CrossfadeDrawable[2];
     private final CrossfadeDrawable[] premiumCrossfadeDrawable = new CrossfadeDrawable[2];
@@ -2355,6 +2362,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        destroyFluxGramBadgeRenderers();
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onDestroy();
         }
@@ -3470,6 +3478,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         botVerificationDrawable[i].attach();
                     }
                 }
+                for (int i = 0; i < fluxGramBadgeRenderers.length; i++) {
+                    if (fluxGramBadgeRenderers[i] != null) {
+                        fluxGramBadgeRenderers[i].attach();
+                    }
+                }
             }
 
             @Override
@@ -3484,6 +3497,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 for (int i = 0; i < botVerificationDrawable.length; ++i) {
                     if (botVerificationDrawable[i] != null) {
                         botVerificationDrawable[i].detach();
+                    }
+                }
+                for (int i = 0; i < fluxGramBadgeRenderers.length; i++) {
+                    if (fluxGramBadgeRenderers[i] != null) {
+                        fluxGramBadgeRenderers[i].detach();
                     }
                 }
             }
@@ -5521,11 +5539,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (playProfileAnimation == 0 && a == 0) {
                 continue;
             }
+            final int badgeIndex = a;
             nameTextView[a] = new SimpleTextView(context) {
                 @Override
                 public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
                     super.onInitializeAccessibilityNodeInfo(info);
-                    if (isFocusable() && (nameTextViewRightDrawableContentDescription != null || nameTextViewRightDrawable2ContentDescription != null)) {
+                    FluxGramProfileBadgeRenderer renderer = fluxGramBadgeRenderers[badgeIndex];
+                    String badgeLabel = renderer == null ? null : renderer.getAccessibilityLabel();
+                    boolean hasDescription = nameTextViewRightDrawableContentDescription != null
+                            || nameTextViewRightDrawable2ContentDescription != null
+                            || badgeLabel != null;
+
+                    if (isFocusable() && hasDescription) {
                         StringBuilder s = new StringBuilder(getText());
                         if (nameTextViewRightDrawable2ContentDescription != null) {
                             if (s.length() > 0) s.append(", ");
@@ -5534,6 +5559,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         if (nameTextViewRightDrawableContentDescription != null) {
                             if (s.length() > 0) s.append(", ");
                             s.append(nameTextViewRightDrawableContentDescription);
+                        }
+                        if (badgeLabel != null) {
+                            if (s.length() > 0) s.append(", ");
+                            s.append(badgeLabel);
                         }
                         info.setText(s);
                     }
@@ -5546,6 +5575,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (wasRightDrawableX != getRightDrawableX()) {
                         updateCollectibleHint();
                     }
+                    if (fluxGramBadgeRenderers[badgeIndex] != null) {
+                        fluxGramBadgeRenderers[badgeIndex].draw(canvas);
+                    }
+                }
+
+                @Override
+                public boolean onTouchEvent(MotionEvent event) {
+                    FluxGramProfileBadgeRenderer renderer = fluxGramBadgeRenderers[badgeIndex];
+                    if (renderer != null && renderer.onTouchEvent(event)) {
+                        return true;
+                    }
+
+                    return super.onTouchEvent(event);
                 }
             };
             if (a == 1) {
@@ -5568,6 +5610,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             nameTextView[a].setFocusable(a == 0);
             nameTextView[a].setEllipsizeByGradient(true);
             nameTextView[a].setRightDrawableOutside(a == 0);
+            fluxGramBadgeRenderers[a] = new FluxGramProfileBadgeRenderer(
+                    this,
+                    currentAccount,
+                    nameTextView[a],
+                    a == 0
+                            ? AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS
+                            : AnimatedEmojiDrawable.CACHE_TYPE_KEYBOARD
+            );
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
         }
         for (int a = 0; a < onlineTextView.length; a++) {
@@ -11916,7 +11966,43 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             avatarImage.getImageReceiver().setVisible(!PhotoViewer.isShowingImage(photoBig) && (getLastStoryViewer() == null || getLastStoryViewer().transitionViewHolder.view != avatarImage), storyView != null);
         }
 
+        updateFluxGramProfileBadge();
         needLayout(true);
+    }
+
+    private void updateFluxGramProfileBadge() {
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        if (localAppearanceFixture == null) {
+            localAppearanceFixture = LocalAppearanceFixture.load(context);
+        }
+
+        FluxGramPeerKey peer = null;
+        if (topicId == 0) {
+            if (userId != 0) {
+                peer = TelegramPeerKeyAdapter.fromUserId(userId);
+            } else {
+                peer = TelegramPeerKeyAdapter.fromChat(currentChat);
+            }
+        }
+
+        ProfileBadge badge = localAppearanceFixture.findBadge(peer);
+        for (FluxGramProfileBadgeRenderer renderer : fluxGramBadgeRenderers) {
+            if (renderer != null) {
+                renderer.bind(badge, false);
+            }
+        }
+    }
+
+    private void destroyFluxGramBadgeRenderers() {
+        for (int i = 0; i < fluxGramBadgeRenderers.length; i++) {
+            if (fluxGramBadgeRenderers[i] != null) {
+                fluxGramBadgeRenderers[i].destroy();
+                fluxGramBadgeRenderers[i] = null;
+            }
+        }
     }
 
     private CharSequence appendCommunityHiddenRow(CharSequence text) {
@@ -11940,6 +12026,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void clearViews() {
         peerColor = null;
+        destroyFluxGramBadgeRenderers();
         super.clearViews();
     }
 

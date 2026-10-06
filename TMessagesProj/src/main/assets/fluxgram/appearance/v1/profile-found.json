@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "minimum_renderer_version": 1,
+  "result": {
+    "peer": {
+      "peer_type": "user",
+      "peer_id": "8660500762"
+    },
+    "revision": "1",
+    "expires_at": "2030-01-01T00:00:00Z",
+    "profile": {
+      "badges": [
+        {
+          "badge_id": "developer",
+          "custom_emoji_document_id": "5373141891321699086",
+          "title": "FluxGram Developer",
+          "description": "Participates in the development of FluxGram.",
+          "particles": true,
+          "expires_at": null
+        }
+      ],
+      "design": null
+    }
+  }
+}
