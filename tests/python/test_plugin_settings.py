@@ -81,7 +81,13 @@ class PluginSettingsTest(unittest.TestCase):
         module.SwitchSetting = self.sdk.SwitchSetting
         module.SelectSetting = self.sdk.SelectSetting
         module.SliderSetting = self.sdk.SliderSetting
-        with patch.dict(sys.modules, {"fluxgram": module}):
+        received = []
+        ui_module = types.ModuleType("fluxgram.ui")
+        ui_module.Notifications = lambda ui: types.SimpleNamespace(
+            show_message=lambda event, **kwargs: received.append(kwargs)
+        )
+
+        with patch.dict(sys.modules, {"fluxgram": module, "fluxgram.ui": ui_module}):
             spec = importlib.util.spec_from_file_location("test_notifications", ROOT / "fluxgram_notifications.py")
             builtin = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(builtin)
@@ -89,8 +95,9 @@ class PluginSettingsTest(unittest.TestCase):
         values = {"show_muted_chats": True}
         plugin.settings = self.sdk.Settings(plugin.settings_schema)
         plugin.settings._bind_runtime(self.host(values), 7)
-        received = []
-        plugin.ui = types.SimpleNamespace(notify_message=lambda event, **kwargs: received.append(kwargs))
+        plugin.ui = object()
+        plugin.events = types.SimpleNamespace(subscribe=lambda *args, **kwargs: None)
+        plugin.on_load()
         plugin.on_message(object())
         values["show_muted_chats"] = False
         plugin.on_message(object())

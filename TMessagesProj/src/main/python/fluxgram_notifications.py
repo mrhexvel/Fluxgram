@@ -1,4 +1,5 @@
 from fluxgram import Plugin, MessageReceivedEvent, SwitchSetting, SelectSetting, SliderSetting
+from fluxgram.ui import Notifications
 
 
 class PluginEntry(Plugin):
@@ -31,13 +32,14 @@ class PluginEntry(Plugin):
     SHOW_IN_CURRENT_CHAT = False
 
     def on_load(self):
+        self.notifications = Notifications(self.ui)
         self.events.subscribe("notification.received", self.on_message, thread="ui")
 
     def on_message(self, event: MessageReceivedEvent):
         mode = self.settings.get("duration_mode")
         seconds = self.settings.get("custom_duration") if mode == "custom" else int(mode)
 
-        return self.ui.notify_message(
+        return self.notifications.show_message(
             event,
             duration=seconds * 1000,
             respect_mute=not self.settings.get("show_muted_chats"),

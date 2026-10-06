@@ -89,11 +89,6 @@ def create_message_bulletin(fragment, event):
 
     activity = fragment.getParentActivity()
     provider = fragment.getResourceProvider()
-    controller = MessagesController.getInstance(event.account)
-    peer = _peer(controller, event.dialog_id)
-    title, text = message_labels(event, controller, peer)
-
-
     container = (
         activity.getMainContainerFrameLayout()
         if isinstance(activity, LaunchActivity)
@@ -125,16 +120,6 @@ def create_message_bulletin(fragment, event):
         48, 48, Gravity.START | Gravity.CENTER_VERTICAL, 12, 12, 12, 12
     ))
     image.setRoundRadius(dp(24))
-    image.getImageReceiver().setCurrentAccount(event.account)
-    avatar = AvatarDrawable()
-
-    if peer is not None:
-        avatar.setInfo(event.account, peer)
-        image.setForUserOrChat(peer, avatar)
-    else:
-        avatar.setInfo(jlong(event.dialog_id), title, None)
-        image.setImageDrawable(avatar)
-
     image.setImportantForAccessibility(2)
 
     column = layout.titleTextView.getParent()
@@ -147,7 +132,6 @@ def create_message_bulletin(fragment, event):
     title_view.setSingleLine(True)
     title_view.setEllipsize(TextUtils.TruncateAt.END)
     title_view.setTextColor(_theme_color(Theme.key_dialogTextBlack, provider))
-    title_view.setText(Emoji.replaceEmoji(title, title_view.getPaint().getFontMetricsInt(), False))
 
     body_view = layout.subtitleTextView
     body_view.setPadding(0, 0, 0, 0)
@@ -156,6 +140,31 @@ def create_message_bulletin(fragment, event):
     body_view.setMaxLines(2)
     body_view.setEllipsize(TextUtils.TruncateAt.END)
     body_view.setTextColor(_theme_color(Theme.key_dialogTextGray, provider))
-    body_view.setText(Emoji.replaceEmoji(text, body_view.getPaint().getFontMetricsInt(), False))
 
-    return Bulletin.make(container, layout, 5000)
+    bulletin = Bulletin.make(container, layout, 5000)
+    update_message_bulletin(bulletin, event)
+
+    return bulletin
+
+
+def update_message_bulletin(bulletin, event):
+    layout = bulletin.getLayout()
+    controller = MessagesController.getInstance(event.account)
+    peer = _peer(controller, event.dialog_id)
+    title, text = message_labels(event, controller, peer)
+    image = layout.imageView
+    image.getImageReceiver().setCurrentAccount(event.account)
+    avatar = AvatarDrawable()
+
+    if peer is not None:
+        avatar.setInfo(event.account, peer)
+        image.setForUserOrChat(peer, avatar)
+    else:
+        avatar.setInfo(jlong(event.dialog_id), title, None)
+        image.setImageDrawable(avatar)
+
+    title_view = layout.titleTextView
+    title_view.setText(Emoji.replaceEmoji(title, title_view.getPaint().getFontMetricsInt(), False))
+
+    body_view = layout.subtitleTextView
+    body_view.setText(Emoji.replaceEmoji(text, body_view.getPaint().getFontMetricsInt(), False))

@@ -1,7 +1,9 @@
 from android.content import Intent
 from java import jint, jlong
-from org.telegram.messenger import ApplicationLoader, DialogObject, SharedConfig
+from org.telegram.messenger import ApplicationLoader, DialogObject, SharedConfig, UserConfig
 from org.telegram.ui import LaunchActivity
+
+from ..client import _require_integer
 
 
 def foreground_fragment():
@@ -27,6 +29,16 @@ def foreground_fragment():
 
 
 def open_chat(account, dialog_id, topic_id=0, message_id=0):
+    _require_integer("account", account, 0, int(UserConfig.MAX_ACCOUNT_COUNT) - 1)
+    _require_integer("dialog_id", dialog_id, -(2**63), 2**63 - 1)
+    _require_integer("topic_id", topic_id, 0, 2**63 - 1)
+    _require_integer("message_id", message_id, -(2**31), 2**31 - 1)
+
+    if dialog_id == 0 or DialogObject.isFolderDialogId(jlong(dialog_id)):
+        raise ValueError("dialog_id must identify a chat")
+
+    if not UserConfig.getInstance(account).isClientActivated():
+        return False
 
     fragment = foreground_fragment()
 

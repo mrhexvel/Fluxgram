@@ -229,6 +229,20 @@ public class Bulletin {
         return this;
     }
 
+    public void restartTimeout(int duration) {
+        this.duration = duration;
+
+        if (layout == null) {
+            return;
+        }
+
+        layout.removeCallbacks(hideRunnable);
+
+        if (showing && canHide && duration >= 0) {
+            layout.postDelayed(hideRunnable, duration);
+        }
+    }
+
     public Bulletin hideAfterBottomSheet(boolean hide) {
         this.hideAfterBottomSheet = hide;
         return this;
