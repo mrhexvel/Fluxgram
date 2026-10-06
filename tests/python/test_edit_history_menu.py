@@ -17,7 +17,7 @@ class EditHistoryMenuTest(unittest.TestCase):
         source = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/fluxgram/EditHistoryMenuController.java').read_text()
         source = re.sub(r'^(?:package org\.telegram\..*|import (?:org\.telegram|android)\..*);\n',
                         '', source, flags=re.M)
-        fixture = (ROOT / 'tests/java/EditHistoryMenuCheck.java.in').read_text()
+        fixture = (ROOT / 'tests/java/EditHistoryMenuCheck.java').read_text()
 
         with tempfile.TemporaryDirectory() as directory:
             controller = Path(directory) / 'EditHistoryMenuController.java'

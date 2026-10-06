@@ -2,7 +2,7 @@ import traceback
 
 from android.util import Log
 from java import dynamic_proxy, jclass
-from org.telegram.ui.Components import BulletinFactory
+from org.telegram.ui.Components import Bulletin, BulletinFactory
 
 from .navigation import foreground_fragment
 from ..client import _require_integer
@@ -10,6 +10,10 @@ from ..client import _require_integer
 
 OnClickListener = jclass("android.view.View$OnClickListener")
 OnAttachStateChangeListener = jclass("android.view.View$OnAttachStateChangeListener")
+
+
+def has_visible_bulletin():
+    return Bulletin.getVisibleBulletin() is not None
 
 
 class _Click(dynamic_proxy(OnClickListener)):
@@ -58,10 +62,11 @@ class _Detach(dynamic_proxy(OnAttachStateChangeListener)):
 
 
 class BulletinHandle:
-    def __init__(self, presenter, bulletin, on_click):
+    def __init__(self, presenter, bulletin, on_click, on_closed):
         self.presenter = presenter
         self.bulletin = bulletin
         self.on_click = on_click
+        self.on_closed = on_closed
         self.click = _Click(self) if on_click is not None else None
 
     def is_showing(self):
@@ -84,6 +89,9 @@ class BulletinHandle:
         return True
 
     def release(self, view, detach):
+        on_closed = self.on_closed
+        self.on_closed = None
+
         if self.presenter is not None and self.presenter.current is self:
             self.presenter.current = None
 
@@ -96,6 +104,12 @@ class BulletinHandle:
         self.bulletin = None
         self.on_click = None
         self.click = None
+
+        if on_closed is not None:
+            try:
+                on_closed(self)
+            except Exception:
+                Log.e("FluxGramPython", traceback.format_exc())
 
 
 class BulletinPresenter:
@@ -116,12 +130,12 @@ class BulletinPresenter:
 
                 raise
 
-    def show(self, bulletin, on_click=None, top=True):
+    def show(self, bulletin, on_click=None, top=True, *, on_closed=None):
         self.ui._require_ui()
         self.dismiss()
 
         layout = bulletin.getLayout()
-        handle = BulletinHandle(self, bulletin, on_click)
+        handle = BulletinHandle(self, bulletin, on_click, on_closed)
         detach = _Detach(handle)
 
         if handle.click is not None:

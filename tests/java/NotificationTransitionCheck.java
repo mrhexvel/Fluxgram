@@ -11,14 +11,14 @@ public class NotificationTransitionCheck {
 
         transition.animateEnter(layout, null, () -> completions[0]++, null, 0);
         SpringAnimation entrance = SpringAnimation.latest;
-        layout.offset = 35;
+        layout.inOutOffset = 35;
         layout.transitionRunningEnter = true;
 
         transition.animateExit(layout, layout::onExitTransitionStart,
                 () -> completions[1]++, null, 0);
 
         require(entrance.canceled, "Entrance still running during exit");
-        require(layout.offset == 35, "Exit jumped from the interrupted position");
+        require(layout.inOutOffset == 35, "Exit jumped from the interrupted position");
         require(completions[0] == 0, "Canceled entrance ran its completion");
         require(!layout.transitionRunningEnter, "Entrance state not cleared");
         require(background.frozen, "Live blur still capturing during exit");
@@ -27,7 +27,7 @@ public class NotificationTransitionCheck {
 
         ObjectAnimator exit = ObjectAnimator.latest;
         exit.finish();
-        require(layout.offset == layout.getHeight(), "Exit stopped before leaving the screen");
+        require(layout.inOutOffset == layout.getHeight(), "Exit stopped before leaving the screen");
         require(completions[1] == 1, "Exit completion must run once");
         layout.onDetach();
         require(completions[1] == 1, "Detach repeated exit completion");
@@ -77,20 +77,63 @@ class NotificationBlurBackground extends Drawable {
 
 class CubicBezierInterpolator {
     static final Object EASE_BOTH = new Object();
+    static final Object EASE_OUT = new Object();
 }
 
 class OffsetProperty {
     void set(Bulletin.Layout layout, float value) {
-        layout.offset = value;
+        layout.inOutOffset = value;
     }
 }
 
 class Bulletin {
+    boolean showing = true;
+    boolean canHide = true;
+    int hides;
+
+    boolean isShowing() {
+        return showing;
+    }
+
+    void hide() {
+        showing = false;
+        hides++;
+    }
+
+    void setCanHide(boolean value) {
+        canHide = value;
+    }
+
     static class Layout {
         static final OffsetProperty IN_OUT_OFFSET_Y = new OffsetProperty();
         static final OffsetProperty IN_OUT_OFFSET_Y2 = new OffsetProperty();
         boolean transitionRunningEnter;
-        float offset;
+        float inOutOffset;
+        boolean top = true;
+        Bulletin bulletin = new Bulletin();
+        ClickListener onClickListener;
+
+        interface ClickListener {
+            void onClick(Layout layout);
+        }
+
+        public void setClickable(boolean value) {
+        }
+
+        public void setPressed(boolean value) {
+        }
+
+        public ViewParent getParent() {
+            return null;
+        }
+
+        public boolean dispatchTouchEvent(MotionEvent event) {
+            return false;
+        }
+
+        public boolean performClick() {
+            return false;
+        }
 
         interface Transition {
             void animateEnter(Layout layout, Runnable start, Runnable end,
@@ -123,7 +166,7 @@ class Bulletin {
         }
 
         float getTranslationY() {
-            return -offset;
+            return -inOutOffset;
         }
     }
 
@@ -188,7 +231,7 @@ class ObjectAnimator extends Animator {
     }
 
     void finish() {
-        layout.offset = destination;
+        layout.inOutOffset = destination;
 
         if (listener != null) {
             listener.onAnimationEnd(this);

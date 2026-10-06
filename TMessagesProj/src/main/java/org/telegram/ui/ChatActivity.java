@@ -189,6 +189,7 @@ import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.CameraView;
+import org.telegram.messenger.plugins.PluginUiLifecycle;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.messenger.utils.FBool;
 import org.telegram.messenger.utils.OnPostDrawView;
@@ -10034,6 +10035,10 @@ public class ChatActivity extends BaseFragment implements
                 replyOriginalChat = null;
                 isTopic = false;
                 isComments = false;
+            }
+
+            if (chatMode == MODE_DEFAULT && !isInPreviewMode()) {
+                PluginUiLifecycle.onChatOpened(currentAccount, dialog_id, getTopicId());
             }
 
             if (chatAdapter != null) {
@@ -27122,6 +27127,11 @@ public class ChatActivity extends BaseFragment implements
     public void onBecomeFullyVisible() {
         isFullyVisible = true;
         super.onBecomeFullyVisible();
+
+        if (chatMode == MODE_DEFAULT && !isInPreviewMode()) {
+            PluginUiLifecycle.onChatOpened(currentAccount, dialog_id, getTopicId());
+        }
+
         if (showCloseChatDialogLater) {
             showDialog(closeChatDialog);
         }
@@ -29850,6 +29860,11 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onResume() {
         super.onResume();
+
+        if (chatMode == MODE_DEFAULT && !isInPreviewMode()) {
+            PluginUiLifecycle.onChatOpened(currentAccount, dialog_id, getTopicId());
+        }
+
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {

@@ -32,7 +32,7 @@ class EditHistoryTest(unittest.TestCase):
 
         source = (SOURCE / "EditHistoryCapture.java").read_text()
         source = re.sub(r"^(?:package org\.telegram\..*|import org\.telegram\..*);\n", "", source, flags=re.M)
-        fixture = (ROOT / "tests/java/EditHistoryCaptureCheck.java.in").read_text()
+        fixture = (ROOT / "tests/java/EditHistoryCaptureCheck.java").read_text()
 
         with tempfile.TemporaryDirectory() as directory:
             capture = Path(directory) / "EditHistoryCapture.java"

@@ -16,15 +16,24 @@ class NotificationTransitionTest(unittest.TestCase):
 
         source = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/Components/NotificationCardLayout.java').read_text()
         source = re.sub(r'^(?:package|import) .*;\n', '', source, flags=re.M)
-        fixture = (ROOT / 'tests/java/NotificationTransitionCheck.java.in').read_text()
+        fixture = (ROOT / 'tests/java/NotificationTransitionCheck.java').read_text()
+        gestures = (ROOT / 'tests/java/NotificationSwipeCheck.java').read_text()
+        handler = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/Components/NotificationSwipeHandler.java').read_text()
+        handler = re.sub(r'^(?:package|import) .*;\n', '', handler, flags=re.M)
 
         with tempfile.TemporaryDirectory() as directory:
             layout = Path(directory) / 'NotificationCardLayout.java'
             check = Path(directory) / 'NotificationTransitionCheck.java'
             layout.write_text('import java.util.function.Consumer;\n' + source)
             check.write_text(fixture)
+            swipe = Path(directory) / 'NotificationSwipeHandler.java'
+            swipe_check = Path(directory) / 'NotificationSwipeCheck.java'
+            swipe.write_text(handler)
+            swipe_check.write_text(gestures)
 
-            subprocess.run(['javac', '-d', directory, str(layout), str(check)],
+            subprocess.run(['javac', '-d', directory, str(layout), str(check), str(swipe), str(swipe_check)],
                            check=True, capture_output=True)
             subprocess.run(['java', '-cp', directory, 'NotificationTransitionCheck'],
+                           check=True, capture_output=True)
+            subprocess.run(['java', '-cp', directory, 'NotificationSwipeCheck'],
                            check=True, capture_output=True)

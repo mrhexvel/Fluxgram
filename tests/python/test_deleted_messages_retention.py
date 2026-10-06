@@ -17,7 +17,7 @@ class DeletedMessagesRetentionTest(unittest.TestCase):
         source = (ROOT / 'TMessagesProj/src/main/java/org/telegram/messenger/fluxgram/DeletedMessagesRetention.java').read_text()
         source = re.sub(r'^(?:package org\.telegram\..*|import org\.telegram\..*);\n',
                         '', source, flags=re.M)
-        fixture = (ROOT / 'tests/java/DeletedMessagesRetentionCheck.java.in').read_text()
+        fixture = (ROOT / 'tests/java/DeletedMessagesRetentionCheck.java').read_text()
 
         with tempfile.TemporaryDirectory() as directory:
             retention = Path(directory) / 'DeletedMessagesRetention.java'

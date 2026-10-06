@@ -44,6 +44,18 @@ class Bulletin:
     def isShowing(self):
         return self.showing
 
+    @staticmethod
+    def getVisibleBulletin():
+        if Bulletin.visible is not None and Bulletin.visible.isShowing():
+            return Bulletin.visible
+
+        return None
+
+    def finish_hide(self):
+        self.showing = False
+        detach = self.layout.addOnAttachStateChangeListener.call_args.args[0]
+        detach.onViewDetachedFromWindow(self.layout)
+
 
 class ChatActivity:
     def getCurrentAccount(self):
@@ -71,11 +83,18 @@ class NotificationRefreshTest(unittest.TestCase):
             module(name)
 
         self.fragment = object()
+        self.pending = []
+        self.lifecycle_listeners = []
         self.created = []
         self.render = Mock()
+        self.fail_dialogs = set()
 
         def create(fragment, event):
+            if event.dialog_id in self.fail_dialogs:
+                raise RuntimeError('card creation failed')
+
             bulletin = Bulletin()
+            bulletin.event = event
             self.created.append(bulletin)
             return bulletin
 
@@ -84,18 +103,23 @@ class NotificationRefreshTest(unittest.TestCase):
         module('android.util', Log=Mock())
         module('org.telegram.messenger', DialogObject=Mock(), UserConfig=Mock())
         module('org.telegram.ui', ChatActivity=ChatActivity)
-        module('org.telegram.ui.Components', BulletinFactory=types.SimpleNamespace(
+        module('org.telegram.ui.Components', Bulletin=Bulletin, BulletinFactory=types.SimpleNamespace(
             canShowBulletin=lambda fragment: True,
             of=lambda fragment: types.SimpleNamespace(createSimpleBulletin=lambda *args: Bulletin()),
         ))
         module('fluxgram._telegram.navigation', foreground_fragment=lambda: self.fragment, open_chat=Mock())
         module('fluxgram._telegram.notification_card', create_message_bulletin=create, update_message_bulletin=self.render)
-        module('fluxgram._ui_thread', post_ui=lambda action: action())
+        module('fluxgram._ui_thread', post_ui=self.pending.append)
         module('fluxgram.client', _require_integer=lambda *args: None)
+        module('org.telegram.messenger.plugins', PluginUiLifecycle=types.SimpleNamespace(
+            addListener=self.lifecycle_listeners.append,
+            removeListener=self.lifecycle_listeners.remove,
+        ))
 
         with patch.dict(sys.modules, modules):
             for name, path in (
                 ('fluxgram._telegram.bulletins', SOURCE.parent.parent / '_telegram/bulletins.py'),
+                ('fluxgram._telegram.ui_lifecycle', SOURCE.parent.parent / '_telegram/ui_lifecycle.py'),
                 ('fluxgram.ui', SOURCE),
             ):
                 spec = importlib.util.spec_from_file_location(name, path)
@@ -134,21 +158,34 @@ class NotificationRefreshTest(unittest.TestCase):
         click.onClick(bulletin.layout)
         self.notifications._navigation.open_chat.assert_called_once_with(account=0, dialog_id=10, topic_id=0, message_id=2)
 
+    def drain(self):
+        while self.pending:
+            self.pending.pop(0)()
+
+    def finish(self, bulletin):
+        bulletin.finish_hide()
+        self.drain()
+
     def test_account_chat_and_topic_are_separate(self):
+        self.notifications.show_message(self.event())
+        old = self.created[0]
+
         for options in ({'account': 1}, {'dialog': 11}, {'topic': 7}):
-            with self.subTest(options=options):
-                self.notifications._presenter.dismiss()
-                self.notifications.show_message(self.event())
-                old = self.notifications._presenter.current.bulletin
-                self.notifications.show_message(self.event(**options))
-                self.assertIsNot(self.notifications._presenter.current.bulletin, old)
-                self.assertEqual(old.hide_count, 1)
+            self.notifications.show_message(self.event(**options))
+
+        self.assertEqual(len(self.created), 1)
+        self.assertEqual(old.hide_count, 0)
+
+        for expected in ((1, 10, 0), (0, 11, 0), (0, 10, 7)):
+            self.finish(self.created[-1])
+            self.assertEqual(self.notifications._notification_key, expected)
 
     def test_old_detach_does_not_clear_replacement(self):
         self.notifications.show_message(self.event())
-        old = self.notifications._presenter.current.bulletin
+        old = self.created[0]
         detach = old.layout.addOnAttachStateChangeListener.call_args.args[0]
         self.notifications.show_message(self.event(dialog=11))
+        self.finish(old)
         current = self.notifications._presenter.current.bulletin
         detach.onViewDetachedFromWindow(old.layout)
 
@@ -158,12 +195,14 @@ class NotificationRefreshTest(unittest.TestCase):
 
     def test_hiding_card_is_not_revived(self):
         self.notifications.show_message(self.event())
-        old = self.notifications._presenter.current.bulletin
+        old = self.created[0]
         old.hide()
         self.notifications.show_message(self.event(mid=2))
-
-        self.assertIsNot(self.notifications._presenter.current.bulletin, old)
+        self.assertEqual(len(self.created), 1)
         self.assertEqual(old.refreshes, [])
+        self.finish(old)
+        self.assertEqual(len(self.created), 2)
+        self.assertEqual(self.created[-1].event.message_id, 2)
 
     def test_filtered_events_do_not_refresh(self):
         self.notifications.show_message(self.event())
@@ -237,6 +276,7 @@ class NotificationRefreshTest(unittest.TestCase):
 
         self.assertIsNone(self.notifications._presenter.current)
         failing.layout.setOnClickListener.assert_called_with(None)
+        self.finish(self.created[0])
         self.notifications.show_message(self.event(mid=2))
         self.assertEqual(len(self.created), 2)
 
@@ -298,3 +338,130 @@ class NotificationRefreshTest(unittest.TestCase):
         self.assertTrue(other_ui._active())
         other_ui._close()
         self.assertFalse(current.isShowing())
+
+    def test_pending_update_keeps_position_and_latest_contents(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        self.notifications.show_message(self.event(dialog=12))
+        self.notifications.show_message(self.event(dialog=11, mid=99), duration=8000)
+        self.finish(self.created[0])
+
+        current = self.created[-1]
+        self.assertEqual(current.event.dialog_id, 11)
+        self.assertEqual(current.event.message_id, 99)
+        self.assertEqual(current.duration, 8000)
+        self.finish(current)
+        self.assertEqual(self.created[-1].event.dialog_id, 12)
+
+    def test_overflow_discards_oldest_pending_without_creating_views(self):
+        self.notifications.show_message(self.event())
+
+        for dialog in (11, 12, 13, 14):
+            self.notifications.show_message(self.event(dialog=dialog))
+
+        self.assertEqual(len(self.created), 1)
+
+        for dialog in (12, 13, 14):
+            self.finish(self.created[-1])
+            self.assertEqual(self.created[-1].event.dialog_id, dialog)
+
+        self.finish(self.created[-1])
+        self.assertEqual(len(self.created), 4)
+        self.assertIsNone(self.notifications._notification_handle)
+
+    def test_background_invalidates_already_posted_advance(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        self.created[0].finish_hide()
+        self.assertEqual(len(self.pending), 1)
+        self.lifecycle_listeners[0].onBackground()
+        self.drain()
+        self.assertEqual(len(self.created), 1)
+        self.assertFalse(self.notifications._queue)
+
+    def test_opened_chat_is_removed_from_pending(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        self.notifications.show_message(self.event(dialog=12))
+        self.lifecycle_listeners[0].onChatOpened(0, 11, 0)
+        self.finish(self.created[0])
+        self.assertEqual(self.created[-1].event.dialog_id, 12)
+
+    def test_opening_current_chat_dismisses_then_advances(self):
+        self.notifications.show_message(self.event())
+        current = self.created[0]
+        self.notifications.show_message(self.event(dialog=11))
+        self.lifecycle_listeners[0].onChatOpened(0, 10, 0)
+        self.assertEqual(current.hide_count, 1)
+        self.assertEqual(len(self.created), 1)
+        self.finish(current)
+        self.assertEqual(self.created[-1].event.dialog_id, 11)
+
+    def test_current_chat_is_rechecked_before_presenting(self):
+        self.notifications.show_message(self.event(dialog=11))
+        self.notifications.show_message(self.event())
+        self.fragment = ChatActivity()
+        self.finish(self.created[0])
+        self.assertEqual(len(self.created), 1)
+
+    def test_explicit_current_chat_option_is_preserved(self):
+        self.notifications.show_message(self.event(dialog=11))
+        self.notifications.show_message(self.event(), show_in_current_chat=True)
+        self.fragment = ChatActivity()
+        self.lifecycle_listeners[0].onChatOpened(0, 10, 0)
+        self.finish(self.created[0])
+        self.assertEqual(self.created[-1].event.dialog_id, 10)
+
+    def test_disable_cancels_queue_and_unregisters_lifecycle(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        listener = self.lifecycle_listeners[0]
+        self.ui._close()
+        self.finish(self.created[0])
+        listener.onChatOpened(0, 12, 0)
+        self.assertEqual(len(self.created), 1)
+        self.assertEqual(self.lifecycle_listeners, [])
+        self.assertIsNone(listener.owner)
+        self.assertFalse(self.notifications._queue)
+
+    def test_another_bulletin_is_not_replaced_by_queued_notification(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        bulletins = self.sdk.Bulletins(self.ui)
+        bulletins.show('Title', 'Text')
+        current = bulletins._presenter.current.bulletin
+        self.finish(self.created[0])
+        self.assertTrue(current.isShowing())
+        self.assertEqual(len(self.created), 1)
+        self.assertFalse(self.notifications._queue)
+
+    def test_missing_foreground_drops_queue(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        self.fragment = None
+        self.finish(self.created[0])
+        self.assertEqual(len(self.created), 1)
+        self.assertFalse(self.notifications._queue)
+
+    def test_failed_queued_card_does_not_block_following_card(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        self.notifications.show_message(self.event(dialog=12))
+        self.fail_dialogs.add(11)
+        self.finish(self.created[0])
+        self.assertEqual(self.created[-1].event.dialog_id, 12)
+        self.assertEqual(len(self.created), 2)
+
+    def test_stale_advance_cannot_modify_new_foreground_session(self):
+        self.notifications.show_message(self.event())
+        self.notifications.show_message(self.event(dialog=11))
+        self.created[0].finish_hide()
+        self.lifecycle_listeners[0].onBackground()
+        self.notifications.show_message(self.event(dialog=12))
+        self.notifications.show_message(self.event(dialog=13))
+        self.drain()
+
+        self.assertEqual(self.created[-1].event.dialog_id, 12)
+        self.assertEqual(len(self.lifecycle_listeners), 1)
+        self.finish(self.created[-1])
+        self.assertEqual(self.created[-1].event.dialog_id, 13)
