@@ -355,4 +355,10 @@
     <string name="FluxGramAttachmentClear">Удалить сохранённые вложения</string>
     <string name="FluxGramAttachmentClearInfo">Удалить все сохранённые вложения? Текст сообщений и история изменений останутся.</string>
     <string name="FluxGramAttachmentFailures">Не удалось сохранить вложений: %1$d. Возможные причины: нехватка места, ошибка чтения или перегрузка очереди.</string>
+    <string name="FluxGramStorageStatistics">Локальное хранилище</string>
+    <string name="FluxGramStorageEditVersions">Сохранённые версии сообщений</string>
+    <string name="FluxGramStorageDeletedMessages">Архивные удалённые сообщения</string>
+    <string name="FluxGramStorageAttachments">Сохранённые вложения</string>
+    <string name="FluxGramStorageAttachmentSize">Размер сохранённых вложений</string>
+    <string name="FluxGramStorageAttachmentFailures">Ошибки сохранения вложений</string>
 </resources>

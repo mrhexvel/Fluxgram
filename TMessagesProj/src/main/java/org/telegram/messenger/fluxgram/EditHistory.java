@@ -278,6 +278,19 @@ public final class EditHistory {
         });
     }
 
+    static long countVersionsOnStorageQueue(int account, long owner) throws Exception {
+        if (!databaseFile(account).exists()) {
+            return 0;
+        }
+
+        try (SQLiteDatabase db = open(account);
+                Cursor cursor = db.rawQuery(
+                        "SELECT COUNT(*) FROM edit_versions WHERE owner = ?",
+                        new String[] {Long.toString(owner)})) {
+            return cursor.moveToFirst() ? cursor.getLong(0) : 0;
+        }
+    }
+
     public static void load(int account, long dialog, int message, Callback callback) {
         long owner = UserConfig.getInstance(account).getClientUserId();
         MessagesStorage.getInstance(account).getStorageQueue().postRunnable(() -> {

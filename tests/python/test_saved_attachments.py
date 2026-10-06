@@ -47,6 +47,32 @@ class SavedAttachmentsTest(unittest.TestCase):
             self.assertTrue(any("attachments_age" in row[3] for row in plan))
             self.assertFalse(any("TEMP B-TREE" in row[3] for row in plan))
 
+    def test_statistics_use_index_without_scanning_files(self):
+        source = (SOURCE / "SavedAttachments.java").read_text()
+        statements = re.findall(r'database.execSQL\("(CREATE.*?)"\);', source)
+        query = re.search(
+            r'"(SELECT COUNT\(\*\), COALESCE\(SUM\(size\), 0\) FROM attachments)"',
+            source,
+        )[1]
+        start = source.index("    void loadStatistics(")
+        end = source.index("    private void recordFailure(", start)
+        method = source[start:end]
+
+        self.assertNotIn("listFiles()", method)
+        self.assertNotIn("open();", method)
+        self.assertIn("failures.get()", method)
+
+        with sqlite3.connect(":memory:") as db:
+            for statement in statements:
+                db.execute(statement)
+            db.executemany("INSERT INTO attachments VALUES (?, ?, ?, ?, ?)", [
+                ("1_7.jpg", 1, 7, 100, 10),
+                ("1_8.pdf", 1, 8, 2 ** 31, 20),
+                ("2_9.jpg", 2, 9, 300, 30),
+            ])
+
+            self.assertEqual(db.execute(query).fetchone(), (3, 2 ** 31 + 400))
+
     def test_provider_exposes_only_attachment_directory(self):
         root = ET.parse(ROOT / "TMessagesProj/src/main/res/xml/provider_paths.xml").getroot()
         paths = [item for item in root if item.attrib.get("name") == "fluxgram_attachments"]

@@ -30,6 +30,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 public final class SavedAttachments {
+    static final class Statistics {
+        final long count;
+        final long bytes;
+        final long failures;
+
+        Statistics(long count, long bytes, long failures) {
+            this.count = count;
+            this.bytes = bytes;
+            this.failures = failures;
+        }
+    }
+
     private static final long MB = 1024L * 1024;
     private static final long FREE_RESERVE = 64 * MB;
     private static final Pattern EXTENSION = Pattern.compile("[A-Za-z0-9]{1,12}");
@@ -89,15 +101,25 @@ public final class SavedAttachments {
         return Math.max(0, Math.min(FILE_LIMITS.length - 1, preferences.getInt("file_limit", 1)));
     }
 
-    public void setTotalLimit(int index) {
+    public void setTotalLimit(int index, java.util.function.Consumer<Boolean> completed) {
         preferences.edit().putInt("total_limit", index).apply();
         queue.postRunnable(() -> {
+            boolean success = true;
+
             try {
                 open();
                 trim(0);
             } catch (Exception error) {
                 FileLog.e(error);
+                success = false;
             }
+
+            boolean trimmed = success;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (active()) {
+                    completed.accept(trimmed);
+                }
+            });
         });
     }
 
@@ -454,6 +476,48 @@ public final class SavedAttachments {
 
     public int failureCount() {
         return failures.get();
+    }
+
+    void loadStatistics(java.util.function.Consumer<Statistics> completed) {
+        queue.postRunnable(() -> {
+            Statistics result = null;
+
+            try {
+                if (active()) {
+                    File index = new File(directory, "index.db");
+
+                    if (!index.isFile()) {
+                        result = new Statistics(0, 0, failures.get());
+                    } else {
+                        SQLiteDatabase statsDatabase = database;
+                        boolean closeDatabase = false;
+
+                        if (statsDatabase == null) {
+                            statsDatabase = SQLiteDatabase.openDatabase(
+                                    index.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY
+                            );
+                            closeDatabase = true;
+                        }
+
+                        try (Cursor cursor = statsDatabase.rawQuery(
+                                "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM attachments", null)) {
+                            if (cursor.moveToFirst()) {
+                                result = new Statistics(cursor.getLong(0), cursor.getLong(1), failures.get());
+                            }
+                        } finally {
+                            if (closeDatabase) {
+                                statsDatabase.close();
+                            }
+                        }
+                    }
+                }
+            } catch (Exception error) {
+                FileLog.e(error);
+            }
+
+            Statistics statistics = result;
+            AndroidUtilities.runOnUIThread(() -> completed.accept(active() ? statistics : null));
+        });
     }
 
     private void recordFailure() {

@@ -9,6 +9,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.fluxgram.EditHistory;
+import org.telegram.messenger.fluxgram.LocalStorageStatistics;
 import org.telegram.messenger.fluxgram.SavedAttachments;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -28,7 +29,17 @@ import java.util.HashSet;
 public final class FluxGramStealthActivity extends BaseFragment {
     private final boolean[] checked = new boolean[5];
     private int storageLimit;
+    private int statisticsGeneration;
+    private boolean statisticsLoading;
+    private LocalStorageStatistics.Result statistics;
     private UniversalRecyclerView list;
+
+    @Override
+    public void onFragmentDestroy() {
+        statisticsGeneration++;
+        list = null;
+        super.onFragmentDestroy();
+    }
 
     @Override
     public View createView(Context context) {
@@ -62,6 +73,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
                 LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT
         ));
         actionBar.setAdaptiveBackground(list);
+        loadStatistics();
 
         return fragmentView;
     }
@@ -82,11 +94,12 @@ public final class FluxGramStealthActivity extends BaseFragment {
                 .setMessage(text(R.string.FluxGramEditHistoryClearInfo))
                 .setNegativeButton(text(R.string.Cancel), null)
                 .setPositiveButton(text(R.string.Delete), (dialog, which) -> EditHistory.clearVersions(currentAccount, success -> {
-                    if (!isFinished && getParentActivity() != null && !success) {
-                        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                                .setMessage(text(R.string.ErrorOccurred))
-                                .setPositiveButton(text(R.string.OK), null)
-                                .create());
+                    if (!isFinished && getParentActivity() != null) {
+                        if (success) {
+                            loadStatistics();
+                        } else {
+                            showError();
+                        }
                     }
                 }))
                 .create()));
@@ -123,10 +136,6 @@ public final class FluxGramStealthActivity extends BaseFragment {
         items.add(UItem.asCustom(fileLimit, LayoutHelper.WRAP_CONTENT));
         items.add(UItem.asShadow(text(R.string.FluxGramAttachmentInfo)));
 
-        if (archive.failureCount() > 0) {
-            items.add(UItem.asShadow(LocaleController.formatString(R.string.FluxGramAttachmentFailures, archive.failureCount())));
-        }
-
         addHeader(items, R.string.FluxGramStealthStorageLimit);
         SlideChooseView slider = new SlideChooseView(getParentActivity(), getResourceProvider());
         slider.setOptions(storageLimit, text(R.string.FluxGramStealthLimit300Mb),
@@ -134,7 +143,11 @@ public final class FluxGramStealthActivity extends BaseFragment {
                 text(R.string.FluxGramStealthLimit5Gb), text(R.string.FluxGramStealthLimit16Gb), "∞");
         slider.setCallback(index -> {
             storageLimit = index;
-            archive.setTotalLimit(index);
+            archive.setTotalLimit(index, success -> {
+                if (!isFinished && list != null && getParentActivity() != null) {
+                    loadStatistics();
+                }
+            });
         });
         items.add(UItem.asCustom(slider, LayoutHelper.WRAP_CONTENT));
         items.add(UItem.asShadow(text(R.string.FluxGramStealthStorageInfo)));
@@ -148,18 +161,32 @@ public final class FluxGramStealthActivity extends BaseFragment {
                 .setNegativeButton(text(R.string.Cancel), null)
                 .setPositiveButton(text(R.string.Delete), (dialog, which) -> archive.clearFiles(success -> {
                     if (!isFinished && list != null && getParentActivity() != null) {
-                        list.adapter.update(false);
+                        loadStatistics();
 
                         if (!success) {
-                            showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                                    .setMessage(text(R.string.ErrorOccurred))
-                                    .setPositiveButton(text(R.string.OK), null)
-                                    .create());
+                            showError();
                         }
                     }
                 }))
                 .create()));
         items.add(UItem.asCustom(clear, LayoutHelper.WRAP_CONTENT));
+        items.add(UItem.asShadow(null));
+
+        addHeader(items, R.string.FluxGramStorageStatistics);
+        addStatistic(items, R.string.FluxGramStorageEditVersions,
+                countValue(statistics != null && statistics.editVersionsAvailable,
+                        statistics == null ? 0 : statistics.editVersions), true);
+        addStatistic(items, R.string.FluxGramStorageDeletedMessages,
+                countValue(statistics != null && statistics.deletedMessagesAvailable,
+                        statistics == null ? 0 : statistics.deletedMessages), true);
+        addStatistic(items, R.string.FluxGramStorageAttachments,
+                countValue(statistics != null && statistics.attachmentsAvailable,
+                        statistics == null ? 0 : statistics.attachments), true);
+        addStatistic(items, R.string.FluxGramStorageAttachmentSize,
+                sizeValue(), true);
+        addStatistic(items, R.string.FluxGramStorageAttachmentFailures,
+                countValue(statistics != null && statistics.attachmentsAvailable,
+                        statistics == null ? 0 : statistics.attachmentFailures), false);
         items.add(UItem.asShadow(null));
 
         addHeader(items, R.string.FluxGramStealthData);
@@ -201,6 +228,61 @@ public final class FluxGramStealthActivity extends BaseFragment {
             }
         });
         items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private void addStatistic(ArrayList<UItem> items, int title, String value, boolean divider) {
+        TextSettingsCell cell = new TextSettingsCell(getParentActivity(), getResourceProvider());
+        cell.setTextAndValue(text(title), value, false, divider);
+        cell.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private String countValue(boolean available, long value) {
+        if (statisticsLoading) {
+            return text(R.string.Loading);
+        }
+
+        return available ? LocaleController.formatNumber(value, ' ') : "\u2014";
+    }
+
+    private String sizeValue() {
+        if (statisticsLoading) {
+            return text(R.string.Loading);
+        }
+
+        if (statistics == null || !statistics.attachmentsAvailable) {
+            return "\u2014";
+        }
+
+        return AndroidUtilities.formatFileSize(statistics.attachmentBytes);
+    }
+
+    private void loadStatistics() {
+        int generation = ++statisticsGeneration;
+        int account = currentAccount;
+        statistics = null;
+        statisticsLoading = true;
+
+        if (list != null) {
+            list.adapter.update(false);
+        }
+
+        LocalStorageStatistics.load(account, result -> {
+            if (generation != statisticsGeneration || isFinished || list == null || currentAccount != account) {
+                return;
+            }
+
+            statistics = result;
+            statisticsLoading = false;
+            list.adapter.update(false);
+        });
+    }
+
+    private void showError() {
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setMessage(text(R.string.ErrorOccurred))
+                .setPositiveButton(text(R.string.OK), null)
+                .create());
     }
 
     private void showChatSelection() {

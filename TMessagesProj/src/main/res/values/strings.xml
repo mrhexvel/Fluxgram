@@ -11327,4 +11327,10 @@
     <string name="FluxGramAttachmentClear">Delete saved attachments</string>
     <string name="FluxGramAttachmentClearInfo">Delete all saved attachments? Message text and edit history will remain.</string>
     <string name="FluxGramAttachmentFailures">Attachments not saved: %1$d. Possible causes: insufficient space, a read error or a full queue.</string>
+    <string name="FluxGramStorageStatistics">Local storage</string>
+    <string name="FluxGramStorageEditVersions">Saved message versions</string>
+    <string name="FluxGramStorageDeletedMessages">Archived deleted messages</string>
+    <string name="FluxGramStorageAttachments">Saved attachments</string>
+    <string name="FluxGramStorageAttachmentSize">Saved attachment size</string>
+    <string name="FluxGramStorageAttachmentFailures">Attachment save errors</string>
 </resources>

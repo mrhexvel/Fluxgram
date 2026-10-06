@@ -66,3 +66,21 @@ class EditHistoryPresenceTest(unittest.TestCase):
             self.assertIsNone(db.execute(query, (1, 20, 30)).fetchone())
             self.assertIsNone(db.execute(query, (1, 21, 31)).fetchone())
             self.assertEqual(db.execute(query, (2, 20, 30)).fetchone(), (1,))
+
+    def test_statistics_count_saved_versions_for_current_owner(self):
+        source = SOURCE.read_text()
+        schema = re.search(r'"(CREATE TABLE IF NOT EXISTS edit_versions .*?)"', source)[1]
+        query = re.search(r'"(SELECT COUNT\(\*\) FROM edit_versions WHERE owner = \?)"', source)[1]
+
+        with sqlite3.connect(':memory:') as db:
+            db.execute(schema)
+            records = [
+                (1, 20, 30, 100, 'first', b'first version'),
+                (1, 20, 30, 101, 'second', b'second version'),
+                (1, 21, 31, 100, 'third', b'third version'),
+                (2, 20, 30, 100, 'other', b'other owner'),
+            ]
+            db.executemany('INSERT INTO edit_versions VALUES (?, ?, ?, ?, ?, ?)', records)
+
+            self.assertEqual(db.execute(query, (1,)).fetchone(), (3,))
+            self.assertEqual(db.execute(query, (2,)).fetchone(), (1,))

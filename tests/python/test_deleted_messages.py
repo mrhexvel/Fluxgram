@@ -18,6 +18,7 @@ class DeletedMessagesTest(unittest.TestCase):
             raise unittest.SkipTest("Requires JDK")
 
         source = (JAVA / "messenger/fluxgram/DeletedMessagesArchive.java").read_text()
+        cls.archive_count = re.search(r'"(SELECT COUNT\(\*\) FROM fg_deleted_messages)"', source)[1]
         storage = (JAVA / "messenger/MessagesStorage.java").read_text()
         cls.schema = re.search(r'"(CREATE TABLE messages_v2\(.*?)"', storage)[1]
         cls.schema = cls.schema.replace("IF NOT EXISTS ", "")
@@ -166,6 +167,16 @@ class DeletedMessagesTest(unittest.TestCase):
                 for statement in self.statements:
                     reopened.execute(statement)
                 self.assertEqual(reopened.execute("SELECT mid, fluxgram_deleted FROM fg_timeline_messages").fetchall(), [(7, 1)])
+
+    def test_statistics_count_only_canonical_archive_rows(self):
+        self.insert("fg_deleted_messages", [(1, 7, 1, 0), (1, 8, 2, 0), (-2, 9, 3, 1)])
+        self.db.execute("CREATE TABLE fg_deleted_topics(uid INTEGER, mid INTEGER, topic_id INTEGER)")
+        self.db.executemany(
+            "INSERT INTO fg_deleted_topics VALUES (?, ?, ?)",
+            [(1, 7, 10), (1, 7, 20), (1, 8, 10)],
+        )
+
+        self.assertEqual(self.db.execute(self.archive_count).fetchone(), (3,))
 
     def test_channel_ids_are_not_removed_by_direct_chat_delete(self):
         self.insert("fg_deleted_messages", [(1, 7, 1, 0), (-2, 7, 1, 1)])

@@ -62,6 +62,20 @@ public final class DeletedMessagesArchive {
         }
     }
 
+    long countOnStorageQueue() throws Exception {
+        if (!prepare()) {
+            throw new IllegalStateException("Deleted message archive is unavailable");
+        }
+
+        SQLiteCursor cursor = storage.getDatabase().queryFinalized("SELECT COUNT(*) FROM fg_deleted_messages");
+
+        try {
+            return cursor.next() ? cursor.longValue(0) : 0;
+        } finally {
+            cursor.dispose();
+        }
+    }
+
     private void prepareTable(SQLiteDatabase db, String original, String archive, String view, boolean topics) throws Exception {
         db.executeFast("CREATE TABLE IF NOT EXISTS " + archive + " AS SELECT * FROM " + original + " WHERE 0").stepThis().dispose();
         LinkedHashMap<String, String> columns = columns(db, original);
