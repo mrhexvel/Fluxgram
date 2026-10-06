@@ -254,4 +254,19 @@ public final class PluginSettings {
             return Collections.emptyList();
         }
     }
+
+    public static void clearForPlugin(String id) {
+        SharedPreferences stored = preferences();
+        SharedPreferences.Editor edit = stored.edit();
+        String valuePrefix = "value:" + id + ":";
+        String schemaPrefix = "schema:" + id + ":";
+
+        for (String key : stored.getAll().keySet()) {
+            if (key.startsWith(valuePrefix) || key.startsWith(schemaPrefix)) {
+                edit.remove(key);
+            }
+        }
+
+        edit.apply();
+    }
 }

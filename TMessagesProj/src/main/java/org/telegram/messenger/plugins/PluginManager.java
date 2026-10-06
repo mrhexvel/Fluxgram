@@ -163,6 +163,10 @@ public final class PluginManager {
         return true;
     }
 
+    public synchronized void clearPersistedEnabledState(String id) {
+        preferences.edit().remove(enabledKey(id)).apply();
+    }
+
     public synchronized ArrayList<Plugin> getPlugins() {
         ArrayList<Plugin> result = new ArrayList<>();
 

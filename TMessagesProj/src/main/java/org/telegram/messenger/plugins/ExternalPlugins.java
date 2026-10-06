@@ -295,6 +295,8 @@ public final class ExternalPlugins {
                         }
 
                         store.remove(id);
+                        PluginSettings.clearForPlugin(id);
+                        manager.clearPersistedEnabledState(id);
                         manager.unregister(id);
                         pending = Collections.unmodifiableMap(store.pending());
                     } catch (Exception error) {

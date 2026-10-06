@@ -37,6 +37,8 @@ public interface SharedPreferences {
 
         Editor putBoolean(String key, boolean value);
 
+        Editor remove(String key);
+
         void apply();
     }
 }
@@ -72,6 +74,12 @@ public class RegistryCheck {
 
         public Editor putBoolean(String key, boolean value) {
             values.put(key, value);
+
+            return this;
+        }
+
+        public Editor remove(String key) {
+            values.remove(key);
 
             return this;
         }
@@ -182,6 +190,16 @@ public class RegistryCheck {
             manager.blockUntilRestart(external.id);
             check(!manager.setEnabled(external.id, true));
             check(!external.active);
+        } else if (args[0].equals("clear_state")) {
+            P other = new P("example.other");
+            manager.register(other, false);
+            manager.setSystemEnabled(true);
+            manager.setEnabled(external.id, true);
+            manager.setEnabled(other.id, true);
+            manager.clearPersistedEnabledState(external.id);
+            check(!prefs.values.containsKey("enabled." + external.id));
+            check(prefs.getBoolean("enabled." + other.id, false));
+            check(prefs.getBoolean("system.enabled", false));
         }
     }
 }
@@ -222,3 +240,6 @@ public class RegistryCheck {
 
     def test_global_switch_stops_callbacks_and_preserves_selection(self):
         self.run_case("global_switch")
+
+    def test_clear_persisted_state_preserves_other_plugins_and_global_switch(self):
+        self.run_case("clear_state")
