@@ -11286,6 +11286,7 @@
     <string name="FluxGramStealthDescription">Message history and local storage</string>
     <string name="FluxGramStealthHistory">Conversation history</string>
     <string name="FluxGramStealthDeleted">Keep deleted messages</string>
+    <string name="FluxGramDeletedChats">Chats to save from</string>
     <string name="FluxGramStealthEdits">Keep edit history</string>
     <string name="FluxGramStealthBots">Also keep history in bot chats</string>
     <string name="FluxGramStealthReadDate">Remember read times</string>

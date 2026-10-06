@@ -125,6 +125,7 @@ public final class DeletedMessagesArchive {
 
         SQLiteDatabase db = storage.getDatabase();
         HashMap<Long, Boolean> allowedDialogs = new HashMap<>();
+        DeletedMessagesScope deletedMessagesScope = EditHistory.deletedMessagesScope(account);
 
         for (int offset = 0; offset < ids.size(); offset += BATCH_SIZE) {
             String list = TextUtils.join(",", ids.subList(offset, Math.min(offset + BATCH_SIZE, ids.size())));
@@ -154,6 +155,11 @@ public final class DeletedMessagesArchive {
                     int mid = cursor.intValue(1);
 
                     if (mid <= 0 || cursor.intValue(3) != 0 || DialogObject.isEncryptedDialog(did)) {
+                        continue;
+                    }
+
+                    if (!deletedMessagesScope.allows(
+                            UserConfig.getInstance(account).getClientUserId(), did)) {
                         continue;
                     }
 

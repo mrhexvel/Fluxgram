@@ -6,8 +6,11 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.fluxgram.EditHistory;
 import org.telegram.messenger.fluxgram.LocalStorageStatistics;
 import org.telegram.messenger.fluxgram.SavedAttachments;
@@ -18,6 +21,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextSettingsCell;
+import org.telegram.ui.Components.InviteMembersBottomSheet;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.SlideChooseView;
 import org.telegram.ui.Components.UItem;
@@ -81,6 +85,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
     private void fillItems(ArrayList<UItem> items) {
         addHeader(items, R.string.FluxGramStealthHistory);
         addSwitch(items, 0, R.string.FluxGramStealthDeleted, 0, true);
+        addDeletedChats(items);
         addSwitch(items, 1, R.string.FluxGramStealthEdits, 0, false);
         items.add(UItem.asShadow(null));
 
@@ -201,6 +206,22 @@ public final class FluxGramStealthActivity extends BaseFragment {
         HeaderCell header = new HeaderCell(getParentActivity(), 33, getResourceProvider());
         header.setText(text(title));
         items.add(UItem.asCustomShadow(header, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private void addDeletedChats(ArrayList<UItem> items) {
+        TextSettingsCell cell = new TextSettingsCell(getParentActivity(), getResourceProvider());
+        cell.setTextAndValue(text(R.string.FluxGramDeletedChats), EditHistory.keepsDeletedInAllChats(currentAccount)
+                ? text(R.string.FluxGramAttachmentAllChats)
+                : LocaleController.formatString(R.string.FluxGramAttachmentSelectedChats,
+                        EditHistory.deletedChats(currentAccount).size()), true);
+        cell.setBackground(Theme.getSelectorDrawable(false));
+        cell.setEnabled(checked[0], null);
+
+        if (checked[0]) {
+            cell.setOnClickListener(view -> showDeletedChatSelection());
+        }
+
+        items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
     }
 
     private void addSwitch(ArrayList<UItem> items, int index, int title, int description, boolean divider) {
@@ -329,6 +350,60 @@ public final class FluxGramStealthActivity extends BaseFragment {
                     presentFragment(picker);
                 })
                 .create());
+    }
+
+    private void showDeletedChatSelection() {
+        int account = currentAccount;
+        long owner = UserConfig.getInstance(account).getClientUserId();
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(text(R.string.FluxGramDeletedChats))
+                .setItems(new CharSequence[] {
+                        text(R.string.FluxGramAttachmentAllChats), text(R.string.SelectChats)
+                }, (dialog, which) -> {
+                    if (!activeAccount(account, owner)) {
+                        return;
+                    }
+
+                    if (which == 0) {
+                        EditHistory.setDeletedChats(account, null);
+                        list.adapter.update(false);
+                        return;
+                    }
+
+                    ArrayList<Long> selected = availableDeletedChats(account);
+                    InviteMembersBottomSheet picker = new InviteMembersBottomSheet(
+                            getParentActivity(), account, null, 0, this, getResourceProvider()
+                    );
+                    picker.setDelegate(dialogs -> {
+                        if (activeAccount(account, owner)) {
+                            EditHistory.setDeletedChats(account, new HashSet<>(dialogs));
+                            list.adapter.update(false);
+                        }
+                    }, selected);
+                    picker.setSelectedContacts(selected);
+                    showDialog(picker);
+                })
+                .create());
+    }
+
+    private ArrayList<Long> availableDeletedChats(int account) {
+        ArrayList<Long> result = new ArrayList<>();
+        MessagesController controller = MessagesController.getInstance(account);
+
+        for (long dialog : EditHistory.deletedChats(account)) {
+            if ((DialogObject.isUserDialog(dialog) && controller.getUser(dialog) != null)
+                    || (DialogObject.isChatDialog(dialog) && controller.getChat(-dialog) != null)) {
+                result.add(dialog);
+            }
+        }
+
+        return result;
+    }
+
+    private boolean activeAccount(int account, long owner) {
+        return !isFinished && list != null && getParentActivity() != null && currentAccount == account
+                && owner != 0 && owner == UserConfig.getInstance(account).getClientUserId();
     }
 
     private void addAction(ArrayList<UItem> items, int title, int icon, boolean divider) {

@@ -314,6 +314,7 @@
     <string name="FluxGramStealthDescription">История сообщений и локальное хранение</string>
     <string name="FluxGramStealthHistory">История переписки</string>
     <string name="FluxGramStealthDeleted">Сохранять удалённые сообщения</string>
+    <string name="FluxGramDeletedChats">Чаты для сохранения</string>
     <string name="FluxGramStealthEdits">Сохранять историю изменений</string>
     <string name="FluxGramStealthBots">Сохранять и в чатах с ботами</string>
     <string name="FluxGramStealthReadDate">Запоминать время прочтения</string>

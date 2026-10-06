@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Base64;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
@@ -17,7 +18,8 @@ import org.telegram.tgnet.TLRPC;
 import java.io.File;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import android.util.Base64;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class EditHistory {
     public interface Callback {
@@ -52,6 +54,52 @@ public final class EditHistory {
 
     public static void setKeepsDeleted(int account, boolean enabled) {
         preferences(account).edit().putBoolean("deleted", enabled).apply();
+    }
+
+    public static boolean keepsDeletedInAllChats(int account) {
+        return preferences(account).getBoolean("deleted_all_chats", true);
+    }
+
+    public static HashSet<Long> deletedChats(int account) {
+        HashSet<Long> result = new HashSet<>();
+
+        for (String value : preferences(account).getStringSet("deleted_chats", new HashSet<>())) {
+            try {
+                long dialog = Long.parseLong(value);
+
+                if (DeletedMessagesScope.validDialog(dialog)) {
+                    result.add(dialog);
+                }
+            } catch (NumberFormatException ignore) {
+            }
+        }
+
+        return result;
+    }
+
+    public static void setDeletedChats(int account, Set<Long> chats) {
+        HashSet<String> values = new HashSet<>();
+
+        if (chats != null) {
+            for (long dialog : chats) {
+                if (DeletedMessagesScope.validDialog(dialog)) {
+                    values.add(Long.toString(dialog));
+                }
+            }
+        }
+
+        preferences(account).edit()
+                .putBoolean("deleted_all_chats", chats == null)
+                .putStringSet("deleted_chats", values)
+                .apply();
+    }
+
+    static DeletedMessagesScope deletedMessagesScope(int account) {
+        return new DeletedMessagesScope(
+                UserConfig.getInstance(account).getClientUserId(),
+                keepsDeletedInAllChats(account),
+                deletedChats(account)
+        );
     }
 
     public static void removeMessages(int account, long dialog, java.util.List<Integer> ids) {
