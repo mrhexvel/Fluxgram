@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/fluxgram"
+STEALTH_ACTIVITY = ROOT / "TMessagesProj/src/main/java/org/telegram/ui/FluxGramStealthActivity.java"
+RESOURCES = ROOT / "TMessagesProj/src/main/res"
 
 
 class SavedAttachmentsTest(unittest.TestCase):
@@ -80,6 +82,35 @@ class SavedAttachmentsTest(unittest.TestCase):
         self.assertEqual(paths[0].tag, "files-path")
         self.assertEqual((Path("/data/user/0/app/files") / paths[0].attrib["path"]).resolve(),
                          Path("/data/user/0/app/no_backup/fluxgram_attachments"))
+
+    def test_attachment_switch_requires_deleted_message_retention(self):
+        source = STEALTH_ACTIVITY.read_text()
+        switch = source[source.index("    private void addSwitch("):source.index("    private void addStatistic(")]
+        deleted_branch = re.search(r"if \(index == 0\) \{(.*?)\} else if", switch, re.DOTALL)[1]
+
+        self.assertIn("checked[0] ? R.string.FluxGramStealthAttachmentOptions", source)
+        self.assertIn(": R.string.FluxGramStealthAttachmentRequiresDeleted", source)
+        self.assertIn("boolean enabled = index != 4 || checked[0];", switch)
+        self.assertIn("cell.setEnabled(enabled, null);", switch)
+        self.assertIn("if (enabled) {", switch)
+        self.assertIn("list.adapter.update(false);", deleted_branch)
+        self.assertNotIn("SavedAttachments", deleted_branch)
+
+    def test_removed_stealth_explanations_are_not_rendered(self):
+        source = STEALTH_ACTIVITY.read_text()
+
+        self.assertNotIn("FluxGramStealthPreview", source)
+        self.assertNotIn("FluxGramAttachmentInfo", source)
+
+        for directory in ("values", "values-ru"):
+            names = {
+                item.attrib["name"]
+                for item in ET.parse(RESOURCES / directory / "strings.xml").getroot()
+                if item.tag == "string"
+            }
+            self.assertNotIn("FluxGramStealthPreview", names)
+            self.assertNotIn("FluxGramAttachmentInfo", names)
+            self.assertIn("FluxGramStealthAttachmentRequiresDeleted", names)
 
     def test_downloaded_video_variant_and_voice_selection(self):
         if not shutil.which("javac") or not shutil.which("java"):

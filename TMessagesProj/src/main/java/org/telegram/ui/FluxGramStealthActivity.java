@@ -79,7 +79,6 @@ public final class FluxGramStealthActivity extends BaseFragment {
     }
 
     private void fillItems(ArrayList<UItem> items) {
-        items.add(UItem.asShadow(text(R.string.FluxGramStealthPreview)));
         addHeader(items, R.string.FluxGramStealthHistory);
         addSwitch(items, 0, R.string.FluxGramStealthDeleted, 0, true);
         addSwitch(items, 1, R.string.FluxGramStealthEdits, 0, false);
@@ -111,7 +110,8 @@ public final class FluxGramStealthActivity extends BaseFragment {
 
         addHeader(items, R.string.FluxGramStealthAttachments);
         addSwitch(items, 4, R.string.FluxGramStealthSaveAttachments,
-                R.string.FluxGramStealthAttachmentOptions, true);
+                checked[0] ? R.string.FluxGramStealthAttachmentOptions
+                        : R.string.FluxGramStealthAttachmentRequiresDeleted, true);
 
         SavedAttachments archive = SavedAttachments.get(currentAccount);
         TextSettingsCell chats = new TextSettingsCell(getParentActivity(), getResourceProvider());
@@ -134,7 +134,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
                 })
                 .create()));
         items.add(UItem.asCustom(fileLimit, LayoutHelper.WRAP_CONTENT));
-        items.add(UItem.asShadow(text(R.string.FluxGramAttachmentInfo)));
+        items.add(UItem.asShadow(null));
 
         addHeader(items, R.string.FluxGramStealthStorageLimit);
         SlideChooseView slider = new SlideChooseView(getParentActivity(), getResourceProvider());
@@ -205,6 +205,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
 
     private void addSwitch(ArrayList<UItem> items, int index, int title, int description, boolean divider) {
         TextCheckCell cell = new TextCheckCell(getParentActivity(), getResourceProvider());
+        boolean enabled = index != 4 || checked[0];
 
         if (description == 0) {
             cell.setTextAndCheck(text(title), checked[index], divider);
@@ -213,20 +214,26 @@ public final class FluxGramStealthActivity extends BaseFragment {
         }
 
         cell.setBackground(Theme.getSelectorDrawable(false));
-        cell.setOnClickListener(view -> {
-            checked[index] = !checked[index];
-            cell.setChecked(checked[index]);
+        cell.setEnabled(enabled, null);
 
-            if (index == 0) {
-                EditHistory.setKeepsDeleted(currentAccount, checked[index]);
-            } else if (index == 1) {
-                EditHistory.setEnabled(currentAccount, checked[index]);
-            } else if (index == 2) {
-                EditHistory.setIncludesBots(currentAccount, checked[index]);
-            } else if (index == 4) {
-                SavedAttachments.get(currentAccount).setEnabled(checked[index]);
-            }
-        });
+        if (enabled) {
+            cell.setOnClickListener(view -> {
+                checked[index] = !checked[index];
+                cell.setChecked(checked[index]);
+
+                if (index == 0) {
+                    EditHistory.setKeepsDeleted(currentAccount, checked[index]);
+                    list.adapter.update(false);
+                } else if (index == 1) {
+                    EditHistory.setEnabled(currentAccount, checked[index]);
+                } else if (index == 2) {
+                    EditHistory.setIncludesBots(currentAccount, checked[index]);
+                } else if (index == 4) {
+                    SavedAttachments.get(currentAccount).setEnabled(checked[index]);
+                }
+            });
+        }
+
         items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
     }
 

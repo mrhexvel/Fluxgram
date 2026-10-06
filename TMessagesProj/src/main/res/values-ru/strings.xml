@@ -312,7 +312,6 @@
     <string name="FluxGramPluginSettingsUnavailable">Плагин больше недоступен.</string>
     <string name="FluxGramStealth">Скрытность</string>
     <string name="FluxGramStealthDescription">История сообщений и локальное хранение</string>
-    <string name="FluxGramStealthPreview">Удалённые сообщения, история изменений и вложения включаются отдельно. Сохранение даты чтения, экспорт и импорт пока недоступны.</string>
     <string name="FluxGramStealthHistory">История переписки</string>
     <string name="FluxGramStealthDeleted">Сохранять удалённые сообщения</string>
     <string name="FluxGramStealthEdits">Сохранять историю изменений</string>
@@ -322,6 +321,7 @@
     <string name="FluxGramStealthAttachments">Вложения</string>
     <string name="FluxGramStealthSaveAttachments">Сохранять вложения</string>
     <string name="FluxGramStealthAttachmentOptions">Выбор чатов и условий сохранения</string>
+    <string name="FluxGramStealthAttachmentRequiresDeleted">Сначала включите сохранение удалённых сообщений</string>
     <string name="FluxGramStealthFolder">Папка вложений</string>
     <string name="FluxGramStealthStorageLimit">Лимит хранилища</string>
     <string name="FluxGramStealthStorageInfo">При достижении лимита старые вложения будут удаляться из локального хранилища.</string>
@@ -351,7 +351,6 @@
     <string name="FluxGramAttachmentAllChats">Все чаты</string>
     <string name="FluxGramAttachmentSelectedChats">Выбрано: %1$d</string>
     <string name="FluxGramAttachmentFileLimit">Максимальный размер файла</string>
-    <string name="FluxGramAttachmentInfo">Сохраняются полностью загруженные фото, видео, видеосообщения, голосовые и документы при удалении сообщения, если включено сохранение удалённых сообщений. Копии хранятся внутри приложения отдельно от кэша. Самоуничтожающиеся файлы, музыка, GIF и стикеры не сохраняются.</string>
     <string name="FluxGramAttachmentClear">Удалить сохранённые вложения</string>
     <string name="FluxGramAttachmentClearInfo">Удалить все сохранённые вложения? Текст сообщений и история изменений останутся.</string>
     <string name="FluxGramAttachmentFailures">Не удалось сохранить вложений: %1$d. Возможные причины: нехватка места, ошибка чтения или перегрузка очереди.</string>
