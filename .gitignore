@@ -1,5 +1,4 @@
 .idea/
-/docs/
 .gradle/
 build/
 obj/
@@ -18,3 +17,5 @@ TMessagesProj_AppHuawei/afat/
 TMessagesProj/jni/ffmpeg/build_android
 
 /fluxgram.local.properties
+/.opencode
+/graphify-out
