@@ -78,7 +78,7 @@ public class SearchAdapterHelper {
     private ArrayList<Object> localSearchResults;
     private ArrayList<DialogsSearchAdapter.RecentSearchObject> localRecentResults;
 
-    private int currentAccount = UserConfig.selectedAccount;
+    private final int currentAccount;
 
     private String lastFoundChannel;
 
@@ -96,7 +96,12 @@ public class SearchAdapterHelper {
     }
 
     public SearchAdapterHelper(boolean allAsGlobal) {
+        this(allAsGlobal, UserConfig.selectedAccount);
+    }
+
+    public SearchAdapterHelper(boolean allAsGlobal, int account) {
         allResultsAreGlobal = allAsGlobal;
+        currentAccount = account;
     }
 
     public void setAllowGlobalResults(boolean value) {

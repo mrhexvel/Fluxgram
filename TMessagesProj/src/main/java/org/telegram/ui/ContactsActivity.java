@@ -74,6 +74,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.SearchTextWatcher;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -111,6 +112,7 @@ import org.telegram.ui.Components.blur3.ViewGroupPartRenderer;
 import org.telegram.ui.Components.blur3.capture.IBlur3Capture;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
 import org.telegram.ui.Components.inset.WindowAnimatedInsetsProvider;
+import org.telegram.ui.fluxgram.appearance.FluxGramUserListAppearanceController;
 
 import java.util.ArrayList;
 
@@ -140,6 +142,7 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
     private RecyclerAnimationScrollHelper scrollHelper;
     private LinearLayoutManager layoutManager;
     private SearchAdapter searchListViewAdapter;
+    private FluxGramUserListAppearanceController fluxGramAppearanceController;
 
     private ActionBarMenuItem sortItem;
     private boolean sortByName;
@@ -260,6 +263,10 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
 
     @Override
     public void onFragmentDestroy() {
+        if (fluxGramAppearanceController != null) {
+            fluxGramAppearanceController.destroy();
+            fluxGramAppearanceController = null;
+        }
         super.onFragmentDestroy();
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.contactsDidLoad);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.updateInterfaces);
@@ -409,7 +416,28 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
         }
 
         listView = new RecyclerListView(context);
-        searchListViewAdapter = new SearchAdapter(listView, context, ignoreUsers, selectedContacts, allowUsernameSearch, false, false, allowBots, allowSelf, true, 0, resourceProvider) {
+        if (isFluxGramAppearanceEligible()) {
+            try {
+                fluxGramAppearanceController = new FluxGramUserListAppearanceController(
+                        currentAccount,
+                        AppearanceRepositories.get(currentAccount),
+                        new FluxGramUserListAppearanceController.FrameScheduler() {
+                            @Override
+                            public void post(Runnable runnable) {
+                                listView.postOnAnimation(runnable);
+                            }
+
+                            @Override
+                            public void cancel(Runnable runnable) {
+                                listView.removeCallbacks(runnable);
+                            }
+                        }
+                );
+            } catch (IllegalStateException exception) {
+                FileLog.e(exception);
+            }
+        }
+        searchListViewAdapter = new SearchAdapter(listView, context, currentAccount, ignoreUsers, selectedContacts, allowUsernameSearch, false, false, allowBots, allowSelf, true, 0, resourceProvider, fluxGramAppearanceController) {
             @Override
             protected void onSearchProgressChanged() {
                 if (!searchInProgress() && getItemCount() == 0) {
@@ -428,7 +456,7 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
         } else {
             inviteViaLink = 0;
         }
-        listViewAdapter = new ContactsAdapter(context, this, onlyUsers ? 1 : 0, needPhonebook, ignoreUsers, selectedContacts, inviteViaLink) {
+        listViewAdapter = new ContactsAdapter(context, this, currentAccount, onlyUsers ? 1 : 0, needPhonebook, ignoreUsers, selectedContacts, inviteViaLink, fluxGramAppearanceController) {
             @Override
             public void notifyDataSetChanged() {
                 super.notifyDataSetChanged();
@@ -985,6 +1013,14 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
         }
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         return fragmentView;
+    }
+
+    private boolean isFluxGramAppearanceEligible() {
+        return !returnAsResult
+                && !createSecretChat
+                && chatId == 0
+                && channelId == 0
+                && !onlyUsers;
     }
 
     @Override

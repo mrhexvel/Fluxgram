@@ -96,6 +96,29 @@ class ProfileAppearanceTest(unittest.TestCase):
                 "java", "-cp", directory, "ChatHeaderAppearanceControllerCheck",
             ], check=True, capture_output=True)
 
+    def test_user_list_controller_batch_recycle_and_lifecycle(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run([
+                "javac", "-d", directory,
+                str(APPEARANCE / "FluxGramPeerKey.java"),
+                str(APPEARANCE / "ProfileBadge.java"),
+                str(APPEARANCE / "ProfileBadgeCatalog.java"),
+                str(APPEARANCE / "AppearanceApiDto.java"),
+                str(APPEARANCE / "AppearanceProfile.java"),
+                str(APPEARANCE / "AppearanceCachePolicy.java"),
+                str(APPEARANCE / "AppearanceMemoryCache.java"),
+                str(APPEARANCE / "AppearanceRepository.java"),
+                str(UI / "FluxGramUserListAppearanceController.java"),
+                str(UI / "UserListBadgePlacement.java"),
+                str(ROOT / "tests/java/UserListAppearanceControllerCheck.java"),
+            ], check=True, capture_output=True)
+            subprocess.run([
+                "java", "-cp", directory, "UserListAppearanceControllerCheck",
+            ], check=True, capture_output=True)
+
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())
         result = fixture["result"]
@@ -201,6 +224,59 @@ class ProfileAppearanceTest(unittest.TestCase):
 
         for source in forbidden:
             self.assertNotIn("FluxGramChatHeader", source.read_text())
+
+    def test_contacts_lists_are_opt_in_and_fail_closed(self):
+        contacts = (JAVA / "ui/ContactsActivity.java").read_text()
+        contacts_adapter = (JAVA / "ui/Adapters/ContactsAdapter.java").read_text()
+        search_adapter = (JAVA / "ui/Adapters/SearchAdapter.java").read_text()
+        controller = (UI / "FluxGramUserListAppearanceController.java").read_text()
+
+        self.assertIn("FluxGramUserListAppearanceController fluxGramAppearanceController", contacts)
+        self.assertIn("AppearanceRepositories.get(currentAccount)", contacts)
+        self.assertIn("!returnAsResult", contacts)
+        self.assertIn("!createSecretChat", contacts)
+        self.assertIn("chatId == 0", contacts)
+        self.assertIn("channelId == 0", contacts)
+        self.assertIn("!onlyUsers", contacts)
+        self.assertIn("currentAccount, ignoreUsers", contacts)
+        self.assertIn("new SearchAdapterHelper(true, currentAccount)", search_adapter)
+        self.assertIn("FluxGramContactsUserCell", contacts_adapter)
+        self.assertIn("FluxGramContactsSearchCell", search_adapter)
+        self.assertIn("repository.loadBatch", controller)
+        self.assertNotIn("repository.load(", controller)
+        self.assertIn("MAX_BATCH_SIZE = 100", controller)
+        self.assertIn("lookup.getAccount() != account", controller)
+        self.assertIn("peer.equals(target.getRequestedPeer())", controller)
+        self.assertIn("subscription.cancel();", controller)
+
+    def test_contacts_badges_exclude_phonebook_and_forbidden_surfaces(self):
+        search_adapter = (JAVA / "ui/Adapters/SearchAdapter.java").read_text()
+        search_cell = (JAVA / "ui/Cells/FluxGramContactsSearchCell.java").read_text()
+        user_cell = (JAVA / "ui/Cells/FluxGramContactsUserCell.java").read_text()
+        renderer = (UI / "FluxGramUserListBadgeRenderer.java").read_text()
+
+        self.assertIn("case 3:", search_adapter)
+        self.assertIn("new ProfileSearchCell(mContext)", search_adapter)
+        self.assertIn("UserObject.isUserSelf(user)", search_cell)
+        self.assertIn("UserObject.isReplyUser(user)", search_cell)
+        self.assertIn("UserObject.isService(user.id)", search_cell)
+        self.assertIn("UserObject.isUserSelf(user)", user_cell)
+        self.assertIn("setCurrentAccount(account);", search_cell)
+        self.assertIn("setCurrentAccount(account);", user_cell)
+        self.assertIn("BADGE_SIZE_DP = 20", renderer)
+        self.assertIn("LiteMode.FLAG_PARTICLES", renderer)
+        self.assertNotIn("MotionEvent", renderer)
+
+        forbidden = [
+            JAVA / "ui/Cells/DialogCell.java",
+            JAVA / "ui/Cells/ChatMessageCell.java",
+            JAVA / "ui/GroupCreateActivity.java",
+            JAVA / "ui/Adapters/DialogsSearchAdapter.java",
+            JAVA / "ui/Components/ShareAlert.java",
+            JAVA / "ui/PrivacyUsersActivity.java",
+        ]
+        for source in forbidden:
+            self.assertNotIn("FluxGramContacts", source.read_text())
 
     def test_profile_badge_group_centering_preserves_upstream_edge_states(self):
         source = (JAVA / "ui/ProfileActivity.java").read_text()

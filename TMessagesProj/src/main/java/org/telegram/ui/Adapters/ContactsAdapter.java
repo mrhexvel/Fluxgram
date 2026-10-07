@@ -36,6 +36,7 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.DividerCell;
+import org.telegram.ui.Cells.FluxGramContactsUserCell;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.InviteUserCell;
@@ -47,6 +48,7 @@ import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.ContactsEmptyView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.fluxgram.appearance.FluxGramUserListAppearanceController;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,7 +58,7 @@ import java.util.Objects;
 public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
 
     public boolean includeSearch;
-    private final int currentAccount = UserConfig.selectedAccount;
+    private final int currentAccount;
     private final Context mContext;
     private final int onlyUsers;
     private final boolean needPhonebook;
@@ -72,9 +74,35 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
     public boolean isEmptyWithMainTabs;
 
     BaseFragment fragment;
+    private final FluxGramUserListAppearanceController fluxGramAppearanceController;
 
     public ContactsAdapter(Context context, BaseFragment fragment, int onlyUsersType, boolean showPhoneBook, LongSparseArray<TLRPC.User> usersToIgnore, LongSparseArray<TLRPC.User> selectedContacts, int flags) {
+        this(
+                context,
+                fragment,
+                UserConfig.selectedAccount,
+                onlyUsersType,
+                showPhoneBook,
+                usersToIgnore,
+                selectedContacts,
+                flags,
+                null
+        );
+    }
+
+    public ContactsAdapter(
+            Context context,
+            BaseFragment fragment,
+            int account,
+            int onlyUsersType,
+            boolean showPhoneBook,
+            LongSparseArray<TLRPC.User> usersToIgnore,
+            LongSparseArray<TLRPC.User> selectedContacts,
+            int flags,
+            FluxGramUserListAppearanceController fluxGramAppearanceController
+    ) {
         mContext = context;
+        currentAccount = account;
         onlyUsers = onlyUsersType;
         needPhonebook = showPhoneBook;
         ignoreUsers = usersToIgnore;
@@ -82,6 +110,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
         isAdmin = flags != 0;
         isChannel = flags == 2;
         this.fragment = fragment;
+        this.fluxGramAppearanceController = fluxGramAppearanceController;
     }
 
     public void setDisableSections(boolean value) {
@@ -447,7 +476,16 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                 break;
             }
             case USER_CELL: {
-                UserCell cell = new UserCell(mContext, 58, 1, false);
+                UserCell cell;
+                if (fluxGramAppearanceController == null) {
+                    cell = new UserCell(mContext, 58, 1, false);
+                } else {
+                    cell = new FluxGramContactsUserCell(
+                            mContext,
+                            currentAccount,
+                            fluxGramAppearanceController
+                    );
+                }
                 cell.setCallCellStyle(58);
                 view = cell;
                 break;
@@ -509,6 +547,14 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
 
         }
         return new RecyclerListView.Holder(view);
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
+        if (holder.itemView instanceof FluxGramContactsUserCell) {
+            ((FluxGramContactsUserCell) holder.itemView).recycleAppearance();
+        }
+        super.onViewRecycled(holder);
     }
 
     @Override

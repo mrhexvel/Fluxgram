@@ -414,6 +414,10 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         return chat;
     }
 
+    protected void setCurrentAccount(int account) {
+        currentAccount = account;
+    }
+
     public void setSublabelOffset(int x, int y) {
         sublabelOffsetX = x;
         sublabelOffsetY = y;
@@ -993,6 +997,25 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             }
             setDrawableBounds(statusDrawable, x, nameTop + (nameLayout.getHeight() - statusDrawable.getIntrinsicHeight()) / 2f);
             statusDrawable.draw(canvas);
+
+            int contentLeft = nameLeft + (int) Math.floor(nameLayout.getLineLeft(0));
+            int contentRight = nameLeft + (int) Math.ceil(nameLayout.getLineRight(0));
+            if (!botVerificationDrawable.isEmpty()) {
+                contentLeft = Math.min(contentLeft, botVerificationDrawable.getBounds().left);
+                contentRight = Math.max(contentRight, botVerificationDrawable.getBounds().right);
+            }
+            if (!statusDrawable.isEmpty()) {
+                contentLeft = Math.min(contentLeft, statusDrawable.getBounds().left);
+                contentRight = Math.max(contentRight, statusDrawable.getBounds().right);
+            }
+            drawAfterNameStatus(
+                    canvas,
+                    contentLeft,
+                    contentRight,
+                    dp(11) + getPaddingLeft(),
+                    getMeasuredWidth() - dp(14) - getPaddingRight(),
+                    nameTop + nameLayout.getHeight() / 2
+            );
         }
 
         if (ad != null && adText != null && adBackgroundPaint != null) {
@@ -1124,6 +1147,16 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
 
     public boolean isBlocked() {
         return premiumBlocked;
+    }
+
+    protected void drawAfterNameStatus(
+            Canvas canvas,
+            int contentLeft,
+            int contentRight,
+            int availableLeft,
+            int availableRight,
+            int centerY
+    ) {
     }
 
     @Override

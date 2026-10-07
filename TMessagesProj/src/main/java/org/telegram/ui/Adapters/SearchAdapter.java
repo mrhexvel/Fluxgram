@@ -36,6 +36,7 @@ import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.GraySectionCell;
+import org.telegram.ui.Cells.FluxGramContactsSearchCell;
 import org.telegram.ui.Cells.ProfileSearchCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.UserCell;
@@ -45,6 +46,7 @@ import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.ContactsActivity;
+import org.telegram.ui.fluxgram.appearance.FluxGramUserListAppearanceController;
 
 import java.util.ArrayList;
 import java.util.Timer;
@@ -53,6 +55,7 @@ import java.util.TimerTask;
 public class SearchAdapter extends RecyclerListView.SelectionAdapter {
 
     private Context mContext;
+    private final int currentAccount;
     private LongSparseArray<TLRPC.User> ignoreUsers;
     private ArrayList<Object> searchResult = new ArrayList<>();
     private ArrayList<CharSequence> searchResultNames = new ArrayList<>();
@@ -75,9 +78,45 @@ public class SearchAdapter extends RecyclerListView.SelectionAdapter {
     private String lastQuery;
     public boolean includeSearch;
     public boolean includeLoading;
+    private final FluxGramUserListAppearanceController fluxGramAppearanceController;
 
     public SearchAdapter(RecyclerListView listView, Context context, LongSparseArray<TLRPC.User> arg1, LongSparseArray<TLRPC.User> selected, boolean usernameSearch, boolean mutual, boolean chats, boolean bots, boolean self, boolean phones, int searchChannelId, Theme.ResourcesProvider resourcesProvider) {
+        this(
+                listView,
+                context,
+                UserConfig.selectedAccount,
+                arg1,
+                selected,
+                usernameSearch,
+                mutual,
+                chats,
+                bots,
+                self,
+                phones,
+                searchChannelId,
+                resourcesProvider,
+                null
+        );
+    }
+
+    public SearchAdapter(
+            RecyclerListView listView,
+            Context context,
+            int account,
+            LongSparseArray<TLRPC.User> arg1,
+            LongSparseArray<TLRPC.User> selected,
+            boolean usernameSearch,
+            boolean mutual,
+            boolean chats,
+            boolean bots,
+            boolean self,
+            boolean phones,
+            int searchChannelId,
+            Theme.ResourcesProvider resourcesProvider,
+            FluxGramUserListAppearanceController fluxGramAppearanceController
+    ) {
         mContext = context;
+        currentAccount = account;
         ignoreUsers = arg1;
         selectedUsers = selected;
         onlyMutual = mutual;
@@ -87,7 +126,8 @@ public class SearchAdapter extends RecyclerListView.SelectionAdapter {
         channelId = searchChannelId;
         allowSelf = self;
         allowPhoneNumbers = phones;
-        searchAdapterHelper = new SearchAdapterHelper(true);
+        this.fluxGramAppearanceController = fluxGramAppearanceController;
+        searchAdapterHelper = new SearchAdapterHelper(true, currentAccount);
         searchAdapterHelper.setDelegate(new SearchAdapterHelper.SearchAdapterHelperDelegate() {
             @Override
             public void onDataSetChanged(int searchId) {
@@ -146,7 +186,6 @@ public class SearchAdapter extends RecyclerListView.SelectionAdapter {
             if (allowUsernameSearch) {
                 searchAdapterHelper.queryServerSearch(query, true, allowChats, allowBots, allowSelf, false, channelId, allowPhoneNumbers, -1, 1);
             }
-            final int currentAccount = UserConfig.selectedAccount;
             final ArrayList<TLRPC.TL_contact> contactsCopy = new ArrayList<>(ContactsController.getInstance(currentAccount).contacts);
             searchInProgress = true;
             searchReqId = searchPointer++;
@@ -349,7 +388,16 @@ public class SearchAdapter extends RecyclerListView.SelectionAdapter {
                 if (useUserCell) {
                     view = new UserCell(mContext, 1, 1, false);
                 } else {
-                    ProfileSearchCell cell = new ProfileSearchCell(mContext);
+                    ProfileSearchCell cell;
+                    if (fluxGramAppearanceController == null) {
+                        cell = new ProfileSearchCell(mContext);
+                    } else {
+                        cell = new FluxGramContactsSearchCell(
+                                mContext,
+                                currentAccount,
+                                fluxGramAppearanceController
+                        );
+                    }
                     cell.setCallCellStyle();
                     view = cell;
                 }
@@ -389,6 +437,14 @@ public class SearchAdapter extends RecyclerListView.SelectionAdapter {
                 break;
         }
         return new RecyclerListView.Holder(view);
+    }
+
+    @Override
+    public void onViewRecycled(RecyclerView.ViewHolder holder) {
+        if (holder.itemView instanceof FluxGramContactsSearchCell) {
+            ((FluxGramContactsSearchCell) holder.itemView).recycleAppearance();
+        }
+        super.onViewRecycled(holder);
     }
 
     @Override
