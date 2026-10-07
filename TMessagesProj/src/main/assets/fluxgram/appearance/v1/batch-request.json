@@ -1,0 +1,12 @@
+{
+  "peers": [
+    {
+      "peer_type": "user",
+      "peer_id": "123456789"
+    },
+    {
+      "peer_type": "channel",
+      "peer_id": "777000"
+    }
+  ]
+}

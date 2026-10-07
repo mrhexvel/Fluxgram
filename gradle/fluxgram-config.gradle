@@ -11,6 +11,8 @@ def apiId = providers.environmentVariable('TELEGRAM_API_ID')
         .orElse(credentials.getProperty('telegram.api_id', '')).get().trim()
 def apiHash = providers.environmentVariable('TELEGRAM_API_HASH')
         .orElse(credentials.getProperty('telegram.api_hash', '')).get().trim()
+def appearanceApiBaseUrl = providers.environmentVariable('FLUXGRAM_APPEARANCE_API_BASE_URL')
+        .orElse(credentials.getProperty('fluxgram.appearance_api_base_url', '')).get().trim()
 
 def validApiId = apiId ==~ /[1-9][0-9]{0,9}/
 
@@ -19,10 +21,31 @@ if (validApiId) {
 }
 
 def validApiHash = apiHash ==~ /[a-fA-F0-9]{32}/
+def validAppearanceApiBaseUrl = appearanceApiBaseUrl.isEmpty()
+
+if (!validAppearanceApiBaseUrl) {
+    try {
+        def uri = new URI(appearanceApiBaseUrl)
+        validAppearanceApiBaseUrl = uri.scheme == 'https' && uri.host != null && uri.userInfo == null
+    } catch (Exception ignore) {
+        validAppearanceApiBaseUrl = false
+    }
+}
+
+if (!validAppearanceApiBaseUrl) {
+    throw new GradleException(
+            'FLUXGRAM_APPEARANCE_API_BASE_URL or fluxgram.appearance_api_base_url must be empty or an HTTPS URL.'
+    )
+}
+
+def escapedAppearanceApiBaseUrl = appearanceApiBaseUrl
+        .replace('\\', '\\\\')
+        .replace('"', '\\"')
 
 android.defaultConfig {
     buildConfigField 'int', 'TELEGRAM_API_ID', validApiId ? apiId : '0'
     buildConfigField 'String', 'TELEGRAM_API_HASH', validApiHash ? '"' + apiHash + '"' : '""'
+    buildConfigField 'String', 'FLUXGRAM_APPEARANCE_API_BASE_URL', '"' + escapedAppearanceApiBaseUrl + '"'
 }
 
 def validateCredentials = tasks.register('validateFluxGramCredentials') {

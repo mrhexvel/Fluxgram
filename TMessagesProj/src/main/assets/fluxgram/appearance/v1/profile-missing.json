@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "minimum_renderer_version": 1,
+  "result": {
+    "peer": {
+      "peer_type": "group",
+      "peer_id": "987654321"
+    },
+    "revision": "42",
+    "expires_at": "2030-01-01T00:00:00Z",
+    "profile": null
+  }
+}

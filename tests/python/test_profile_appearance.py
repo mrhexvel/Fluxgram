@@ -31,6 +31,27 @@ class ProfileAppearanceTest(unittest.TestCase):
                 "java", "-cp", directory, "ProfileAppearanceCheck",
             ], check=True, capture_output=True)
 
+    def test_repository_cache_policy_and_lifecycle(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run([
+                "javac", "-d", directory,
+                str(APPEARANCE / "FluxGramPeerKey.java"),
+                str(APPEARANCE / "ProfileBadge.java"),
+                str(APPEARANCE / "ProfileBadgeCatalog.java"),
+                str(APPEARANCE / "AppearanceApiDto.java"),
+                str(APPEARANCE / "AppearanceProfile.java"),
+                str(APPEARANCE / "AppearanceCachePolicy.java"),
+                str(APPEARANCE / "AppearanceMemoryCache.java"),
+                str(APPEARANCE / "AppearanceRepository.java"),
+                str(ROOT / "tests/java/AppearanceRepositoryCheck.java"),
+            ], check=True, capture_output=True)
+            subprocess.run([
+                "java", "-cp", directory, "AppearanceRepositoryCheck",
+            ], check=True, capture_output=True)
+
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())
         result = fixture["result"]
@@ -45,6 +66,28 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertEqual(badge["badge_id"], "developer")
         self.assertEqual(badge["custom_emoji_document_id"], "5373141891321699086")
         self.assertTrue(badge["particles"])
+
+    def test_android_contract_fixtures_use_real_seed_document(self):
+        fixture_directory = FIXTURE.parent
+        batch = json.loads((fixture_directory / "batch-mixed.json").read_text())
+        request = json.loads((fixture_directory / "batch-request.json").read_text())
+        missing = json.loads((fixture_directory / "profile-missing.json").read_text())
+
+        self.assertEqual(
+            batch["results"][0]["profile"]["badges"][0]["custom_emoji_document_id"],
+            "5373141891321699086",
+        )
+        self.assertEqual(batch["results"][0]["peer"], request["peers"][0])
+        self.assertIsNone(batch["results"][1]["profile"])
+        self.assertIsNone(missing["result"]["profile"])
+
+    def test_api_configuration_is_optional_https_only(self):
+        config = (ROOT / "gradle/fluxgram-config.gradle").read_text()
+
+        self.assertIn("FLUXGRAM_APPEARANCE_API_BASE_URL", config)
+        self.assertIn("fluxgram.appearance_api_base_url", config)
+        self.assertIn("uri.scheme == 'https'", config)
+        self.assertIn("appearanceApiBaseUrl.isEmpty()", config)
 
     def test_profile_activity_has_only_local_renderer_hooks(self):
         source = (JAVA / "ui/ProfileActivity.java").read_text()
