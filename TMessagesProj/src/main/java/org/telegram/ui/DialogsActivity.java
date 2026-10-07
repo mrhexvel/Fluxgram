@@ -130,6 +130,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.XiaomiUtilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.FBool;
 import org.telegram.messenger.utils.GradientProtectionDrawable;
 import org.telegram.messenger.utils.SearchTextWatcher;
@@ -269,6 +270,7 @@ import org.telegram.ui.community.CommunityEditActivity;
 import org.telegram.ui.community.CommunityPendingRequestsActivity;
 import org.telegram.ui.community.CommunityUtils;
 import org.telegram.ui.community.cells.CommunityRequestsCell;
+import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -498,6 +500,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private float contactsAlpha = 1f;
     private ValueAnimator contactsAlphaAnimator;
     private ViewPage[] viewPages;
+    private FluxGramDialogListAppearanceController fluxGramAppearanceController;
     private ActionBarMenuItem passcodeItem;
     private ActionBarMenuItem downloadsItem;
     private DownloadProgressIcon downloadProgressIcon;
@@ -3068,6 +3071,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public void onFragmentDestroy() {
+        if (fluxGramAppearanceController != null) {
+            fluxGramAppearanceController.destroy();
+            fluxGramAppearanceController = null;
+        }
+
         super.onFragmentDestroy();
         if (observersGroup != null) {
             observersGroup.removeAllObservers();
@@ -3198,6 +3206,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public View createView(final Context context) {
+        if (fluxGramAppearanceController != null) {
+            fluxGramAppearanceController.destroy();
+            fluxGramAppearanceController = null;
+        }
+
         searching = false;
         searchWas = false;
         wasDrawn = false;
@@ -4015,6 +4028,28 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         ContentView contentView = new ContentView(context);
         fragmentView = contentView;
 
+        if (isFluxGramAppearanceEligible()) {
+            try {
+                fluxGramAppearanceController = new FluxGramDialogListAppearanceController(
+                        currentAccount,
+                        AppearanceRepositories.get(currentAccount),
+                        new FluxGramDialogListAppearanceController.FrameScheduler() {
+                            @Override
+                            public void post(Runnable runnable) {
+                                contentView.postOnAnimation(runnable);
+                            }
+
+                            @Override
+                            public void cancel(Runnable runnable) {
+                                contentView.removeCallbacks(runnable);
+                            }
+                        }
+                );
+            } catch (IllegalStateException exception) {
+                FileLog.e(exception);
+            }
+        }
+
         viewPositionWatcher = new ViewPositionWatcher(contentView);
         iBlur3FactoryFrostedLiquidGlass.setSourceRootView(viewPositionWatcher, contentView);
         iBlur3FactoryLiquidGlass.setSourceRootView(viewPositionWatcher, contentView);
@@ -4680,6 +4715,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     MessagesController.getInstance(currentAccount).openApp(bot, 0);
                 }
             };
+            viewPage.dialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);
             viewPage.dialogsAdapter.setRecyclerListView(viewPage.listView);
             viewPage.dialogsAdapter.setForceShowEmptyCell(afterSignup);
             if (viewPage.dialogsType == DIALOGS_TYPE_FORWARD) {
@@ -5483,6 +5519,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     };
                     transitionPage.animationSupportListView.setLayoutManager(layoutManager);
                     transitionPage.animationSupportDialogsAdapter = new DialogsAdapter(DialogsActivity.this, context, transitionPage.dialogsType, folderId, onlySelect, selectedDialogs, currentAccount, requestPeerType);
+                    transitionPage.animationSupportDialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);
                     transitionPage.animationSupportDialogsAdapter.setIsTransitionSupport();
                     transitionPage.animationSupportListView.setAdapter(transitionPage.animationSupportDialogsAdapter);
                     transitionPage.addView(transitionPage.animationSupportListView);
@@ -5639,6 +5676,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         return fragmentView;
+    }
+
+    private boolean isFluxGramAppearanceEligible() {
+        return initialDialogsType == DIALOGS_TYPE_DEFAULT
+                && !onlySelect
+                && searchString == null
+                && folderId == 0
+                && communityId == 0;
     }
 
     private void setStoriesOvercroll(ViewPage viewPage, float storiesOverscroll) {

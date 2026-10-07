@@ -58,6 +58,7 @@ import org.telegram.ui.Cells.DialogMeUrlCell;
 import org.telegram.ui.Cells.DialogsEmptyCell;
 import org.telegram.ui.Cells.DialogsHintCell;
 import org.telegram.ui.Cells.DialogsRequestedEmptyCell;
+import org.telegram.ui.Cells.FluxGramDialogCell;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.ProfileSearchCell;
@@ -79,6 +80,7 @@ import org.telegram.ui.Stories.DialogStoriesCell;
 import org.telegram.ui.Stories.StoriesController;
 import org.telegram.ui.Stories.StoriesListPlaceProvider;
 import org.telegram.ui.community.CommunityUtils;
+import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -148,6 +150,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
     private boolean isTransitionSupport;
 
     private TLRPC.RequestPeerType requestPeerType;
+    private FluxGramDialogListAppearanceController fluxGramAppearanceController;
     public boolean isEmpty;
     public final long communityId;
 
@@ -171,6 +174,10 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
     public void setRecyclerListView(RecyclerListView recyclerListView) {
         this.recyclerListView = recyclerListView;
+    }
+
+    public void setFluxGramAppearanceController(FluxGramDialogListAppearanceController controller) {
+        fluxGramAppearanceController = controller;
     }
 
     public void setOpenedDialogId(long id) {
@@ -634,6 +641,15 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
     }
 
     @Override
+    public void onViewRecycled(RecyclerView.ViewHolder holder) {
+        if (holder.itemView instanceof FluxGramDialogCell) {
+            ((FluxGramDialogCell) holder.itemView).recycleAppearance();
+        }
+
+        super.onViewRecycled(holder);
+    }
+
+    @Override
     public boolean isEnabled(RecyclerView.ViewHolder holder) {
         int viewType = holder.getItemViewType();
         return viewType != VIEW_TYPE_FLICKER && viewType != VIEW_TYPE_EMPTY && viewType != VIEW_TYPE_DIVIDER &&
@@ -660,7 +676,18 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     dialogsType == DialogsActivity.DIALOGS_TYPE_BOT_REQUEST_PEER) {
                     view = new ProfileSearchCell(mContext);
                 } else {
-                    DialogCell dialogCell = new DialogCell(parentFragment, mContext, true, false, currentAccount, null);
+                    DialogCell dialogCell;
+                    if (viewType == VIEW_TYPE_DIALOG && fluxGramAppearanceController != null) {
+                        dialogCell = new FluxGramDialogCell(
+                                parentFragment,
+                                mContext,
+                                currentAccount,
+                                null,
+                                fluxGramAppearanceController
+                        );
+                    } else {
+                        dialogCell = new DialogCell(parentFragment, mContext, true, false, currentAccount, null);
+                    }
                     if (showOpenBotButton()) {
                         dialogCell.allowBotOpenButton(true, this::onOpenBot);
                     }

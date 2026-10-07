@@ -1,0 +1,154 @@
+package org.telegram.ui.Cells;
+
+import android.content.Context;
+import android.graphics.Canvas;
+
+import org.telegram.messenger.ChatObject;
+import org.telegram.messenger.DialogObject;
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.UserObject;
+import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
+import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
+import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.AnimatedEmojiDrawable;
+import org.telegram.ui.DialogsActivity;
+import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
+import org.telegram.ui.fluxgram.appearance.FluxGramUserListBadgeRenderer;
+
+public final class FluxGramDialogCell extends DialogCell implements FluxGramDialogListAppearanceController.Target {
+    private final int account;
+    private final FluxGramDialogListAppearanceController controller;
+    private final FluxGramUserListBadgeRenderer renderer;
+
+    private FluxGramPeerKey requestedPeer;
+    private boolean attached;
+
+    public FluxGramDialogCell(
+            DialogsActivity fragment,
+            Context context,
+            int account,
+            Theme.ResourcesProvider resourcesProvider,
+            FluxGramDialogListAppearanceController controller
+    ) {
+        super(fragment, context, true, false, account, resourcesProvider);
+        this.account = account;
+        this.controller = controller;
+        renderer = new FluxGramUserListBadgeRenderer(
+                this,
+                account,
+                AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS
+        );
+    }
+
+    @Override
+    public void setDialog(TLRPC.Dialog dialog, int type, int folder) {
+        super.setDialog(dialog, type, folder);
+
+        requestedPeer = peerFor(dialog.id);
+        if (attached) {
+            controller.bind(this, requestedPeer);
+        } else {
+            renderer.bind(null, false);
+        }
+    }
+
+    @Override
+    public FluxGramPeerKey getRequestedPeer() {
+        return requestedPeer;
+    }
+
+    @Override
+    public void apply(ProfileBadge badge, boolean animated) {
+        if (attached) {
+            renderer.bind(badge, animated);
+        }
+    }
+
+    @Override
+    public void destroyAppearance() {
+        requestedPeer = null;
+        renderer.destroy();
+    }
+
+    public void recycleAppearance() {
+        requestedPeer = null;
+        controller.unbind(this);
+        renderer.bind(null, false);
+        renderer.detach();
+        attached = false;
+    }
+
+    @Override
+    protected void drawAdditionalNameStatus(
+            Canvas canvas,
+            int contentLeft,
+            int contentRight,
+            int availableLeft,
+            int availableRight,
+            int centerY,
+            int color
+    ) {
+        renderer.draw(
+                canvas,
+                LocaleController.isRTL,
+                contentLeft,
+                contentRight,
+                availableLeft,
+                availableRight,
+                centerY,
+                color
+        );
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        attached = true;
+        renderer.attach();
+        controller.bind(this, requestedPeer);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        attached = false;
+        controller.unbind(this);
+        renderer.detach();
+        super.onDetachedFromWindow();
+    }
+
+    private FluxGramPeerKey peerFor(long dialogId) {
+        if (DialogObject.isUserDialog(dialogId)) {
+            TLRPC.User user = MessagesController.getInstance(account).getUser(dialogId);
+            if (user == null
+                    || user.id <= 0
+                    || UserObject.isDeleted(user)
+                    || UserObject.isUserSelf(user)
+                    || UserObject.isReplyUser(user)
+                    || UserObject.isAnonymous(user)
+                    || UserObject.isService(user.id)
+                    || user.id == UserObject.VERIFY
+                    || user.id == UserObject.OAUTH) {
+                return null;
+            }
+
+            return TelegramPeerKeyAdapter.fromUserId(user.id);
+        }
+        if (!DialogObject.isChatDialog(dialogId)) {
+            return null;
+        }
+
+        TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
+        if (chat == null
+                || ChatObject.isCommunity(chat)
+                || ChatObject.isChannelAndNotMegaGroup(chat)
+                || chat.broadcast) {
+            return null;
+        }
+
+        FluxGramPeerKey peer = TelegramPeerKeyAdapter.fromChat(chat);
+        return peer != null && peer.getType() == FluxGramPeerKey.Type.GROUP ? peer : null;
+    }
+}

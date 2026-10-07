@@ -26,6 +26,7 @@ import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.PorterDuffXfermode;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
@@ -533,6 +534,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     public int namePaddingEnd;
     public int nameLeft;
     public int nameWidth;
+    private int nameStatusAvailableLeft;
+    private int nameStatusAvailableRight;
     public int nameAdditionalsForChannelSubscriber;
     public boolean channelShouldUseLineWidth;
     public StaticLayout nameLayout;
@@ -2323,6 +2326,9 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
             }
         }
+
+        nameStatusAvailableLeft = nameLeft;
+        nameStatusAvailableRight = nameLeft + nameWidth;
 
         nameAdditionalsForChannelSubscriber = 0;
         final boolean reserveMuteSlot = (dialogMuted || isHiddenInCommunity || drawUnmute || dialogMutedProgress > 0) && !drawVerified && drawScam == 0;
@@ -4503,6 +4509,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 (drawScam == 1 ? Theme.dialogs_scamDrawable : Theme.dialogs_fakeDrawable).draw(canvas);
             }
 
+            drawAdditionalNameStatus(canvas, nameTop);
+
             if (drawReorder || reorderIconProgress != 0) {
                 if (!LocaleController.isRTL) {
                     final Paint reorderGradientPaint = getPaintReorderGradient();
@@ -4909,6 +4917,60 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         if (needInvalidate) {
             invalidate();
         }
+    }
+
+    protected void drawAdditionalNameStatus(Canvas canvas, int nameTop) {
+        if (nameLayout == null || nameLayout.getLineCount() == 0) {
+            return;
+        }
+
+        int contentLeft = (int) Math.floor(nameLeft + nameLayoutTranslateX + nameLayout.getLineLeft(0));
+        int contentRight = (int) Math.ceil(nameLeft + nameLayoutTranslateX + nameLayout.getLineRight(0));
+
+        if (drawBotVerified) {
+            contentLeft = Math.min(contentLeft, nameLeft - dp(19));
+            contentRight = Math.max(contentRight, nameLeft - dp(2));
+        }
+        if ((drawUnmute || dialogMuted || isHiddenInCommunity || dialogMutedProgress > 0)
+                && !drawVerified
+                && drawScam == 0) {
+            Rect bounds = Theme.dialogs_muteDrawable.getBounds();
+            contentLeft = Math.min(contentLeft, bounds.left);
+            contentRight = Math.max(contentRight, bounds.right);
+        }
+        if (drawVerified) {
+            Rect bounds = Theme.dialogs_verifiedDrawable.getBounds();
+            contentLeft = Math.min(contentLeft, bounds.left);
+            contentRight = Math.max(contentRight, bounds.right);
+        } else if (drawPremium) {
+            contentLeft = Math.min(contentLeft, nameMuteLeft - dp(2));
+            contentRight = Math.max(contentRight, nameMuteLeft + dp(20));
+        } else if (drawScam != 0) {
+            Rect bounds = (drawScam == 1 ? Theme.dialogs_scamDrawable : Theme.dialogs_fakeDrawable).getBounds();
+            contentLeft = Math.min(contentLeft, bounds.left);
+            contentRight = Math.max(contentRight, bounds.right);
+        }
+
+        drawAdditionalNameStatus(
+                canvas,
+                contentLeft,
+                contentRight,
+                nameStatusAvailableLeft,
+                nameStatusAvailableRight,
+                nameTop + nameLayout.getHeight() / 2,
+                nameLayout.getPaint().getColor()
+        );
+    }
+
+    protected void drawAdditionalNameStatus(
+            Canvas canvas,
+            int contentLeft,
+            int contentRight,
+            int availableLeft,
+            int availableRight,
+            int centerY,
+            int color
+    ) {
     }
 
     private TextPaint getTimeTextPaint() {

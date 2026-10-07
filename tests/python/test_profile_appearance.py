@@ -111,6 +111,7 @@ class ProfileAppearanceTest(unittest.TestCase):
                 str(APPEARANCE / "AppearanceCachePolicy.java"),
                 str(APPEARANCE / "AppearanceMemoryCache.java"),
                 str(APPEARANCE / "AppearanceRepository.java"),
+                str(UI / "FluxGramDialogListAppearanceController.java"),
                 str(UI / "FluxGramUserListAppearanceController.java"),
                 str(UI / "UserListBadgePlacement.java"),
                 str(ROOT / "tests/java/UserListAppearanceControllerCheck.java"),
@@ -118,6 +119,58 @@ class ProfileAppearanceTest(unittest.TestCase):
             subprocess.run([
                 "java", "-cp", directory, "UserListAppearanceControllerCheck",
             ], check=True, capture_output=True)
+
+    def test_main_dialog_badges_are_opt_in_and_fail_closed(self):
+        activity = (JAVA / "ui/DialogsActivity.java").read_text()
+        adapter = (JAVA / "ui/Adapters/DialogsAdapter.java").read_text()
+        cell = (JAVA / "ui/Cells/FluxGramDialogCell.java").read_text()
+        generic_cell = (JAVA / "ui/Cells/DialogCell.java").read_text()
+        controller = (UI / "FluxGramDialogListAppearanceController.java").read_text()
+
+        self.assertIn("FluxGramDialogListAppearanceController fluxGramAppearanceController", activity)
+        self.assertIn("AppearanceRepositories.get(currentAccount)", activity)
+        self.assertIn("initialDialogsType == DIALOGS_TYPE_DEFAULT", activity)
+        self.assertIn("!onlySelect", activity)
+        self.assertIn("searchString == null", activity)
+        self.assertIn("folderId == 0", activity)
+        self.assertIn("communityId == 0", activity)
+        self.assertIn("viewPage.dialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);", activity)
+        self.assertIn("transitionPage.animationSupportDialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);", activity)
+        self.assertEqual(activity.count("fluxGramAppearanceController.destroy();"), 2)
+
+        self.assertIn("viewType == VIEW_TYPE_DIALOG && fluxGramAppearanceController != null", adapter)
+        self.assertIn("new FluxGramDialogCell(", adapter)
+        self.assertIn("recycleAppearance();", adapter)
+        self.assertIn("extends DialogCell", cell)
+        self.assertIn("DialogObject.isUserDialog(dialogId)", cell)
+        self.assertIn("DialogObject.isChatDialog(dialogId)", cell)
+        self.assertIn("UserObject.isUserSelf(user)", cell)
+        self.assertIn("ChatObject.isChannelAndNotMegaGroup(chat)", cell)
+        self.assertIn("ChatObject.isCommunity(chat)", cell)
+        self.assertIn("peer.getType() == FluxGramPeerKey.Type.GROUP", cell)
+        self.assertIn("protected void drawAdditionalNameStatus(", generic_cell)
+        self.assertNotIn("FluxGram", generic_cell)
+        self.assertIn("MAX_BATCH_SIZE = 100", controller)
+        self.assertIn("MAX_ENTRIES = 512", controller)
+        self.assertIn("queuedPeers.remove(peer)", controller)
+        self.assertIn("lookup.getAccount() != account", controller)
+        self.assertIn("peer.equals(target.getRequestedPeer())", controller)
+
+    def test_dialog_badge_render_path_has_no_lookup_or_layout_mutation(self):
+        cell = (JAVA / "ui/Cells/FluxGramDialogCell.java").read_text()
+        renderer = (UI / "FluxGramUserListBadgeRenderer.java").read_text()
+
+        draw_method = cell.split("protected void drawAdditionalNameStatus(", 1)[1].split("@Override", 1)[0]
+        self.assertNotIn("MessagesController", draw_method)
+        self.assertNotIn("controller.bind", draw_method)
+        self.assertNotIn("requestLayout", draw_method)
+        self.assertNotIn("notifyDataSetChanged", draw_method)
+        self.assertIn("renderer.draw(", draw_method)
+        self.assertIn("renderer.attach();", cell)
+        self.assertIn("controller.unbind(this);", cell)
+        self.assertIn("renderer.detach();", cell)
+        self.assertIn("renderer.destroy();", cell)
+        self.assertIn("LiteMode.FLAG_PARTICLES", renderer)
 
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())

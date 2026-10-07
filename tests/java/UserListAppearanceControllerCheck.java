@@ -3,9 +3,11 @@ import org.telegram.messenger.fluxgram.appearance.AppearanceCachePolicy;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepository;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
+import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramUserListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.UserListBadgePlacement;
 
+import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,6 +29,13 @@ public final class UserListAppearanceControllerCheck {
         checkStaleFreshAnimation();
         checkDestroyCancelsAll();
         checkAccountMismatch();
+        checkDialogFrameCoalescingAndChunks();
+        checkDialogDropsUnboundBeforeFlush();
+        checkDialogSupportsGroupsOnly();
+        checkDialogKnownNoneAndRecycleSafety();
+        checkDialogStaleFreshAndDestroy();
+        checkDialogEvictedCallbackCannotReachReplacement();
+        checkDialogStaleFailuresRemainBounded();
         checkPlacement();
     }
 
@@ -181,6 +190,249 @@ public final class UserListAppearanceControllerCheck {
         expect(target.nonNullCount() == 0, "account mismatch is rejected");
     }
 
+    private static void checkDialogFrameCoalescingAndChunks() {
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        FakeNetwork network = new FakeNetwork();
+        network.echo = true;
+        FluxGramDialogListAppearanceController controller = dialogController(
+                0,
+                new FakeStore(),
+                network,
+                Runnable::run,
+                frames
+        );
+
+        for (int id = 1; id <= 205; id++) {
+            Target target = new Target();
+            target.requestedPeer = id % 2 == 0 ? groupKey(id) : key(id);
+            controller.bind(target, target.requestedPeer);
+        }
+
+        expect(frames.size() == 1, "dialog binds coalesce into one UI frame");
+        frames.runAll();
+        expect(network.batchSizes.equals(Arrays.asList(100, 100, 5)), "dialog controller chunks batches at 100");
+    }
+
+    private static void checkDialogDropsUnboundBeforeFlush() {
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        FakeNetwork network = new FakeNetwork();
+        network.echo = true;
+        FluxGramDialogListAppearanceController controller = dialogController(
+                0,
+                new FakeStore(),
+                network,
+                Runnable::run,
+                frames
+        );
+        Target removed = new Target(USER);
+
+        controller.bind(removed, USER);
+        controller.unbind(removed);
+
+        expect(frames.size() == 0, "last detached dialog cancels the pending frame");
+        expect(network.calls == 0, "detached dialog is not looked up");
+
+        Target first = new Target(USER);
+        Target second = new Target(USER);
+        controller.bind(first, USER);
+        controller.bind(second, USER);
+        controller.unbind(first);
+        frames.runAll();
+
+        expect(network.calls == 1, "shared dialog peer remains queued for its attached target");
+        expect(second.nonNullCount() == 1, "remaining dialog target receives the result");
+    }
+
+    private static void checkDialogSupportsGroupsOnly() {
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        FakeNetwork network = new FakeNetwork();
+        network.echo = true;
+        FluxGramDialogListAppearanceController controller = dialogController(
+                0,
+                new FakeStore(),
+                network,
+                Runnable::run,
+                frames
+        );
+        Target group = new Target(groupKey(10));
+        Target channel = new Target(new FluxGramPeerKey(FluxGramPeerKey.Type.CHANNEL, 11));
+
+        controller.bind(group, group.requestedPeer);
+        controller.bind(channel, channel.requestedPeer);
+        frames.runAll();
+
+        expect(group.nonNullCount() == 1, "group dialog is supported");
+        expect(channel.nonNullCount() == 0, "channel dialog is rejected");
+        expect(network.batchSizes.equals(Collections.singletonList(1)), "unsupported dialog is absent from the batch");
+    }
+
+    private static void checkDialogKnownNoneAndRecycleSafety() {
+        DeferredFrameScheduler noneFrames = new DeferredFrameScheduler();
+        FakeNetwork noneNetwork = new FakeNetwork(negative(USER, 1, NOW + 1000));
+        FluxGramDialogListAppearanceController noneController = dialogController(
+                0,
+                new FakeStore(),
+                noneNetwork,
+                Runnable::run,
+                noneFrames
+        );
+        Target first = new Target(USER);
+
+        noneController.bind(first, USER);
+        noneFrames.runAll();
+        Target rebound = new Target(USER);
+        noneController.bind(rebound, USER);
+
+        expect(noneFrames.size() == 0, "known dialog NONE is reused");
+        expect(noneNetwork.calls == 1, "known dialog NONE is not requested again");
+
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        DeferredExecutor networkExecutor = new DeferredExecutor();
+        FakeNetwork network = new FakeNetwork();
+        network.echo = true;
+        FluxGramDialogListAppearanceController controller = dialogController(
+                0,
+                new FakeStore(),
+                network,
+                networkExecutor,
+                frames
+        );
+        Target target = new Target(USER);
+
+        controller.bind(target, USER);
+        frames.runAll();
+        target.requestedPeer = OTHER_USER;
+        controller.bind(target, OTHER_USER);
+        frames.runAll();
+        networkExecutor.runNext();
+        expect(target.nonNullCount() == 0, "dialog target ignores its old keyed result");
+        networkExecutor.runNext();
+        expect(target.nonNullCount() == 1, "dialog target accepts its current keyed result");
+    }
+
+    private static void checkDialogStaleFreshAndDestroy() {
+        FakeStore store = new FakeStore();
+        store.writeDirect(USER, positive(USER, 1, NOW - 1, true));
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        DeferredExecutor networkExecutor = new DeferredExecutor();
+        FakeNetwork network = new FakeNetwork(positive(USER, 2, NOW + 1000, false));
+        FluxGramDialogListAppearanceController controller = dialogController(
+                0,
+                store,
+                network,
+                networkExecutor,
+                frames
+        );
+        Target target = new Target(USER);
+
+        controller.bind(target, USER);
+        frames.runAll();
+        expect(target.nonNullCount() == 1 && !target.last().animated, "first stale dialog result is not animated");
+        networkExecutor.runAll();
+        expect(target.nonNullCount() == 2 && target.last().animated, "fresh dialog result animates after stale");
+
+        DeferredFrameScheduler pendingFrames = new DeferredFrameScheduler();
+        DeferredExecutor pendingExecutor = new DeferredExecutor();
+        FakeNetwork pendingNetwork = new FakeNetwork();
+        pendingNetwork.echo = true;
+        FluxGramDialogListAppearanceController pendingController = dialogController(
+                0,
+                new FakeStore(),
+                pendingNetwork,
+                pendingExecutor,
+                pendingFrames
+        );
+        Target pending = new Target(USER);
+        pendingController.bind(pending, USER);
+        pendingFrames.runAll();
+        int deliveries = pending.values.size();
+        pendingController.destroy();
+        pendingExecutor.runAll();
+
+        expect(pending.values.size() == deliveries, "destroy cancels dialog repository subscriptions");
+        expect(pending.destroyed, "destroy releases dialog target");
+
+        DeferredFrameScheduler accountFrames = new DeferredFrameScheduler();
+        FakeNetwork accountNetwork = new FakeNetwork(positive(USER, 1, NOW + 1000, true));
+        FluxGramDialogListAppearanceController accountController = dialogController(
+                1,
+                new FakeStore(),
+                accountNetwork,
+                Runnable::run,
+                accountFrames
+        );
+        Target wrongAccount = new Target(USER);
+        accountController.bind(wrongAccount, USER);
+        accountFrames.runAll();
+
+        expect(wrongAccount.nonNullCount() == 0, "dialog account mismatch is rejected");
+    }
+
+    private static void checkDialogEvictedCallbackCannotReachReplacement() {
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        DeferredExecutor networkExecutor = new DeferredExecutor();
+        FakeNetwork network = new FakeNetwork();
+        network.echo = true;
+        FluxGramDialogListAppearanceController controller = dialogController(
+                0,
+                new FakeStore(),
+                network,
+                networkExecutor,
+                frames
+        );
+        Target target = new Target(USER);
+
+        controller.bind(target, USER);
+        frames.runAll();
+        controller.unbind(target);
+
+        for (int id = 1000; id < 1512; id++) {
+            Target visible = new Target(key(id));
+            controller.bind(visible, visible.requestedPeer);
+        }
+
+        controller.bind(target, USER);
+        frames.runAll();
+        networkExecutor.runNext();
+
+        expect(target.nonNullCount() == 1, "evicted request callback cannot update a replacement dialog entry");
+        expect(!target.last().animated, "replacement dialog entry receives its first result without animation");
+    }
+
+    private static void checkDialogStaleFailuresRemainBounded() {
+        FakeStore store = new FakeStore();
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        DeferredExecutor networkExecutor = new DeferredExecutor();
+        FakeNetwork network = new FakeNetwork();
+        FluxGramDialogListAppearanceController controller = dialogController(
+                0,
+                store,
+                network,
+                networkExecutor,
+                frames
+        );
+
+        for (int id = 2000; id < 2033; id++) {
+            FluxGramPeerKey peer = key(id);
+            store.writeDirect(peer, positive(peer, 1, NOW - 1, true));
+            controller.bind(new Target(peer), peer);
+            frames.runAll();
+            networkExecutor.runNext();
+        }
+
+        expect(activeDialogRequests(controller) == 32, "failed stale dialog revalidations remain bounded");
+    }
+
+    private static int activeDialogRequests(FluxGramDialogListAppearanceController controller) {
+        try {
+            Field field = FluxGramDialogListAppearanceController.class.getDeclaredField("requests");
+            field.setAccessible(true);
+            return ((java.util.Set<?>) field.get(controller)).size();
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("cannot inspect dialog requests", exception);
+        }
+    }
+
     private static void checkPlacement() {
         expect(UserListBadgePlacement.calculate(false, 20, 80, 10, 120, 4, 20) == 84,
                 "LTR badge follows official cluster");
@@ -223,6 +475,31 @@ public final class UserListAppearanceControllerCheck {
                 Runnable::run
         );
         return new FluxGramUserListAppearanceController(
+                controllerAccount,
+                repository,
+                frames
+        );
+    }
+
+    private static FluxGramDialogListAppearanceController dialogController(
+            int controllerAccount,
+            FakeStore store,
+            FakeNetwork network,
+            Executor networkExecutor,
+            DeferredFrameScheduler frames
+    ) {
+        AppearanceRepository repository = new AppearanceRepository(
+                0,
+                100,
+                store,
+                network,
+                value -> 100,
+                () -> NOW,
+                Runnable::run,
+                networkExecutor,
+                Runnable::run
+        );
+        return new FluxGramDialogListAppearanceController(
                 controllerAccount,
                 repository,
                 frames
@@ -274,13 +551,17 @@ public final class UserListAppearanceControllerCheck {
         return new FluxGramPeerKey(FluxGramPeerKey.Type.USER, id);
     }
 
+    private static FluxGramPeerKey groupKey(long id) {
+        return new FluxGramPeerKey(FluxGramPeerKey.Type.GROUP, id);
+    }
+
     private static void expect(boolean condition, String scenario) {
         if (!condition) {
             throw new AssertionError(scenario);
         }
     }
 
-    private static final class Target implements FluxGramUserListAppearanceController.Target {
+    private static final class Target implements FluxGramUserListAppearanceController.Target, FluxGramDialogListAppearanceController.Target {
         private final ArrayList<Value> values = new ArrayList<>();
         private FluxGramPeerKey requestedPeer;
         private boolean destroyed;
@@ -332,7 +613,7 @@ public final class UserListAppearanceControllerCheck {
         }
     }
 
-    private static final class DeferredFrameScheduler implements FluxGramUserListAppearanceController.FrameScheduler {
+    private static final class DeferredFrameScheduler implements FluxGramUserListAppearanceController.FrameScheduler, FluxGramDialogListAppearanceController.FrameScheduler {
         private final ArrayList<Runnable> tasks = new ArrayList<>();
 
         @Override
