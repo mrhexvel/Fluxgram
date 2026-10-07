@@ -74,6 +74,28 @@ class ProfileAppearanceTest(unittest.TestCase):
                 "java", "-cp", directory, "ProfileAppearanceControllerCheck",
             ], check=True, capture_output=True)
 
+    def test_chat_header_controller_lifecycle_and_delivery(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run([
+                "javac", "-d", directory,
+                str(APPEARANCE / "FluxGramPeerKey.java"),
+                str(APPEARANCE / "ProfileBadge.java"),
+                str(APPEARANCE / "ProfileBadgeCatalog.java"),
+                str(APPEARANCE / "AppearanceApiDto.java"),
+                str(APPEARANCE / "AppearanceProfile.java"),
+                str(APPEARANCE / "AppearanceCachePolicy.java"),
+                str(APPEARANCE / "AppearanceMemoryCache.java"),
+                str(APPEARANCE / "AppearanceRepository.java"),
+                str(UI / "FluxGramChatHeaderAppearanceController.java"),
+                str(ROOT / "tests/java/ChatHeaderAppearanceControllerCheck.java"),
+            ], check=True, capture_output=True)
+            subprocess.run([
+                "java", "-cp", directory, "ChatHeaderAppearanceControllerCheck",
+            ], check=True, capture_output=True)
+
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())
         result = fixture["result"]
@@ -128,6 +150,57 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("peer.getType() != FluxGramPeerKey.Type.GROUP", source)
         self.assertIn("topicId == 0", source)
         self.assertNotIn("LocalAppearanceFixture", source)
+
+    def test_chat_header_uses_user_only_fail_closed_controller(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        controller = (UI / "FluxGramChatHeaderAppearanceController.java").read_text()
+
+        self.assertIn("FluxGramChatHeaderAppearanceController fluxGramChatHeaderAppearanceController", chat)
+        self.assertIn("AppearanceRepositories.get(currentAccount)", chat)
+        self.assertIn("avatarContainer.applyFluxGramBadge(currentAccount, badge, animated);", chat)
+        self.assertIn("updateTitleIcons();\n        updateFluxGramChatHeaderBadge();", chat)
+        self.assertIn("chatMode != MODE_DEFAULT", chat)
+        self.assertIn("currentUser == null", chat)
+        self.assertIn("currentChat != null", chat)
+        self.assertIn("isTopic", chat)
+        self.assertIn("isComments", chat)
+        self.assertIn("isThreadChat()", chat)
+        self.assertIn("isReplyChatComment()", chat)
+        self.assertIn("threadMessageId != 0", chat)
+        self.assertIn("quickReplyShortcut != null", chat)
+        self.assertIn("businessLink != null", chat)
+        self.assertIn("UserObject.isUserSelf(currentUser)", chat)
+        self.assertIn("UserObject.isReplyUser(currentUser)", chat)
+        self.assertIn("UserObject.isService(userId)", chat)
+        self.assertIn("DialogObject.isUserDialog(dialog_id)", chat)
+        self.assertIn("DialogObject.isEncryptedDialog(dialog_id)", chat)
+        self.assertIn("currentEncryptedChat.user_id == userId", chat)
+        self.assertIn("peer.getType() == FluxGramPeerKey.Type.USER", controller)
+        self.assertNotIn("FluxGramPeerKey.Type.GROUP", controller)
+
+    def test_chat_header_renderer_has_local_lifecycle_and_accessibility_hooks(self):
+        container = (JAVA / "ui/Components/ChatAvatarContainer.java").read_text()
+
+        self.assertIn("FluxGramProfileBadgeRenderer fluxGramBadgeRenderer", container)
+        self.assertIn("public void applyFluxGramBadge(int account, ProfileBadge badge, boolean animated)", container)
+        self.assertIn("fluxGramBadgeRenderer.draw(canvas);", container)
+        self.assertIn("fluxGramBadgeRenderer.onTouchEvent(event)", container)
+        self.assertIn("fluxGramBadgeRenderer.attach();", container)
+        self.assertIn("fluxGramBadgeRenderer.detach();", container)
+        self.assertIn("fluxGramBadgeRenderer.destroy();", container)
+        self.assertIn("fluxGramBadgeRenderer.getAccessibilityLabel()", container)
+        self.assertIn("AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS", container)
+        self.assertNotIn("setMinusWidth", container)
+
+    def test_chat_header_does_not_extend_forbidden_surfaces(self):
+        forbidden = [
+            JAVA / "ui/ActionBar/SimpleTextView.java",
+            JAVA / "ui/Cells/DialogCell.java",
+            JAVA / "ui/Cells/ChatMessageCell.java",
+        ]
+
+        for source in forbidden:
+            self.assertNotIn("FluxGramChatHeader", source.read_text())
 
     def test_profile_badge_group_centering_preserves_upstream_edge_states(self):
         source = (JAVA / "ui/ProfileActivity.java").read_text()

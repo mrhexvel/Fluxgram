@@ -51,6 +51,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -65,6 +66,7 @@ import org.telegram.ui.ProfileActivity;
 import org.telegram.ui.Stories.StoriesUtilities;
 import org.telegram.ui.TopicsFragment;
 import org.telegram.ui.community.CommunityArrowDrawable;
+import org.telegram.ui.fluxgram.appearance.FluxGramProfileBadgeRenderer;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -124,6 +126,8 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
 
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable emojiStatusDrawable;
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable botVerificationDrawable;
+    private FluxGramProfileBadgeRenderer fluxGramBadgeRenderer;
+    private int fluxGramBadgeAccount = -1;
 
     protected boolean useAnimatedSubtitle() {
         return false;
@@ -276,7 +280,44 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             });
         }
 
-        titleTextView = new SimpleTextConnectedView(context, titleTextLargerCopyView);
+        titleTextView = new SimpleTextConnectedView(context, titleTextLargerCopyView) {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(info);
+                String badgeLabel = fluxGramBadgeRenderer == null
+                        ? null
+                        : fluxGramBadgeRenderer.getAccessibilityLabel();
+
+                if (badgeLabel != null) {
+                    StringBuilder description = new StringBuilder();
+                    if (info.getText() != null) {
+                        description.append(info.getText());
+                    }
+                    if (description.length() > 0) {
+                        description.append(", ");
+                    }
+                    description.append(badgeLabel);
+                    info.setText(description);
+                }
+            }
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                if (fluxGramBadgeRenderer != null) {
+                    fluxGramBadgeRenderer.draw(canvas);
+                }
+            }
+
+            @Override
+            public boolean onTouchEvent(MotionEvent event) {
+                if (fluxGramBadgeRenderer != null && fluxGramBadgeRenderer.onTouchEvent(event)) {
+                    return true;
+                }
+
+                return super.onTouchEvent(event);
+            }
+        };
         titleTextView.setEllipsizeByGradient(true);
         titleTextView.setTextColor(getThemedColor(Theme.key_actionBarDefaultTitle));
         titleTextView.setTextSize(18);
@@ -1032,8 +1073,39 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     }
 
     public void onDestroy() {
+        if (fluxGramBadgeRenderer != null) {
+            fluxGramBadgeRenderer.destroy();
+            fluxGramBadgeRenderer = null;
+            fluxGramBadgeAccount = -1;
+        }
         if (sharedMediaPreloader != null) {
             sharedMediaPreloader.onDestroy(parentFragment);
+        }
+    }
+
+    public void applyFluxGramBadge(int account, ProfileBadge badge, boolean animated) {
+        if (fluxGramBadgeRenderer != null && fluxGramBadgeAccount != account) {
+            fluxGramBadgeRenderer.destroy();
+            fluxGramBadgeRenderer = null;
+            fluxGramBadgeAccount = -1;
+        }
+
+        if (fluxGramBadgeRenderer == null && badge != null && parentFragment != null) {
+            fluxGramBadgeRenderer = new FluxGramProfileBadgeRenderer(
+                    parentFragment,
+                    account,
+                    titleTextView,
+                    AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS
+            );
+            fluxGramBadgeAccount = account;
+
+            if (isAttachedToWindow()) {
+                fluxGramBadgeRenderer.attach();
+            }
+        }
+
+        if (fluxGramBadgeRenderer != null) {
+            fluxGramBadgeRenderer.bind(badge, animated);
         }
     }
 
@@ -1538,6 +1610,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if (botVerificationDrawable != null) {
             botVerificationDrawable.attach();
         }
+        if (fluxGramBadgeRenderer != null) {
+            fluxGramBadgeRenderer.attach();
+        }
     }
 
     @Override
@@ -1555,6 +1630,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         }
         if (botVerificationDrawable != null) {
             botVerificationDrawable.detach();
+        }
+        if (fluxGramBadgeRenderer != null) {
+            fluxGramBadgeRenderer.detach();
         }
     }
 
@@ -1652,6 +1730,13 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if (rightDrawable2ContentDescription != null) {
             sb.append(", ");
             sb.append(rightDrawable2ContentDescription);
+        }
+        String fluxGramBadgeLabel = fluxGramBadgeRenderer == null
+                ? null
+                : fluxGramBadgeRenderer.getAccessibilityLabel();
+        if (fluxGramBadgeLabel != null) {
+            sb.append(", ");
+            sb.append(fluxGramBadgeLabel);
         }
         sb.append("\n");
         if (subtitleTextView != null) {

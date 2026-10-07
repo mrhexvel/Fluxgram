@@ -190,6 +190,9 @@ import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.CameraView;
 import org.telegram.messenger.plugins.PluginUiLifecycle;
+import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
+import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
+import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.messenger.utils.FBool;
 import org.telegram.messenger.utils.OnPostDrawView;
@@ -304,6 +307,7 @@ import org.telegram.ui.Components.quickforward.QuickShareSelectorOverlayLayout;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 import org.telegram.ui.Components.voip.CellFlickerDrawable;
 import org.telegram.ui.Components.voip.VoIPHelper;
+import org.telegram.ui.fluxgram.appearance.FluxGramChatHeaderAppearanceController;
 import org.telegram.ui.Delegates.ChatActivityMemberRequestsDelegate;
 import org.telegram.ui.Gifts.GiftSheet;
 import org.telegram.ui.Stars.StarReactionsOverlay;
@@ -492,6 +496,7 @@ public class ChatActivity extends BaseFragment implements
     private ChatBigEmptyView bigEmptyView;
     private ArrayList<View> actionModeViews = new ArrayList<>();
     public ChatAvatarContainer avatarContainer;
+    private FluxGramChatHeaderAppearanceController fluxGramChatHeaderAppearanceController;
     private AnimatedTextView selectedMessagesCountTextView;
     private RecyclerListView.OnItemClickListener mentionsOnItemClickListener;
     private SuggestEmojiView suggestEmojiPanel;
@@ -3357,6 +3362,10 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        if (fluxGramChatHeaderAppearanceController != null) {
+            fluxGramChatHeaderAppearanceController.destroy();
+            fluxGramChatHeaderAppearanceController = null;
+        }
         if (messageMetricsView != null) {
             messageMetricsView.finish();
         }
@@ -3449,6 +3458,71 @@ public class ChatActivity extends BaseFragment implements
             AndroidUtilities.removeFromParent(starReactionsOverlay);
             starReactionsOverlay = null;
         }
+    }
+
+    private void updateFluxGramChatHeaderBadge() {
+        FluxGramPeerKey peer = getFluxGramChatHeaderPeer();
+        if (fluxGramChatHeaderAppearanceController == null) {
+            if (peer == null) {
+                if (avatarContainer != null) {
+                    avatarContainer.applyFluxGramBadge(currentAccount, null, false);
+                }
+                return;
+            }
+
+            fluxGramChatHeaderAppearanceController = new FluxGramChatHeaderAppearanceController(
+                    currentAccount,
+                    AppearanceRepositories.get(currentAccount),
+                    (badge, animated) -> {
+                        if (avatarContainer != null) {
+                            avatarContainer.applyFluxGramBadge(currentAccount, badge, animated);
+                        }
+                    }
+            );
+        }
+
+        fluxGramChatHeaderAppearanceController.bind(peer);
+    }
+
+    private FluxGramPeerKey getFluxGramChatHeaderPeer() {
+        if (chatMode != MODE_DEFAULT
+                || currentUser == null
+                || currentChat != null
+                || isTopic
+                || isComments
+                || isThreadChat()
+                || isReplyChatComment()
+                || threadMessageId != 0
+                || quickReplyShortcut != null
+                || businessLink != null
+                || isReport()) {
+            return null;
+        }
+
+        long userId = currentUser.id;
+        if (userId <= 0
+                || UserObject.isDeleted(currentUser)
+                || UserObject.isUserSelf(currentUser)
+                || UserObject.isReplyUser(currentUser)
+                || UserObject.isAnonymous(currentUser)
+                || UserObject.isService(userId)
+                || userId == UserObject.VERIFY
+                || userId == UserObject.OAUTH) {
+            return null;
+        }
+
+        boolean cloudChat = currentEncryptedChat == null
+                && DialogObject.isUserDialog(dialog_id)
+                && dialog_id == userId;
+        boolean matchingSecretChat = currentEncryptedChat != null
+                && DialogObject.isEncryptedDialog(dialog_id)
+                && currentEncryptedChat.user_id == userId;
+
+        if (!cloudChat && !matchingSecretChat) {
+            return null;
+        }
+
+        return TelegramPeerKeyAdapter.fromUserId(userId);
     }
 
     private static class ChatActivityTextSelectionHelper extends TextSelectionHelper.ChatListTextSelectionHelper {
@@ -4517,6 +4591,7 @@ public class ChatActivity extends BaseFragment implements
         avatarContainer.updateOnlineCount();
         avatarContainer.updateSubtitle();
         updateTitleIcons();
+        updateFluxGramChatHeaderBadge();
 
         if (chatMode == 0 && (!isThreadChat() || isTopic) && !isReport()) {
             attachItem = menu.lazilyAddItem(chat_menu_attach, otherIcon, themeDelegate);
