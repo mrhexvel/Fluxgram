@@ -1241,6 +1241,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
                 Bundle args = new Bundle();
                 args.putLong("chat_id", chatId);
                 args.putInt("type", ChatUsersActivity.TYPE_ADMIN);
+                args.putBoolean(ChatUsersActivity.ARG_FLUXGRAM_GROUP_SETTINGS, true);
                 ChatUsersActivity fragment = new ChatUsersActivity(args);
                 fragment.setInfo(info);
                 presentFragment(fragment);
@@ -1252,6 +1253,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
                 Bundle args = new Bundle();
                 args.putLong("chat_id", chatId);
                 args.putInt("type", ChatUsersActivity.TYPE_USERS);
+                args.putBoolean(ChatUsersActivity.ARG_FLUXGRAM_GROUP_SETTINGS, true);
                 ChatUsersActivity fragment = new ChatUsersActivity(args);
                 fragment.setInfo(info);
                 presentFragment(fragment);

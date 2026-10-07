@@ -143,6 +143,10 @@ public class ManageChatUserCell extends FrameLayout {
         return avatarImageView;
     }
 
+    protected SimpleTextView getNameTextView() {
+        return nameTextView;
+    }
+
     public StoriesUtilities.AvatarStoryParams getStoryAvatarParams() {
         return storyAvatarParams;
     }
