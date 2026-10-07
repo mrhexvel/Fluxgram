@@ -186,6 +186,64 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("if (!DialogObject.isChatDialog(dialogId))", cell)
         self.assertNotIn("FluxGramDialogCell", (JAVA / "ui/Cells/ArchiveHintCell.java").read_text())
 
+    def test_main_search_badges_are_opt_in_and_use_a_separate_controller(self):
+        activity = (JAVA / "ui/DialogsActivity.java").read_text()
+        adapter = (JAVA / "ui/Adapters/DialogsSearchAdapter.java").read_text()
+        profile_cell = (JAVA / "ui/Cells/FluxGramDialogsSearchProfileCell.java").read_text()
+        message_cell = (JAVA / "ui/Cells/FluxGramDialogsSearchMessageCell.java").read_text()
+        hint_cell = (JAVA / "ui/Cells/FluxGramDialogsSearchHintCell.java").read_text()
+        generic_hint = (JAVA / "ui/Cells/HintDialogCell.java").read_text()
+        share_alert = (JAVA / "ui/Components/ShareAlert.java").read_text()
+
+        self.assertIn("FluxGramDialogListAppearanceController fluxGramSearchAppearanceController", activity)
+        self.assertIn("isFluxGramSearchAppearanceEligible()", activity)
+        search_eligibility = activity.split("private boolean isFluxGramSearchAppearanceEligible()", 1)[1].split("private FluxGramDialogListAppearanceController", 1)[0]
+        self.assertIn("initialDialogsType == DIALOGS_TYPE_DEFAULT", search_eligibility)
+        self.assertIn("!onlySelect", search_eligibility)
+        self.assertIn("searchString == null", search_eligibility)
+        self.assertIn("folderId == 0", search_eligibility)
+        self.assertNotIn("folderId == 1", search_eligibility)
+        self.assertIn("communityId == 0", search_eligibility)
+        self.assertIn("dialogsSearchAdapter.setFluxGramAppearanceController(fluxGramSearchAppearanceController)", activity)
+        self.assertEqual(activity.count("fluxGramSearchAppearanceController.destroy();"), 2)
+
+        self.assertIn("case VIEW_TYPE_PROFILE_CELL:", adapter)
+        self.assertIn("new FluxGramDialogsSearchProfileCell(", adapter)
+        self.assertIn("case VIEW_TYPE_DIALOG_CELL:", adapter)
+        self.assertIn("new FluxGramDialogsSearchMessageCell(", adapter)
+        self.assertIn("case VIEW_TYPE_PUBLIC_POST:", adapter)
+        self.assertIn("new FluxGramDialogsSearchHintCell(", adapter)
+        self.assertIn("case VIEW_TYPE_INVITE_CONTACT_CELL:", adapter)
+        self.assertIn("recycleAppearance();", adapter)
+
+        self.assertIn("sponsored ? null : peerFor", profile_cell)
+        self.assertIn("encryptedChat != null || saved", profile_cell)
+        self.assertIn("ChatObject.isChannelAndNotMegaGroup(chat)", profile_cell)
+        self.assertIn("messageObject.getDialogId()", adapter)
+        self.assertIn("requestedPeer = useFromUserAsAvatar", message_cell)
+        self.assertIn("FluxGramDialogCell.peerFor(account, dialogId)", message_cell)
+        self.assertIn("FluxGramDialogCell.peerFor(account, dialogId)", hint_cell)
+        self.assertIn("protected void drawAfterName(", generic_hint)
+        self.assertNotIn("FluxGram", share_alert)
+
+    def test_main_search_badge_render_paths_have_no_lookup_or_layout_mutation(self):
+        for file_name, method_name in (
+                ("FluxGramDialogsSearchProfileCell.java", "protected void drawAfterNameStatus("),
+                ("FluxGramDialogsSearchMessageCell.java", "protected void drawAdditionalNameStatus("),
+                ("FluxGramDialogsSearchHintCell.java", "protected void drawAfterName("),
+        ):
+            cell = (JAVA / "ui/Cells" / file_name).read_text()
+            draw_method = cell.split(method_name, 1)[1].split("@Override", 1)[0]
+
+            self.assertNotIn("MessagesController", draw_method)
+            self.assertNotIn("controller.bind", draw_method)
+            self.assertNotIn("requestLayout", draw_method)
+            self.assertNotIn("notifyDataSetChanged", draw_method)
+            self.assertIn("renderer.draw(", draw_method)
+            self.assertIn("controller.unbind(this);", cell)
+            self.assertIn("renderer.detach();", cell)
+            self.assertIn("renderer.destroy();", cell)
+
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())
         result = fixture["result"]

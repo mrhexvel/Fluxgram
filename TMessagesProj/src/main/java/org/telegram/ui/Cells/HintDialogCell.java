@@ -17,6 +17,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.text.Layout;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -189,6 +190,10 @@ public class HintDialogCell extends FrameLayout {
         checkBox.setColor(Theme.key_dialogRoundCheckBox, backgroundColorKey, Theme.key_dialogRoundCheckBoxCheck);
     }
 
+    protected void setCurrentAccount(int account) {
+        currentAccount = account;
+    }
+
     public void setDialog(long uid, boolean counter, CharSequence name) {
         if (dialogId != uid) {
             wasDraw = false;
@@ -233,6 +238,27 @@ public class HintDialogCell extends FrameLayout {
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
         boolean result = super.drawChild(canvas, child, drawingTime);
+        if (child == nameTextView) {
+            Layout layout = nameTextView.getLayout();
+            if (layout != null && layout.getLineCount() > 0) {
+                int textLeft = nameTextView.getLeft() + nameTextView.getTotalPaddingLeft();
+                int contentLeft = textLeft + (int) Math.floor(layout.getLineLeft(0));
+                int contentRight = textLeft + (int) Math.ceil(layout.getLineRight(0));
+                int availableLeft = nameTextView.getLeft() + nameTextView.getTotalPaddingLeft();
+                int availableRight = nameTextView.getRight() - nameTextView.getTotalPaddingRight();
+                int centerY = nameTextView.getTop() + nameTextView.getTotalPaddingTop() + layout.getHeight() / 2;
+
+                drawAfterName(
+                        canvas,
+                        contentLeft,
+                        contentRight,
+                        availableLeft,
+                        availableRight,
+                        centerY,
+                        nameTextView.getCurrentTextColor()
+                );
+            }
+        }
         if (child == imageView) {
             boolean showOnline = !premiumBlocked && currentUser != null && !currentUser.bot && (currentUser.status != null && currentUser.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime() || MessagesController.getInstance(currentAccount).onlinePrivacy.containsKey(currentUser.id));
             if (!wasDraw) {
@@ -292,6 +318,17 @@ public class HintDialogCell extends FrameLayout {
             wasDraw = true;
         }
         return result;
+    }
+
+    protected void drawAfterName(
+            Canvas canvas,
+            int contentLeft,
+            int contentRight,
+            int availableLeft,
+            int availableRight,
+            int centerY,
+            int color
+    ) {
     }
 
     @Override

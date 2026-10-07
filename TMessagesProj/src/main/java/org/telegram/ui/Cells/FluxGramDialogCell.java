@@ -47,7 +47,7 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
     public void setDialog(TLRPC.Dialog dialog, int type, int folder) {
         super.setDialog(dialog, type, folder);
 
-        requestedPeer = peerFor(dialog.id);
+        requestedPeer = peerFor(account, dialog.id);
         if (attached) {
             controller.bind(this, requestedPeer);
         } else {
@@ -119,7 +119,7 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
         super.onDetachedFromWindow();
     }
 
-    private FluxGramPeerKey peerFor(long dialogId) {
+    static FluxGramPeerKey peerFor(int account, long dialogId) {
         if (DialogObject.isUserDialog(dialogId)) {
             TLRPC.User user = MessagesController.getInstance(account).getUser(dialogId);
             if (user == null

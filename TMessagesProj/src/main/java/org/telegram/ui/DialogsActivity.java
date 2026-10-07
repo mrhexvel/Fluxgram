@@ -501,6 +501,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private ValueAnimator contactsAlphaAnimator;
     private ViewPage[] viewPages;
     private FluxGramDialogListAppearanceController fluxGramAppearanceController;
+    private FluxGramDialogListAppearanceController fluxGramSearchAppearanceController;
     private ActionBarMenuItem passcodeItem;
     private ActionBarMenuItem downloadsItem;
     private DownloadProgressIcon downloadProgressIcon;
@@ -3075,6 +3076,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             fluxGramAppearanceController.destroy();
             fluxGramAppearanceController = null;
         }
+        if (fluxGramSearchAppearanceController != null) {
+            fluxGramSearchAppearanceController.destroy();
+            fluxGramSearchAppearanceController = null;
+        }
 
         super.onFragmentDestroy();
         if (observersGroup != null) {
@@ -3209,6 +3214,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (fluxGramAppearanceController != null) {
             fluxGramAppearanceController.destroy();
             fluxGramAppearanceController = null;
+        }
+        if (fluxGramSearchAppearanceController != null) {
+            fluxGramSearchAppearanceController.destroy();
+            fluxGramSearchAppearanceController = null;
         }
 
         searching = false;
@@ -4029,25 +4038,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         fragmentView = contentView;
 
         if (isFluxGramAppearanceEligible()) {
-            try {
-                fluxGramAppearanceController = new FluxGramDialogListAppearanceController(
-                        currentAccount,
-                        AppearanceRepositories.get(currentAccount),
-                        new FluxGramDialogListAppearanceController.FrameScheduler() {
-                            @Override
-                            public void post(Runnable runnable) {
-                                contentView.postOnAnimation(runnable);
-                            }
-
-                            @Override
-                            public void cancel(Runnable runnable) {
-                                contentView.removeCallbacks(runnable);
-                            }
-                        }
-                );
-            } catch (IllegalStateException exception) {
-                FileLog.e(exception);
-            }
+            fluxGramAppearanceController = createFluxGramAppearanceController(contentView);
+        }
+        if (isFluxGramSearchAppearanceEligible()) {
+            fluxGramSearchAppearanceController = createFluxGramAppearanceController(contentView);
         }
 
         viewPositionWatcher = new ViewPositionWatcher(contentView);
@@ -5684,6 +5678,37 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 && searchString == null
                 && (folderId == 0 || folderId == 1)
                 && communityId == 0;
+    }
+
+    private boolean isFluxGramSearchAppearanceEligible() {
+        return initialDialogsType == DIALOGS_TYPE_DEFAULT
+                && !onlySelect
+                && searchString == null
+                && folderId == 0
+                && communityId == 0;
+    }
+
+    private FluxGramDialogListAppearanceController createFluxGramAppearanceController(View owner) {
+        try {
+            return new FluxGramDialogListAppearanceController(
+                    currentAccount,
+                    AppearanceRepositories.get(currentAccount),
+                    new FluxGramDialogListAppearanceController.FrameScheduler() {
+                        @Override
+                        public void post(Runnable runnable) {
+                            owner.postOnAnimation(runnable);
+                        }
+
+                        @Override
+                        public void cancel(Runnable runnable) {
+                            owner.removeCallbacks(runnable);
+                        }
+                    }
+            );
+        } catch (IllegalStateException exception) {
+            FileLog.e(exception);
+            return null;
+        }
     }
 
     private void setStoriesOvercroll(ViewPage viewPage, float storiesOverscroll) {
@@ -13062,6 +13087,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         };
+        searchViewPager.dialogsSearchAdapter.setFluxGramAppearanceController(fluxGramSearchAppearanceController);
         ((ContentView) fragmentView).addView(searchViewPager, searchViewPagerIndex);
 
         searchViewPager.dialogsSearchAdapter.setDelegate(new DialogsSearchAdapter.DialogsSearchAdapterDelegate() {

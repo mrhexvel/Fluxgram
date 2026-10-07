@@ -51,6 +51,9 @@ import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.DialogCell;
+import org.telegram.ui.Cells.FluxGramDialogsSearchHintCell;
+import org.telegram.ui.Cells.FluxGramDialogsSearchMessageCell;
+import org.telegram.ui.Cells.FluxGramDialogsSearchProfileCell;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.HashtagSearchCell;
 import org.telegram.ui.Cells.HintDialogCell;
@@ -68,6 +71,7 @@ import org.telegram.ui.Components.RLottieDrawable;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.FilteredSearchView;
+import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -165,6 +169,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
     private ArrayList<Long> filterDialogIds;
     private final DialogsActivity dialogsActivity;
     private final Theme.ResourcesProvider resourcesProvider;
+    private FluxGramDialogListAppearanceController fluxGramAppearanceController;
 
     private int currentAccount = UserConfig.selectedAccount;
 
@@ -219,13 +224,26 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         private boolean forceDarkTheme;
         private boolean showPremiumBlock;
         private Theme.ResourcesProvider resourcesProvider;
+        private FluxGramDialogListAppearanceController fluxGramAppearanceController;
 
         public CategoryAdapterRecycler(Context context, int account, boolean drawChecked, boolean showPremiumBlock, Theme.ResourcesProvider resourcesProvider) {
+            this(context, account, drawChecked, showPremiumBlock, resourcesProvider, null);
+        }
+
+        public CategoryAdapterRecycler(
+                Context context,
+                int account,
+                boolean drawChecked,
+                boolean showPremiumBlock,
+                Theme.ResourcesProvider resourcesProvider,
+                FluxGramDialogListAppearanceController fluxGramAppearanceController
+        ) {
             this.drawChecked = drawChecked;
             mContext = context;
             currentAccount = account;
             this.showPremiumBlock = showPremiumBlock;
             this.resourcesProvider = resourcesProvider;
+            this.fluxGramAppearanceController = fluxGramAppearanceController;
         }
 
         public void setIndex(int value) {
@@ -234,7 +252,17 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
 
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            HintDialogCell cell = new HintDialogCell(mContext, drawChecked, resourcesProvider);
+            HintDialogCell cell;
+            if (!drawChecked && fluxGramAppearanceController != null) {
+                cell = new FluxGramDialogsSearchHintCell(
+                        mContext,
+                        currentAccount,
+                        resourcesProvider,
+                        fluxGramAppearanceController
+                );
+            } else {
+                cell = new HintDialogCell(mContext, drawChecked, resourcesProvider);
+            }
             if (showPremiumBlock) {
                 cell.showPremiumBlocked();
             }
@@ -280,6 +308,15 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         public int getItemCount() {
             return MediaDataController.getInstance(currentAccount).hints.size();
         }
+
+        @Override
+        public void onViewRecycled(RecyclerView.ViewHolder holder) {
+            if (holder.itemView instanceof FluxGramDialogsSearchHintCell) {
+                ((FluxGramDialogsSearchHintCell) holder.itemView).recycleAppearance();
+            }
+
+            super.onViewRecycled(holder);
+        }
     }
 
     private boolean filter(Object obj) {
@@ -309,7 +346,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         this.itemAnimator = itemAnimator;
         this.dialogsActivity = dialogsActivity;
         this.resourcesProvider = resourcesProvider;
-        searchAdapterHelper = new SearchAdapterHelper(false) {
+        currentAccount = dialogsActivity.getCurrentAccount();
+        searchAdapterHelper = new SearchAdapterHelper(false, currentAccount) {
             @Override
             protected boolean filter(TLObject obj) {
                 return DialogsSearchAdapter.this.filter(obj);
@@ -367,6 +405,10 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
 
     public void setDelegate(DialogsSearchAdapterDelegate delegate) {
         this.delegate = delegate;
+    }
+
+    public void setFluxGramAppearanceController(FluxGramDialogListAppearanceController controller) {
+        fluxGramAppearanceController = controller;
     }
 
     public boolean isMessagesSearchEndReached() {
@@ -1607,12 +1649,29 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         View view;
         switch (viewType) {
             case VIEW_TYPE_PROFILE_CELL:
-                view = new ProfileSearchCell(mContext).showPremiumBlock(dialogsType == DialogsActivity.DIALOGS_TYPE_FORWARD);
+                if (fluxGramAppearanceController != null) {
+                    view = new FluxGramDialogsSearchProfileCell(
+                            mContext,
+                            currentAccount,
+                            fluxGramAppearanceController
+                    );
+                } else {
+                    view = new ProfileSearchCell(mContext).showPremiumBlock(dialogsType == DialogsActivity.DIALOGS_TYPE_FORWARD);
+                }
                 break;
             case VIEW_TYPE_GRAY_SECTION:
                 view = new GraySectionCell(mContext);
                 break;
             case VIEW_TYPE_DIALOG_CELL:
+                if (fluxGramAppearanceController != null) {
+                    view = new FluxGramDialogsSearchMessageCell(
+                            mContext,
+                            currentAccount,
+                            resourcesProvider,
+                            fluxGramAppearanceController
+                    );
+                    break;
+                }
             case VIEW_TYPE_PUBLIC_POST:
                 view = new DialogCell(null, mContext, false, true) {
                     @Override
@@ -1656,7 +1715,14 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 layoutManager.setOrientation(LinearLayoutManager.HORIZONTAL);
                 horizontalListView.setLayoutManager(layoutManager);
                 //horizontalListView.setDisallowInterceptTouchEvents(true);
-                horizontalListView.setAdapter(new CategoryAdapterRecycler(mContext, currentAccount, false, dialogsType == DialogsActivity.DIALOGS_TYPE_FORWARD, resourcesProvider));
+                horizontalListView.setAdapter(new CategoryAdapterRecycler(
+                        mContext,
+                        currentAccount,
+                        false,
+                        dialogsType == DialogsActivity.DIALOGS_TYPE_FORWARD,
+                        resourcesProvider,
+                        fluxGramAppearanceController
+                ));
                 horizontalListView.setOnItemClickListener((view1, position) -> {
                     if (view1 instanceof HintDialogCell && ((HintDialogCell) view1).isBlocked()) {
                         if (delegate != null) {
@@ -1702,6 +1768,17 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
             view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
         }
         return new RecyclerListView.Holder(view);
+    }
+
+    @Override
+    public void onViewRecycled(RecyclerView.ViewHolder holder) {
+        if (holder.itemView instanceof FluxGramDialogsSearchProfileCell) {
+            ((FluxGramDialogsSearchProfileCell) holder.itemView).recycleAppearance();
+        } else if (holder.itemView instanceof FluxGramDialogsSearchMessageCell) {
+            ((FluxGramDialogsSearchMessageCell) holder.itemView).recycleAppearance();
+        }
+
+        super.onViewRecycled(holder);
     }
 
     private boolean hasHints() {
