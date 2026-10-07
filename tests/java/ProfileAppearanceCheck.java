@@ -1,6 +1,7 @@
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadgeCatalog;
+import org.telegram.ui.fluxgram.appearance.ProfileBadgePlacement;
 
 import java.util.HashSet;
 
@@ -47,6 +48,19 @@ public final class ProfileAppearanceCheck {
                 "Description",
                 false
         ) == null, "particles required");
+
+        expect(ProfileBadgePlacement.findLeft(80, 0, 0, 160, 8, 24) == 88,
+                "badge after short name");
+        expect(ProfileBadgePlacement.findLeft(80, 104, 128, 160, 8, 24) == 136,
+                "badge after official statuses");
+        expect(ProfileBadgePlacement.findLeft(80, 104, 128, 159, 8, 24)
+                        == ProfileBadgePlacement.HIDDEN,
+                "official statuses have priority");
+        expect(ProfileBadgePlacement.findLeft(140, 0, 0, 160, 8, 24)
+                        == ProfileBadgePlacement.HIDDEN,
+                "long name has priority");
+        expect(ProfileBadgePlacement.findLeft(80, 104, 128, 180, 12, 32) == 140,
+                "scaled dimensions");
     }
 
     private static void expect(boolean condition, String scenario) {

@@ -24,6 +24,7 @@ class ProfileAppearanceTest(unittest.TestCase):
                 str(APPEARANCE / "FluxGramPeerKey.java"),
                 str(APPEARANCE / "ProfileBadge.java"),
                 str(APPEARANCE / "ProfileBadgeCatalog.java"),
+                str(UI / "ProfileBadgePlacement.java"),
                 str(ROOT / "tests/java/ProfileAppearanceCheck.java"),
             ], check=True, capture_output=True)
             subprocess.run([
@@ -39,7 +40,7 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertEqual(fixture["minimum_renderer_version"], 1)
         self.assertEqual(result["peer"], {
             "peer_type": "user",
-            "peer_id": "8660500762",
+            "peer_id": "123456789",
         })
         self.assertEqual(badge["badge_id"], "developer")
         self.assertEqual(badge["custom_emoji_document_id"], "5373141891321699086")
@@ -62,8 +63,9 @@ class ProfileAppearanceTest(unittest.TestCase):
         bulletin = (UI / "FluxGramBadgeBulletin.java").read_text()
 
         self.assertIn("drawable.setCurrentAccount(account);", renderer)
-        self.assertIn("drawable.setParticles(true, animated);", renderer)
-        self.assertIn("x + size > availableRight", renderer)
+        self.assertIn("LiteMode.isEnabled(LiteMode.FLAG_PARTICLES)", renderer)
+        self.assertIn("ProfileBadgePlacement.findLeft", renderer)
+        self.assertNotIn("setMinusWidth", renderer)
         self.assertIn("BulletinFactory.of(fragment)", bulletin)
         self.assertIn("account,", bulletin)
         self.assertNotIn("UserConfig.selectedAccount", renderer)

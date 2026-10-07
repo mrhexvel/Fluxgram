@@ -7,6 +7,7 @@ import android.view.MotionEvent;
 import android.view.ViewParent;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.SimpleTextView;
@@ -67,8 +68,7 @@ public final class FluxGramProfileBadgeRenderer {
         }
 
         drawable.set(nextBadge.getDocumentId(), animated);
-        drawable.setParticles(true, animated);
-        view.setMinusWidth(AndroidUtilities.dp(BADGE_SIZE_DP + BADGE_GAP_DP));
+        drawable.setParticles(LiteMode.isEnabled(LiteMode.FLAG_PARTICLES), animated);
         view.invalidate();
     }
 
@@ -79,15 +79,25 @@ public final class FluxGramProfileBadgeRenderer {
 
         int gap = AndroidUtilities.dp(BADGE_GAP_DP);
         int size = AndroidUtilities.dp(BADGE_SIZE_DP);
-        int x = getContentRight() + gap;
+        Drawable rightDrawable = view.getRightDrawable();
+        Drawable rightDrawable2 = view.getRightDrawable2();
         int availableRight = view.getWidth() - view.getPaddingRight();
+        int x = ProfileBadgePlacement.findLeft(
+                getTextRight(),
+                getDrawableRight(rightDrawable),
+                getDrawableRight(rightDrawable2),
+                availableRight,
+                gap,
+                size
+        );
 
-        if (x + size > availableRight) {
+        if (x == ProfileBadgePlacement.HIDDEN) {
             hitBounds.setEmpty();
             return;
         }
 
         int y = getBadgeTop(size);
+        drawable.setParticles(LiteMode.isEnabled(LiteMode.FLAG_PARTICLES), false);
         drawable.setColor(view.getTextColor());
         drawable.setBounds(x, y, x + size, y + size);
         drawable.draw(canvas);
@@ -96,9 +106,9 @@ public final class FluxGramProfileBadgeRenderer {
         int centerX = x + size / 2;
         int centerY = y + size / 2;
         hitBounds.set(
-                centerX - hitRadius,
+                Math.max(0, centerX - hitRadius),
                 centerY - hitRadius,
-                centerX + hitRadius,
+                Math.min(availableRight, centerX + hitRadius),
                 centerY + hitRadius
         );
     }
@@ -191,23 +201,23 @@ public final class FluxGramProfileBadgeRenderer {
         drawable = null;
     }
 
-    private int getContentRight() {
-        int contentRight = view.getPaddingLeft() + view.getTextWidth();
+    private int getTextRight() {
+        int textRight = view.getPaddingLeft() + view.getTextWidth();
         Drawable leftDrawable = view.getLeftDrawable();
-        Drawable rightDrawable = view.getRightDrawable();
-        Drawable rightDrawable2 = view.getRightDrawable2();
 
         if (leftDrawable != null && !leftDrawable.getBounds().isEmpty()) {
-            contentRight += leftDrawable.getBounds().right + AndroidUtilities.dp(4);
-        }
-        if (rightDrawable != null && !rightDrawable.getBounds().isEmpty()) {
-            contentRight = Math.max(contentRight, rightDrawable.getBounds().right);
-        }
-        if (rightDrawable2 != null && !rightDrawable2.getBounds().isEmpty()) {
-            contentRight = Math.max(contentRight, rightDrawable2.getBounds().right);
+            textRight += leftDrawable.getBounds().right + AndroidUtilities.dp(4);
         }
 
-        return contentRight;
+        return textRight;
+    }
+
+    private int getDrawableRight(Drawable drawable) {
+        if (drawable == null || drawable.getBounds().isEmpty()) {
+            return 0;
+        }
+
+        return drawable.getBounds().right;
     }
 
     private int getBadgeTop(int size) {
@@ -228,7 +238,6 @@ public final class FluxGramProfileBadgeRenderer {
         badge = null;
         hitBounds.setEmpty();
         cancelTouch();
-        view.setMinusWidth(0);
 
         if (drawable != null) {
             drawable.setParticles(false, animated);
