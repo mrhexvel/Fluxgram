@@ -51,7 +51,6 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
-import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_communities;
@@ -66,7 +65,6 @@ import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Adapters.SearchAdapterHelper;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.GraySectionCell;
-import org.telegram.ui.Cells.FluxGramChatUsersUserCell;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.LoadingCell;
 import org.telegram.ui.Cells.ManageChatTextCell;
@@ -89,7 +87,6 @@ import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.SlideChooseView;
 import org.telegram.ui.Components.StickerEmptyView;
 import org.telegram.ui.Components.UndoView;
-import org.telegram.ui.fluxgram.appearance.FluxGramUserListAppearanceController;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -110,7 +107,6 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
     private RecyclerListView listView;
     private LinearLayoutManager layoutManager;
     private SearchAdapter searchListViewAdapter;
-    private FluxGramUserListAppearanceController fluxGramAppearanceController;
     private ActionBarMenuItem searchItem;
     private ActionBarMenuItem doneItem;
     private UndoView undoView;
@@ -629,10 +625,6 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
 
     @Override
     public void onFragmentDestroy() {
-        if (fluxGramAppearanceController != null) {
-            fluxGramAppearanceController.destroy();
-            fluxGramAppearanceController = null;
-        }
         super.onFragmentDestroy();
         getNotificationCenter().removeObserver(this, NotificationCenter.chatInfoDidLoad);
         getNotificationCenter().removeObserver(this, NotificationCenter.dialogDeleted);
@@ -781,27 +773,6 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
                 }
             }
         };
-        if (isFluxGramAppearanceEligible()) {
-            try {
-                fluxGramAppearanceController = new FluxGramUserListAppearanceController(
-                        currentAccount,
-                        AppearanceRepositories.get(currentAccount),
-                        new FluxGramUserListAppearanceController.FrameScheduler() {
-                            @Override
-                            public void post(Runnable runnable) {
-                                listView.postOnAnimation(runnable);
-                            }
-
-                            @Override
-                            public void cancel(Runnable runnable) {
-                                listView.removeCallbacks(runnable);
-                            }
-                        }
-                );
-            } catch (IllegalStateException exception) {
-                FileLog.e(exception);
-            }
-        }
         listView.setSections();
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
             @Override
@@ -1381,16 +1352,16 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
                         canEdit = ChatObject.canBlockUsers(currentChat);
                     }
                     if (type == TYPE_BANNED || type != TYPE_ADMIN && isChannel || type == TYPE_USERS && selectType == SELECT_TYPE_MEMBERS) {
+                        if (peerId == getUserConfig().getClientUserId()) {
+                            return;
+                        }
                         Bundle args = new Bundle();
                         if (peerId > 0) {
                             args.putLong("user_id", peerId);
-                            if (peerId == getUserConfig().getClientUserId()) {
-                                args.putBoolean("my_profile", true);
-                            }
                         } else {
                             args.putLong("chat_id", -peerId);
                         }
-                        presentFragment(peerId == getUserConfig().getClientUserId() ? new ProfileActivity(args, null) : new ProfileActivity(args));
+                        presentFragment(new ProfileActivity(args));
                     } else {
                         if (bannedRights == null) {
                             bannedRights = new TLRPC.TL_chatBannedRights();
@@ -1476,17 +1447,6 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
         }
 
         return fragmentView;
-    }
-
-    private boolean isFluxGramAppearanceEligible() {
-        return currentChat != null
-                && selectType == SELECT_TYPE_MEMBERS
-                && (type == TYPE_USERS || type == TYPE_ADMIN)
-                && !transfer
-                && !ChatObject.isCommunity(currentChat)
-                && !ChatObject.isChannelAndNotMegaGroup(currentChat)
-                && !currentChat.gigagroup
-                && !currentChat.broadcast;
     }
 
     private int getParticipantsCount() {
@@ -2621,7 +2581,7 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
                     objects.addAll(res.participants);
                     for (int a = 0, size = res.participants.size(); a < size; a++) {
                         TLRPC.ChannelParticipant participant = res.participants.get(a);
-                        if (participant.user_id == selfId && selectType != SELECT_TYPE_MEMBERS) {
+                        if (participant.user_id == selfId) {
                             objects.remove(participant);
                         } else {
                             map.put(MessageObject.getPeerId(participant.peer), participant);
@@ -2825,7 +2785,7 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
 
         public SearchAdapter(Context context) {
             mContext = context;
-            searchAdapterHelper = new SearchAdapterHelper(true, currentAccount);
+            searchAdapterHelper = new SearchAdapterHelper(true);
             searchAdapterHelper.setDelegate(searchId -> {
                 if (!searchAdapterHelper.isSearchInProgress()) {
                     int oldItemCount = getItemCount();
@@ -3116,19 +3076,7 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
             View view;
             switch (viewType) {
                 case 0:
-                    ManageChatUserCell manageChatUserCell;
-                    if (fluxGramAppearanceController == null) {
-                        manageChatUserCell = new ManageChatUserCell(mContext, 2, 2, selectType == SELECT_TYPE_MEMBERS);
-                    } else {
-                        manageChatUserCell = new FluxGramChatUsersUserCell(
-                                mContext,
-                                currentAccount,
-                                2,
-                                2,
-                                selectType == SELECT_TYPE_MEMBERS,
-                                fluxGramAppearanceController
-                        );
-                    }
+                    ManageChatUserCell manageChatUserCell = new ManageChatUserCell(mContext, 2, 2, selectType == SELECT_TYPE_MEMBERS);
                     manageChatUserCell.setUsernameSubtitle();
                     manageChatUserCell.setDelegate((cell, click) -> {
                         TLObject object = getItem((Integer) cell.getTag());
@@ -3317,7 +3265,7 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
                 Object object = cell.getCurrentObject();
                 if (type != TYPE_ADMIN && object instanceof TLRPC.User) {
                     TLRPC.User user = (TLRPC.User) object;
-                    if (user.self && (type != TYPE_USERS || selectType != SELECT_TYPE_MEMBERS)) {
+                    if (user.self) {
                         return false;
                     }
                 }
@@ -3355,19 +3303,7 @@ public class ChatUsersActivity extends BaseFragment implements NotificationCente
             View view;
             switch (viewType) {
                 case 0:
-                    ManageChatUserCell manageChatUserCell;
-                    if (fluxGramAppearanceController == null) {
-                        manageChatUserCell = new ManageChatUserCell(mContext, type == TYPE_BANNED || type == TYPE_KICKED ? 7 : 6, type == TYPE_BANNED || type == TYPE_KICKED ? 6 : 2, selectType == SELECT_TYPE_MEMBERS);
-                    } else {
-                        manageChatUserCell = new FluxGramChatUsersUserCell(
-                                mContext,
-                                currentAccount,
-                                type == TYPE_BANNED || type == TYPE_KICKED ? 7 : 6,
-                                type == TYPE_BANNED || type == TYPE_KICKED ? 6 : 2,
-                                selectType == SELECT_TYPE_MEMBERS,
-                                fluxGramAppearanceController
-                        );
-                    }
+                    ManageChatUserCell manageChatUserCell = new ManageChatUserCell(mContext, type == TYPE_BANNED || type == TYPE_KICKED ? 7 : 6, type == TYPE_BANNED || type == TYPE_KICKED ? 6 : 2, selectType == SELECT_TYPE_MEMBERS);
                     manageChatUserCell.setDelegate((cell, click) -> {
                         TLObject participant = listViewAdapter.getItem((Integer) cell.getTag());
                         return createMenuForParticipant(participant, !click, cell);
