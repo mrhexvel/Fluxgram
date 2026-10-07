@@ -14,13 +14,13 @@ public final class ProfileBadgeCatalog {
             String description,
             boolean particles
     ) {
-        if (!DEVELOPER_ID.equals(id) || documentId != DEVELOPER_DOCUMENT_ID || !particles) {
+        if (!DEVELOPER_ID.equals(id) || documentId != DEVELOPER_DOCUMENT_ID) {
             return null;
         }
-        if (title == null || title.isEmpty() || description == null || description.isEmpty()) {
+        if (title == null || title.isEmpty() || description == null) {
             return null;
         }
 
-        return new ProfileBadge(id, documentId, title, description);
+        return new ProfileBadge(id, documentId, title, description, particles);
     }
 }

@@ -52,6 +52,28 @@ class ProfileAppearanceTest(unittest.TestCase):
                 "java", "-cp", directory, "AppearanceRepositoryCheck",
             ], check=True, capture_output=True)
 
+    def test_profile_controller_lifecycle_and_delivery(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run([
+                "javac", "-d", directory,
+                str(APPEARANCE / "FluxGramPeerKey.java"),
+                str(APPEARANCE / "ProfileBadge.java"),
+                str(APPEARANCE / "ProfileBadgeCatalog.java"),
+                str(APPEARANCE / "AppearanceApiDto.java"),
+                str(APPEARANCE / "AppearanceProfile.java"),
+                str(APPEARANCE / "AppearanceCachePolicy.java"),
+                str(APPEARANCE / "AppearanceMemoryCache.java"),
+                str(APPEARANCE / "AppearanceRepository.java"),
+                str(UI / "FluxGramProfileAppearanceController.java"),
+                str(ROOT / "tests/java/ProfileAppearanceControllerCheck.java"),
+            ], check=True, capture_output=True)
+            subprocess.run([
+                "java", "-cp", directory, "ProfileAppearanceControllerCheck",
+            ], check=True, capture_output=True)
+
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())
         result = fixture["result"]
@@ -89,17 +111,46 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("uri.scheme == 'https'", config)
         self.assertIn("appearanceApiBaseUrl.isEmpty()", config)
 
-    def test_profile_activity_has_only_local_renderer_hooks(self):
+    def test_profile_activity_uses_repository_controller_for_users_and_groups(self):
         source = (JAVA / "ui/ProfileActivity.java").read_text()
 
         self.assertIn("FluxGramProfileBadgeRenderer[] fluxGramBadgeRenderers", source)
+        self.assertIn("FluxGramProfileAppearanceController fluxGramAppearanceController", source)
+        self.assertIn("AppearanceRepositories.get(currentAccount)", source)
         self.assertIn("updateFluxGramProfileBadge();", source)
-        self.assertIn("renderer.bind(badge, false);", source)
+        self.assertIn("renderer.bind(badge, animated);", source)
         self.assertIn("renderer.onTouchEvent(event)", source)
         self.assertIn("fluxGramBadgeRenderers[badgeIndex].draw(canvas);", source)
         self.assertIn("fluxGramBadgeRenderers[i].attach();", source)
         self.assertIn("fluxGramBadgeRenderers[i].detach();", source)
         self.assertIn("destroyFluxGramBadgeRenderers();", source)
+        self.assertIn("peer.getType() != FluxGramPeerKey.Type.USER", source)
+        self.assertIn("peer.getType() != FluxGramPeerKey.Type.GROUP", source)
+        self.assertIn("topicId == 0", source)
+        self.assertNotIn("LocalAppearanceFixture", source)
+
+    def test_profile_badge_group_centering_preserves_upstream_edge_states(self):
+        source = (JAVA / "ui/ProfileActivity.java").read_text()
+        placement = (UI / "ProfileBadgePlacement.java").read_text()
+
+        self.assertEqual(source.count("float nameX = getExpandedNameTranslationX("), 2)
+        self.assertIn("Math.min(nameTextView[a].getExactWidth(), a == 1 ? params1.width : viewportWidth)", source)
+        self.assertIn("nameTextView[a].getExactWidth(),\n                    nameScale", source)
+        self.assertIn("placement.getScaledCenterX()", source)
+        self.assertIn("nameX = AndroidUtilities.lerp(minimizedX, nameX, diff);", source)
+        self.assertIn("nameTextView[1].setTranslationX(AndroidUtilities.dpf2(18f) - nameTextView[1].getLeft());", source)
+        self.assertIn("if (placement == null || !placement.isVisible()) {\n            return upstream;", source)
+        self.assertNotIn("isRTL", placement)
+        self.assertNotIn("LocaleController", placement)
+
+    def test_async_badge_presence_change_updates_layout_once(self):
+        source = (JAVA / "ui/ProfileActivity.java").read_text()
+        renderer = (UI / "FluxGramProfileBadgeRenderer.java").read_text()
+
+        self.assertIn("layoutChanged |= renderer.bind(badge, animated);", source)
+        self.assertIn("if (layoutChanged && fragmentView != null) {\n            needLayout(false);", source)
+        self.assertIn("if (badge == null) {\n                return false;", renderer)
+        self.assertIn("boolean visibilityChanged = badge == null;", renderer)
 
     def test_renderer_uses_particles_and_account_aware_bulletin(self):
         renderer = (UI / "FluxGramProfileBadgeRenderer.java").read_text()
@@ -107,7 +158,11 @@ class ProfileAppearanceTest(unittest.TestCase):
 
         self.assertIn("drawable.setCurrentAccount(account);", renderer)
         self.assertIn("LiteMode.isEnabled(LiteMode.FLAG_PARTICLES)", renderer)
-        self.assertIn("ProfileBadgePlacement.findLeft", renderer)
+        self.assertIn("badge.hasParticles()", renderer)
+        self.assertIn("hitBounds.setEmpty();\n            drawable.setParticles(false, false);", renderer)
+        self.assertIn("ProfileBadgePlacement.calculate", renderer)
+        self.assertIn("Math.max(placement.getContentRight(), centerX - hitRadius)", renderer)
+        self.assertIn("Math.min(placement.getAvailableRight(), centerX + hitRadius)", renderer)
         self.assertNotIn("setMinusWidth", renderer)
         self.assertIn("BulletinFactory.of(fragment)", bulletin)
         self.assertIn("account,", bulletin)

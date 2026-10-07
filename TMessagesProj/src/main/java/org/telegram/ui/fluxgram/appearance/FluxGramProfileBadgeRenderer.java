@@ -17,6 +17,7 @@ public final class FluxGramProfileBadgeRenderer {
     private static final int BADGE_SIZE_DP = 24;
     private static final int BADGE_GAP_DP = 8;
     private static final int HIT_SIZE_DP = 32;
+    private static final int DRAWABLE_GAP_DP = 4;
 
     private final BaseFragment fragment;
     private final int account;
@@ -43,15 +44,20 @@ public final class FluxGramProfileBadgeRenderer {
         this.cacheType = cacheType;
     }
 
-    public void bind(ProfileBadge nextBadge, boolean animated) {
+    public boolean bind(ProfileBadge nextBadge, boolean animated) {
         if (nextBadge == null) {
+            if (badge == null) {
+                return false;
+            }
+
             clear(animated);
-            return;
+            return true;
         }
         if (nextBadge.equals(badge)) {
-            return;
+            return false;
         }
 
+        boolean visibilityChanged = badge == null;
         badge = nextBadge;
 
         if (drawable == null) {
@@ -68,8 +74,9 @@ public final class FluxGramProfileBadgeRenderer {
         }
 
         drawable.set(nextBadge.getDocumentId(), animated);
-        drawable.setParticles(LiteMode.isEnabled(LiteMode.FLAG_PARTICLES), animated);
+        drawable.setParticles(particlesEnabled(), animated);
         view.invalidate();
+        return visibilityChanged;
     }
 
     public void draw(Canvas canvas) {
@@ -77,27 +84,18 @@ public final class FluxGramProfileBadgeRenderer {
             return;
         }
 
-        int gap = AndroidUtilities.dp(BADGE_GAP_DP);
         int size = AndroidUtilities.dp(BADGE_SIZE_DP);
-        Drawable rightDrawable = view.getRightDrawable();
-        Drawable rightDrawable2 = view.getRightDrawable2();
-        int availableRight = view.getWidth() - view.getPaddingRight();
-        int x = ProfileBadgePlacement.findLeft(
-                getTextRight(),
-                getDrawableRight(rightDrawable),
-                getDrawableRight(rightDrawable2),
-                availableRight,
-                gap,
-                size
-        );
+        ProfileBadgePlacement.Result placement = getPlacement(view.getScaleX());
 
-        if (x == ProfileBadgePlacement.HIDDEN) {
+        if (placement == null || !placement.isVisible()) {
             hitBounds.setEmpty();
+            drawable.setParticles(false, false);
             return;
         }
 
+        int x = placement.getBadgeLeft();
         int y = getBadgeTop(size);
-        drawable.setParticles(LiteMode.isEnabled(LiteMode.FLAG_PARTICLES), false);
+        drawable.setParticles(particlesEnabled(), false);
         drawable.setColor(view.getTextColor());
         drawable.setBounds(x, y, x + size, y + size);
         drawable.draw(canvas);
@@ -106,11 +104,14 @@ public final class FluxGramProfileBadgeRenderer {
         int centerX = x + size / 2;
         int centerY = y + size / 2;
         hitBounds.set(
-                Math.max(0, centerX - hitRadius),
-                centerY - hitRadius,
-                Math.min(availableRight, centerX + hitRadius),
-                centerY + hitRadius
+                Math.max(placement.getContentRight(), centerX - hitRadius),
+                Math.max(0, centerY - hitRadius),
+                Math.min(placement.getAvailableRight(), centerX + hitRadius),
+                Math.min(view.getHeight(), centerY + hitRadius)
         );
+        if (hitBounds.left >= hitBounds.right || hitBounds.top >= hitBounds.bottom) {
+            hitBounds.setEmpty();
+        }
     }
 
     public boolean onTouchEvent(MotionEvent event) {
@@ -172,6 +173,26 @@ public final class FluxGramProfileBadgeRenderer {
         return badge == null ? null : badge.getTitle();
     }
 
+    public ProfileBadgePlacement.Result getPlacement(float scale) {
+        if (badge == null) {
+            return null;
+        }
+
+        return ProfileBadgePlacement.calculate(
+                view.getTextWidth(),
+                getDrawableWidth(view.getLeftDrawable()),
+                getDrawableWidth(view.getRightDrawable()),
+                getDrawableWidth(view.getRightDrawable2()),
+                AndroidUtilities.dp(DRAWABLE_GAP_DP),
+                AndroidUtilities.dp(BADGE_GAP_DP),
+                AndroidUtilities.dp(BADGE_SIZE_DP),
+                view.getPaddingLeft(),
+                view.getPaddingRight(),
+                view.getWidth(),
+                scale
+        );
+    }
+
     public void attach() {
         if (attached) {
             return;
@@ -201,23 +222,12 @@ public final class FluxGramProfileBadgeRenderer {
         drawable = null;
     }
 
-    private int getTextRight() {
-        int textRight = view.getPaddingLeft() + view.getTextWidth();
-        Drawable leftDrawable = view.getLeftDrawable();
-
-        if (leftDrawable != null && !leftDrawable.getBounds().isEmpty()) {
-            textRight += leftDrawable.getBounds().right + AndroidUtilities.dp(4);
-        }
-
-        return textRight;
-    }
-
-    private int getDrawableRight(Drawable drawable) {
-        if (drawable == null || drawable.getBounds().isEmpty()) {
+    private int getDrawableWidth(Drawable drawable) {
+        if (drawable == null) {
             return 0;
         }
 
-        return drawable.getBounds().right;
+        return drawable.getIntrinsicWidth();
     }
 
     private int getBadgeTop(int size) {
@@ -232,6 +242,12 @@ public final class FluxGramProfileBadgeRenderer {
         }
 
         return view.getPaddingTop() + (view.getTextHeight() - size) / 2;
+    }
+
+    private boolean particlesEnabled() {
+        return badge != null
+                && badge.hasParticles()
+                && LiteMode.isEnabled(LiteMode.FLAG_PARTICLES);
     }
 
     private void clear(boolean animated) {

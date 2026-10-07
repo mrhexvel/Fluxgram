@@ -166,8 +166,8 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
-import org.telegram.messenger.fluxgram.appearance.LocalAppearanceFixture;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
 import org.telegram.tgnet.ConnectionsManager;
@@ -296,7 +296,9 @@ import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceColor;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.voip.VoIPHelper;
+import org.telegram.ui.fluxgram.appearance.FluxGramProfileAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramProfileBadgeRenderer;
+import org.telegram.ui.fluxgram.appearance.ProfileBadgePlacement;
 import org.telegram.ui.Gifts.GiftSheet;
 import org.telegram.ui.Stars.BotStarsActivity;
 import org.telegram.ui.Stars.BotStarsController;
@@ -371,7 +373,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[] emojiStatusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[2];
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[] botVerificationDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[2];
     private final FluxGramProfileBadgeRenderer[] fluxGramBadgeRenderers = new FluxGramProfileBadgeRenderer[2];
-    private LocalAppearanceFixture localAppearanceFixture;
+    private FluxGramProfileAppearanceController fluxGramAppearanceController;
     private final Drawable[] verifiedCheckDrawable = new Drawable[2];
     private final CrossfadeDrawable[] verifiedCrossfadeDrawable = new CrossfadeDrawable[2];
     private final CrossfadeDrawable[] premiumCrossfadeDrawable = new CrossfadeDrawable[2];
@@ -2362,6 +2364,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        if (fluxGramAppearanceController != null) {
+            fluxGramAppearanceController.destroy();
+            fluxGramAppearanceController = null;
+        }
         destroyFluxGramBadgeRenderers();
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onDestroy();
@@ -8812,7 +8818,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
 
                     FrameLayout.LayoutParams params1 = (FrameLayout.LayoutParams) nameTextView[a].getLayoutParams();
-                    float nameX = viewportWidth / 2f - (params1.leftMargin + Math.min(nameTextView[a].getExactWidth(), a == 1 ? params1.width : viewportWidth) * nameScale * 0.5f);
+                    float nameX = getExpandedNameTranslationX(
+                            a,
+                            viewportWidth,
+                            params1.leftMargin,
+                            Math.min(nameTextView[a].getExactWidth(), a == 1 ? params1.width : viewportWidth),
+                            nameScale
+                    );
                     FrameLayout.LayoutParams params2 = (FrameLayout.LayoutParams) onlineTextView[a].getLayoutParams();
                     float onlineX = viewportWidth / 2f - (params2.leftMargin + Math.min(onlineTextView[hasFallbackPhoto ? 3 : a].getExactWidth(), a == 1 ? params2.width : viewportWidth) * 0.5f);
 
@@ -8890,7 +8902,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 continue;
             }
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) nameTextView[a].getLayoutParams();
-            float nameX = listView.getMeasuredWidth() / 2f - (params.leftMargin + nameTextView[a].getExactWidth() * nameScale * 0.5f);
+            float nameX = getExpandedNameTranslationX(
+                    a,
+                    listView.getMeasuredWidth(),
+                    params.leftMargin,
+                    nameTextView[a].getExactWidth(),
+                    nameScale
+            );
             params = (FrameLayout.LayoutParams) onlineTextView[a].getLayoutParams();
             float onlineX = listView.getMeasuredWidth() / 2f - (params.leftMargin + onlineTextView[a].getExactWidth() * 0.5f);
 
@@ -8969,6 +8987,27 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private void needLayoutText(float diff) {
         needLayoutText(diff, 0, true);
+    }
+
+    private float getExpandedNameTranslationX(
+            int index,
+            int viewportWidth,
+            int leftMargin,
+            float upstreamWidth,
+            float scale
+    ) {
+        float upstream = viewportWidth / 2f - (leftMargin + upstreamWidth * scale * 0.5f);
+
+        if (index != 1 || fluxGramBadgeRenderers[index] == null) {
+            return upstream;
+        }
+
+        ProfileBadgePlacement.Result placement = fluxGramBadgeRenderers[index].getPlacement(scale);
+        if (placement == null || !placement.isVisible()) {
+            return upstream;
+        }
+
+        return viewportWidth / 2f - leftMargin - placement.getScaledCenterX();
     }
 
     private void updateTextLayoutBasedOnTranslation() {
@@ -11971,14 +12010,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void updateFluxGramProfileBadge() {
-        Context context = getContext();
-        if (context == null) {
-            return;
-        }
-        if (localAppearanceFixture == null) {
-            localAppearanceFixture = LocalAppearanceFixture.load(context);
-        }
-
         FluxGramPeerKey peer = null;
         if (topicId == 0) {
             if (userId != 0) {
@@ -11988,11 +12019,38 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
-        ProfileBadge badge = localAppearanceFixture.findBadge(peer);
+        if (peer != null
+                && peer.getType() != FluxGramPeerKey.Type.USER
+                && peer.getType() != FluxGramPeerKey.Type.GROUP) {
+            peer = null;
+        }
+
+        if (fluxGramAppearanceController == null) {
+            if (peer == null) {
+                applyFluxGramProfileBadge(null, false);
+                return;
+            }
+
+            fluxGramAppearanceController = new FluxGramProfileAppearanceController(
+                    currentAccount,
+                    AppearanceRepositories.get(currentAccount),
+                    this::applyFluxGramProfileBadge
+            );
+        }
+
+        fluxGramAppearanceController.bind(peer);
+    }
+
+    private void applyFluxGramProfileBadge(ProfileBadge badge, boolean animated) {
+        boolean layoutChanged = false;
         for (FluxGramProfileBadgeRenderer renderer : fluxGramBadgeRenderers) {
             if (renderer != null) {
-                renderer.bind(badge, false);
+                layoutChanged |= renderer.bind(badge, animated);
             }
+        }
+
+        if (layoutChanged && fragmentView != null) {
+            needLayout(false);
         }
     }
 

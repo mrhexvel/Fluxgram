@@ -45,22 +45,79 @@ public final class ProfileAppearanceCheck {
                 "developer",
                 5373141891321699086L,
                 "Developer",
+                "",
+                false
+        ) != null, "particles and empty description are supported");
+        ProfileBadge withoutParticles = ProfileBadgeCatalog.resolve(
+                "developer",
+                5373141891321699086L,
+                "Developer",
                 "Description",
                 false
-        ) == null, "particles required");
+        );
+        expect(!withoutParticles.hasParticles(), "particles value retained");
+        expect(!badge.equals(withoutParticles), "particles participate in equality");
 
-        expect(ProfileBadgePlacement.findLeft(80, 0, 0, 160, 8, 24) == 88,
+        ProfileBadgePlacement.Result shortName = placement(80, 0, 0, 0, 0, 0, 160, 1f);
+        expect(shortName.isVisible() && shortName.getBadgeLeft() == 88,
                 "badge after short name");
-        expect(ProfileBadgePlacement.findLeft(80, 104, 128, 160, 8, 24) == 136,
-                "badge after official statuses");
-        expect(ProfileBadgePlacement.findLeft(80, 104, 128, 159, 8, 24)
-                        == ProfileBadgePlacement.HIDDEN,
-                "official statuses have priority");
-        expect(ProfileBadgePlacement.findLeft(140, 0, 0, 160, 8, 24)
-                        == ProfileBadgePlacement.HIDDEN,
+        expect(shortName.getScaledCenterX() == 56f,
+                "name and badge expose their common center");
+        expect(160 / 2f - shortName.getScaledCenterX() == 24f,
+                "centered group has symmetric screen margins");
+
+        ProfileBadgePlacement.Result officialStatuses = placement(80, 20, 16, 18, 0, 0, 200, 1f);
+        expect(officialStatuses.isVisible() && officialStatuses.getBadgeLeft() == 154,
+                "badge follows left verification, text, and both official statuses");
+        expect(officialStatuses.getContentRight() == 146,
+                "official status cluster remains before badge");
+        expect(200 / 2f - officialStatuses.getScaledCenterX() == 11f,
+                "full status group remains centered");
+
+        ProfileBadgePlacement.Result boundary = placement(80, 0, 0, 0, 0, 0, 112, 1f);
+        expect(boundary.isVisible() && boundary.getBadgeLeft() == 88,
+                "badge fits exact boundary");
+        expect(!placement(80, 0, 0, 0, 0, 0, 111, 1f).isVisible(),
+                "badge hides beyond boundary");
+        expect(!placement(140, 0, 0, 0, 0, 0, 160, 1f).isVisible(),
                 "long name has priority");
-        expect(ProfileBadgePlacement.findLeft(80, 104, 128, 180, 12, 32) == 140,
-                "scaled dimensions");
+
+        ProfileBadgePlacement.Result paddedScaled = placement(60, 18, 16, 20, 6, 10, 220, 1.25f);
+        expect(paddedScaled.isVisible() && paddedScaled.getBadgeLeft() == 140,
+                "padding and drawable gaps participate in placement");
+        expect(paddedScaled.getAvailableRight() == 210,
+                "right padding limits visible bounds");
+        expect(paddedScaled.getScaledCenterX() == 106.25f,
+                "view scale participates in center calculation");
+        float scaledTranslation = 220 / 2f - paddedScaled.getScaledCenterX();
+        expect(scaledTranslation + 6 * 1.25f == 11.25f
+                        && scaledTranslation + 164 * 1.25f == 208.75f,
+                "scaled group has symmetric screen margins");
+    }
+
+    private static ProfileBadgePlacement.Result placement(
+            int textWidth,
+            int leftDrawableWidth,
+            int firstRightDrawableWidth,
+            int secondRightDrawableWidth,
+            int paddingLeft,
+            int paddingRight,
+            int viewWidth,
+            float scale
+    ) {
+        return ProfileBadgePlacement.calculate(
+                textWidth,
+                leftDrawableWidth,
+                firstRightDrawableWidth,
+                secondRightDrawableWidth,
+                4,
+                8,
+                24,
+                paddingLeft,
+                paddingRight,
+                viewWidth,
+                scale
+        );
     }
 
     private static void expect(boolean condition, String scenario) {
