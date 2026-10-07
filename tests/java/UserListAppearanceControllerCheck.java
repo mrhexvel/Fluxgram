@@ -192,6 +192,16 @@ public final class UserListAppearanceControllerCheck {
         expect(UserListBadgePlacement.calculate(true, 30, 100, 10, 120, 4, 20)
                         == UserListBadgePlacement.HIDDEN,
                 "RTL badge hides when room is insufficient");
+        expect(UserListBadgePlacement.calculate(false, 20, 70, 10, 120, 4, 20) == 74,
+                "LTR badge uses name bounds already reserved around options");
+        expect(UserListBadgePlacement.calculate(true, 50, 100, 10, 120, 4, 20) == 26,
+                "RTL badge uses name bounds already reserved around options");
+        expect(UserListBadgePlacement.calculate(false, 20, 70, 10, 80, 4, 20)
+                        == UserListBadgePlacement.HIDDEN,
+                "LTR badge hides at the reserved name edge");
+        expect(UserListBadgePlacement.calculate(true, 50, 100, 40, 120, 4, 20)
+                        == UserListBadgePlacement.HIDDEN,
+                "RTL badge hides at the reserved name edge");
     }
 
     private static FluxGramUserListAppearanceController controller(

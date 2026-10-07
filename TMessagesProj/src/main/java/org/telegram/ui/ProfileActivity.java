@@ -205,6 +205,7 @@ import org.telegram.ui.community.cells.CommunityLinkView;
 import org.telegram.ui.Cells.DividerCell;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.HeaderCell;
+import org.telegram.ui.Cells.FluxGramProfileMemberUserCell;
 import org.telegram.ui.Cells.NotificationsCheckCell;
 import org.telegram.ui.Cells.ProfileChannelCell;
 import org.telegram.ui.Cells.SettingsSearchCell;
@@ -298,6 +299,7 @@ import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.voip.VoIPHelper;
 import org.telegram.ui.fluxgram.appearance.FluxGramProfileAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramProfileBadgeRenderer;
+import org.telegram.ui.fluxgram.appearance.FluxGramUserListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.ProfileBadgePlacement;
 import org.telegram.ui.Gifts.GiftSheet;
 import org.telegram.ui.Stars.BotStarsActivity;
@@ -374,6 +376,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[] botVerificationDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[2];
     private final FluxGramProfileBadgeRenderer[] fluxGramBadgeRenderers = new FluxGramProfileBadgeRenderer[2];
     private FluxGramProfileAppearanceController fluxGramAppearanceController;
+    private FluxGramUserListAppearanceController fluxGramMemberAppearanceController;
     private final Drawable[] verifiedCheckDrawable = new Drawable[2];
     private final CrossfadeDrawable[] verifiedCrossfadeDrawable = new CrossfadeDrawable[2];
     private final CrossfadeDrawable[] premiumCrossfadeDrawable = new CrossfadeDrawable[2];
@@ -2368,6 +2371,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             fluxGramAppearanceController.destroy();
             fluxGramAppearanceController = null;
         }
+        if (fluxGramMemberAppearanceController != null) {
+            fluxGramMemberAppearanceController.destroy();
+            fluxGramMemberAppearanceController = null;
+        }
         destroyFluxGramBadgeRenderers();
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onDestroy();
@@ -4102,8 +4109,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         createActionBarMenu(false);
 
-        listAdapter = new ListAdapter(context);
-        searchAdapter = new SearchAdapter(this, context);
         avatarDrawable = new AvatarDrawable();
         avatarDrawable.setScaleSize(100f / 42f);
         avatarDrawable.setProfile(true);
@@ -4242,6 +4247,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 updateBottomButtonY();
             }
         };
+        if (isFluxGramInlineMemberAppearanceEligible()) {
+            try {
+                fluxGramMemberAppearanceController = new FluxGramUserListAppearanceController(
+                        currentAccount,
+                        AppearanceRepositories.get(currentAccount),
+                        new FluxGramUserListAppearanceController.FrameScheduler() {
+                            @Override
+                            public void post(Runnable runnable) {
+                                listView.postOnAnimation(runnable);
+                            }
+
+                            @Override
+                            public void cancel(Runnable runnable) {
+                                listView.removeCallbacks(runnable);
+                            }
+                        }
+                );
+            } catch (IllegalStateException exception) {
+                FileLog.e(exception);
+            }
+        }
+        listAdapter = new ListAdapter(context);
+        searchAdapter = new SearchAdapter(this, context);
         listView.setSections();
         listView.applyPaddingToSections = false;
         listView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
@@ -4491,13 +4519,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             } else if (position == reportRow) {
                 ReportBottomSheet.openChat(ProfileActivity.this, getDialogId());
             } else if (position >= membersStartRow && position < membersEndRow) {
-                TLRPC.ChatParticipant participant;
-                if (!sortedUsers.isEmpty()) {
-                    participant = chatInfo.participants.participants.get(sortedUsers.get(position - membersStartRow));
-                } else {
-                    participant = chatInfo.participants.participants.get(position - membersStartRow);
+                TLRPC.ChatParticipant participant = getVisibleChatParticipant(position);
+                if (participant != null) {
+                    onMemberClick(participant, false, view);
                 }
-                onMemberClick(participant, false, view);
             } else if (position == addMemberRow) {
                 openAddMember();
             } else if (position == usernameRow) {
@@ -5042,13 +5067,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                     return true;
                 } else if (position >= membersStartRow && position < membersEndRow) {
-                    final TLRPC.ChatParticipant participant;
-                    if (!sortedUsers.isEmpty()) {
-                        participant = visibleChatParticipants.get(sortedUsers.get(position - membersStartRow));
-                    } else {
-                        participant = visibleChatParticipants.get(position - membersStartRow);
-                    }
-                    return onMemberClick(participant, true, view);
+                    final TLRPC.ChatParticipant participant = getVisibleChatParticipant(position);
+                    return participant != null && onMemberClick(participant, true, view);
                 } else if (position == birthdayRow) {
                     if (editRow(view, position)) return true;
                     if (userInfo == null) return false;
@@ -7245,15 +7265,43 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     .setMinWidth(190)
                     .show();
         } else {
-            if (participant.user_id == getUserConfig().getClientUserId()) {
-                return false;
-            }
             Bundle args = new Bundle();
             args.putLong("user_id", participant.user_id);
             args.putBoolean("preload_messages", true);
-            presentFragment(new ProfileActivity(args));
+            boolean self = participant.user_id == getUserConfig().getClientUserId();
+            if (self) {
+                args.putBoolean("my_profile", true);
+            }
+            presentFragment(self ? new ProfileActivity(args, null) : new ProfileActivity(args));
         }
         return true;
+    }
+
+    private boolean isFluxGramInlineMemberAppearanceEligible() {
+        return currentChat != null
+                && !isTopic
+                && !ChatObject.isCommunity(currentChat)
+                && !ChatObject.isChannelAndNotMegaGroup(currentChat)
+                && !currentChat.gigagroup
+                && !currentChat.broadcast;
+    }
+
+    private TLRPC.ChatParticipant getVisibleChatParticipant(int position) {
+        int index = position - membersStartRow;
+        if (index < 0 || index >= visibleChatParticipants.size()) {
+            return null;
+        }
+
+        if (!visibleSortedUsers.isEmpty()) {
+            if (index >= visibleSortedUsers.size()) {
+                return null;
+            }
+            index = visibleSortedUsers.get(index);
+        }
+
+        return index >= 0 && index < visibleChatParticipants.size()
+                ? visibleChatParticipants.get(index)
+                : null;
     }
 
     private void openRightsEdit(int action, TLRPC.User user, TLRPC.ChatParticipant participant, TLRPC.TL_chatAdminRights adminRights, TLRPC.TL_chatBannedRights bannedRights, String rank, boolean editingAdmin) {
@@ -13358,7 +13406,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     break;
                 }
                 case VIEW_TYPE_USER: {
-                    view = new UserCell(mContext, addMemberRow == -1 ? 9 : 6, 0, true, resourcesProvider);
+                    int padding = addMemberRow == -1 ? 9 : 6;
+                    if (fluxGramMemberAppearanceController == null) {
+                        view = new UserCell(mContext, padding, 0, true, resourcesProvider);
+                    } else {
+                        view = new FluxGramProfileMemberUserCell(
+                                mContext,
+                                currentAccount,
+                                padding,
+                                resourcesProvider,
+                                fluxGramMemberAppearanceController
+                        );
+                    }
                     break;
                 }
                 case VIEW_TYPE_EMPTY:
@@ -14207,17 +14266,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 case VIEW_TYPE_USER:
                     UserCell userCell = (UserCell) holder.itemView;
-                    TLRPC.ChatParticipant part;
-                    try {
-                        if (!visibleSortedUsers.isEmpty()) {
-                            part = visibleChatParticipants.get(visibleSortedUsers.get(position - membersStartRow));
-                        } else {
-                            part = visibleChatParticipants.get(position - membersStartRow);
-                        }
-                    } catch (Exception e) {
-                        part = null;
-                        FileLog.e(e);
-                    }
+                    TLRPC.ChatParticipant part = getVisibleChatParticipant(position);
                     if (part != null) {
                         String role;
                         final boolean isAdmin, isOwner, canEditAdmin;
@@ -14414,6 +14463,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
+            if (holder.itemView instanceof FluxGramProfileMemberUserCell) {
+                ((FluxGramProfileMemberUserCell) holder.itemView).recycle();
+            }
             if (holder.getAdapterPosition() == setAvatarRow) {
                 setAvatarCell = null;
             }
@@ -14439,7 +14491,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (object instanceof TLRPC.User) {
                     TLRPC.User user = (TLRPC.User) object;
                     if (UserObject.isUserSelf(user)) {
-                        return false;
+                        int position = holder.getAdapterPosition();
+                        return position >= membersStartRow && position < membersEndRow;
                     }
                 }
             }

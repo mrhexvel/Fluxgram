@@ -12,6 +12,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.widget.FrameLayout;
@@ -61,7 +63,7 @@ public class ManageChatUserCell extends FrameLayout {
     private final int namePadding;
     private int dividerColor = -1;
     private ManageChatUserCellDelegate delegate;
-    private final int currentAccount = UserConfig.selectedAccount;
+    private int currentAccount = UserConfig.selectedAccount;
     private final StoriesUtilities.AvatarStoryParams storyAvatarParams = new StoriesUtilities.AvatarStoryParams(false);
 
     public interface ManageChatUserCellDelegate {
@@ -141,6 +143,11 @@ public class ManageChatUserCell extends FrameLayout {
 
     public BackupImageView getAvatarImageView() {
         return avatarImageView;
+    }
+
+    protected void setCurrentAccount(int account) {
+        currentAccount = account;
+        avatarImageView.getImageReceiver().setCurrentAccount(account);
     }
 
     public StoriesUtilities.AvatarStoryParams getStoryAvatarParams() {
@@ -401,5 +408,57 @@ public class ManageChatUserCell extends FrameLayout {
             }
             canvas.drawLine(LocaleController.isRTL ? 0 : AndroidUtilities.dp(68), getMeasuredHeight() - 1, getMeasuredWidth() - (LocaleController.isRTL ? AndroidUtilities.dp(68) : 0), getMeasuredHeight() - 1, dividerColor >= 0 ? Theme.dividerExtraPaint : Theme.dividerPaint);
         }
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+
+        int contentLeft = nameTextView.getTextStartX();
+        int contentRight = contentLeft + nameTextView.getTextWidth();
+        Drawable leftDrawable = nameTextView.getLeftDrawable();
+        Drawable rightDrawable = nameTextView.getRightDrawable();
+        Drawable rightDrawable2 = nameTextView.getRightDrawable2();
+
+        contentLeft = includeDrawableLeft(contentLeft, leftDrawable);
+        contentLeft = includeDrawableLeft(contentLeft, rightDrawable);
+        contentLeft = includeDrawableLeft(contentLeft, rightDrawable2);
+        contentRight = includeDrawableRight(contentRight, leftDrawable);
+        contentRight = includeDrawableRight(contentRight, rightDrawable);
+        contentRight = includeDrawableRight(contentRight, rightDrawable2);
+
+        int availableLeft = nameTextView.getLeft() + nameTextView.getPaddingLeft();
+        int availableRight = nameTextView.getRight() - nameTextView.getPaddingRight();
+
+        drawAfterNameStatus(
+                canvas,
+                contentLeft,
+                contentRight,
+                availableLeft,
+                availableRight,
+                nameTextView.getTop() + nameTextView.getHeight() / 2,
+                nameTextView.getTextColor()
+        );
+    }
+
+    protected void drawAfterNameStatus(
+            Canvas canvas,
+            int contentLeft,
+            int contentRight,
+            int availableLeft,
+            int availableRight,
+            int centerY,
+            int color
+    ) {
+    }
+
+    private int includeDrawableLeft(int current, Drawable drawable) {
+        Rect bounds = drawable == null ? null : drawable.getBounds();
+        return bounds == null || bounds.isEmpty() ? current : Math.min(current, nameTextView.getLeft() + bounds.left);
+    }
+
+    private int includeDrawableRight(int current, Drawable drawable) {
+        Rect bounds = drawable == null ? null : drawable.getBounds();
+        return bounds == null || bounds.isEmpty() ? current : Math.max(current, nameTextView.getLeft() + bounds.right);
     }
 }

@@ -278,6 +278,189 @@ class ProfileAppearanceTest(unittest.TestCase):
         for source in forbidden:
             self.assertNotIn("FluxGramContacts", source.read_text())
 
+    def test_chat_users_badges_are_eligible_only_for_group_member_surfaces(self):
+        activity = (JAVA / "ui/ChatUsersActivity.java").read_text()
+        profile = (JAVA / "ui/ProfileActivity.java").read_text()
+
+        self.assertIn("FluxGramUserListAppearanceController fluxGramAppearanceController", activity)
+        self.assertIn("FluxGramUserListAppearanceController fluxGramMemberAppearanceController", profile)
+        self.assertNotIn("fluxGramMemberAppearanceController", activity)
+        self.assertNotIn("new FluxGramChatUsersUserCell(", profile)
+        self.assertIn("AppearanceRepositories.get(currentAccount)", activity)
+        self.assertIn("selectType == SELECT_TYPE_MEMBERS", activity)
+        self.assertIn("type == TYPE_USERS || type == TYPE_ADMIN", activity)
+        self.assertIn("!transfer", activity)
+        self.assertIn("!ChatObject.isCommunity(currentChat)", activity)
+        self.assertIn("!ChatObject.isChannelAndNotMegaGroup(currentChat)", activity)
+        self.assertIn("!currentChat.gigagroup", activity)
+        self.assertIn("!currentChat.broadcast", activity)
+        self.assertIn(
+            "if (selectType != SELECT_TYPE_MEMBERS || type == TYPE_USERS || type == TYPE_BANNED || type == TYPE_KICKED)",
+            activity,
+        )
+        self.assertIn("new SearchAdapterHelper(true, currentAccount)", activity)
+        self.assertEqual(activity.count("new FluxGramChatUsersUserCell("), 2)
+        self.assertIn("fluxGramAppearanceController.destroy();", activity)
+
+    def test_profile_inline_members_have_separate_fail_closed_controller(self):
+        activity = (JAVA / "ui/ProfileActivity.java").read_text()
+
+        self.assertIn("isFluxGramInlineMemberAppearanceEligible()", activity)
+        self.assertIn("currentChat != null", activity)
+        self.assertIn("!isTopic", activity)
+        self.assertIn("!ChatObject.isCommunity(currentChat)", activity)
+        self.assertIn("!ChatObject.isChannelAndNotMegaGroup(currentChat)", activity)
+        self.assertIn("!currentChat.gigagroup", activity)
+        self.assertIn("!currentChat.broadcast", activity)
+        self.assertIn("listView.postOnAnimation(runnable);", activity)
+        self.assertIn("new FluxGramProfileMemberUserCell(", activity)
+        self.assertIn("fluxGramMemberAppearanceController.destroy();", activity)
+        self.assertLess(
+            activity.index("listView = new ClippedListView"),
+            activity.index("fluxGramMemberAppearanceController = new FluxGramUserListAppearanceController"),
+        )
+        self.assertLess(
+            activity.index("fluxGramMemberAppearanceController = new FluxGramUserListAppearanceController"),
+            activity.index("listAdapter = new ListAdapter(context)"),
+        )
+
+    def test_profile_member_cell_recycles_and_respects_admin_padding(self):
+        cell = (JAVA / "ui/Cells/FluxGramProfileMemberUserCell.java").read_text()
+        generic = (JAVA / "ui/Cells/UserCell.java").read_text()
+
+        self.assertIn("extends UserCell", cell)
+        self.assertIn("super(context, padding, 0, true, resourcesProvider);", cell)
+        self.assertIn("setCurrentAccount(account);", cell)
+        self.assertIn(
+            "setData(Object object, CharSequence name, CharSequence status, int resId, boolean divider)",
+            cell,
+        )
+        self.assertIn("controller.bind(this, requestedPeer);", cell)
+        self.assertIn("public void recycle()", cell)
+        self.assertIn("controller.unbind(this);", cell)
+        self.assertIn("renderer.bind(null, false);", cell)
+        self.assertIn("nameTextView.getLeftDrawable()", cell)
+        self.assertIn("nameTextView.getRightDrawable()", cell)
+        self.assertIn("nameTextView.getRightDrawable2()", cell)
+        self.assertIn("nameTextView.getLeft() + nameTextView.getPaddingLeft()", cell)
+        self.assertIn("nameTextView.getRight() - nameTextView.getPaddingRight()", cell)
+        self.assertNotIn("UserObject.isUserSelf(user)", cell)
+        self.assertIn(
+            "if (holder.itemView instanceof FluxGramProfileMemberUserCell)",
+            (JAVA / "ui/ProfileActivity.java").read_text(),
+        )
+        self.assertEqual(generic.count("protected void setCurrentAccount(int account)"), 1)
+        self.assertNotIn("FluxGramProfileMember", generic)
+
+    def test_profile_inline_members_use_one_visible_participant_mapping(self):
+        activity = (JAVA / "ui/ProfileActivity.java").read_text()
+
+        self.assertEqual(activity.count("getVisibleChatParticipant(position)"), 3)
+        self.assertIn("visibleSortedUsers.get(index)", activity)
+        self.assertIn("visibleChatParticipants.get(index)", activity)
+        self.assertNotIn(
+            "chatInfo.participants.participants.get(sortedUsers.get(position - membersStartRow))",
+            activity,
+        )
+        self.assertNotIn(
+            "visibleChatParticipants.get(sortedUsers.get(position - membersStartRow))",
+            activity,
+        )
+
+    def test_profile_inline_self_row_is_enabled_and_opens_my_profile(self):
+        activity = (JAVA / "ui/ProfileActivity.java").read_text()
+
+        self.assertIn('args.putBoolean("preload_messages", true);', activity)
+        self.assertIn('args.putBoolean("my_profile", true);', activity)
+        self.assertIn(
+            "presentFragment(self ? new ProfileActivity(args, null) : new ProfileActivity(args));",
+            activity,
+        )
+        self.assertIn(
+            "return position >= membersStartRow && position < membersEndRow;",
+            activity,
+        )
+        self.assertIn("if (self) {\n                canEditAdmin = false;", activity)
+        self.assertIn("allowKick = false;", activity)
+        self.assertIn("canRestrict = false;", activity)
+        self.assertIn("canEditTag = true;", activity)
+
+    def test_chat_users_cell_recycles_and_respects_name_geometry(self):
+        cell = (JAVA / "ui/Cells/FluxGramChatUsersUserCell.java").read_text()
+        generic = (JAVA / "ui/Cells/ManageChatUserCell.java").read_text()
+
+        self.assertIn("setCurrentAccount(account);", cell)
+        self.assertIn("controller.bind(this, requestedPeer);", cell)
+        self.assertIn("public void recycle()", cell)
+        self.assertIn("controller.unbind(this);", cell)
+        self.assertIn("renderer.bind(null, false);", cell)
+        self.assertIn("super.recycle();", cell)
+        self.assertIn("if (!(object instanceof TLRPC.User))", cell)
+        self.assertIn("UserObject.isDeleted(user)", cell)
+        self.assertNotIn("UserObject.isUserSelf(user)", cell)
+        self.assertIn("UserObject.isReplyUser(user)", cell)
+        self.assertIn("UserObject.isAnonymous(user)", cell)
+        self.assertIn("UserObject.isService(user.id)", cell)
+        self.assertIn("user.id == UserObject.VERIFY", cell)
+        self.assertIn("user.id == UserObject.OAUTH", cell)
+
+        self.assertIn("protected void setCurrentAccount(int account)", generic)
+        self.assertIn("protected void drawAfterNameStatus(", generic)
+        self.assertIn("nameTextView.getLeftDrawable()", generic)
+        self.assertIn("nameTextView.getRightDrawable()", generic)
+        self.assertIn("nameTextView.getRightDrawable2()", generic)
+        self.assertIn("nameTextView.getLeft() + nameTextView.getPaddingLeft()", generic)
+        self.assertIn("nameTextView.getRight() - nameTextView.getPaddingRight()", generic)
+        self.assertNotIn("optionsButton.getVisibility() == VISIBLE", generic)
+        self.assertNotIn("optionsButton.getRight()", generic)
+        self.assertNotIn("optionsButton.getLeft()", generic)
+        self.assertNotIn("FluxGram", generic)
+
+    def test_chat_users_self_row_is_enabled_and_opens_my_profile(self):
+        activity = (JAVA / "ui/ChatUsersActivity.java").read_text()
+
+        self.assertIn(
+            "user.self && (type != TYPE_USERS || selectType != SELECT_TYPE_MEMBERS)",
+            activity,
+        )
+        self.assertNotIn(
+            "if (peerId == getUserConfig().getClientUserId()) {\n                            return;",
+            activity,
+        )
+        self.assertIn('args.putBoolean("my_profile", true);', activity)
+        self.assertIn(
+            "peerId == getUserConfig().getClientUserId() ? new ProfileActivity(args, null) : new ProfileActivity(args)",
+            activity,
+        )
+
+    def test_chat_users_members_loading_preserves_self_only_in_members_mode(self):
+        activity = (JAVA / "ui/ChatUsersActivity.java").read_text()
+
+        self.assertIn("if (selectType != SELECT_TYPE_MEMBERS) {", activity)
+        self.assertIn(
+            "participant.user_id == selfId && selectType != SELECT_TYPE_MEMBERS",
+            activity,
+        )
+
+    def test_chat_users_self_still_has_no_administrative_menu(self):
+        activity = (JAVA / "ui/ChatUsersActivity.java").read_text()
+
+        self.assertIn(
+            "if (peerId == 0 || peerId == getUserConfig().getClientUserId()) {\n            return false;",
+            activity,
+        )
+        self.assertNotIn("UserObject.isUserSelf(user)", (JAVA / "ui/Cells/FluxGramChatUsersUserCell.java").read_text())
+
+    def test_chat_users_badges_do_not_extend_forbidden_surfaces(self):
+        forbidden = [
+            JAVA / "ui/PrivacyUsersActivity.java",
+            JAVA / "ui/Cells/DialogCell.java",
+            JAVA / "ui/Cells/ChatMessageCell.java",
+        ]
+
+        for source in forbidden:
+            self.assertNotIn("FluxGramChatUsers", source.read_text())
+
     def test_profile_badge_group_centering_preserves_upstream_edge_states(self):
         source = (JAVA / "ui/ProfileActivity.java").read_text()
         placement = (UI / "ProfileBadgePlacement.java").read_text()
