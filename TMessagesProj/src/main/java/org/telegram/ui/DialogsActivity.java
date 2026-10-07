@@ -5682,7 +5682,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         return initialDialogsType == DIALOGS_TYPE_DEFAULT
                 && !onlySelect
                 && searchString == null
-                && folderId == 0
+                && (folderId == 0 || folderId == 1)
                 && communityId == 0;
     }
 

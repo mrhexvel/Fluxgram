@@ -132,7 +132,7 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("initialDialogsType == DIALOGS_TYPE_DEFAULT", activity)
         self.assertIn("!onlySelect", activity)
         self.assertIn("searchString == null", activity)
-        self.assertIn("folderId == 0", activity)
+        self.assertIn("(folderId == 0 || folderId == 1)", activity)
         self.assertIn("communityId == 0", activity)
         self.assertIn("viewPage.dialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);", activity)
         self.assertIn("transitionPage.animationSupportDialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);", activity)
@@ -171,6 +171,20 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("renderer.detach();", cell)
         self.assertIn("renderer.destroy();", cell)
         self.assertIn("LiteMode.FLAG_PARTICLES", renderer)
+
+    def test_archive_dialog_badges_use_separate_fragment_and_skip_synthetic_rows(self):
+        activity = (JAVA / "ui/DialogsActivity.java").read_text()
+        adapter = (JAVA / "ui/Adapters/DialogsAdapter.java").read_text()
+        cell = (JAVA / "ui/Cells/FluxGramDialogCell.java").read_text()
+
+        self.assertIn('args.putInt("folderId", dialogFolder.folder.id);', activity)
+        self.assertIn("presentFragment(new DialogsActivity(args));", activity)
+        self.assertIn("return folderId == 1;", activity)
+        self.assertIn("dialogsCount == 0 && parentFragment.isArchive()", adapter)
+        self.assertIn("new ItemInternal(VIEW_TYPE_ARCHIVE_FULLSCREEN)", adapter)
+        self.assertIn("viewType == VIEW_TYPE_DIALOG && fluxGramAppearanceController != null", adapter)
+        self.assertIn("if (!DialogObject.isChatDialog(dialogId))", cell)
+        self.assertNotIn("FluxGramDialogCell", (JAVA / "ui/Cells/ArchiveHintCell.java").read_text())
 
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())
