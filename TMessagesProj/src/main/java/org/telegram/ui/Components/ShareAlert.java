@@ -88,6 +88,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLObject;
@@ -105,6 +106,9 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Adapters.DialogsSearchAdapter;
 import org.telegram.ui.Adapters.SearchAdapterHelper;
 import org.telegram.ui.Cells.GraySectionCell;
+import org.telegram.ui.Cells.FluxGramShareDialogCell;
+import org.telegram.ui.Cells.FluxGramShareHintCell;
+import org.telegram.ui.Cells.FluxGramShareProfileCell;
 import org.telegram.ui.Cells.HintDialogCell;
 import org.telegram.ui.Cells.ProfileSearchCell;
 import org.telegram.ui.Cells.ShareDialogCell;
@@ -129,6 +133,7 @@ import org.telegram.ui.MessageStatisticActivity;
 import org.telegram.ui.PhotoViewer;
 import org.telegram.ui.PremiumPreviewFragment;
 import org.telegram.ui.Stories.DarkThemeResourceProvider;
+import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -164,6 +169,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
     private ShareDialogsAdapter listAdapter;
     private ShareTopicsAdapter shareTopicsAdapter;
     private ShareSearchAdapter searchAdapter;
+    private FluxGramDialogListAppearanceController fluxGramAppearanceController;
     protected ArrayList<MessageObject> sendingMessageObjects;
     private String[] sendingText = new String[2];
     private int hasPoll;
@@ -229,6 +235,10 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
 
     public void setStoryToShare(TL_stories.StoryItem storyItem) {
         this.storyItem = storyItem;
+        if (storyItem != null && fluxGramAppearanceController != null) {
+            fluxGramAppearanceController.destroy();
+            fluxGramAppearanceController = null;
+        }
     }
 
     public interface ShareAlertDelegate {
@@ -1006,6 +1016,9 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             }
         };
         containerView = sizeNotifierFrameLayout;
+        if (isFluxGramAppearanceEligible()) {
+            fluxGramAppearanceController = createFluxGramAppearanceController(sizeNotifierFrameLayout);
+        }
 
         iBlur3FactoryLiquidGlass.setSourceRootView(new ViewPositionWatcher(containerView), containerView);
         iBlur3FactoryFrostedLiquidGlass.setSourceRootView(new ViewPositionWatcher(containerView), containerView);
@@ -2623,8 +2636,39 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
     @Override
     public void dismissInternal() {
         super.dismissInternal();
+        if (fluxGramAppearanceController != null) {
+            fluxGramAppearanceController.destroy();
+            fluxGramAppearanceController = null;
+        }
         if (commentTextView != null) {
             commentTextView.onDestroy();
+        }
+    }
+
+    private boolean isFluxGramAppearanceEligible() {
+        return !darkTheme && !includeStory && storyItem == null;
+    }
+
+    private FluxGramDialogListAppearanceController createFluxGramAppearanceController(View owner) {
+        try {
+            return new FluxGramDialogListAppearanceController(
+                    currentAccount,
+                    AppearanceRepositories.get(currentAccount),
+                    new FluxGramDialogListAppearanceController.FrameScheduler() {
+                        @Override
+                        public void post(Runnable runnable) {
+                            owner.postOnAnimation(runnable);
+                        }
+
+                        @Override
+                        public void cancel(Runnable runnable) {
+                            owner.removeCallbacks(runnable);
+                        }
+                    }
+            );
+        } catch (IllegalStateException exception) {
+            FileLog.e(exception);
+            return null;
         }
     }
 
@@ -3001,15 +3045,32 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             View view;
             switch (viewType) {
                 case 0: {
-                    view = new ShareDialogCell(context, ShareDialogCell.TYPE_SHARE, resourcesProvider) {
-                        @Override
-                        protected String repostToCustomName() {
-                            if (includeStoryFromMessage) {
-                                return LocaleController.getString(R.string.RepostToStory);
+                    if (fluxGramAppearanceController != null) {
+                        view = new FluxGramShareDialogCell(
+                                context,
+                                currentAccount,
+                                resourcesProvider,
+                                fluxGramAppearanceController
+                        ) {
+                            @Override
+                            protected String repostToCustomName() {
+                                if (includeStoryFromMessage) {
+                                    return LocaleController.getString(R.string.RepostToStory);
+                                }
+                                return super.repostToCustomName();
                             }
-                            return super.repostToCustomName();
-                        }
-                    };
+                        };
+                    } else {
+                        view = new ShareDialogCell(context, ShareDialogCell.TYPE_SHARE, resourcesProvider) {
+                            @Override
+                            protected String repostToCustomName() {
+                                if (includeStoryFromMessage) {
+                                    return LocaleController.getString(R.string.RepostToStory);
+                                }
+                                return super.repostToCustomName();
+                            }
+                        };
+                    }
                     view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, dp(100)));
                     break;
                 }
@@ -3033,6 +3094,15 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 cell.setTopic(selectedDialogTopics.get(dialog), MessagesController.getInstance(currentAccount).isMonoForum(dialog.id), false);
                 cell.setDialog(dialog.id, selectedDialogs.indexOfKey(dialog.id) >= 0, null);
             }
+        }
+
+        @Override
+        public void onViewRecycled(RecyclerView.ViewHolder holder) {
+            if (holder.itemView instanceof FluxGramShareDialogCell) {
+                ((FluxGramShareDialogCell) holder.itemView).recycleAppearance();
+            }
+
+            super.onViewRecycled(holder);
         }
 
         @Override
@@ -3552,12 +3622,32 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             View view;
             switch (viewType) {
                 case 5: {
-                    view = new ShareDialogCell(context, ShareDialogCell.TYPE_SHARE, resourcesProvider);
+                    if (fluxGramAppearanceController != null) {
+                        view = new FluxGramShareDialogCell(
+                                context,
+                                currentAccount,
+                                resourcesProvider,
+                                fluxGramAppearanceController
+                        );
+                    } else {
+                        view = new ShareDialogCell(context, ShareDialogCell.TYPE_SHARE, resourcesProvider);
+                    }
                     view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, dp(100)));
                     break;
                 }
                 case 0: {
-                    view = new ProfileSearchCell(context, resourcesProvider).useCustomPaints().showPremiumBlock(true);
+                    if (fluxGramAppearanceController != null) {
+                        FluxGramShareProfileCell cell = new FluxGramShareProfileCell(
+                                context,
+                                currentAccount,
+                                resourcesProvider,
+                                fluxGramAppearanceController
+                        );
+                        cell.useCustomPaints().showPremiumBlock(true);
+                        view = cell;
+                    } else {
+                        view = new ProfileSearchCell(context, resourcesProvider).useCustomPaints().showPremiumBlock(true);
+                    }
                     break;
                 }
                 default:
@@ -3589,6 +3679,23 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                     horizontalListView.setLayoutManager(layoutManager);
                     horizontalListView.setAdapter(categoryAdapter = new DialogsSearchAdapter.CategoryAdapterRecycler(context, currentAccount, true, true, resourcesProvider) {
                         @Override
+                        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+                            if (fluxGramAppearanceController == null) {
+                                return super.onCreateViewHolder(parent, viewType);
+                            }
+
+                            FluxGramShareHintCell cell = new FluxGramShareHintCell(
+                                    context,
+                                    currentAccount,
+                                    resourcesProvider,
+                                    fluxGramAppearanceController
+                            );
+                            cell.showPremiumBlocked();
+                            cell.setLayoutParams(new RecyclerView.LayoutParams(dp(80), dp(86)));
+                            return new RecyclerListView.Holder(cell);
+                        }
+
+                        @Override
                         public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
                             HintDialogCell cell = (HintDialogCell) holder.itemView;
                             if (darkTheme || forceDarkThemeForHint) {
@@ -3619,6 +3726,15 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                             }
                             cell.setDialog(did, true, name);
                             cell.setChecked(selectedDialogs.indexOfKey(did) >= 0, animated);
+                        }
+
+                        @Override
+                        public void onViewRecycled(RecyclerView.ViewHolder holder) {
+                            if (holder.itemView instanceof FluxGramShareHintCell) {
+                                ((FluxGramShareHintCell) holder.itemView).recycleAppearance();
+                            }
+
+                            super.onViewRecycled(holder);
                         }
                     });
                     horizontalListView.setOnItemClickListener((view1, position) -> {
@@ -3754,6 +3870,17 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             } else if (holder.getItemViewType() == 2) {
                 ((RecyclerListView) holder.itemView).getAdapter().notifyDataSetChanged();
             }
+        }
+
+        @Override
+        public void onViewRecycled(RecyclerView.ViewHolder holder) {
+            if (holder.itemView instanceof FluxGramShareDialogCell) {
+                ((FluxGramShareDialogCell) holder.itemView).recycleAppearance();
+            } else if (holder.itemView instanceof FluxGramShareProfileCell) {
+                ((FluxGramShareProfileCell) holder.itemView).recycleAppearance();
+            }
+
+            super.onViewRecycled(holder);
         }
 
 

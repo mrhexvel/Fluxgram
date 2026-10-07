@@ -5673,19 +5673,23 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean isFluxGramAppearanceEligible() {
+        if (searchString != null || communityId != 0) {
+            return false;
+        }
+        if (initialDialogsType == DIALOGS_TYPE_FORWARD) {
+            return onlySelect && folderId == 0;
+        }
         return initialDialogsType == DIALOGS_TYPE_DEFAULT
                 && !onlySelect
-                && searchString == null
-                && (folderId == 0 || folderId == 1)
-                && communityId == 0;
+                && (folderId == 0 || folderId == 1);
     }
 
     private boolean isFluxGramSearchAppearanceEligible() {
-        return initialDialogsType == DIALOGS_TYPE_DEFAULT
-                && !onlySelect
-                && searchString == null
-                && folderId == 0
-                && communityId == 0;
+        if (searchString != null || folderId != 0 || communityId != 0) {
+            return false;
+        }
+        return (initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect)
+                || (initialDialogsType == DIALOGS_TYPE_FORWARD && onlySelect);
     }
 
     private FluxGramDialogListAppearanceController createFluxGramAppearanceController(View owner) {

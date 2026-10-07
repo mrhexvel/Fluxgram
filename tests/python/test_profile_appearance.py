@@ -134,6 +134,8 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("searchString == null", activity)
         self.assertIn("(folderId == 0 || folderId == 1)", activity)
         self.assertIn("communityId == 0", activity)
+        self.assertIn("initialDialogsType == DIALOGS_TYPE_FORWARD", activity)
+        self.assertIn("return onlySelect && folderId == 0;", activity)
         self.assertIn("viewPage.dialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);", activity)
         self.assertIn("transitionPage.animationSupportDialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);", activity)
         self.assertEqual(activity.count("fluxGramAppearanceController.destroy();"), 2)
@@ -193,17 +195,18 @@ class ProfileAppearanceTest(unittest.TestCase):
         message_cell = (JAVA / "ui/Cells/FluxGramDialogsSearchMessageCell.java").read_text()
         hint_cell = (JAVA / "ui/Cells/FluxGramDialogsSearchHintCell.java").read_text()
         generic_hint = (JAVA / "ui/Cells/HintDialogCell.java").read_text()
-        share_alert = (JAVA / "ui/Components/ShareAlert.java").read_text()
+        share_topic = (JAVA / "ui/Cells/ShareTopicCell.java").read_text()
 
         self.assertIn("FluxGramDialogListAppearanceController fluxGramSearchAppearanceController", activity)
         self.assertIn("isFluxGramSearchAppearanceEligible()", activity)
         search_eligibility = activity.split("private boolean isFluxGramSearchAppearanceEligible()", 1)[1].split("private FluxGramDialogListAppearanceController", 1)[0]
         self.assertIn("initialDialogsType == DIALOGS_TYPE_DEFAULT", search_eligibility)
         self.assertIn("!onlySelect", search_eligibility)
-        self.assertIn("searchString == null", search_eligibility)
-        self.assertIn("folderId == 0", search_eligibility)
+        self.assertIn("initialDialogsType == DIALOGS_TYPE_FORWARD && onlySelect", search_eligibility)
+        self.assertIn("searchString != null", search_eligibility)
+        self.assertIn("folderId != 0", search_eligibility)
         self.assertNotIn("folderId == 1", search_eligibility)
-        self.assertIn("communityId == 0", search_eligibility)
+        self.assertIn("communityId != 0", search_eligibility)
         self.assertIn("dialogsSearchAdapter.setFluxGramAppearanceController(fluxGramSearchAppearanceController)", activity)
         self.assertEqual(activity.count("fluxGramSearchAppearanceController.destroy();"), 2)
 
@@ -224,7 +227,7 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("FluxGramDialogCell.peerFor(account, dialogId)", message_cell)
         self.assertIn("FluxGramDialogCell.peerFor(account, dialogId)", hint_cell)
         self.assertIn("protected void drawAfterName(", generic_hint)
-        self.assertNotIn("FluxGram", share_alert)
+        self.assertNotIn("FluxGram", share_topic)
 
     def test_main_search_badge_render_paths_have_no_lookup_or_layout_mutation(self):
         for file_name, method_name in (
@@ -243,6 +246,55 @@ class ProfileAppearanceTest(unittest.TestCase):
             self.assertIn("controller.unbind(this);", cell)
             self.assertIn("renderer.detach();", cell)
             self.assertIn("renderer.destroy();", cell)
+
+    def test_share_alert_badges_are_sheet_scoped_and_skip_special_modes(self):
+        alert = (JAVA / "ui/Components/ShareAlert.java").read_text()
+        share_cell = (JAVA / "ui/Cells/FluxGramShareDialogCell.java").read_text()
+        profile_cell = (JAVA / "ui/Cells/FluxGramShareProfileCell.java").read_text()
+        hint_cell = (JAVA / "ui/Cells/FluxGramShareHintCell.java").read_text()
+        generic_share_cell = (JAVA / "ui/Cells/ShareDialogCell.java").read_text()
+        topic_cell = (JAVA / "ui/Cells/ShareTopicCell.java").read_text()
+
+        self.assertIn("FluxGramDialogListAppearanceController fluxGramAppearanceController", alert)
+        self.assertIn("AppearanceRepositories.get(currentAccount)", alert)
+        eligibility = alert.split("private boolean isFluxGramAppearanceEligible()", 1)[1].split("private FluxGramDialogListAppearanceController", 1)[0]
+        self.assertIn("!darkTheme", eligibility)
+        self.assertIn("!includeStory", eligibility)
+        self.assertIn("storyItem == null", eligibility)
+        self.assertIn("new FluxGramShareDialogCell(", alert)
+        self.assertIn("new FluxGramShareProfileCell(", alert)
+        self.assertIn("new FluxGramShareHintCell(", alert)
+        self.assertIn("fluxGramAppearanceController.destroy();", alert)
+        self.assertIn("public void dismissInternal()", alert)
+        self.assertIn("recycleAppearance();", alert)
+
+        self.assertIn("protected void drawAfterName(", generic_share_cell)
+        self.assertNotIn("FluxGram", topic_cell)
+        self.assertIn("topicVisible ? null", share_cell)
+        self.assertIn("FluxGramDialogCell.peerFor(account, dialogId)", share_cell)
+        self.assertIn("encryptedChat == null && !saved", profile_cell)
+        self.assertIn("FluxGramDialogCell.peerFor(account", profile_cell)
+        self.assertIn("FluxGramDialogCell.peerFor(account, dialogId)", hint_cell)
+
+        for cell in (share_cell, profile_cell, hint_cell):
+            self.assertIn("controller.unbind(this);", cell)
+            self.assertIn("renderer.detach();", cell)
+            self.assertIn("renderer.destroy();", cell)
+
+    def test_share_alert_badge_render_paths_have_no_lookup_or_layout_mutation(self):
+        for file_name, method_name in (
+                ("FluxGramShareDialogCell.java", "protected void drawAfterName("),
+                ("FluxGramShareProfileCell.java", "protected void drawAfterNameStatus("),
+                ("FluxGramShareHintCell.java", "protected void drawAfterName("),
+        ):
+            cell = (JAVA / "ui/Cells" / file_name).read_text()
+            draw_method = cell.split(method_name, 1)[1].split("@Override", 1)[0]
+
+            self.assertNotIn("MessagesController", draw_method)
+            self.assertNotIn("controller.bind", draw_method)
+            self.assertNotIn("requestLayout", draw_method)
+            self.assertNotIn("notifyDataSetChanged", draw_method)
+            self.assertIn("renderer.draw(", draw_method)
 
     def test_local_fixture_matches_stage_two_target(self):
         fixture = json.loads(FIXTURE.read_text())

@@ -83,7 +83,7 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
 
     private boolean topicWasVisible;
 
-    private final int currentAccount = UserConfig.selectedAccount;
+    private final int currentAccount;
     public final Theme.ResourcesProvider resourcesProvider;
 
     public static final int TYPE_SHARE = 0;
@@ -107,7 +107,12 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
     }
 
     public ShareDialogCell(Context context, int type, Theme.ResourcesProvider resourcesProvider) {
+        this(context, type, UserConfig.selectedAccount, resourcesProvider);
+    }
+
+    public ShareDialogCell(Context context, int type, int account, Theme.ResourcesProvider resourcesProvider) {
         super(context);
+        currentAccount = account;
         this.resourcesProvider = resourcesProvider;
 
         avatarDrawable = new AvatarDrawable(resourcesProvider) {
@@ -349,6 +354,30 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
         boolean result = super.drawChild(canvas, child, drawingTime);
+        if (child == nameTextView && nameTextView.getAlpha() >= 0.99f) {
+            Layout layout = nameTextView.getLayout();
+            if (layout != null && layout.getLineCount() > 0) {
+                int line = layout.getLineCount() - 1;
+                int textLeft = nameTextView.getLeft() + nameTextView.getTotalPaddingLeft();
+                int contentLeft = textLeft + (int) Math.floor(layout.getLineLeft(line));
+                int contentRight = textLeft + (int) Math.ceil(layout.getLineRight(line));
+                int availableLeft = nameTextView.getLeft() + nameTextView.getTotalPaddingLeft();
+                int availableRight = nameTextView.getRight() - nameTextView.getTotalPaddingRight();
+                int centerY = nameTextView.getTop()
+                        + nameTextView.getTotalPaddingTop()
+                        + (layout.getLineTop(line) + layout.getLineBottom(line)) / 2;
+
+                drawAfterName(
+                        canvas,
+                        contentLeft,
+                        contentRight,
+                        availableLeft,
+                        availableRight,
+                        centerY,
+                        nameTextView.getCurrentTextColor()
+                );
+            }
+        }
         if (child == imageView && currentType != TYPE_CREATE) {
             if (user != null && !MessagesController.isSupportUser(user)) {
                 long newTime = SystemClock.elapsedRealtime();
@@ -440,6 +469,17 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
             }
         }
         return result;
+    }
+
+    protected void drawAfterName(
+            Canvas canvas,
+            int contentLeft,
+            int contentRight,
+            int availableLeft,
+            int availableRight,
+            int centerY,
+            int color
+    ) {
     }
 
     @Override
