@@ -1,4 +1,8 @@
 from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -36,31 +40,46 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("return get(account, SUGGEST_FOR_STORIES, true);", source)
         self.assertIn("return getInt(account, SILENT_SEND_MODE, SILENT_SEND_NEVER);", source)
 
-    def test_primary_settings_snapshot_is_atomic_and_owner_scoped(self):
-        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
-        enable_start = source.index("    public static synchronized PrimarySettingsSnapshot enableAllPrimarySettings(")
-        restore_start = source.index("    public static synchronized boolean restorePrimarySettings(", enable_start)
-        enable = source[enable_start:restore_start]
-        restore_end = source.index("    public static void clearAccount(", restore_start)
-        restore = source[restore_start:restore_end]
+    def test_temporary_primary_settings_are_runtime_only(self):
+        settings = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        temporary = (JAVA / "messenger/fluxgram/GhostModeTemporarySettings.java").read_text()
 
-        for key in (
-            "ENABLED",
-            "HIDE_ONLINE",
-            "HIDE_TYPING",
-            "HIDE_READ_RECEIPTS",
-            "HIDE_STORY_VIEWS",
-            "AUTOMATIC_OFFLINE",
+        for method in (
+            "isEnabled",
+            "hidesOnline",
+            "hidesTyping",
+            "hidesReadReceipts",
+            "hidesStoryViews",
+            "usesAutomaticOffline",
         ):
-            self.assertIn(f".putBoolean({key}, true)", enable)
-            self.assertIn(f".putBoolean({key}, snapshot.", restore)
+            start = settings.index(f"    public static boolean {method}(")
+            end = settings.index("    }", start)
+            self.assertIn("GhostModeTemporarySettings.isActive(account)", settings[start:end])
 
-        self.assertIn("UserConfig.getInstance(account).getClientUserId() != snapshot.owner", restore)
-        self.assertIn("preferences.getLong(OWNER, 0) != snapshot.owner", restore)
-        self.assertNotIn("READ_ON_ACTIONS", enable)
-        self.assertNotIn("USE_SEND_DELAY", enable)
-        self.assertNotIn("SILENT_SEND_MODE", enable)
-        self.assertNotIn("SUGGEST_FOR_STORIES", enable)
+        self.assertNotIn("SharedPreferences", temporary)
+        self.assertNotIn("enableAllPrimarySettings", settings)
+        self.assertNotIn("restorePrimarySettings", settings)
+        self.assertIn("GhostModeTemporarySettings.clearAccount(account);", settings)
+
+    def test_temporary_primary_settings_reference_count_and_owner_reuse(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        source = (JAVA / "messenger/fluxgram/GhostModeTemporarySettings.java").read_text()
+        source = re.sub(r"^(?:package org\.telegram\..*|import android\..*|import org\.telegram\..*);\n", "", source, flags=re.M)
+        source = source.replace("SparseArray<State> states = new SparseArray<>()", "HashMap<Integer, State> states = new HashMap<>()")
+        source = source.replace("UserConfig.getInstance(account).getClientUserId()", "TestOwners.get(account)")
+        source = "import java.util.HashMap;\n" + source
+        fixture = (ROOT / "tests/java/GhostModeTemporarySettingsCheck.java").read_text()
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory) / "GhostModeTemporarySettings.java"
+            check = Path(directory) / "GhostModeTemporarySettingsCheck.java"
+            temporary.write_text(source)
+            check.write_text(fixture)
+
+            subprocess.run(["javac", "-d", directory, str(temporary), str(check)], check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory, "GhostModeTemporarySettingsCheck"], check=True, capture_output=True)
 
     def test_logout_clears_ghost_mode_preferences(self):
         storage = (JAVA / "messenger/MessagesStorage.java").read_text()
@@ -451,23 +470,34 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertNotIn("setOnCancelListener(alertDialog -> continueOnDismiss = true)", prompt)
         self.assertIn("setOnPreDismissListener(alertDialog -> finishPrompt())", prompt)
         self.assertIn("fragment.showDialog(dialog)", prompt)
-        self.assertIn("GhostModeSettings.enableAllPrimarySettings(account)", prompt)
+        self.assertIn("GhostModeTemporarySettings.acquire(account)", prompt)
         self.assertIn("MessagesController.getInstance(account).updateGhostModeOnlineStatus();", prompt)
         self.assertIn("fragment.getCurrentAccount() != account", prompt)
         self.assertIn("AndroidUtilities.runOnUIThread(() ->", prompt)
         self.assertIn("isContextCurrent(requestAccount, requestFragmentAccount, requestOwner)", prompt)
         self.assertIn("UserConfig.getInstance(account).getClientUserId() == owner", prompt)
 
-    def test_story_prompt_restores_temporary_settings_on_open_failure_and_close(self):
+    def test_story_prompt_releases_temporary_settings_on_open_failure_and_close(self):
         prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
         viewer = (JAVA / "ui/Stories/StoryViewer.java").read_text()
 
-        self.assertIn("boolean opened = pendingContinuation.open();", prompt)
+        self.assertIn("try {", prompt)
+        self.assertIn("opened = pendingContinuation.open();", prompt)
+        self.assertIn("} finally {", prompt)
         self.assertIn("if (opened)", prompt)
-        self.assertIn("restoreTemporaryGhostMode(requestAccount, snapshot);", prompt)
-        self.assertIn("GhostModeSettings.restorePrimarySettings(account, snapshot)", prompt)
+        self.assertIn("releaseTemporaryGhostMode(requestAccount, session);", prompt)
+        self.assertIn("session.release();", prompt)
         self.assertGreaterEqual(viewer.count("ghostModeStoryOpenPrompt.onViewerClosed();"), 2)
         self.assertIn("return isShowing && currentAccount == account;", viewer)
+
+    def test_story_prompt_joins_an_existing_temporary_session(self):
+        prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
+        active = prompt.index("if (GhostModeTemporarySettings.isActive(account))")
+        suggestion = prompt.index("if (!GhostModeSettings.suggestsForStories(account)")
+
+        self.assertLess(active, suggestion)
+        self.assertIn("temporarySettings = acquireTemporaryGhostMode(account);", prompt[active:suggestion])
+        self.assertIn("temporaryAccount = account;", prompt[active:suggestion])
 
     def test_story_prompt_does_not_continue_after_lifecycle_dismiss(self):
         prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()

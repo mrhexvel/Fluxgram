@@ -8,6 +8,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
+import org.telegram.messenger.fluxgram.GhostModeTemporarySettings;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -26,7 +27,7 @@ public final class GhostModeStoryOpenPrompt {
     private long pendingOwner;
     private OpenContinuation continuation;
     private int temporaryAccount = -1;
-    private GhostModeSettings.PrimarySettingsSnapshot temporarySettings;
+    private GhostModeTemporarySettings.Session temporarySettings;
 
     public GhostModeStoryOpenPrompt(BaseFragment fragment) {
         this.fragment = fragment;
@@ -45,9 +46,6 @@ public final class GhostModeStoryOpenPrompt {
         if (promptShowing) {
             return true;
         }
-        if (!GhostModeSettings.suggestsForStories(account) || GhostModeSettings.shouldHideStoryViews(account)) {
-            return false;
-        }
         if (fragment == null || fragment.isFinished || fragment.getParentActivity() == null || fragment.getCurrentAccount() != account) {
             return false;
         }
@@ -55,6 +53,21 @@ public final class GhostModeStoryOpenPrompt {
         StoryTarget target = resolveTarget(account, storyItem, peerIds, position, storiesList, userStories, startStoryId);
 
         if (target == null || !StoriesController.isGhostModeStoryViewEligible(account, target.dialogId, target.storyItem)) {
+            return false;
+        }
+        if (temporarySettings != null) {
+            return false;
+        }
+        if (GhostModeTemporarySettings.isActive(account)) {
+            temporarySettings = acquireTemporaryGhostMode(account);
+
+            if (temporarySettings != null) {
+                temporaryAccount = account;
+            }
+
+            return false;
+        }
+        if (!GhostModeSettings.suggestsForStories(account) || GhostModeSettings.shouldHideStoryViews(account)) {
             return false;
         }
 
@@ -98,20 +111,24 @@ public final class GhostModeStoryOpenPrompt {
         if (shouldContinue && pendingContinuation != null) {
             AndroidUtilities.runOnUIThread(() -> {
                 if (isContextCurrent(requestAccount, requestFragmentAccount, requestOwner)) {
-                    GhostModeSettings.PrimarySettingsSnapshot snapshot = null;
+                    GhostModeTemporarySettings.Session session = null;
 
                     if (shouldEnable) {
-                        snapshot = enableTemporaryGhostMode(requestAccount);
+                        session = acquireTemporaryGhostMode(requestAccount);
                     }
 
-                    boolean opened = pendingContinuation.open();
+                    boolean opened = false;
 
-                    if (snapshot != null) {
-                        if (opened) {
-                            temporaryAccount = requestAccount;
-                            temporarySettings = snapshot;
-                        } else {
-                            restoreTemporaryGhostMode(requestAccount, snapshot);
+                    try {
+                        opened = pendingContinuation.open();
+                    } finally {
+                        if (session != null) {
+                            if (opened) {
+                                temporaryAccount = requestAccount;
+                                temporarySettings = session;
+                            } else {
+                                releaseTemporaryGhostMode(requestAccount, session);
+                            }
                         }
                     }
                 }
@@ -125,32 +142,32 @@ public final class GhostModeStoryOpenPrompt {
         }
 
         int account = temporaryAccount;
-        GhostModeSettings.PrimarySettingsSnapshot snapshot = temporarySettings;
+        GhostModeTemporarySettings.Session session = temporarySettings;
         temporaryAccount = -1;
         temporarySettings = null;
-        restoreTemporaryGhostMode(account, snapshot);
+        releaseTemporaryGhostMode(account, session);
     }
 
-    private GhostModeSettings.PrimarySettingsSnapshot enableTemporaryGhostMode(int account) {
+    private GhostModeTemporarySettings.Session acquireTemporaryGhostMode(int account) {
         boolean hiddenBefore = GhostModeSettings.shouldHideOnline(account);
         boolean automaticOfflineBefore = GhostModeSettings.shouldUseAutomaticOffline(account);
-        GhostModeSettings.PrimarySettingsSnapshot snapshot = GhostModeSettings.enableAllPrimarySettings(account);
+        GhostModeTemporarySettings.Session session = GhostModeTemporarySettings.acquire(account);
 
-        if (snapshot != null && (hiddenBefore != GhostModeSettings.shouldHideOnline(account)
+        if (session != null && (hiddenBefore != GhostModeSettings.shouldHideOnline(account)
                 || automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(account))) {
             MessagesController.getInstance(account).updateGhostModeOnlineStatus();
         }
 
-        return snapshot;
+        return session;
     }
 
-    private void restoreTemporaryGhostMode(int account, GhostModeSettings.PrimarySettingsSnapshot snapshot) {
+    private void releaseTemporaryGhostMode(int account, GhostModeTemporarySettings.Session session) {
         boolean hiddenBefore = GhostModeSettings.shouldHideOnline(account);
         boolean automaticOfflineBefore = GhostModeSettings.shouldUseAutomaticOffline(account);
+        session.release();
 
-        if (GhostModeSettings.restorePrimarySettings(account, snapshot)
-                && (hiddenBefore != GhostModeSettings.shouldHideOnline(account)
-                || automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(account))) {
+        if (hiddenBefore != GhostModeSettings.shouldHideOnline(account)
+                || automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(account)) {
             MessagesController.getInstance(account).updateGhostModeOnlineStatus();
         }
     }
