@@ -14,7 +14,7 @@ FIXTURE = ROOT / "TMessagesProj/src/main/assets/fluxgram/appearance/v1/profile-f
 
 
 class ProfileAppearanceTest(unittest.TestCase):
-    def test_peer_key_and_allowlist(self):
+    def test_peer_key_and_backend_badge_contract(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")
 
@@ -308,7 +308,7 @@ class ProfileAppearanceTest(unittest.TestCase):
             "peer_id": "123456789",
         })
         self.assertEqual(badge["badge_id"], "developer")
-        self.assertEqual(badge["custom_emoji_document_id"], "5373141891321699086")
+        self.assertEqual(badge["custom_emoji_document_id"], "5350701541898628901")
         self.assertTrue(badge["particles"])
 
     def test_android_contract_fixtures_use_real_seed_document(self):
@@ -319,7 +319,7 @@ class ProfileAppearanceTest(unittest.TestCase):
 
         self.assertEqual(
             batch["results"][0]["profile"]["badges"][0]["custom_emoji_document_id"],
-            "5373141891321699086",
+            "5350701541898628901",
         )
         self.assertEqual(batch["results"][0]["peer"], request["peers"][0])
         self.assertIsNone(batch["results"][1]["profile"])

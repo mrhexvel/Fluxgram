@@ -21,36 +21,36 @@ public final class ProfileAppearanceCheck {
 
         ProfileBadge badge = ProfileBadgeCatalog.resolve(
                 "developer",
-                5373141891321699086L,
+                5350701541898628901L,
                 "Developer",
                 "Description",
                 true
         );
-        expect(badge != null, "allowlisted badge");
+        expect(badge != null, "backend badge");
         expect(ProfileBadgeCatalog.resolve(
                 "unknown",
-                5373141891321699086L,
+                5350701541898628901L,
                 "Developer",
                 "Description",
                 true
-        ) == null, "unknown badge");
+        ) != null, "backend-defined badge");
         expect(ProfileBadgeCatalog.resolve(
                 "developer",
-                1,
+                0,
                 "Developer",
                 "Description",
                 true
-        ) == null, "unexpected document");
+        ) == null, "invalid document");
         expect(ProfileBadgeCatalog.resolve(
                 "developer",
-                5373141891321699086L,
+                5350701541898628901L,
                 "Developer",
                 "",
                 false
         ) != null, "particles and empty description are supported");
         ProfileBadge withoutParticles = ProfileBadgeCatalog.resolve(
                 "developer",
-                5373141891321699086L,
+                5350701541898628901L,
                 "Developer",
                 "Description",
                 false

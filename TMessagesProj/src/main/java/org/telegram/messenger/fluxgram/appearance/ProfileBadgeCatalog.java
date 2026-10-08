@@ -1,9 +1,6 @@
 package org.telegram.messenger.fluxgram.appearance;
 
 public final class ProfileBadgeCatalog {
-    private static final String DEVELOPER_ID = "developer";
-    private static final long DEVELOPER_DOCUMENT_ID = 5373141891321699086L;
-
     private ProfileBadgeCatalog() {
     }
 
@@ -14,10 +11,8 @@ public final class ProfileBadgeCatalog {
             String description,
             boolean particles
     ) {
-        if (!DEVELOPER_ID.equals(id) || documentId != DEVELOPER_DOCUMENT_ID) {
-            return null;
-        }
-        if (title == null || title.isEmpty() || description == null) {
+        if (id == null || id.isEmpty() || documentId <= 0
+                || title == null || title.isEmpty() || description == null) {
             return null;
         }
 
