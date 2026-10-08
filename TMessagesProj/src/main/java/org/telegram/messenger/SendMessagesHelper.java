@@ -10,6 +10,7 @@ package org.telegram.messenger;
 
 import org.telegram.messenger.plugins.BeforeSendEvent;
 import org.telegram.messenger.plugins.PluginManager;
+import org.telegram.messenger.fluxgram.GhostModeSendDelay;
 
 import android.annotation.SuppressLint;
 import android.content.ClipDescription;
@@ -138,6 +139,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     public static final int MEDIA_TYPE_STORY = 12;
     public static final int MEDIA_TYPE_RICH = 13;
     private final HashMap<String, ArrayList<DelayedMessage>> delayedMessages = new HashMap<>();
+    private final GhostModeSendDelay ghostModeSendDelay;
     private final SparseArray<MessageObject> unsentMessages = new SparseArray<>();
     private final SparseArray<TLRPC.Message> sendingMessages = new SparseArray<>();
     private final SparseArray<TLRPC.Message> editingMessages = new SparseArray<>();
@@ -966,6 +968,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
 
     public SendMessagesHelper(int instance) {
         super(instance);
+        ghostModeSendDelay = new GhostModeSendDelay(instance);
 
         AndroidUtilities.runOnUIThread(() -> {
             getNotificationCenter().addObserver(SendMessagesHelper.this, NotificationCenter.fileUploaded);
@@ -982,6 +985,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public void cleanup() {
+        ghostModeSendDelay.cleanup();
         delayedMessages.clear();
         unsentMessages.clear();
         sendingMessages.clear();
@@ -1573,6 +1577,8 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public void cancelSendingMessage(ArrayList<MessageObject> objects) {
+        objects = ghostModeSendDelay.cancel(objects);
+
         ArrayList<String> keysToRemove = new ArrayList<>();
         ArrayList<DelayedMessage> checkReadyToSendGroups = new ArrayList<>();
         ArrayList<Integer> messageIds = new ArrayList<>();
@@ -4884,6 +4890,23 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 }
                 newMsg.flags |= TLRPC.MESSAGE_FLAG_HAS_BOT_ID;
             }
+            params = GhostModeSendDelay.withDeadline(
+                    currentAccount,
+                    params,
+                    retryMessageObject == null
+                            && scheduleDate == 0
+                            && ttl == 0
+                            && sendingStory == null
+                            && ephemeralReceiverBotId == 0
+                            && !isWelcomeMessageTemplate
+                            && quick_reply_shortcut == null
+                            && quick_reply_shortcut_id == 0
+                            && !DialogObject.isEncryptedDialog(peer)
+                            && payStars == 0
+                            && stars == 0
+                            && sendMessageParams.dice_stake == 0
+                            && (params == null || !params.containsKey("query_id"))
+            );
             newMsg.params = params;
             if (retryMessageObject == null || !retryMessageObject.resendAsIs) {
                 if (quick_reply_shortcut != null) {
@@ -7569,6 +7592,10 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (!EphemeralMessagesHelper.getInstance(currentAccount).beforeSendingFinalRequest(request, msgObjs, (newReq) -> performSendMessageRequestMulti(newReq, msgObjs, originalPaths, parentObjects, delayedMessage, scheduled))) {
             return;
         }
+        if (!(request instanceof TL_ephemeral.TL_sendMessage)
+                && !ghostModeSendDelay.beforeSendingFinalRequest(msgObjs, scheduled, () -> performSendMessageRequestMulti(request, msgObjs, originalPaths, parentObjects, delayedMessage, scheduled))) {
+            return;
+        }
 
         getConnectionsManager().sendRequest(request, (response, error) -> {
             if (error != null && FileRefController.isFileRefError(error.text)) {
@@ -7958,6 +7985,10 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             return;
         }
         if (!EphemeralMessagesHelper.getInstance(currentAccount).beforeSendingFinalRequest(req, msgObj, (newReq) -> performSendMessageRequest(newReq, msgObj, originalPath, parentMessage, check, delayedMessage, parentObject, params, scheduled))) {
+            return;
+        }
+        if (!(req instanceof TL_ephemeral.TL_sendMessage)
+                && !ghostModeSendDelay.beforeSendingFinalRequest(msgObj, scheduled, () -> performSendMessageRequest(req, msgObj, originalPath, parentMessage, check, delayedMessage, parentObject, params, scheduled))) {
             return;
         }
 

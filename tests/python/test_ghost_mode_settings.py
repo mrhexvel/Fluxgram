@@ -116,6 +116,13 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("return shouldHideReadReceipts(account) && readsOnActions(account);", source[start:end])
 
+    def test_send_delay_requires_active_ghost_mode(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        start = source.index("    public static boolean shouldUseSendDelay(")
+        end = source.index("    public static int getSilentSendMode(", start)
+
+        self.assertIn("return isEnabled(account) && usesSendDelay(account);", source[start:end])
+
     def test_typing_policy_requires_master_and_child_switches(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldHideTypingAction(")
@@ -498,6 +505,57 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("readCurrentCloudHistoryOnAction(messageObject.getDialogId(), messageObject.getTopicId())", reaction)
         self.assertIn("if (!messageObject.isEphemeral())", reaction)
         self.assertIn("readCurrentCloudHistoryOnAction(messageObject.getDialogId(), messageObject.getTopicId())", paid)
+
+    def test_send_delay_persists_deadline_and_protects_lifecycle(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSendDelay.java").read_text()
+
+        self.assertIn("public static final long DELAY_MILLIS = 12000;", source)
+        self.assertIn('DEADLINE_PARAM = "fluxgram_send_delay_deadline"', source)
+        self.assertIn("GhostModeSettings.shouldUseSendDelay(account)", source)
+        self.assertIn("new HashMap<>(params)", source)
+        self.assertIn("System.currentTimeMillis() + DELAY_MILLIS", source)
+        self.assertIn("deadline - System.currentTimeMillis()", source)
+        self.assertIn("Math.min(remaining, DELAY_MILLIS)", source)
+        self.assertIn("pending.generation != generation", source)
+        self.assertIn("getClientUserId() != pending.ownerId", source)
+        self.assertIn("clearDeadlines(pending.messages)", source)
+        self.assertIn("AndroidUtilities.cancelRunOnUIThread(pending.release)", source)
+
+    def test_send_delay_wraps_final_requests_and_standard_cancellation(self):
+        helper = (JAVA / "messenger/SendMessagesHelper.java").read_text()
+        send_start = helper.index("    public void sendMessage(SendMessageParams sendMessageParams)")
+        send_end = helper.index("    private void performSendMessageRequest", send_start)
+        send = helper[send_start:send_end]
+        multi_start = helper.index("    protected void performSendMessageRequestMulti(")
+        multi_end = helper.index("    private void performSendMessageRequest(", multi_start)
+        multi = helper[multi_start:multi_end]
+        final_start = helper.index("    protected void performSendMessageRequest(", multi_end)
+        final_end = helper.index("    private boolean removeCoverFromRequest", final_start)
+        final_request = helper[final_start:final_end]
+        cancel_start = helper.index("    public void cancelSendingMessage(ArrayList<MessageObject> objects)")
+        cancel_end = helper.index("    public boolean retrySendMessage(", cancel_start)
+        cancel = helper[cancel_start:cancel_end]
+
+        marker = send.index("GhostModeSendDelay.withDeadline(")
+        self.assertLess(marker, send.index("newMsg.params = params;", marker))
+        self.assertIn("retryMessageObject == null", send[marker:])
+        self.assertIn("scheduleDate == 0", send[marker:])
+        self.assertIn("ttl == 0", send[marker:])
+        self.assertIn("sendingStory == null", send[marker:])
+        self.assertIn("ephemeralReceiverBotId == 0", send[marker:])
+        self.assertIn("payStars == 0", send[marker:])
+        self.assertIn("stars == 0", send[marker:])
+        self.assertIn("sendMessageParams.dice_stake == 0", send[marker:])
+        self.assertIn('!params.containsKey("query_id")', send[marker:])
+
+        multi_gate = multi.index("ghostModeSendDelay.beforeSendingFinalRequest")
+        self.assertLess(multi_gate, multi.index("getConnectionsManager().sendRequest", multi_gate))
+        self.assertIn("!(request instanceof TL_ephemeral.TL_sendMessage)", multi[:multi_gate])
+        final_gate = final_request.index("ghostModeSendDelay.beforeSendingFinalRequest")
+        self.assertLess(final_gate, final_request.index("getConnectionsManager().sendRequest", final_gate))
+        self.assertIn("!(req instanceof TL_ephemeral.TL_sendMessage)", final_request[:final_gate])
+        self.assertLess(cancel.index("ghostModeSendDelay.cancel(objects)"), cancel.index("removeFromSendingMessages"))
+        self.assertIn("ghostModeSendDelay.cleanup();", helper)
 
     def test_dialog_and_topic_loads_merge_persisted_read_cursor(self):
         controller = (JAVA / "messenger/MessagesController.java").read_text()

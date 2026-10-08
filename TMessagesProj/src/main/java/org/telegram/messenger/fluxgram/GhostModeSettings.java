@@ -118,6 +118,10 @@ public final class GhostModeSettings {
         set(account, USE_SEND_DELAY, enabled);
     }
 
+    public static boolean shouldUseSendDelay(int account) {
+        return isEnabled(account) && usesSendDelay(account);
+    }
+
     public static int getSilentSendMode(int account) {
         return getInt(account, SILENT_SEND_MODE, SILENT_SEND_NEVER);
     }
