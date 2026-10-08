@@ -123,6 +123,50 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("return isEnabled(account) && usesSendDelay(account);", source[start:end])
 
+    def test_silent_send_policy_is_fail_safe_and_supports_all_modes(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        start = source.index("    public static boolean shouldSendSilently(")
+        end = source.index("    public static boolean suggestsForStories(", start)
+        method = source[start:end]
+
+        self.assertIn("mode == SILENT_SEND_ALWAYS", method)
+        self.assertIn("mode == SILENT_SEND_IN_GHOST_MODE", method)
+        self.assertIn("return isEnabled(account);", method)
+        self.assertIn("return false;", method)
+
+    def test_silent_send_policy_is_applied_without_overwriting_retry_state(self):
+        source = (JAVA / "messenger/SendMessagesHelper.java").read_text()
+        start = source.index("    public void sendMessage(SendMessageParams sendMessageParams)")
+        method = source[start:]
+
+        policy = method.index("GhostModeSettings.shouldSendSilently(currentAccount)")
+        retry_guard = method.rindex("if (retryMessageObject == null)", 0, policy)
+        first_request = method.index("reqSend.silent = newMsg.silent")
+
+        self.assertLess(retry_guard, policy)
+        self.assertLess(policy, first_request)
+        self.assertIn("newMsg.silent = newMsg.silent || GhostModeSettings.shouldSendSilently(currentAccount);", method)
+        self.assertIn("!isWelcomeMessageTemplate && quick_reply_shortcut == null && quick_reply_shortcut_id == 0", method)
+
+    def test_silent_send_policy_covers_cloud_and_secret_forwarding(self):
+        source = (JAVA / "messenger/SendMessagesHelper.java").read_text()
+        start = source.index("    public int sendMessage(\n        ArrayList<MessageObject> messages,")
+        end = source.index("    public static int canSendMessageToChat", start)
+        method = source[start:end]
+
+        self.assertIn("|| GhostModeSettings.shouldSendSilently(currentAccount);", method)
+        self.assertIn("newMsg.silent = silent;", method)
+        self.assertIn("req.silent = silent;", method)
+        self.assertIn("processForwardFromMyName(messages.get(a), peer, notify,", method)
+        self.assertIn("processForwardFromMyName(MessageObject messageObject, long did, boolean notify,", source)
+
+    def test_gallery_send_without_sound_passes_notify_false(self):
+        picker = (JAVA / "ui/PhotoPickerActivity.java").read_text()
+        album_picker = (JAVA / "ui/PhotoAlbumPickerActivity.java").read_text()
+
+        self.assertIn("sendSelectedPhotos(false, 0, 0);", picker)
+        self.assertIn("sendSelectedPhotos(selectedPhotos, selectedPhotosOrder, false, 0);", album_picker)
+
     def test_typing_policy_requires_master_and_child_switches(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldHideTypingAction(")

@@ -134,6 +134,19 @@ public final class GhostModeSettings {
         setInt(account, SILENT_SEND_MODE, mode);
     }
 
+    public static boolean shouldSendSilently(int account) {
+        int mode = getSilentSendMode(account);
+
+        if (mode == SILENT_SEND_ALWAYS) {
+            return true;
+        }
+        if (mode == SILENT_SEND_IN_GHOST_MODE) {
+            return isEnabled(account);
+        }
+
+        return false;
+    }
+
     public static boolean suggestsForStories(int account) {
         return get(account, SUGGEST_FOR_STORIES, true);
     }

@@ -1132,7 +1132,7 @@ public class PhotoPickerActivity extends BaseFragment implements NotificationCen
                             if (num == 0) {
                                 AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), chatActivity.getDialogId(), (notify, scheduleDate, scheduleRepeatPeriod) -> sendSelectedPhotos(notify, scheduleDate, 0));
                             } else {
-                                sendSelectedPhotos(true, 0, 0);
+                                sendSelectedPhotos(false, 0, 0);
                             }
                         });
                     }

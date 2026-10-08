@@ -494,7 +494,7 @@ public class PhotoAlbumPickerActivity extends BaseFragment implements Notificati
                                 finishFragment();
                             });
                         } else {
-                            sendSelectedPhotos(selectedPhotos, selectedPhotosOrder, true, 0);
+                            sendSelectedPhotos(selectedPhotos, selectedPhotosOrder, false, 0);
                             finishFragment();
                         }
                     });
