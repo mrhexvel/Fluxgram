@@ -82,8 +82,8 @@ public final class GhostModeSettings {
         set(account, HIDE_STORY_VIEWS, enabled);
     }
 
-    public static boolean shouldHideStoryViews(int account) {
-        return isEnabled(account) && hidesStoryViews(account);
+    public static boolean shouldHideStoryViews(int account, long dialogId) {
+        return GhostModeDialogScope.shouldApply(account, dialogId) && hidesStoryViews(account);
     }
 
     public static boolean usesAutomaticOffline(int account) {
@@ -118,8 +118,8 @@ public final class GhostModeSettings {
         set(account, USE_SEND_DELAY, enabled);
     }
 
-    public static boolean shouldUseSendDelay(int account) {
-        return isEnabled(account) && usesSendDelay(account);
+    public static boolean shouldUseSendDelay(int account, long dialogId) {
+        return GhostModeDialogScope.shouldApply(account, dialogId) && usesSendDelay(account);
     }
 
     public static int getSilentSendMode(int account) {
@@ -134,14 +134,14 @@ public final class GhostModeSettings {
         setInt(account, SILENT_SEND_MODE, mode);
     }
 
-    public static boolean shouldSendSilently(int account) {
+    public static boolean shouldSendSilently(int account, long dialogId) {
         int mode = getSilentSendMode(account);
 
         if (mode == SILENT_SEND_ALWAYS) {
             return true;
         }
         if (mode == SILENT_SEND_IN_GHOST_MODE) {
-            return isEnabled(account);
+            return GhostModeDialogScope.shouldApply(account, dialogId);
         }
 
         return false;

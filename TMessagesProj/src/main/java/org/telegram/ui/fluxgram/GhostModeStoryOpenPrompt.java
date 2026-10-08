@@ -7,6 +7,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.fluxgram.GhostModeDialogScope;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.messenger.fluxgram.GhostModeTemporarySettings;
 import org.telegram.tgnet.tl.TL_stories;
@@ -67,7 +68,9 @@ public final class GhostModeStoryOpenPrompt {
 
             return false;
         }
-        if (!GhostModeSettings.suggestsForStories(account) || GhostModeSettings.shouldHideStoryViews(account)) {
+        if (!GhostModeSettings.suggestsForStories(account)
+                || GhostModeDialogScope.isWhitelisted(account, target.dialogId)
+                || GhostModeSettings.shouldHideStoryViews(account, target.dialogId)) {
             return false;
         }
 

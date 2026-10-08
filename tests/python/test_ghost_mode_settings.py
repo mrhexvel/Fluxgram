@@ -101,6 +101,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("state.whitelist.removeAll(state.blacklist);", source)
         self.assertIn("state.whitelist.contains(dialogId)", source)
         self.assertIn("state.blacklist.contains(dialogId)", source)
+        self.assertIn("public static synchronized boolean isWhitelisted(int account, long dialogId)", source)
         self.assertIn("dialogId != UserConfig.getInstance(account).getClientUserId()", source)
         self.assertIn("return GhostModeSettings.isEnabled(account);", source)
 
@@ -193,12 +194,25 @@ class GhostModeSettingsTest(unittest.TestCase):
             source[start:end],
         )
 
+    def test_story_policy_requires_dialog_scope_and_child_switch(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        start = source.index("    public static boolean shouldHideStoryViews(")
+        end = source.index("    public static boolean usesAutomaticOffline(", start)
+
+        self.assertIn(
+            "return GhostModeDialogScope.shouldApply(account, dialogId) && hidesStoryViews(account);",
+            source[start:end],
+        )
+
     def test_send_delay_requires_active_ghost_mode(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldUseSendDelay(")
         end = source.index("    public static int getSilentSendMode(", start)
 
-        self.assertIn("return isEnabled(account) && usesSendDelay(account);", source[start:end])
+        self.assertIn(
+            "return GhostModeDialogScope.shouldApply(account, dialogId) && usesSendDelay(account);",
+            source[start:end],
+        )
 
     def test_silent_send_policy_is_fail_safe_and_supports_all_modes(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
@@ -208,7 +222,7 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("mode == SILENT_SEND_ALWAYS", method)
         self.assertIn("mode == SILENT_SEND_IN_GHOST_MODE", method)
-        self.assertIn("return isEnabled(account);", method)
+        self.assertIn("return GhostModeDialogScope.shouldApply(account, dialogId);", method)
         self.assertIn("return false;", method)
 
     def test_silent_send_policy_is_applied_without_overwriting_retry_state(self):
@@ -216,13 +230,13 @@ class GhostModeSettingsTest(unittest.TestCase):
         start = source.index("    public void sendMessage(SendMessageParams sendMessageParams)")
         method = source[start:]
 
-        policy = method.index("GhostModeSettings.shouldSendSilently(currentAccount)")
+        policy = method.index("GhostModeSettings.shouldSendSilently(currentAccount, peer)")
         retry_guard = method.rindex("if (retryMessageObject == null)", 0, policy)
         first_request = method.index("reqSend.silent = newMsg.silent")
 
         self.assertLess(retry_guard, policy)
         self.assertLess(policy, first_request)
-        self.assertIn("newMsg.silent = newMsg.silent || GhostModeSettings.shouldSendSilently(currentAccount);", method)
+        self.assertIn("newMsg.silent = newMsg.silent || GhostModeSettings.shouldSendSilently(currentAccount, peer);", method)
         self.assertIn("!isWelcomeMessageTemplate && quick_reply_shortcut == null && quick_reply_shortcut_id == 0", method)
 
     def test_silent_send_policy_covers_cloud_and_secret_forwarding(self):
@@ -231,7 +245,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         end = source.index("    public static int canSendMessageToChat", start)
         method = source[start:end]
 
-        self.assertIn("|| GhostModeSettings.shouldSendSilently(currentAccount);", method)
+        self.assertIn("|| GhostModeSettings.shouldSendSilently(currentAccount, peer);", method)
         self.assertIn("newMsg.silent = silent;", method)
         self.assertIn("req.silent = silent;", method)
         self.assertIn("processForwardFromMyName(messages.get(a), peer, notify,", method)
@@ -501,7 +515,8 @@ class GhostModeSettingsTest(unittest.TestCase):
     def test_story_prompt_matches_visible_receipt_state_and_choice_semantics(self):
         prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
 
-        self.assertIn("!GhostModeSettings.suggestsForStories(account) || GhostModeSettings.shouldHideStoryViews(account)", prompt)
+        self.assertIn("GhostModeDialogScope.isWhitelisted(account, target.dialogId)", prompt)
+        self.assertIn("GhostModeSettings.shouldHideStoryViews(account, target.dialogId)", prompt)
         self.assertIn("if (promptShowing)", prompt)
         self.assertIn("setPositiveButton(LocaleController.getString(R.string.Enable)", prompt)
         self.assertIn("setNegativeButton(LocaleController.getString(R.string.Continue)", prompt)
@@ -583,7 +598,9 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("processReadStories", hidden_branch)
         self.assertNotIn("seenStories.add", hidden_branch)
         self.assertNotIn("TL_stories_incrementStoryViews", hidden_branch)
-        self.assertLess(method.index("GhostModeSettings.shouldHideStoryViews(currentAccount) && GhostModeStoryState.isSeen"), hidden)
+        seen_guard = method.index("GhostModeSettings.shouldHideStoryViews(currentAccount, dialogId)")
+        self.assertLess(seen_guard, hidden)
+        self.assertIn("GhostModeStoryState.isSeen(currentAccount, dialogId, storyId)", method[seen_guard:hidden])
 
     def test_reopening_story_after_disabling_hiding_uses_telegram_state(self):
         controller = (JAVA / "ui/Stories/StoriesController.java").read_text()
@@ -591,7 +608,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         end = controller.index("    private int getTelegramMaxStoriesReadId(", start)
         method = controller[start:end]
 
-        self.assertIn("GhostModeSettings.shouldHideStoryViews(currentAccount)", method)
+        self.assertIn("GhostModeSettings.shouldHideStoryViews(currentAccount, dialogId)", method)
         self.assertIn("? getMaxStoriesReadId(dialogId)", method)
         self.assertIn(": getTelegramMaxStoriesReadId(dialogId)", method)
         self.assertIn("return storyItem.id > maxReadId;", method)
@@ -729,7 +746,7 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("public static final long DELAY_MILLIS = 12000;", source)
         self.assertIn('DEADLINE_PARAM = "fluxgram_send_delay_deadline"', source)
-        self.assertIn("GhostModeSettings.shouldUseSendDelay(account)", source)
+        self.assertIn("GhostModeSettings.shouldUseSendDelay(account, dialogId)", source)
         self.assertIn("new HashMap<>(params)", source)
         self.assertIn("System.currentTimeMillis() + DELAY_MILLIS", source)
         self.assertIn("deadline - System.currentTimeMillis()", source)
@@ -756,6 +773,7 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         marker = send.index("GhostModeSendDelay.withDeadline(")
         self.assertLess(marker, send.index("newMsg.params = params;", marker))
+        self.assertIn("currentAccount,\n                    peer,", send[marker:])
         self.assertIn("retryMessageObject == null", send[marker:])
         self.assertIn("scheduleDate == 0", send[marker:])
         self.assertIn("ttl == 0", send[marker:])

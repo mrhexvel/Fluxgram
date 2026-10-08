@@ -23,8 +23,13 @@ public final class GhostModeSendDelay {
         this.account = account;
     }
 
-    public static HashMap<String, String> withDeadline(int account, HashMap<String, String> params, boolean eligible) {
-        if (!eligible || !GhostModeSettings.shouldUseSendDelay(account)) {
+    public static HashMap<String, String> withDeadline(
+            int account,
+            long dialogId,
+            HashMap<String, String> params,
+            boolean eligible
+    ) {
+        if (!eligible || !GhostModeSettings.shouldUseSendDelay(account, dialogId)) {
             return params;
         }
 

@@ -67,6 +67,12 @@ public final class GhostModeDialogScope {
         return GhostModeSettings.isEnabled(account);
     }
 
+    public static synchronized boolean isWhitelisted(int account, long dialogId) {
+        State state = activeState(account);
+
+        return state != null && validDialog(account, dialogId) && state.whitelist.contains(dialogId);
+    }
+
     public static synchronized void clearAccount(int account) {
         states.remove(account);
         preferences(account).edit().clear().apply();

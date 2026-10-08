@@ -2166,7 +2166,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             TLRPC.InputPeer inputPeer = getMessagesController().getInputPeer(peer);
             final boolean silent = !notify
                     || MessagesController.getNotificationsSettings(currentAccount).getBoolean("silent_" + peer, false)
-                    || GhostModeSettings.shouldSendSilently(currentAccount);
+                    || GhostModeSettings.shouldSendSilently(currentAccount, peer);
             long lastDialogId = 0;
             final boolean toMyself = peer == myId;
             long lastGroupedId;
@@ -4865,7 +4865,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 newMsg.silent = !notify || MessagesController.getNotificationsSettings(currentAccount).getBoolean("silent_" + peer, false);
 
                 if (!isWelcomeMessageTemplate && quick_reply_shortcut == null && quick_reply_shortcut_id == 0) {
-                    newMsg.silent = newMsg.silent || GhostModeSettings.shouldSendSilently(currentAccount);
+                    newMsg.silent = newMsg.silent || GhostModeSettings.shouldSendSilently(currentAccount, peer);
                 }
             }
             if (newMsg.random_id == 0) {
@@ -4903,6 +4903,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             }
             params = GhostModeSendDelay.withDeadline(
                     currentAccount,
+                    peer,
                     params,
                     retryMessageObject == null
                             && scheduleDate == 0

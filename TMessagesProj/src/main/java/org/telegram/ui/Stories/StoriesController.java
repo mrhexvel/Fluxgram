@@ -1330,7 +1330,7 @@ public class StoriesController {
             return true;
         }
 
-        int maxReadId = GhostModeSettings.shouldHideStoryViews(currentAccount)
+        int maxReadId = GhostModeSettings.shouldHideStoryViews(currentAccount, dialogId)
                 ? getMaxStoriesReadId(dialogId)
                 : getTelegramMaxStoriesReadId(dialogId);
 
@@ -1728,7 +1728,7 @@ public class StoriesController {
     }
 
     private static boolean shouldHideStoryView(int account, long dialogId, TL_stories.StoryItem storyItem) {
-        return GhostModeSettings.shouldHideStoryViews(account)
+        return GhostModeSettings.shouldHideStoryViews(account, dialogId)
                 && isGhostModeStoryViewEligible(account, dialogId, storyItem);
     }
 
@@ -3770,7 +3770,8 @@ public class StoriesController {
         }
 
         protected boolean markAsRead(int storyId) {
-            if (GhostModeSettings.shouldHideStoryViews(currentAccount) && GhostModeStoryState.isSeen(currentAccount, dialogId, storyId)) {
+            if (GhostModeSettings.shouldHideStoryViews(currentAccount, dialogId)
+                    && GhostModeStoryState.isSeen(currentAccount, dialogId, storyId)) {
                 return false;
             }
             MessageObject messageObject = messageObjectsMap.get(storyId);
