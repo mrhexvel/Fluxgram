@@ -674,6 +674,8 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertNotIn("setMinusWidth", renderer)
         self.assertIn("BulletinFactory.of(fragment)", bulletin)
         self.assertIn("account,", bulletin)
+        self.assertIn("Theme.key_windowBackgroundWhiteBlueText", bulletin)
+        self.assertIn("PorterDuff.Mode.SRC_IN", bulletin)
         self.assertNotIn("UserConfig.selectedAccount", renderer)
         self.assertNotIn("UserConfig.selectedAccount", bulletin)
 
