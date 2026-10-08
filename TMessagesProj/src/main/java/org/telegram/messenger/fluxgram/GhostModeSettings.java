@@ -54,8 +54,8 @@ public final class GhostModeSettings {
         set(account, HIDE_TYPING, enabled);
     }
 
-    public static boolean shouldHideTypingAction(int account, int action) {
-        if (!isEnabled(account) || !hidesTyping(account)) {
+    public static boolean shouldHideTypingAction(int account, long dialogId, int action) {
+        if (!GhostModeDialogScope.shouldApply(account, dialogId) || !hidesTyping(account)) {
             return false;
         }
 
@@ -70,8 +70,8 @@ public final class GhostModeSettings {
         set(account, HIDE_READ_RECEIPTS, enabled);
     }
 
-    public static boolean shouldHideReadReceipts(int account) {
-        return isEnabled(account) && hidesReadReceipts(account);
+    public static boolean shouldHideReadReceipts(int account, long dialogId) {
+        return GhostModeDialogScope.shouldApply(account, dialogId) && hidesReadReceipts(account);
     }
 
     public static boolean hidesStoryViews(int account) {
@@ -106,8 +106,8 @@ public final class GhostModeSettings {
         set(account, READ_ON_ACTIONS, enabled);
     }
 
-    public static boolean shouldReadOnActions(int account) {
-        return shouldHideReadReceipts(account) && readsOnActions(account);
+    public static boolean shouldReadOnActions(int account, long dialogId) {
+        return shouldHideReadReceipts(account, dialogId) && readsOnActions(account);
     }
 
     public static boolean usesSendDelay(int account) {

@@ -11497,7 +11497,7 @@ public class MessagesController extends BaseController implements NotificationCe
         if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
             return false;
         }
-        if (GhostModeSettings.shouldHideTypingAction(currentAccount, action)) {
+        if (GhostModeSettings.shouldHideTypingAction(currentAccount, dialogId, action)) {
             return false;
         }
         final long selfId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
@@ -14685,7 +14685,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
-        if (!DialogObject.isEncryptedDialog(task.dialogId) && (task.suppressReceipt || GhostModeSettings.shouldHideReadReceipts(currentAccount))) {
+        if (!DialogObject.isEncryptedDialog(task.dialogId) && (task.suppressReceipt || GhostModeSettings.shouldHideReadReceipts(currentAccount, task.dialogId))) {
             return;
         }
 
@@ -14795,7 +14795,7 @@ public class MessagesController extends BaseController implements NotificationCe
             return;
         }
         getMessagesStorage().resetMentionsCount(dialogId, topicId, 0);
-        if (GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+        if (GhostModeSettings.shouldHideReadReceipts(currentAccount, dialogId)) {
             return;
         }
         TLRPC.TL_messages_readMentions req = new TLRPC.TL_messages_readMentions();
@@ -14811,7 +14811,7 @@ public class MessagesController extends BaseController implements NotificationCe
         long ownerId = getUserConfig().getClientUserId();
         int generation = ghostModeActionReadGeneration;
 
-        if (!GhostModeSettings.shouldReadOnActions(currentAccount)
+        if (!GhostModeSettings.shouldReadOnActions(currentAccount, dialogId)
                 || dialogId == 0
                 || dialogId == ownerId
                 || DialogObject.isEncryptedDialog(dialogId)) {
@@ -14898,7 +14898,8 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void markDialogAsRead(long dialogId, int maxPositiveId, int maxNegativeId, int maxDate, boolean popup, long threadId, int countDiff, boolean readNow, int scheduledCount) {
         boolean createReadTask;
-        boolean suppressReceipt = !DialogObject.isEncryptedDialog(dialogId) && GhostModeSettings.shouldHideReadReceipts(currentAccount);
+        boolean suppressReceipt = !DialogObject.isEncryptedDialog(dialogId)
+                && GhostModeSettings.shouldHideReadReceipts(currentAccount, dialogId);
 
         if (threadId != 0) {
             createReadTask = maxPositiveId != Integer.MAX_VALUE;

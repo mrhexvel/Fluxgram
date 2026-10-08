@@ -910,7 +910,7 @@ public class LocationController extends BaseController implements NotificationCe
         if (messages == null || messages.isEmpty()) {
             return;
         }
-        if (GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+        if (GhostModeSettings.shouldHideReadReceipts(currentAccount, dialogId)) {
             return;
         }
         Integer date = lastReadLocationTime.get(dialogId);

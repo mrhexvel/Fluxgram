@@ -33,7 +33,9 @@ public final class GhostModeReadState {
     }
 
     public static synchronized boolean recordContent(int account, MessageObject messageObject) {
-        if (!GhostModeSettings.shouldHideReadReceipts(account) || !isEligibleContent(messageObject.messageOwner, account)) {
+        long dialogId = MessageObject.getDialogId(messageObject.messageOwner);
+        if (!GhostModeSettings.shouldHideReadReceipts(account, dialogId)
+                || !isEligibleContent(messageObject.messageOwner, account)) {
             return false;
         }
 

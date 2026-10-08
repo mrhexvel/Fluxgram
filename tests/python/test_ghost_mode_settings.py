@@ -173,19 +173,25 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("automaticOfflineBefore", screen)
         self.assertGreaterEqual(screen.count("updateGhostModeOnlineStatus();"), 3)
 
-    def test_read_policy_requires_master_and_child_switches(self):
+    def test_read_policy_requires_dialog_scope_and_child_switch(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldHideReadReceipts(")
         end = source.index("    public static boolean hidesStoryViews(", start)
 
-        self.assertIn("return isEnabled(account) && hidesReadReceipts(account);", source[start:end])
+        self.assertIn(
+            "return GhostModeDialogScope.shouldApply(account, dialogId) && hidesReadReceipts(account);",
+            source[start:end],
+        )
 
     def test_read_on_actions_requires_active_hidden_receipts(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldReadOnActions(")
         end = source.index("    public static boolean usesSendDelay(", start)
 
-        self.assertIn("return shouldHideReadReceipts(account) && readsOnActions(account);", source[start:end])
+        self.assertIn(
+            "return shouldHideReadReceipts(account, dialogId) && readsOnActions(account);",
+            source[start:end],
+        )
 
     def test_send_delay_requires_active_ghost_mode(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
@@ -238,13 +244,16 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("sendSelectedPhotos(false, 0, 0);", picker)
         self.assertIn("sendSelectedPhotos(selectedPhotos, selectedPhotosOrder, false, 0);", album_picker)
 
-    def test_typing_policy_requires_master_and_child_switches(self):
+    def test_typing_policy_requires_dialog_scope_and_child_switch(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldHideTypingAction(")
         end = source.index("    public static boolean hidesReadReceipts(", start)
         method = source[start:end]
 
-        self.assertIn("!isEnabled(account) || !hidesTyping(account)", method)
+        self.assertIn(
+            "!GhostModeDialogScope.shouldApply(account, dialogId) || !hidesTyping(account)",
+            method,
+        )
         for action in (0, 1, 3, 4, 5, 7, 8, 9, 10):
             self.assertIn(f"action == {action}", method)
         for action in (2, 6, 11):
@@ -256,7 +265,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         end = controller.index("    protected void removeDeletedMessagesFromArray", start)
         method = controller[start:end]
 
-        policy = method.index("GhostModeSettings.shouldHideTypingAction(currentAccount, action)")
+        policy = method.index("GhostModeSettings.shouldHideTypingAction(currentAccount, dialogId, action)")
         retry_state = method.index("LongSparseArray<LongSparseArray<Boolean>> dialogs = sendingTypings[action]")
         request = method.index("TLRPC.TL_messages_setTyping req")
 
@@ -332,7 +341,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         end = source.index("    private void checkReadTasks(", start)
         method = source[start:end]
 
-        policy = method.index("GhostModeSettings.shouldHideReadReceipts(currentAccount)")
+        policy = method.index("GhostModeSettings.shouldHideReadReceipts(currentAccount, task.dialogId)")
         cloud_history = method.index("TLRPC.TL_messages_readHistory")
         secret_history = method.index("TLRPC.TL_messages_readEncryptedHistory")
 
@@ -353,7 +362,10 @@ class GhostModeSettingsTest(unittest.TestCase):
         mark = source[mark_start:mark_end]
 
         self.assertIn("public boolean suppressReceipt;", task)
-        self.assertIn("task.suppressReceipt || GhostModeSettings.shouldHideReadReceipts(currentAccount)", complete)
+        self.assertIn(
+            "task.suppressReceipt || GhostModeSettings.shouldHideReadReceipts(currentAccount, task.dialogId)",
+            complete,
+        )
         self.assertIn("currentReadTask.suppressReceipt = suppressReceipt;", mark)
         self.assertLess(
             mark.index("currentReadTask.suppressReceipt = suppressReceipt;"),
@@ -391,7 +403,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         storage = (JAVA / "messenger/MessagesStorage.java").read_text()
 
         self.assertIn('CONTENT_PREFIX = "content_"', state)
-        self.assertIn("GhostModeSettings.shouldHideReadReceipts(account)", state)
+        self.assertIn("GhostModeSettings.shouldHideReadReceipts(account, dialogId)", state)
         self.assertIn("message instanceof TLRPC.TL_message_secret", state)
         self.assertIn("message.saved_peer_id != null", state)
         self.assertIn("MessageObject.isSecretMedia(message)", state)
@@ -594,7 +606,7 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertLess(
             mentions.index("getMessagesStorage().resetMentionsCount"),
-            mentions.index("GhostModeSettings.shouldHideReadReceipts(currentAccount)"),
+            mentions.index("GhostModeSettings.shouldHideReadReceipts(currentAccount, dialogId)"),
         )
 
         live_start = location.index("    public void markLiveLoactionsAsRead(")
@@ -602,7 +614,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         live = location[live_start:live_end]
 
         self.assertLess(
-            live.index("GhostModeSettings.shouldHideReadReceipts(currentAccount)"),
+            live.index("GhostModeSettings.shouldHideReadReceipts(currentAccount, dialogId)"),
             live.index("lastReadLocationTime.put"),
         )
 
@@ -661,7 +673,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         record = method.index("GhostModeReadState.recordDialog")
 
         self.assertLess(record, method.index("getMessagesStorage().processPendingRead"))
-        self.assertIn("GhostModeSettings.shouldHideReadReceipts(currentAccount)", method[:record])
+        self.assertIn("GhostModeSettings.shouldHideReadReceipts(currentAccount, dialogId)", method[:record])
         self.assertIn("!DialogObject.isEncryptedDialog(dialogId)", method[:record])
         self.assertIn("GhostModeReadState.recordTopic", method)
 
@@ -672,7 +684,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         end = controller.index("    public void markDialogAsRead(", start)
         method = controller[start:end]
 
-        self.assertIn("GhostModeSettings.shouldReadOnActions(currentAccount)", method)
+        self.assertIn("GhostModeSettings.shouldReadOnActions(currentAccount, dialogId)", method)
         self.assertIn("GhostModeReadState.getTopicMax", method)
         self.assertIn("GhostModeReadState.getDialogMax", method)
         self.assertIn("TLRPC.TL_messages_readDiscussion", method)
