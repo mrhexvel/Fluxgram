@@ -441,6 +441,7 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("setCurrentAccount(account);", search_cell)
         self.assertIn("setCurrentAccount(account);", user_cell)
         self.assertIn("BADGE_SIZE_DP = 16", renderer)
+        self.assertIn("Theme.key_windowBackgroundWhiteBlueText", renderer)
         self.assertIn("LiteMode.FLAG_PARTICLES", renderer)
         self.assertNotIn("MotionEvent", renderer)
 
@@ -662,6 +663,8 @@ class ProfileAppearanceTest(unittest.TestCase):
         bulletin = (UI / "FluxGramBadgeBulletin.java").read_text()
 
         self.assertIn("drawable.setCurrentAccount(account);", renderer)
+        self.assertIn("Theme.key_windowBackgroundWhiteBlueText", renderer)
+        self.assertIn("fragment.getResourceProvider()", renderer)
         self.assertIn("LiteMode.isEnabled(LiteMode.FLAG_PARTICLES)", renderer)
         self.assertIn("badge.hasParticles()", renderer)
         self.assertIn("hitBounds.setEmpty();\n            drawable.setParticles(false, false);", renderer)

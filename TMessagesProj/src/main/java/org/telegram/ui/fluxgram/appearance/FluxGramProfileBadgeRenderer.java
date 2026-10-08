@@ -11,6 +11,7 @@ import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.SimpleTextView;
+import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 
 public final class FluxGramProfileBadgeRenderer {
@@ -96,7 +97,10 @@ public final class FluxGramProfileBadgeRenderer {
         int x = placement.getBadgeLeft();
         int y = getBadgeTop(size);
         drawable.setParticles(particlesEnabled(), false);
-        drawable.setColor(view.getTextColor());
+        drawable.setColor(Theme.getColor(
+                Theme.key_windowBackgroundWhiteBlueText,
+                fragment.getResourceProvider()
+        ));
         drawable.setBounds(x, y, x + size, y + size);
         drawable.draw(canvas);
 
