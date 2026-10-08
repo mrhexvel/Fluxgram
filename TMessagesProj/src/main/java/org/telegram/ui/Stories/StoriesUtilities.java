@@ -511,7 +511,7 @@ public class StoriesUtilities {
             }
 
 
-            int maxUnread = params.drawHiddenStoriesAsSegments ? 0 : Math.max(userStories.max_read_id, storiesController.dialogIdToMaxReadId.get(params.dialogId, 0));
+            int maxUnread = params.drawHiddenStoriesAsSegments ? 0 : storiesController.getMaxStoriesReadId(params.dialogId);
             for (int i = 0; i < storiesCount; i++) {
                 Paint segmentPaint = params.isStoryCell ? storyCellGreyPaint[params.isArchive ? 1 : 0] : grayPaint;
                 if (params.drawHiddenStoriesAsSegments) {
@@ -561,7 +561,7 @@ public class StoriesUtilities {
         if (dialogId > 0) {
             TLRPC.User user = MessagesController.getInstance(UserConfig.selectedAccount).getUser(dialogId);
             if (dialogId != UserConfig.getInstance(UserConfig.selectedAccount).clientUserId && user != null && user.stories_max_id != null && user.stories_max_id.max_id > 0 && !user.stories_unavailable) {
-                int maxReadId = storiesController.dialogIdToMaxReadId.get(dialogId, 0);
+                int maxReadId = storiesController.getMaxStoriesReadId(dialogId);
                 if (user.stories_max_id.live) {
                     return STATE_LIVE;
                 }
@@ -576,7 +576,7 @@ public class StoriesUtilities {
         } else {
             TLRPC.Chat chat = MessagesController.getInstance(UserConfig.selectedAccount).getChat(-dialogId);
             if (chat != null && chat.stories_max_id != null && chat.stories_max_id.max_id > 0 && !chat.stories_unavailable) {
-                int maxReadId = storiesController.dialogIdToMaxReadId.get(dialogId, 0);
+                int maxReadId = storiesController.getMaxStoriesReadId(dialogId);
                 if (chat.stories_max_id.live) {
                     return STATE_LIVE;
                 }
@@ -1104,7 +1104,7 @@ public class StoriesUtilities {
         }
         TL_stories.StoryItem storyItem = null;
         StoriesController storiesController = MessagesController.getInstance(UserConfig.selectedAccount).storiesController;
-        int maxReadId = storiesController.dialogIdToMaxReadId.get(DialogObject.getPeerDialogId(stories.peer));
+        int maxReadId = storiesController.getMaxStoriesReadId(DialogObject.getPeerDialogId(stories.peer));
 
         for (int i = 0; i < stories.stories.size(); i++) {
             if (stories.stories.get(i).id > maxReadId) {

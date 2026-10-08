@@ -25,6 +25,8 @@ import org.telegram.messenger.DownloadController;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.FileRefController;
+import org.telegram.messenger.fluxgram.GhostModeSettings;
+import org.telegram.messenger.fluxgram.GhostModeStoryState;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
@@ -554,8 +556,9 @@ public class StoriesController {
 
     public void preloadUserStories(TL_stories.PeerStories userStories) {
         int preloadPosition = 0;
+        int maxReadId = getMaxStoriesReadId(DialogObject.getPeerDialogId(userStories.peer));
         for (int i = 0; i < userStories.stories.size(); i++) {
-            if (userStories.stories.get(i).id > userStories.max_read_id) {
+            if (userStories.stories.get(i).id > maxReadId) {
                 preloadPosition = i;
                 break;
             }
@@ -1286,6 +1289,17 @@ public class StoriesController {
         if (storyItem.justUploaded) {
             storyItem.justUploaded = false;
         }
+        if (shouldHideStoryView(currentAccount, dialogId, storyItem)) {
+            int newReadId = Math.max(getMaxStoriesReadId(dialogId), storyItem.id);
+            NotificationsController.getInstance(currentAccount).processReadStories(dialogId, newReadId);
+            boolean changed = GhostModeStoryState.recordActive(currentAccount, dialogId, storyItem.id);
+
+            if (changed) {
+                NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.storiesReadUpdated);
+            }
+
+            return changed;
+        }
         int currentReadId = dialogIdToMaxReadId.get(dialogId);
         int newReadId = Math.max(userStories.max_read_id, Math.max(currentReadId, storyItem.id));
         NotificationsController.getInstance(currentAccount).processReadStories(dialogId, newReadId);
@@ -1306,19 +1320,40 @@ public class StoriesController {
     }
 
     public int getMaxStoriesReadId(long dialogId) {
+        int telegramMaxReadId = getTelegramMaxStoriesReadId(dialogId);
+
+        return GhostModeStoryState.mergeActiveMax(currentAccount, dialogId, telegramMaxReadId);
+    }
+
+    public boolean shouldMarkStoryAsRead(long dialogId, TL_stories.StoryItem storyItem) {
+        if (storyItem.media instanceof TLRPC.TL_messageMediaVideoStream) {
+            return true;
+        }
+
+        int maxReadId = GhostModeSettings.shouldHideStoryViews(currentAccount)
+                ? getMaxStoriesReadId(dialogId)
+                : getTelegramMaxStoriesReadId(dialogId);
+
+        return storyItem.id > maxReadId;
+    }
+
+    private int getTelegramMaxStoriesReadId(long dialogId) {
         TL_stories.PeerStories peerStories = getStories(dialogId);
         if (peerStories == null) {
             peerStories = getStoriesFromFullPeer(dialogId);
         }
+
         if (peerStories != null) {
             return Math.max(peerStories.max_read_id, dialogIdToMaxReadId.get(dialogId, 0));
         }
+
         return dialogIdToMaxReadId.get(dialogId, 0);
     }
 
     public void markStoriesAsReadFromServer(long dialogId, int maxStoryId) {
         //stage queue
         AndroidUtilities.runOnUIThread(() -> {
+            GhostModeStoryState.acknowledgeActive(currentAccount, dialogId, maxStoryId);
             int maxStoryReadId = Math.max(dialogIdToMaxReadId.get(dialogId, 0), maxStoryId);
             dialogIdToMaxReadId.put(dialogId, maxStoryReadId);
             storiesStorage.updateMaxReadId(dialogId, maxStoryReadId);
@@ -1347,13 +1382,14 @@ public class StoriesController {
                 return true;
             }
         }
+        int maxReadId = getMaxStoriesReadId(dialogId);
         for (int i = 0; i < userStories.stories.size(); i++) {
             TL_stories.StoryItem storyItem = userStories.stories.get(i);
             if (storyItem == null) continue;
 //            if (userStories.stories.get(i).justUploaded) {
 //                return true;
 //            }
-            if (storyItem.id > userStories.max_read_id) {
+            if (storyItem.id > maxReadId) {
                 return true;
             }
         }
@@ -1373,13 +1409,14 @@ public class StoriesController {
                 return 1;
             }
         }
+        int maxReadId = getMaxStoriesReadId(dialogId);
         for (int i = 0; i < userStories.stories.size(); i++) {
             TL_stories.StoryItem storyItem = userStories.stories.get(i);
             if (storyItem == null) continue;
             if (storyItem.media instanceof TLRPC.TL_messageMediaVideoStream) {
                 return 2;
             }
-            if (storyItem.id > userStories.max_read_id) {
+            if (storyItem.id > maxReadId) {
                 return 1;
             }
         }
@@ -1424,7 +1461,7 @@ public class StoriesController {
             }
         }
         boolean hasUnread = false;
-        int maxReadId = Math.max(peerStories.max_read_id, dialogIdToMaxReadId.get(dialogId, 0));
+        int maxReadId = getMaxStoriesReadId(dialogId);
         for (int i = 0; i < peerStories.stories.size(); i++) {
             if (peerStories.stories.get(i).media instanceof TLRPC.TL_messageMediaVideoStream) {
                 return STATE_LIVE;
@@ -1681,12 +1718,21 @@ public class StoriesController {
 
     public int getUnreadStoriesCount(long dialogId) {
         TL_stories.PeerStories userStories = allStoriesMap.get(dialogId);
+        int maxReadId = getMaxStoriesReadId(dialogId);
         for (int i = 0; i < userStories.stories.size(); i++) {
-            if (userStories.max_read_id < userStories.stories.get(i).id) {
+            if (maxReadId < userStories.stories.get(i).id) {
                 return  userStories.stories.size() - i;
             }
         }
         return 0;
+    }
+
+    private static boolean shouldHideStoryView(int account, long dialogId, TL_stories.StoryItem storyItem) {
+        return GhostModeSettings.shouldHideStoryViews(account)
+                && dialogId != UserConfig.getInstance(account).getClientUserId()
+                && storyItem instanceof TL_stories.TL_storyItem
+                && storyItem.media != null
+                && !(storyItem.media instanceof TLRPC.TL_messageMediaVideoStream);
     }
 
     public int getTotalStoriesCount(boolean hidden) {
@@ -3720,6 +3766,19 @@ public class StoriesController {
         }
 
         protected boolean markAsRead(int storyId) {
+            if (GhostModeSettings.shouldHideStoryViews(currentAccount) && GhostModeStoryState.isSeen(currentAccount, dialogId, storyId)) {
+                return false;
+            }
+            MessageObject messageObject = messageObjectsMap.get(storyId);
+            TL_stories.StoryItem storyItem = messageObject == null ? null : messageObject.storyItem;
+            if (shouldHideStoryView(currentAccount, dialogId, storyItem)) {
+                boolean changed = GhostModeStoryState.recordSeen(currentAccount, dialogId, storyId);
+                NotificationsController.getInstance(currentAccount).processReadStories(dialogId, storyId);
+                if (changed) {
+                    NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.storiesReadUpdated);
+                }
+                return changed;
+            }
             if (seenStories.contains(storyId)) return false;
             seenStories.add(storyId);
             saveCache();

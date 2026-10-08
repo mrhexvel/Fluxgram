@@ -73,9 +73,14 @@ public final class GhostModeSettings {
         set(account, HIDE_STORY_VIEWS, enabled);
     }
 
+    public static boolean shouldHideStoryViews(int account) {
+        return isEnabled(account) && hidesStoryViews(account);
+    }
+
     public static void clearAccount(int account) {
         preferences(account).edit().clear().apply();
         GhostModeReadState.clearAccount(account);
+        GhostModeStoryState.clearAccount(account);
     }
 
     private static boolean get(int account, String key) {

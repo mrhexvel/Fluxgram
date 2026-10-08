@@ -202,6 +202,96 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("GhostModeReadState.acknowledgeContent(currentAccount, 0, update.messages);", controller)
         self.assertIn("GhostModeReadState.acknowledgeContent(currentAccount, -update.channel_id, update.messages);", controller)
 
+    def test_hidden_active_story_state_is_account_owner_scoped_and_monotonic(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeStoryState.java").read_text()
+        settings = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+
+        self.assertIn('"fluxgram_ghost_story_state_" + account', source)
+        self.assertIn("getClientUserId()", source)
+        self.assertIn("preferences.getLong(OWNER, 0) != owner", source)
+        self.assertIn("preferences.edit().clear().putLong(OWNER, owner).apply()", source)
+        self.assertIn("if (storyId <= currentStoryId)", source)
+        self.assertIn("Math.max(serverMaxId, preferences.getInt(activeKey(dialogId), 0))", source)
+        self.assertIn("serverMaxId >= localMaxId", source)
+        self.assertIn("SEEN_PREFIX + dialogId + \"_\" + storyId", source)
+        self.assertIn("public static synchronized boolean recordSeen", source)
+        self.assertIn("public static synchronized boolean isSeen", source)
+        self.assertIn("GhostModeStoryState.clearAccount(account);", settings)
+
+    def test_active_story_view_is_hidden_before_telegram_state_and_request(self):
+        source = (JAVA / "ui/Stories/StoriesController.java").read_text()
+        start = source.index("    public boolean markStoryAsRead(TL_stories.PeerStories")
+        end = source.index("    public int getMaxStoriesReadId(", start)
+        method = source[start:end]
+
+        hidden = method.index("if (shouldHideStoryView(currentAccount, dialogId, storyItem))")
+        telegram_state = method.index("dialogIdToMaxReadId.put(dialogId, newReadId)")
+        request = method.index("TL_stories.TL_stories_readStories req")
+
+        self.assertLess(hidden, telegram_state)
+        self.assertLess(hidden, request)
+        hidden_branch = method[hidden:method.index("        int currentReadId", hidden)]
+        self.assertIn("GhostModeStoryState.recordActive", hidden_branch)
+        self.assertIn("processReadStories", hidden_branch)
+        self.assertIn("NotificationCenter.storiesReadUpdated", hidden_branch)
+        self.assertNotIn("dialogIdToMaxReadId.put", hidden_branch)
+        self.assertNotIn("storiesStorage.updateMaxReadId", hidden_branch)
+        self.assertNotIn("TL_stories_readStories", hidden_branch)
+
+    def test_active_story_effective_cursor_drives_rings_and_navigation(self):
+        controller = (JAVA / "ui/Stories/StoriesController.java").read_text()
+        peer_view = (JAVA / "ui/Stories/PeerStoriesView.java").read_text()
+        profile = (JAVA / "ui/Stories/ProfileStoriesView.java").read_text()
+        utilities = (JAVA / "ui/Stories/StoriesUtilities.java").read_text()
+
+        self.assertIn("GhostModeStoryState.mergeActiveMax(currentAccount, dialogId, telegramMaxReadId)", controller)
+        self.assertIn("GhostModeStoryState.acknowledgeActive(currentAccount, dialogId, maxStoryId)", controller)
+        self.assertIn("storiesController.getMaxStoriesReadId(dialogId)", peer_view)
+        self.assertIn("storiesController.getMaxStoriesReadId(dialogId)", profile)
+        self.assertIn("storiesController.getMaxStoriesReadId(params.dialogId)", utilities)
+
+    def test_live_and_unresolved_stories_keep_standard_view_path(self):
+        controller = (JAVA / "ui/Stories/StoriesController.java").read_text()
+        peer_view = (JAVA / "ui/Stories/PeerStoriesView.java").read_text()
+        start = controller.index("    private static boolean shouldHideStoryView(")
+        end = controller.index("    public int getTotalStoriesCount(", start)
+        policy = controller[start:end]
+
+        self.assertIn("storyItem instanceof TL_stories.TL_storyItem", policy)
+        self.assertIn("storyItem.media != null", policy)
+        self.assertIn("!(storyItem.media instanceof TLRPC.TL_messageMediaVideoStream)", policy)
+        self.assertIn("storiesController.shouldMarkStoryAsRead(dialogId, this.storyItem)", peer_view)
+
+    def test_story_lists_hide_increment_views_without_using_telegram_seen_state(self):
+        source = (JAVA / "ui/Stories/StoriesController.java").read_text()
+        start = source.index("        protected boolean markAsRead(int storyId)", source.index("    public static class StoriesList"))
+        end = source.index("        protected boolean canLoad()", start)
+        method = source[start:end]
+
+        hidden = method.index("if (shouldHideStoryView(currentAccount, dialogId, storyItem))")
+        telegram_seen = method.index("seenStories.add(storyId)")
+        request = method.index("TL_stories.TL_stories_incrementStoryViews req")
+        hidden_branch = method[hidden:method.index("            if (seenStories.contains", hidden)]
+
+        self.assertLess(hidden, telegram_seen)
+        self.assertLess(hidden, request)
+        self.assertIn("GhostModeStoryState.recordSeen", hidden_branch)
+        self.assertIn("processReadStories", hidden_branch)
+        self.assertNotIn("seenStories.add", hidden_branch)
+        self.assertNotIn("TL_stories_incrementStoryViews", hidden_branch)
+        self.assertLess(method.index("GhostModeSettings.shouldHideStoryViews(currentAccount) && GhostModeStoryState.isSeen"), hidden)
+
+    def test_reopening_story_after_disabling_hiding_uses_telegram_state(self):
+        controller = (JAVA / "ui/Stories/StoriesController.java").read_text()
+        start = controller.index("    public boolean shouldMarkStoryAsRead(")
+        end = controller.index("    private int getTelegramMaxStoriesReadId(", start)
+        method = controller[start:end]
+
+        self.assertIn("GhostModeSettings.shouldHideStoryViews(currentAccount)", method)
+        self.assertIn("? getMaxStoriesReadId(dialogId)", method)
+        self.assertIn(": getTelegramMaxStoriesReadId(dialogId)", method)
+        self.assertIn("return storyItem.id > maxReadId;", method)
+
     def test_mentions_and_live_locations_keep_local_behavior_without_network_receipts(self):
         controller = (JAVA / "messenger/MessagesController.java").read_text()
         location = (JAVA / "messenger/LocationController.java").read_text()
