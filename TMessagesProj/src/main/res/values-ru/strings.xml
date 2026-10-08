@@ -329,6 +329,9 @@
     <string name="FluxGramGhostModeSendSilentlyAlways">Всегда</string>
     <string name="FluxGramGhostModeSuggestForStories">Предлагать призрака для сторис</string>
     <string name="FluxGramGhostModeSuggestForStoriesInfo">Предупреждает перед открытием истории, когда просмотры не скрыты.</string>
+    <string name="FluxGramGhostModeWhitelist">Разрешённые чаты</string>
+    <string name="FluxGramGhostModeBlacklist">Всегда в режиме призрака</string>
+    <string name="FluxGramGhostModeDialogListsInfo">Для разрешённых чатов функции режима призрака не применяются. Для второго списка они работают даже при выключенном общем переключателе. Статус онлайн остаётся глобальным.</string>
     <string name="FluxGramGhostModeStoryPrompt">Включить режим призрака перед просмотром истории?</string>
     <string name="FluxGramGhostModePreviewInfo">Выберите, какие признаки активности скрывать.</string>
     <string name="FluxGramStealth">История и хранилище</string>

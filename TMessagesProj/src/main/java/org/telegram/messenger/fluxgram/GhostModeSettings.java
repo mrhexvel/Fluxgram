@@ -160,6 +160,7 @@ public final class GhostModeSettings {
         GhostModeTemporarySettings.clearAccount(account);
         GhostModeReadState.clearAccount(account);
         GhostModeStoryState.clearAccount(account);
+        GhostModeDialogScope.clearAccount(account);
     }
 
     private static boolean get(int account, String key) {

@@ -4,21 +4,30 @@ import android.content.Context;
 import android.view.View;
 import android.widget.FrameLayout;
 
+import androidx.collection.LongSparseArray;
+
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.DialogObject;
+import org.telegram.messenger.fluxgram.GhostModeDialogScope;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
+import org.telegram.tgnet.TLObject;
+import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Components.InviteMembersBottomSheet;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalRecyclerView;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 public final class FluxGramGhostModeActivity extends BaseFragment {
     private static final int ENABLED = 1;
@@ -31,6 +40,8 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
     private static final int USE_SEND_DELAY = 8;
     private static final int SILENT_SEND_MODE = 9;
     private static final int SUGGEST_FOR_STORIES = 10;
+    private static final int WHITELIST = 11;
+    private static final int BLACKLIST = 12;
 
     private UniversalRecyclerView listView;
     private boolean expanded = false;
@@ -124,6 +135,18 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
         items.add(UItem.asCheck(SUGGEST_FOR_STORIES, text(R.string.FluxGramGhostModeSuggestForStories))
                 .setChecked(GhostModeSettings.suggestsForStories(currentAccount)));
         items.add(UItem.asShadow(text(R.string.FluxGramGhostModeSuggestForStoriesInfo)));
+
+        items.add(UItem.asButton(
+                WHITELIST,
+                text(R.string.FluxGramGhostModeWhitelist),
+                chatCount(GhostModeDialogScope.whitelist(currentAccount).size())
+        ));
+        items.add(UItem.asButton(
+                BLACKLIST,
+                text(R.string.FluxGramGhostModeBlacklist),
+                chatCount(GhostModeDialogScope.blacklist(currentAccount).size())
+        ));
+        items.add(UItem.asShadow(text(R.string.FluxGramGhostModeDialogListsInfo)));
     }
 
     private void onItemClick(UItem item, View view, int position, float x, float y) {
@@ -135,6 +158,10 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
 
         if (item.id == SILENT_SEND_MODE) {
             showSilentSendModeDialog();
+            return;
+        }
+        if (item.id == WHITELIST || item.id == BLACKLIST) {
+            showDialogSelection(item.id == WHITELIST);
             return;
         }
 
@@ -196,6 +223,63 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
                 })
                 .setNegativeButton(text(R.string.Cancel), null)
                 .create());
+    }
+
+    private void showDialogSelection(boolean whitelist) {
+        int account = currentAccount;
+        long owner = UserConfig.getInstance(account).getClientUserId();
+        ArrayList<Long> selected = availableDialogs(
+                whitelist
+                        ? GhostModeDialogScope.whitelist(account)
+                        : GhostModeDialogScope.blacklist(account),
+                account
+        );
+        LongSparseArray<TLObject> ignored = new LongSparseArray<>();
+        TLRPC.User self = MessagesController.getInstance(account).getUser(owner);
+        if (self != null) {
+            ignored.put(owner, self);
+        }
+        InviteMembersBottomSheet picker = new InviteMembersBottomSheet(
+                getParentActivity(), account, ignored, 0, this, getResourceProvider()
+        );
+        picker.setDelegate(dialogs -> {
+            if (!activeAccount(account, owner)) {
+                return;
+            }
+
+            if (whitelist) {
+                GhostModeDialogScope.setWhitelist(account, new HashSet<>(dialogs));
+            } else {
+                GhostModeDialogScope.setBlacklist(account, new HashSet<>(dialogs));
+            }
+            listView.adapter.update(false);
+        }, selected);
+        picker.setSelectedContacts(selected);
+        showDialog(picker);
+    }
+
+    private ArrayList<Long> availableDialogs(HashSet<Long> dialogs, int account) {
+        ArrayList<Long> result = new ArrayList<>();
+        MessagesController controller = MessagesController.getInstance(account);
+
+        for (long dialogId : dialogs) {
+            if ((DialogObject.isUserDialog(dialogId) && controller.getUser(dialogId) != null)
+                    || (DialogObject.isChatDialog(dialogId) && controller.getChat(-dialogId) != null)) {
+                result.add(dialogId);
+            }
+        }
+
+        return result;
+    }
+
+    private boolean activeAccount(int account, long owner) {
+        return !isFinished && listView != null && getParentActivity() != null
+                && currentAccount == account && owner != 0
+                && owner == UserConfig.getInstance(account).getClientUserId();
+    }
+
+    private String chatCount(int count) {
+        return LocaleController.formatPluralString("Chats", count, count);
     }
 
     private String silentSendModeText(int mode) {

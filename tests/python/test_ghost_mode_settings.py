@@ -89,6 +89,32 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("GhostModeSettings.clearAccount(currentAccount);", cleanup)
         self.assertIn("GhostModeReadState.clearAccount(account);", settings)
+        self.assertIn("GhostModeDialogScope.clearAccount(account);", settings)
+
+    def test_dialog_scope_is_owner_scoped_and_lists_are_exclusive(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeDialogScope.java").read_text()
+
+        self.assertIn('"fluxgram_ghost_mode_dialogs_" + account', source)
+        self.assertIn("getClientUserId()", source)
+        self.assertIn("preferences.getLong(OWNER, 0) != owner", source)
+        self.assertIn("state.blacklist.removeAll(state.whitelist);", source)
+        self.assertIn("state.whitelist.removeAll(state.blacklist);", source)
+        self.assertIn("state.whitelist.contains(dialogId)", source)
+        self.assertIn("state.blacklist.contains(dialogId)", source)
+        self.assertIn("dialogId != UserConfig.getInstance(account).getClientUserId()", source)
+        self.assertIn("return GhostModeSettings.isEnabled(account);", source)
+
+    def test_screen_uses_telegram_picker_for_dialog_scope(self):
+        source = (JAVA / "ui/FluxGramGhostModeActivity.java").read_text()
+
+        self.assertIn("UItem.asButton(\n                WHITELIST", source)
+        self.assertIn("UItem.asButton(\n                BLACKLIST", source)
+        self.assertIn("new InviteMembersBottomSheet(", source)
+        self.assertIn("picker.setSelectedContacts(selected);", source)
+        self.assertIn("ignored.put(owner, self);", source)
+        self.assertIn("activeAccount(account, owner)", source)
+        self.assertIn("GhostModeDialogScope.setWhitelist", source)
+        self.assertIn("GhostModeDialogScope.setBlacklist", source)
 
     def test_screen_uses_five_item_expandable_menu_and_applies_online_changes(self):
         source = (JAVA / "ui/FluxGramGhostModeActivity.java").read_text()
