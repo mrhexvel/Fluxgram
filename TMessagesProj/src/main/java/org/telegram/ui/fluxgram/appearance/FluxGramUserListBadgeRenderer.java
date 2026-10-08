@@ -10,7 +10,7 @@ import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 
 public final class FluxGramUserListBadgeRenderer {
-    private static final int BADGE_SIZE_DP = 20;
+    private static final int BADGE_SIZE_DP = 16;
     private static final int BADGE_GAP_DP = 4;
 
     private final View view;

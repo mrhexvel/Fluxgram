@@ -61,9 +61,9 @@ public final class ProfileAppearanceCheck {
         ProfileBadgePlacement.Result shortName = placement(80, 0, 0, 0, 0, 0, 160, 1f);
         expect(shortName.isVisible() && shortName.getBadgeLeft() == 88,
                 "badge after short name");
-        expect(shortName.getScaledCenterX() == 56f,
+        expect(shortName.getScaledCenterX() == 54f,
                 "name and badge expose their common center");
-        expect(160 / 2f - shortName.getScaledCenterX() == 24f,
+        expect(160 / 2f - shortName.getScaledCenterX() == 26f,
                 "centered group has symmetric screen margins");
 
         ProfileBadgePlacement.Result officialStatuses = placement(80, 20, 16, 18, 0, 0, 200, 1f);
@@ -71,13 +71,13 @@ public final class ProfileAppearanceCheck {
                 "badge follows left verification, text, and both official statuses");
         expect(officialStatuses.getContentRight() == 146,
                 "official status cluster remains before badge");
-        expect(200 / 2f - officialStatuses.getScaledCenterX() == 11f,
+        expect(200 / 2f - officialStatuses.getScaledCenterX() == 13f,
                 "full status group remains centered");
 
-        ProfileBadgePlacement.Result boundary = placement(80, 0, 0, 0, 0, 0, 112, 1f);
+        ProfileBadgePlacement.Result boundary = placement(80, 0, 0, 0, 0, 0, 108, 1f);
         expect(boundary.isVisible() && boundary.getBadgeLeft() == 88,
                 "badge fits exact boundary");
-        expect(!placement(80, 0, 0, 0, 0, 0, 111, 1f).isVisible(),
+        expect(!placement(80, 0, 0, 0, 0, 0, 107, 1f).isVisible(),
                 "badge hides beyond boundary");
         expect(!placement(140, 0, 0, 0, 0, 0, 160, 1f).isVisible(),
                 "long name has priority");
@@ -87,11 +87,11 @@ public final class ProfileAppearanceCheck {
                 "padding and drawable gaps participate in placement");
         expect(paddedScaled.getAvailableRight() == 210,
                 "right padding limits visible bounds");
-        expect(paddedScaled.getScaledCenterX() == 106.25f,
+        expect(paddedScaled.getScaledCenterX() == 103.75f,
                 "view scale participates in center calculation");
         float scaledTranslation = 220 / 2f - paddedScaled.getScaledCenterX();
-        expect(scaledTranslation + 6 * 1.25f == 11.25f
-                        && scaledTranslation + 164 * 1.25f == 208.75f,
+        expect(scaledTranslation + 6 * 1.25f == 13.75f
+                        && scaledTranslation + 160 * 1.25f == 206.25f,
                 "scaled group has symmetric screen margins");
     }
 
@@ -112,7 +112,7 @@ public final class ProfileAppearanceCheck {
                 secondRightDrawableWidth,
                 4,
                 8,
-                24,
+                20,
                 paddingLeft,
                 paddingRight,
                 viewWidth,

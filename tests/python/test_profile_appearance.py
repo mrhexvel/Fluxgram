@@ -440,7 +440,7 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("UserObject.isUserSelf(user)", user_cell)
         self.assertIn("setCurrentAccount(account);", search_cell)
         self.assertIn("setCurrentAccount(account);", user_cell)
-        self.assertIn("BADGE_SIZE_DP = 20", renderer)
+        self.assertIn("BADGE_SIZE_DP = 16", renderer)
         self.assertIn("LiteMode.FLAG_PARTICLES", renderer)
         self.assertNotIn("MotionEvent", renderer)
 

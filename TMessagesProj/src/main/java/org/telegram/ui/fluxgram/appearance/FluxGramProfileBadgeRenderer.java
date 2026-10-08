@@ -14,7 +14,7 @@ import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 
 public final class FluxGramProfileBadgeRenderer {
-    private static final int BADGE_SIZE_DP = 24;
+    private static final int BADGE_SIZE_DP = 20;
     private static final int BADGE_GAP_DP = 8;
     private static final int HIT_SIZE_DP = 32;
     private static final int DRAWABLE_GAP_DP = 4;
