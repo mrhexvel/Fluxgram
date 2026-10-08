@@ -67,6 +67,7 @@ public final class GhostModeSettings {
 
     public static void clearAccount(int account) {
         preferences(account).edit().clear().apply();
+        GhostModeReadState.clearAccount(account);
     }
 
     private static boolean get(int account, String key) {

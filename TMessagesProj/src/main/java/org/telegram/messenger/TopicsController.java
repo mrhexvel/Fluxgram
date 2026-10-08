@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import androidx.collection.LongSparseArray;
 
 import org.telegram.SQLite.SQLiteCursor;
+import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.NativeByteBuffer;
@@ -275,6 +276,8 @@ public class TopicsController extends BaseController {
                     deletedTopics.add((long) newTopic.id);
                     continue;
                 }
+                long topicId = getMessagesController().isMonoForum(-chatId) ? DialogObject.getPeerDialogId(newTopic.from_id) : newTopic.id;
+                GhostModeReadState.applyTopic(currentAccount, -chatId, topicId, newTopic, !fromCache);
                 if (!topicsMap.containsKey(newTopic.id)) {
                     if (messagesMap != null) {
                         newTopic.topMessage = messagesMap.get(newTopic.top_message);
@@ -583,11 +586,12 @@ public class TopicsController extends BaseController {
         }));
     }
 
-    public void updateMaxReadId(long chatId, long topicId, int readMaxId, int unreadCount, int mentionsUnread) {
+    public void updateMaxReadId(long chatId, long topicId, int readMaxId, int unreadCount, int mentionsUnread, boolean serverData) {
         TLRPC.TL_forumTopic topic = findTopic(chatId, topicId);
         if (topic != null) {
             topic.read_inbox_max_id = readMaxId;
             topic.unread_count = unreadCount;
+            GhostModeReadState.applyTopic(currentAccount, -chatId, topicId, topic, serverData);
             if (mentionsUnread >= 0) {
                 topic.unread_mentions_count = mentionsUnread;
             }

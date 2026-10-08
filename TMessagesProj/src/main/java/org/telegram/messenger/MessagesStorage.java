@@ -33,6 +33,7 @@ import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.fluxgram.DeletedMessagesArchive;
 import org.telegram.messenger.fluxgram.EditHistory;
 import org.telegram.messenger.fluxgram.EditHistoryCapture;
+import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
@@ -6828,7 +6829,7 @@ public class MessagesStorage extends BaseController {
                         state.dispose();
 
                         if (isForum(key, FORUM_TYPE_DIRECT | FORUM_TYPE_CHAT_TABS | FORUM_TYPE_BOT)) {
-                            updateTopicsWithReadFromAllInternal(key, oldMaxId, messageId);
+                            updateTopicsWithReadFromAllInternal(key, oldMaxId, messageId, true, false);
                         }
                     }
                 }
@@ -8144,7 +8145,7 @@ public class MessagesStorage extends BaseController {
     }
 
 
-    public void processPendingRead(long dialogId, int maxPositiveId, int maxNegativeId, int scheduledCount) {
+    public void processPendingRead(long dialogId, int maxPositiveId, int maxNegativeId, int scheduledCount, boolean preserveLocalRead) {
         int maxDate = lastSavedDate;
         storageQueue.postRunnable(() -> {
             SQLiteCursor cursor = null;
@@ -8186,6 +8187,10 @@ public class MessagesStorage extends BaseController {
                         }
                         cursor.dispose();
                         unreadCount = Math.max(0, unreadCount - updatedCount);
+                    }
+
+                    if (preserveLocalRead) {
+                        GhostModeReadState.addDialogHiddenUnreadCount(currentAccount, dialogId, Math.max(prevUnreadCount - unreadCount, 0));
                     }
 
                     state = database.executeFast("DELETE FROM unread_push_messages WHERE uid = ? AND mid <= ?");
@@ -8238,7 +8243,7 @@ public class MessagesStorage extends BaseController {
                 database.commitTransaction();
 
                 if (isForum(dialogId, FORUM_TYPE_DIRECT | FORUM_TYPE_CHAT_TABS | FORUM_TYPE_BOT)) {
-                    updateTopicsWithReadFromAllInternal(dialogId, oldMaxId, currentMaxId);
+                    updateTopicsWithReadFromAllInternal(dialogId, oldMaxId, currentMaxId, false, preserveLocalRead);
                 }
 
                 //TODO topics maybe read all topics when all messages read
@@ -8264,13 +8269,13 @@ public class MessagesStorage extends BaseController {
         });
     }
 
-    private void updateTopicsWithReadFromAllInternal(long dialogId, long oldMessageId, long newMessageId) {
+    private void updateTopicsWithReadFromAllInternal(long dialogId, long oldMessageId, long newMessageId, boolean serverData, boolean preserveAllTopics) {
         SQLiteCursor cursor = null;
         try {
             cursor = database.queryFinalized(String.format(Locale.US, "SELECT topic_id FROM topics WHERE did = %d AND max_read_id < %d AND (top_message > %d OR unread_count > 0)", dialogId, newMessageId, oldMessageId));
             while (cursor.next()) {
                 long topicId = cursor.longValue(0);
-                updateRepliesMaxReadIdInternal(dialogId, topicId, (int) newMessageId, -1);
+                updateRepliesMaxReadIdInternal(dialogId, topicId, (int) newMessageId, -1, serverData, preserveAllTopics);
             }
         } catch (Exception e) {
             checkSQLException(e);
@@ -11634,7 +11639,7 @@ public class MessagesStorage extends BaseController {
         });
     }
 
-    private void updateRepliesMaxReadIdInternal(final long dialogId, long mid, int readMaxId, int unreadCount) {
+    private void updateRepliesMaxReadIdInternal(final long dialogId, long mid, int readMaxId, int unreadCount, boolean serverData, boolean allowParentCursor) {
         SQLitePreparedStatement state = null;
         SQLiteCursor cursor = null;
         try {
@@ -11667,10 +11672,12 @@ public class MessagesStorage extends BaseController {
                 state = null;
             }
 
-            cursor = database.queryFinalized(String.format(Locale.US, "SELECT max_read_id FROM topics WHERE did = %d AND topic_id = %d", dialogId, mid));
+            cursor = database.queryFinalized(String.format(Locale.US, "SELECT max_read_id, unread_count FROM topics WHERE did = %d AND topic_id = %d", dialogId, mid));
             boolean updateTopic = false;
+            int currentUnreadCount = 0;
             if (cursor.next()) {
                 int currentMaxId = cursor.intValue(0);
+                currentUnreadCount = cursor.intValue(1);
                 if (readMaxId >= currentMaxId) {
                     updateTopic = true;
                 }
@@ -11718,8 +11725,10 @@ public class MessagesStorage extends BaseController {
                 unreadMentionsCount = 0;
             }
 
-
             if (updateTopic) {
+                if (!serverData) {
+                    GhostModeReadState.preserveTopicRead(currentAccount, dialogId, mid, readMaxId, Math.max(currentUnreadCount - unreadCount, 0), allowParentCursor);
+                }
                 if (unreadMentionsCount >= 0) {
                     if (BuildVars.DEBUG_PRIVATE_VERSION && unreadMentionsCount > 0) {
                         FileLog.d("(updateRepliesMaxReadIdInternal) new unread mentions " + unreadMentionsCount + " for dialog_id=" + dialogId + " topic_id=" + mid);
@@ -11732,7 +11741,7 @@ public class MessagesStorage extends BaseController {
                 int finalUnreadCount = unreadCount;
                 int finalUnreadMentionsCount = unreadMentionsCount;
                 AndroidUtilities.runOnUIThread(() -> {
-                    getMessagesController().getTopicsController().updateMaxReadId(-dialogId, mid, readMaxId, finalUnreadCount, finalUnreadMentionsCount);
+                    getMessagesController().getTopicsController().updateMaxReadId(-dialogId, mid, readMaxId, finalUnreadCount, finalUnreadMentionsCount, serverData);
                 });
 
                 resetForumBadgeIfNeed(dialogId);
@@ -11778,10 +11787,14 @@ public class MessagesStorage extends BaseController {
     }
 
     public void updateRepliesMaxReadId(long chatId, long mid, int readMaxId, int unreadCount, boolean useQueue) {
+        updateRepliesMaxReadId(chatId, mid, readMaxId, unreadCount, useQueue, false);
+    }
+
+    public void updateRepliesMaxReadId(long chatId, long mid, int readMaxId, int unreadCount, boolean useQueue, boolean serverData) {
         if (useQueue) {
-            storageQueue.postRunnable(() -> updateRepliesMaxReadIdInternal(-chatId, mid, readMaxId, unreadCount));
+            storageQueue.postRunnable(() -> updateRepliesMaxReadIdInternal(-chatId, mid, readMaxId, unreadCount, serverData, false));
         } else {
-            updateRepliesMaxReadIdInternal(-chatId, mid, readMaxId, unreadCount);
+            updateRepliesMaxReadIdInternal(-chatId, mid, readMaxId, unreadCount, serverData, false);
         }
     }
 

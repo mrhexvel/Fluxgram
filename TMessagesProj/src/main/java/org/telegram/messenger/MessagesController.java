@@ -52,6 +52,7 @@ import androidx.core.graphics.ColorUtils;
 import androidx.core.util.Consumer;
 
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
+import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
@@ -2187,6 +2188,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         continue;
                     }
                 }
+                GhostModeReadState.applyDialog(currentAccount, d, true);
                 new_dialogs_dict.put(d.id, d);
 
                 Integer value = dialogs_read_inbox_max.get(d.id);
@@ -2203,6 +2205,11 @@ public class MessagesController extends BaseController implements NotificationCe
             }
 
             if (pinnedRemoteDialogs != null && !pinnedRemoteDialogs.dialogs.isEmpty()) {
+                for (int a = 0; a < pinnedRemoteDialogs.dialogs.size(); a++) {
+                    TLRPC.Dialog dialog = pinnedRemoteDialogs.dialogs.get(a);
+                    DialogObject.initDialog(dialog);
+                    GhostModeReadState.applyDialog(currentAccount, dialog, true);
+                }
                 ImageLoader.saveMessagesThumbs(pinnedRemoteDialogs.messages);
                 for (int a = 0; a < pinnedRemoteDialogs.messages.size(); a++) {
                     TLRPC.Message message = pinnedRemoteDialogs.messages.get(a);
@@ -7438,23 +7445,32 @@ public class MessagesController extends BaseController implements NotificationCe
                 for (int a = 0; a < res.dialogs.size(); a++) {
                     TLRPC.Dialog dialog = res.dialogs.get(a);
                     DialogObject.initDialog(dialog);
+                    int serverReadInboxMaxId = dialog.read_inbox_max_id;
+                    int serverUnreadCount = dialog.unread_count;
+                    int effectiveReadInboxMaxId = GhostModeReadState.mergeDialogMax(currentAccount, dialog.id, serverReadInboxMaxId);
+
+                    if (effectiveReadInboxMaxId > dialog.read_inbox_max_id) {
+                        dialog.read_inbox_max_id = effectiveReadInboxMaxId;
+                        dialog.unread_count = GhostModeReadState.mergeDialogUnreadCount(currentAccount, dialog.id, dialog.top_message, effectiveReadInboxMaxId, dialog.unread_count);
+                        dialog.unread_mark = false;
+                    }
 
                     Integer value = dialogs_read_inbox_max.get(dialog.id);
                     if (value == null) {
                         value = 0;
                     }
                     dialogs_read_inbox_max.put(dialog.id, Math.max(dialog.read_inbox_max_id, value));
-                    if (value == 0) {
+                    if (value == 0 && serverReadInboxMaxId > 0) {
                         if (dialog.peer.channel_id != 0) {
                             TL_update.TL_updateReadChannelInbox update = new TL_update.TL_updateReadChannelInbox();
                             update.channel_id = dialog.peer.channel_id;
-                            update.max_id = dialog.read_inbox_max_id;
-                            update.still_unread_count = dialog.unread_count;
+                            update.max_id = serverReadInboxMaxId;
+                            update.still_unread_count = serverUnreadCount;
                             arrayList.add(update);
                         } else {
                             TL_update.TL_updateReadHistoryInbox update = new TL_update.TL_updateReadHistoryInbox();
                             update.peer = dialog.peer;
-                            update.max_id = dialog.read_inbox_max_id;
+                            update.max_id = serverReadInboxMaxId;
                             arrayList.add(update);
                         }
                     }
@@ -11009,6 +11025,9 @@ public class MessagesController extends BaseController implements NotificationCe
                                 checkingPromoInfoRequestId = 0;
                                 TLRPC.TL_messages_peerDialogs res2 = (TLRPC.TL_messages_peerDialogs) response1;
                                 if (res2 != null && !res2.dialogs.isEmpty()) {
+                                    TLRPC.Dialog serverPromoDialog = res2.dialogs.get(0);
+                                    DialogObject.initDialog(serverPromoDialog);
+                                    GhostModeReadState.applyDialog(currentAccount, serverPromoDialog, true);
                                     getMessagesStorage().putUsersAndChats(res.users, res.chats, true, true);
                                     TLRPC.TL_messages_dialogs dialogs = new TLRPC.TL_messages_dialogs();
                                     dialogs.chats = res2.chats;
@@ -11793,6 +11812,8 @@ public class MessagesController extends BaseController implements NotificationCe
                             TLRPC.TL_messages_peerDialogs res = (TLRPC.TL_messages_peerDialogs) response;
                             if (!res.dialogs.isEmpty()) {
                                 TLRPC.Dialog dialog = res.dialogs.get(0);
+                                DialogObject.initDialog(dialog);
+                                GhostModeReadState.applyDialog(currentAccount, dialog, true);
 
                                 if (dialog.top_message != 0) {
                                     TLRPC.TL_messages_dialogs dialogs = new TLRPC.TL_messages_dialogs();
@@ -13026,6 +13047,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         continue;
                     }
                 }
+                GhostModeReadState.applyDialog(currentAccount, d, true);
                 new_dialogs_dict.put(d.id, d);
 
                 Integer value = dialogs_read_inbox_max.get(d.id);
@@ -13574,6 +13596,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         continue;
                     }
                 }
+                GhostModeReadState.applyDialog(currentAccount, d, loadType != DIALOGS_LOAD_TYPE_CACHE);
                 new_dialogs_dict.put(d.id, d);
 
                 if (allowCheck && loadType == DIALOGS_LOAD_TYPE_CACHE && (d.read_outbox_max_id == 0 || d.read_inbox_max_id == 0) && d.top_message != 0) {
@@ -14189,6 +14212,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                 }
+                GhostModeReadState.applyDialog(currentAccount, d, !fromCache);
                 new_dialogs_dict.put(d.id, d);
                 dialogsToUpdate.put(d.id, d.unread_count);
 
@@ -14758,6 +14782,10 @@ public class MessagesController extends BaseController implements NotificationCe
 
         if (threadId != 0) {
             createReadTask = maxPositiveId != Integer.MAX_VALUE;
+
+            if (createReadTask && !DialogObject.isEncryptedDialog(dialogId) && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+                GhostModeReadState.recordTopic(currentAccount, dialogId, threadId, maxPositiveId);
+            }
         } else {
             boolean countMessages = getNotificationsController().showBadgeMessages;
             if (!DialogObject.isEncryptedDialog(dialogId)) {
@@ -14770,7 +14798,13 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 dialogs_read_inbox_max.put(dialogId, Math.max(value, maxPositiveId));
 
-                getMessagesStorage().processPendingRead(dialogId, maxPositiveId, maxNegativeId, scheduledCount);
+                boolean preserveLocalRead = GhostModeSettings.shouldHideReadReceipts(currentAccount);
+
+                if (preserveLocalRead) {
+                    GhostModeReadState.recordDialog(currentAccount, dialogId, maxPositiveId);
+                }
+
+                getMessagesStorage().processPendingRead(dialogId, maxPositiveId, maxNegativeId, scheduledCount, preserveLocalRead);
                 getMessagesStorage().getStorageQueue().postRunnable(() -> AndroidUtilities.runOnUIThread(() -> {
                     TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
                     if (dialog != null) {
@@ -14783,7 +14817,6 @@ public class MessagesController extends BaseController implements NotificationCe
                                 dialog.unread_count = dialog.top_message - maxPositiveId;
                             }
                         }
-
                         boolean wasUnread;
                         if (wasUnread = dialog.unread_mark) {
                             dialog.unread_mark = false;
@@ -14824,7 +14857,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 createReadTask = true;
 
                 TLRPC.EncryptedChat chat = getEncryptedChat(DialogObject.getEncryptedChatId(dialogId));
-                getMessagesStorage().processPendingRead(dialogId, maxPositiveId, maxNegativeId, scheduledCount);
+                getMessagesStorage().processPendingRead(dialogId, maxPositiveId, maxNegativeId, scheduledCount, false);
                 getMessagesStorage().getStorageQueue().postRunnable(() -> AndroidUtilities.runOnUIThread(() -> {
                     getNotificationsController().processReadMessages(null, dialogId, maxDate, 0, popup);
                     TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
@@ -17519,6 +17552,7 @@ public class MessagesController extends BaseController implements NotificationCe
                             }
                         }
                     }
+                    GhostModeReadState.applyDialog(currentAccount, d, true);
 
                     Integer value = dialogs_read_inbox_max.get(d.id);
                     if (value == null) {
@@ -18861,17 +18895,17 @@ public class MessagesController extends BaseController implements NotificationCe
                     markAsReadMessagesInbox = new LongSparseIntArray();
                 }
                 if (update.peer.chat_id != 0) {
-                    markAsReadMessagesInbox.put(-update.peer.chat_id, update.max_id);
                     dialogId = -update.peer.chat_id;
                 } else {
-                    markAsReadMessagesInbox.put(update.peer.user_id, update.max_id);
                     dialogId = update.peer.user_id;
                 }
+                int effectiveMaxId = GhostModeReadState.mergeDialogMax(currentAccount, dialogId, update.max_id);
+                markAsReadMessagesInbox.put(dialogId, effectiveMaxId);
                 Integer value = dialogs_read_inbox_max.get(dialogId);
                 if (value == null) {
                     value = getMessagesStorage().getDialogReadMax(false, dialogId);
                 }
-                dialogs_read_inbox_max.put(dialogId, Math.max(value, update.max_id));
+                dialogs_read_inbox_max.put(dialogId, Math.max(value, effectiveMaxId));
             } else if (baseUpdate instanceof TL_update.TL_updateReadHistoryOutbox) {
                 TL_update.TL_updateReadHistoryOutbox update = (TL_update.TL_updateReadHistoryOutbox) baseUpdate;
                 long dialogId;
@@ -19390,9 +19424,23 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (stillUnreadMessagesCount == null) {
                     stillUnreadMessagesCount = new LongSparseIntArray();
                 }
-                markAsReadMessagesInbox.put(dialogId, update.max_id);
-                stillUnreadMessagesCount.put(dialogId, update.still_unread_count);
-                dialogs_read_inbox_max.put(dialogId, Math.max(value, update.max_id));
+                int effectiveMaxId = GhostModeReadState.mergeDialogMax(currentAccount, dialogId, update.max_id);
+                TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
+                int unreadCount = update.still_unread_count;
+
+                if (effectiveMaxId > update.max_id) {
+                    unreadCount = GhostModeReadState.mergeDialogUnreadCount(
+                            currentAccount,
+                            dialogId,
+                            dialog == null ? 0 : dialog.top_message,
+                            effectiveMaxId,
+                            unreadCount
+                    );
+                }
+
+                markAsReadMessagesInbox.put(dialogId, effectiveMaxId);
+                stillUnreadMessagesCount.put(dialogId, unreadCount);
+                dialogs_read_inbox_max.put(dialogId, Math.max(value, effectiveMaxId));
                 FileLog.d("TL_updateReadChannelInbox " + dialogId + "  new unread = " + update.still_unread_count + " max id = " + update.max_id + " from get diff " + fromGetDifference);
             } else if (
                 baseUpdate instanceof TL_update.TL_updatePinnedForumTopic ||
@@ -20628,10 +20676,11 @@ public class MessagesController extends BaseController implements NotificationCe
                         } else {
                             did = 0;
                         }
-                        getMessagesStorage().setDialogUnread(did, update.unread);
+                        boolean unread = update.unread && !GhostModeReadState.hasDialogCursor(currentAccount, did);
+                        getMessagesStorage().setDialogUnread(did, unread);
                         TLRPC.Dialog dialog = dialogs_dict.get(did);
-                        if (dialog != null && dialog.unread_mark != update.unread) {
-                            dialog.unread_mark = update.unread;
+                        if (dialog != null && dialog.unread_mark != unread) {
+                            dialog.unread_mark = unread;
                             if (dialog.unread_count == 0 && !isDialogMuted(did, 0)) {
                                 if (dialog.unread_mark) {
                                     unreadUnmutedDialogs++;
@@ -20697,7 +20746,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         TL_update.TL_updateReadChannelDiscussionInbox update = (TL_update.TL_updateReadChannelDiscussionInbox) baseUpdate;
                         getNotificationCenter().postNotificationName(NotificationCenter.threadMessagesRead, -update.channel_id, update.top_msg_id, update.read_max_id, 0);
                         if ((update.flags & 1) != 0) {
-                            getMessagesStorage().updateRepliesMaxReadId(update.broadcast_id, update.broadcast_post, update.read_max_id, 0,true);
+                            getMessagesStorage().updateRepliesMaxReadId(update.broadcast_id, update.broadcast_post, update.read_max_id, 0, true, true);
                             getNotificationCenter().postNotificationName(NotificationCenter.commentsRead, update.broadcast_id, update.broadcast_post, update.read_max_id);
                         }
                     } else if (baseUpdate instanceof TL_update.TL_updateReadChannelDiscussionOutbox) {
@@ -20706,7 +20755,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     }  else if (baseUpdate instanceof TL_update.TL_updateReadMonoForumInbox) {
                         TL_update.TL_updateReadMonoForumInbox update = (TL_update.TL_updateReadMonoForumInbox) baseUpdate;
                         getNotificationCenter().postNotificationName(NotificationCenter.monoForumMessagesRead, -update.channel_id, DialogObject.getPeerDialogId(update.saved_peer_id), update.read_max_id, 0);
-                        getMessagesStorage().updateRepliesMaxReadId(update.channel_id, DialogObject.getPeerDialogId(update.saved_peer_id), update.read_max_id, 0,true);
+                        getMessagesStorage().updateRepliesMaxReadId(update.channel_id, DialogObject.getPeerDialogId(update.saved_peer_id), update.read_max_id, 0, true, true);
                         // getNotificationCenter().postNotificationName(NotificationCenter.commentsRead, update.channel_id, DialogObject.getPeerDialogId(update.saved_peer_id), update.read_max_id);
                     } else if (baseUpdate instanceof TL_update.TL_updateReadMonoForumOutbox) {
                         TL_update.TL_updateReadMonoForumOutbox update = (TL_update.TL_updateReadMonoForumOutbox) baseUpdate;
@@ -21274,7 +21323,7 @@ public class MessagesController extends BaseController implements NotificationCe
         }
         if (topicsReadInbox != null) {
             for (MessagesStorage.TopicKey topicKey : topicsReadInbox.keySet()) {
-                getMessagesStorage().updateRepliesMaxReadId(-topicKey.dialogId, (int) topicKey.topicId, topicsReadInbox.get(topicKey), -1, true);
+                getMessagesStorage().updateRepliesMaxReadId(-topicKey.dialogId, (int) topicKey.topicId, topicsReadInbox.get(topicKey), -1, true, true);
             }
         }
         if (topicsReadOutbox != null) {
@@ -21284,7 +21333,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
         if (savedReadInbox != null) {
             for (MessagesStorage.TopicKey topicKey : savedReadInbox.keySet()) {
-                getMessagesStorage().updateRepliesMaxReadId(-topicKey.dialogId, (int) topicKey.topicId, savedReadInbox.get(topicKey), -1, true);
+                getMessagesStorage().updateRepliesMaxReadId(-topicKey.dialogId, (int) topicKey.topicId, savedReadInbox.get(topicKey), -1, true, true);
             }
         }
         if (savedReadOutbox != null) {

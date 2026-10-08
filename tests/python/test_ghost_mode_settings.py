@@ -25,8 +25,10 @@ class GhostModeSettingsTest(unittest.TestCase):
         storage = (JAVA / "messenger/MessagesStorage.java").read_text()
         cleanup = storage[storage.index("    public void cleanup(boolean isLogin)"):
                           storage.index("    public void saveSecretParams", storage.index("    public void cleanup(boolean isLogin)"))]
+        settings = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
 
         self.assertIn("GhostModeSettings.clearAccount(currentAccount);", cleanup)
+        self.assertIn("GhostModeReadState.clearAccount(account);", settings)
 
     def test_screen_uses_expandable_menu_and_applies_online_changes(self):
         source = (JAVA / "ui/FluxGramGhostModeActivity.java").read_text()
@@ -175,6 +177,75 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertNotIn("GhostModeSettings", method)
         self.assertIn("TLRPC.TL_channels_readMessageContents", method)
         self.assertIn("TLRPC.TL_messages_readMessageContents", method)
+
+    def test_hidden_read_cursors_are_owner_scoped_and_monotonic(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeReadState.java").read_text()
+
+        self.assertIn('"fluxgram_ghost_read_state_" + account', source)
+        self.assertIn("getClientUserId()", source)
+        self.assertIn("preferences.getLong(OWNER, 0) != owner", source)
+        self.assertIn("preferences.edit().clear().putLong(OWNER, owner).apply()", source)
+        self.assertIn("if (maxId > currentMaxId)", source)
+        self.assertIn("DIALOG_PREFIX + dialogId", source)
+        self.assertIn("TOPIC_PREFIX + dialogId + \"_\" + topicId", source)
+
+    def test_server_state_is_clamped_until_it_catches_local_cursor(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeReadState.java").read_text()
+
+        dialog_start = source.index("    public static synchronized void applyDialog(")
+        dialog_end = source.index("    public static synchronized void applyTopic(", dialog_start)
+        dialog = source[dialog_start:dialog_end]
+
+        self.assertIn("serverData && dialog.read_inbox_max_id >= localMaxId", dialog)
+        self.assertIn("remove(preferences, key);", dialog)
+        self.assertIn("dialog.read_inbox_max_id = localMaxId;", dialog)
+        self.assertIn("dialog.unread_count = mergeUnreadCount", dialog)
+        self.assertIn("dialog.unread_mark = false;", dialog)
+
+        topic_start = dialog_end
+        topic_end = source.index("    public static synchronized int mergeDialogMax(", topic_start)
+        topic = source[topic_start:topic_end]
+
+        self.assertIn("serverData && topic.read_inbox_max_id >= localMaxId", topic)
+        self.assertIn("topic.read_inbox_max_id = localMaxId;", topic)
+        self.assertIn("topic.unread_count = mergeUnreadCount", topic)
+
+        self.assertIn("unreadCount - hiddenUnreadCount", source)
+        self.assertNotIn("topMessageId - localMaxId", source)
+        self.assertIn("allowParentCursor", source)
+
+    def test_hidden_history_records_cursor_before_queued_local_processing(self):
+        source = (JAVA / "messenger/MessagesController.java").read_text()
+        start = source.index("    public void markDialogAsRead(")
+        end = source.index("    public void fetchCommunityPendingJoinRequests(", start)
+        method = source[start:end]
+
+        record = method.index("GhostModeReadState.recordDialog")
+
+        self.assertLess(record, method.index("getMessagesStorage().processPendingRead"))
+        self.assertIn("GhostModeSettings.shouldHideReadReceipts(currentAccount)", method[:record])
+        self.assertIn("!DialogObject.isEncryptedDialog(dialogId)", method[:record])
+        self.assertIn("GhostModeReadState.recordTopic", method)
+
+    def test_dialog_and_topic_loads_merge_persisted_read_cursor(self):
+        controller = (JAVA / "messenger/MessagesController.java").read_text()
+        storage = (JAVA / "messenger/MessagesStorage.java").read_text()
+        topics = (JAVA / "messenger/TopicsController.java").read_text()
+
+        self.assertIn("GhostModeReadState.applyDialog(currentAccount, d, loadType != DIALOGS_LOAD_TYPE_CACHE);", controller)
+        self.assertIn("GhostModeReadState.applyDialog(currentAccount, d, !fromCache);", controller)
+        self.assertIn("GhostModeReadState.mergeDialogMax(currentAccount, dialogId, update.max_id)", controller)
+        self.assertNotIn("GhostModeReadState.applyDialog(currentAccount, dialog, false);", storage)
+        self.assertNotIn("GhostModeReadState.applyTopic(currentAccount, dialogId, topicId, topic, false);", storage)
+        self.assertIn("GhostModeReadState.applyTopic(currentAccount, -chatId, topicId, newTopic, !fromCache);", topics)
+        self.assertIn("GhostModeReadState.applyTopic(currentAccount, -chatId, topicId, topic, serverData);", topics)
+        self.assertIn("GhostModeReadState.preserveTopicRead", storage)
+        self.assertIn("boolean preserveLocalRead", storage)
+        self.assertIn("boolean preserveAllTopics", storage)
+        self.assertIn("boolean useQueue, boolean serverData", storage)
+
+        self.assertIn("int serverUnreadCount = dialog.unread_count;", controller)
+        self.assertIn("update.still_unread_count = serverUnreadCount;", controller)
 
     def test_settings_home_has_separate_ghost_and_storage_routes(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
