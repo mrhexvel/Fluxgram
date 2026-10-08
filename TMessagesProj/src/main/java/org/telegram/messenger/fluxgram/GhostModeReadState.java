@@ -189,6 +189,22 @@ public final class GhostModeReadState {
         return preferences != null && preferences.getInt(dialogKey(dialogId), 0) > 0;
     }
 
+    public static synchronized int getDialogMax(int account, long dialogId) {
+        return getMax(account, dialogKey(dialogId));
+    }
+
+    public static synchronized int getTopicMax(int account, long dialogId, long topicId) {
+        return getMax(account, topicKey(dialogId, topicId));
+    }
+
+    public static synchronized void acknowledgeDialog(int account, long dialogId, int maxId) {
+        acknowledge(account, dialogKey(dialogId), maxId);
+    }
+
+    public static synchronized void acknowledgeTopic(int account, long dialogId, long topicId, int maxId) {
+        acknowledge(account, topicKey(dialogId, topicId), maxId);
+    }
+
     public static synchronized void clearAccount(int account) {
         preferences(account).edit().clear().apply();
     }
@@ -224,6 +240,26 @@ public final class GhostModeReadState {
 
         int currentHiddenUnreadCount = preferences.getInt(hiddenUnreadKey(key), 0);
         preferences.edit().putInt(hiddenUnreadKey(key), currentHiddenUnreadCount + hiddenUnreadCount).apply();
+    }
+
+    private static int getMax(int account, String key) {
+        SharedPreferences preferences = activePreferences(account);
+
+        return preferences == null ? 0 : preferences.getInt(key, 0);
+    }
+
+    private static void acknowledge(int account, String key, int maxId) {
+        SharedPreferences preferences = activePreferences(account);
+
+        if (preferences == null) {
+            return;
+        }
+
+        int localMaxId = preferences.getInt(key, 0);
+
+        if (localMaxId > 0 && localMaxId <= maxId) {
+            remove(preferences, key);
+        }
     }
 
     private static int mergeUnreadCount(SharedPreferences preferences, String key, int topMessageId, int localMaxId, int unreadCount) {

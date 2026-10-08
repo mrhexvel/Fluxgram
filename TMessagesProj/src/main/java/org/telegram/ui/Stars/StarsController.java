@@ -2070,6 +2070,7 @@ public class StarsController {
             }
 
             invalidateBalance();
+            messagesController.readCurrentCloudHistoryOnAction(messageObject.getDialogId(), messageObject.getTopicId());
 
             connectionsManager.sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
                 if (response != null) {

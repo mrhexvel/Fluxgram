@@ -3855,6 +3855,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             req.flags |= 2;
             req.big = true;
         }
+        if (!messageObject.isEphemeral()) {
+            getMessagesController().readCurrentCloudHistoryOnAction(messageObject.getDialogId(), messageObject.getTopicId());
+        }
         getConnectionsManager().sendRequest(req, (response, error) -> {
             if (response != null) {
                 getMessagesController().processUpdates((TLRPC.Updates) response, false);
@@ -4406,6 +4409,25 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             if (needMonoForumPeer != (sendMessageParams.monoForumPeer != 0)) {
                 Log.w("DEBUG", "Warning: monoForumPeer: " + sendMessageParams.monoForumPeer);
             }
+        }
+
+        if (retryMessageObject == null
+                && scheduleDate == 0
+                && ttl == 0
+                && sendingStory == null
+                && ephemeralReceiverBotId == 0
+                && !isWelcomeMessageTemplate
+                && quick_reply_shortcut == null
+                && quick_reply_shortcut_id == 0) {
+            long actionTopicId = sendMessageParams.monoForumPeer;
+
+            if (actionTopicId == 0 && replyToTopMsg != null) {
+                actionTopicId = replyToTopMsg.getId();
+            } else if (actionTopicId == 0 && replyToMsg != null) {
+                actionTopicId = replyToMsg.getTopicId();
+            }
+
+            getMessagesController().readCurrentCloudHistoryOnAction(peer, actionTopicId);
         }
 
         if (poll == null && pollSendParams != null) {

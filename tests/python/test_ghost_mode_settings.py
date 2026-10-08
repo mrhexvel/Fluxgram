@@ -109,6 +109,13 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("return isEnabled(account) && hidesReadReceipts(account);", source[start:end])
 
+    def test_read_on_actions_requires_active_hidden_receipts(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        start = source.index("    public static boolean shouldReadOnActions(")
+        end = source.index("    public static boolean usesSendDelay(", start)
+
+        self.assertIn("return shouldHideReadReceipts(account) && readsOnActions(account);", source[start:end])
+
     def test_typing_policy_requires_master_and_child_switches(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldHideTypingAction(")
@@ -444,6 +451,53 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("GhostModeSettings.shouldHideReadReceipts(currentAccount)", method[:record])
         self.assertIn("!DialogObject.isEncryptedDialog(dialogId)", method[:record])
         self.assertIn("GhostModeReadState.recordTopic", method)
+
+    def test_actions_send_only_the_persisted_dialog_or_topic_cursor(self):
+        controller = (JAVA / "messenger/MessagesController.java").read_text()
+        state = (JAVA / "messenger/fluxgram/GhostModeReadState.java").read_text()
+        start = controller.index("    public void readCurrentCloudHistoryOnAction(")
+        end = controller.index("    public void markDialogAsRead(", start)
+        method = controller[start:end]
+
+        self.assertIn("GhostModeSettings.shouldReadOnActions(currentAccount)", method)
+        self.assertIn("GhostModeReadState.getTopicMax", method)
+        self.assertIn("GhostModeReadState.getDialogMax", method)
+        self.assertIn("TLRPC.TL_messages_readDiscussion", method)
+        self.assertIn("TLRPC.TL_messages_readSavedHistory", method)
+        self.assertIn("TLRPC.TL_channels_readHistory", method)
+        self.assertIn("TLRPC.TL_messages_readHistory", method)
+        self.assertIn("pendingMaxId >= maxId", method)
+        self.assertIn("generation != ghostModeActionReadGeneration", method)
+        self.assertIn("getUserConfig().getClientUserId() != ownerId", method)
+        self.assertIn("GhostModeReadState.acknowledgeTopic", method)
+        self.assertIn("GhostModeReadState.acknowledgeDialog", method)
+        self.assertNotIn("completeReadTask", method)
+
+        self.assertIn("localMaxId > 0 && localMaxId <= maxId", state)
+
+    def test_new_messages_and_reactions_trigger_action_reads_without_retry_paths(self):
+        helper = (JAVA / "messenger/SendMessagesHelper.java").read_text()
+        stars = (JAVA / "ui/Stars/StarsController.java").read_text()
+        send_start = helper.index("    public void sendMessage(SendMessageParams sendMessageParams)")
+        send_end = helper.index("    private void performSendMessageRequest", send_start)
+        send = helper[send_start:send_end]
+        reaction_start = helper.index("    public void sendReaction(")
+        reaction_end = helper.index("    public void requestUrlAuth(", reaction_start)
+        reaction = helper[reaction_start:reaction_end]
+        paid_start = stars.index("        public void commit() {")
+        paid_end = stars.index("    public StarsController.PendingPaidReactions sendPaidReaction", paid_start)
+        paid = stars[paid_start:paid_end]
+
+        self.assertIn("retryMessageObject == null", send)
+        self.assertIn("scheduleDate == 0", send)
+        self.assertIn("ttl == 0", send)
+        self.assertIn("sendingStory == null", send)
+        self.assertIn("ephemeralReceiverBotId == 0", send)
+        self.assertIn("quick_reply_shortcut_id == 0", send)
+        self.assertIn("readCurrentCloudHistoryOnAction(peer, actionTopicId)", send)
+        self.assertIn("readCurrentCloudHistoryOnAction(messageObject.getDialogId(), messageObject.getTopicId())", reaction)
+        self.assertIn("if (!messageObject.isEphemeral())", reaction)
+        self.assertIn("readCurrentCloudHistoryOnAction(messageObject.getDialogId(), messageObject.getTopicId())", paid)
 
     def test_dialog_and_topic_loads_merge_persisted_read_cursor(self):
         controller = (JAVA / "messenger/MessagesController.java").read_text()

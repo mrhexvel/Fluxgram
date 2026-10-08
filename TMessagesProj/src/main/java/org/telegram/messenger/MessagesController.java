@@ -345,6 +345,8 @@ public class MessagesController extends BaseController implements NotificationCe
     private LongSparseArray<ReadTask> readTasksMap = new LongSparseArray<>();
     private ArrayList<ReadTask> repliesReadTasks = new ArrayList<>();
     private HashMap<String, ReadTask> threadsReadTasksMap = new HashMap<>();
+    private HashMap<String, Integer> ghostModeActionReadRequests = new HashMap<>();
+    private int ghostModeActionReadGeneration;
 
     private boolean gettingNewDeleteTask;
     private int currentDeletingTaskTime;
@@ -6625,6 +6627,8 @@ public class MessagesController extends BaseController implements NotificationCe
             readTasksMap.clear();
             repliesReadTasks.clear();
             threadsReadTasksMap.clear();
+            ghostModeActionReadRequests.clear();
+            ghostModeActionReadGeneration++;
             updatesQueueSeq.clear();
             updatesQueuePts.clear();
             updatesQueueQts.clear();
@@ -14801,6 +14805,95 @@ public class MessagesController extends BaseController implements NotificationCe
             req.flags |= 1;
         }
         getConnectionsManager().sendRequest(req, null);
+    }
+
+    public void readCurrentCloudHistoryOnAction(long dialogId, long topicId) {
+        long ownerId = getUserConfig().getClientUserId();
+        int generation = ghostModeActionReadGeneration;
+
+        if (!GhostModeSettings.shouldReadOnActions(currentAccount)
+                || dialogId == 0
+                || dialogId == ownerId
+                || DialogObject.isEncryptedDialog(dialogId)) {
+            return;
+        }
+
+        Utilities.stageQueue.postRunnable(() -> {
+            if (generation != ghostModeActionReadGeneration || getUserConfig().getClientUserId() != ownerId) {
+                return;
+            }
+
+            int maxId = topicId != 0
+                    ? GhostModeReadState.getTopicMax(currentAccount, dialogId, topicId)
+                    : GhostModeReadState.getDialogMax(currentAccount, dialogId);
+
+            if (maxId <= 0) {
+                return;
+            }
+
+            String key = dialogId + "_" + topicId;
+            Integer pendingMaxId = ghostModeActionReadRequests.get(key);
+
+            if (pendingMaxId != null && pendingMaxId >= maxId) {
+                return;
+            }
+
+            ghostModeActionReadRequests.put(key, maxId);
+
+            boolean monoForum = topicId != 0 && getMessagesStorage().isMonoForum(dialogId);
+            TLObject req;
+
+            if (monoForum) {
+                TLRPC.TL_messages_readSavedHistory request = new TLRPC.TL_messages_readSavedHistory();
+                request.parent_peer = getInputPeer(dialogId);
+                request.peer = getInputPeer(topicId);
+                request.max_id = maxId;
+                req = request;
+            } else if (topicId != 0) {
+                TLRPC.TL_messages_readDiscussion request = new TLRPC.TL_messages_readDiscussion();
+                request.msg_id = (int) topicId;
+                request.peer = getInputPeer(dialogId);
+                request.read_max_id = maxId;
+                req = request;
+            } else if (getInputPeer(dialogId) instanceof TLRPC.TL_inputPeerChannel) {
+                TLRPC.TL_channels_readHistory request = new TLRPC.TL_channels_readHistory();
+                request.channel = getInputChannel(-dialogId);
+                request.max_id = maxId;
+                req = request;
+            } else {
+                TLRPC.TL_messages_readHistory request = new TLRPC.TL_messages_readHistory();
+                request.peer = getInputPeer(dialogId);
+                request.max_id = maxId;
+                req = request;
+            }
+
+            getConnectionsManager().sendRequest(req, (response, error) -> {
+                if (generation != ghostModeActionReadGeneration || getUserConfig().getClientUserId() != ownerId) {
+                    return;
+                }
+
+                Integer currentPendingMaxId = ghostModeActionReadRequests.get(key);
+
+                if (currentPendingMaxId != null && currentPendingMaxId == maxId) {
+                    ghostModeActionReadRequests.remove(key);
+                }
+
+                if (error != null) {
+                    return;
+                }
+
+                if (topicId != 0) {
+                    GhostModeReadState.acknowledgeTopic(currentAccount, dialogId, topicId, maxId);
+                } else {
+                    GhostModeReadState.acknowledgeDialog(currentAccount, dialogId, maxId);
+                }
+
+                if (response instanceof TLRPC.TL_messages_affectedMessages) {
+                    TLRPC.TL_messages_affectedMessages res = (TLRPC.TL_messages_affectedMessages) response;
+                    processNewDifferenceParams(-1, res.pts, -1, res.pts_count);
+                }
+            });
+        });
     }
 
     public void markDialogAsRead(long dialogId, int maxPositiveId, int maxNegativeId, int maxDate, boolean popup, long threadId, int countDiff, boolean readNow, int scheduledCount) {

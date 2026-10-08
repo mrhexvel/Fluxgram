@@ -106,6 +106,10 @@ public final class GhostModeSettings {
         set(account, READ_ON_ACTIONS, enabled);
     }
 
+    public static boolean shouldReadOnActions(int account) {
+        return shouldHideReadReceipts(account) && readsOnActions(account);
+    }
+
     public static boolean usesSendDelay(int account) {
         return get(account, USE_SEND_DELAY);
     }
