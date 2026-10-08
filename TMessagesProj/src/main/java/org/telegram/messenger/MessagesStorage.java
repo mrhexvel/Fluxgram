@@ -31,7 +31,9 @@ import androidx.collection.LongSparseArray;
 
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.fluxgram.DeletedMessagesArchive;
+import org.telegram.messenger.fluxgram.EditHistory;
 import org.telegram.messenger.fluxgram.EditHistoryCapture;
+import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLiteException;
@@ -862,7 +864,8 @@ public class MessagesStorage extends BaseController {
 
     public void cleanup(boolean isLogin) {
         storageQueue.postRunnable(() -> {
-            org.telegram.messenger.fluxgram.EditHistory.clearAccount(currentAccount);
+            EditHistory.clearAccount(currentAccount);
+            GhostModeSettings.clearAccount(currentAccount);
             cleanupInternal(true);
             openDatabase(1);
             if (isLogin) {

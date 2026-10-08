@@ -29,6 +29,7 @@ public final class FluxGramSettingsHomeView extends LinearLayout {
             boolean pluginsEnabled,
             Runnable openGeneral,
             Runnable openPlugins,
+            Runnable openGhostMode,
             Runnable openStealth
     ) {
         super(context);
@@ -60,9 +61,17 @@ public final class FluxGramSettingsHomeView extends LinearLayout {
 
         addCategory(
                 context,
+                R.string.FluxGramGhostMode,
+                R.string.FluxGramGhostModeDescription,
+                R.drawable.settings_privacy,
+                openGhostMode
+        );
+
+        addCategory(
+                context,
                 R.string.FluxGramStealth,
                 R.string.FluxGramStealthDescription,
-                R.drawable.settings_privacy,
+                R.drawable.msg_archive,
                 openStealth
         );
 
