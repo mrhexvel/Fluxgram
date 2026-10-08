@@ -12221,6 +12221,7 @@ public class MessagesStorage extends BaseController {
 
                 for (int a = 0; a < messages.size(); a++) {
                     TLRPC.Message message = messages.get(a);
+                    GhostModeReadState.applyContent(currentAccount, message);
 
                     int messageId = message.id;
                     MessageObject.getDialogId(message);
@@ -16301,6 +16302,7 @@ public class MessagesStorage extends BaseController {
                     }
                     for (int a = 0; a < count; a++) {
                         TLRPC.Message message = messages.messages.get(a);
+                        GhostModeReadState.applyContent(currentAccount, message);
                         if (lastMessageId == null && message != null || lastMessageId != null && lastMessageId < message.id) {
                             lastMessageId = message.id;
                             lastMessageGroupId = (message.flags & 131072) != 0 ? message.grouped_id : null;
@@ -17432,6 +17434,7 @@ public class MessagesStorage extends BaseController {
 
                     TLRPC.Message message = new_dialogMessage.get(dialog.id);
                     if (message != null) {
+                        GhostModeReadState.applyContent(currentAccount, message);
                         messageDate = Math.max(message.date, messageDate);
 
                         if (isValidKeyboardToSave(message)) {

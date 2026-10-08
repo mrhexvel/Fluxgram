@@ -14488,6 +14488,7 @@ public class MessagesController extends BaseController implements NotificationCe
         if (messageObject.scheduled || messageObject.messageOwner.fluxgramDeleted) {
             return;
         }
+        boolean preserveContentRead = GhostModeReadState.recordContent(currentAccount, messageObject);
         ArrayList<Integer> arrayList = new ArrayList<>();
         if (messageObject.messageOwner.mentioned) {
             getMessagesStorage().markMentionMessageAsRead(-messageObject.messageOwner.peer_id.channel_id, messageObject.getId(), messageObject.getDialogId());
@@ -14496,7 +14497,7 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
-        if (messageObject.getId() > 0 && !messageObject.isSecretMedia() && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+        if (preserveContentRead) {
             return;
         }
         if (messageObject.getId() < 0) {
@@ -14527,8 +14528,9 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void markMentionMessageAsRead(MessageObject messageObject, long channelId, long did) {
         int mid = messageObject.getId();
+        boolean preserveContentRead = GhostModeReadState.recordContent(currentAccount, messageObject);
         getMessagesStorage().markMentionMessageAsRead(-channelId, mid, did);
-        if (!messageObject.isSecretMedia() && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+        if (preserveContentRead) {
             return;
         }
         if (channelId != 0) {
@@ -18839,6 +18841,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 stakeDiceInfo = ((TL_update.TL_updateEmojiGameInfo) baseUpdate).info;
             } else if (baseUpdate instanceof TL_update.TL_updateReadMessagesContents) {
                 TL_update.TL_updateReadMessagesContents update = (TL_update.TL_updateReadMessagesContents) baseUpdate;
+                GhostModeReadState.acknowledgeContent(currentAccount, 0, update.messages);
                 markContentAsReadMessagesDate = update.date;
                 if (markContentAsReadMessages == null) {
                     markContentAsReadMessages = new LongSparseArray<>();
@@ -18851,6 +18854,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 ids.addAll(update.messages);
             } else if (baseUpdate instanceof TL_update.TL_updateChannelReadMessagesContents) {
                 TL_update.TL_updateChannelReadMessagesContents update = (TL_update.TL_updateChannelReadMessagesContents) baseUpdate;
+                GhostModeReadState.acknowledgeContent(currentAccount, -update.channel_id, update.messages);
                 if (markContentAsReadMessages == null) {
                     markContentAsReadMessages = new LongSparseArray<>();
                 }

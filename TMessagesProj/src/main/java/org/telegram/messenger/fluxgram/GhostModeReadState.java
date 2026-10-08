@@ -4,13 +4,17 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
+
+import java.util.ArrayList;
 
 public final class GhostModeReadState {
     private static final String OWNER = "owner";
     private static final String DIALOG_PREFIX = "dialog_";
     private static final String TOPIC_PREFIX = "topic_";
+    private static final String CONTENT_PREFIX = "content_";
     private static final String HIDDEN_UNREAD_SUFFIX = "_hidden_unread";
 
     private GhostModeReadState() {
@@ -26,6 +30,53 @@ public final class GhostModeReadState {
 
     public static synchronized void recordTopic(int account, long dialogId, long topicId, int maxId) {
         record(account, topicKey(dialogId, topicId), maxId);
+    }
+
+    public static synchronized boolean recordContent(int account, MessageObject messageObject) {
+        if (!GhostModeSettings.shouldHideReadReceipts(account) || !isEligibleContent(messageObject.messageOwner, account)) {
+            return false;
+        }
+
+        SharedPreferences preferences = activePreferences(account);
+
+        if (preferences == null) {
+            return false;
+        }
+
+        preferences.edit().putBoolean(contentKey(messageObject.messageOwner), true).apply();
+
+        return true;
+    }
+
+    public static synchronized void applyContent(int account, TLRPC.Message message) {
+        if (!message.media_unread || !isEligibleContent(message, account)) {
+            return;
+        }
+
+        SharedPreferences preferences = activePreferences(account);
+
+        if (preferences != null && preferences.getBoolean(contentKey(message), false)) {
+            message.media_unread = false;
+        }
+    }
+
+    public static synchronized void acknowledgeContent(int account, long dialogId, ArrayList<Integer> messageIds) {
+        SharedPreferences preferences = activePreferences(account);
+
+        if (preferences == null || messageIds == null || messageIds.isEmpty()) {
+            return;
+        }
+
+        long scope = dialogId < 0 ? dialogId : 0;
+        SharedPreferences.Editor editor = preferences.edit();
+
+        for (int messageId : messageIds) {
+            if (messageId > 0) {
+                editor.remove(contentKey(scope, messageId));
+            }
+        }
+
+        editor.apply();
     }
 
     public static synchronized void preserveTopicRead(int account, long dialogId, long topicId, int maxId, int hiddenUnreadCount, boolean allowParentCursor) {
@@ -203,6 +254,26 @@ public final class GhostModeReadState {
 
     private static String topicKey(long dialogId, long topicId) {
         return TOPIC_PREFIX + dialogId + "_" + topicId;
+    }
+
+    private static boolean isEligibleContent(TLRPC.Message message, int account) {
+        if (!(message instanceof TLRPC.TL_message) || message instanceof TLRPC.TL_message_secret || message.id <= 0 || message.saved_peer_id != null) {
+            return false;
+        }
+
+        long dialogId = MessageObject.getDialogId(message);
+
+        return dialogId != UserConfig.getInstance(account).getClientUserId() && !MessageObject.isSecretMedia(message);
+    }
+
+    private static String contentKey(TLRPC.Message message) {
+        long scope = message.peer_id != null && message.peer_id.channel_id != 0 ? -message.peer_id.channel_id : 0;
+
+        return contentKey(scope, message.id);
+    }
+
+    private static String contentKey(long scope, int messageId) {
+        return CONTENT_PREFIX + scope + "_" + messageId;
     }
 
     private static synchronized SharedPreferences activePreferences(int account) {

@@ -130,21 +130,42 @@ class GhostModeSettingsTest(unittest.TestCase):
         content_start = source.index("    public void markMessageContentAsRead(")
         content_end = source.index("    public void markMentionMessageAsRead(", content_start)
         content = source[content_start:content_end]
-        content_policy = content.index("GhostModeSettings.shouldHideReadReceipts(currentAccount)")
 
-        self.assertLess(content.index("markMessagesContentAsRead"), content_policy)
-        self.assertLess(content.index("NotificationCenter.messagesReadContent"), content_policy)
-        self.assertIn("!messageObject.isSecretMedia()", content)
+        self.assertLess(content.index("GhostModeReadState.recordContent"), content.index("markMessagesContentAsRead"))
+        self.assertLess(content.index("markMessagesContentAsRead"), content.index("if (preserveContentRead)"))
+        self.assertLess(content.index("NotificationCenter.messagesReadContent"), content.index("if (preserveContentRead)"))
 
         mention_start = content_end
         mention_end = source.index("    public long createDeleteShowOnceTask(", mention_start)
         mention = source[mention_start:mention_end]
 
         self.assertLess(
+            mention.index("GhostModeReadState.recordContent"),
             mention.index("getMessagesStorage().markMentionMessageAsRead"),
-            mention.index("GhostModeSettings.shouldHideReadReceipts(currentAccount)"),
         )
-        self.assertIn("!messageObject.isSecretMedia()", mention)
+        self.assertLess(
+            mention.index("getMessagesStorage().markMentionMessageAsRead"),
+            mention.index("if (preserveContentRead)"),
+        )
+
+    def test_hidden_content_reads_are_persisted_merged_and_server_acknowledged(self):
+        state = (JAVA / "messenger/fluxgram/GhostModeReadState.java").read_text()
+        controller = (JAVA / "messenger/MessagesController.java").read_text()
+        message_object = (JAVA / "messenger/MessageObject.java").read_text()
+        storage = (JAVA / "messenger/MessagesStorage.java").read_text()
+
+        self.assertIn('CONTENT_PREFIX = "content_"', state)
+        self.assertIn("GhostModeSettings.shouldHideReadReceipts(account)", state)
+        self.assertIn("message instanceof TLRPC.TL_message_secret", state)
+        self.assertIn("message.saved_peer_id != null", state)
+        self.assertIn("MessageObject.isSecretMedia(message)", state)
+        self.assertIn("message.media_unread = false;", state)
+        self.assertIn("message.peer_id.channel_id != 0 ? -message.peer_id.channel_id : 0", state)
+
+        self.assertIn("GhostModeReadState.applyContent(currentAccount, messageOwner);", message_object)
+        self.assertGreaterEqual(storage.count("GhostModeReadState.applyContent(currentAccount, message);"), 3)
+        self.assertIn("GhostModeReadState.acknowledgeContent(currentAccount, 0, update.messages);", controller)
+        self.assertIn("GhostModeReadState.acknowledgeContent(currentAccount, -update.channel_id, update.messages);", controller)
 
     def test_mentions_and_live_locations_keep_local_behavior_without_network_receipts(self):
         controller = (JAVA / "messenger/MessagesController.java").read_text()

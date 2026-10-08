@@ -50,6 +50,7 @@ import androidx.collection.LongSparseArray;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.ringtone.RingtoneDataStore;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
@@ -1921,6 +1922,7 @@ public class MessageObject {
 
         currentAccount = accountNum;
         messageOwner = message;
+        GhostModeReadState.applyContent(currentAccount, messageOwner);
         replyMessageObject = replyToMessage;
         eventId = eid;
         wasUnread = !messageOwner.out && messageOwner.unread;
