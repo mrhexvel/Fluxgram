@@ -36,6 +36,32 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("return get(account, SUGGEST_FOR_STORIES, true);", source)
         self.assertIn("return getInt(account, SILENT_SEND_MODE, SILENT_SEND_NEVER);", source)
 
+    def test_primary_settings_snapshot_is_atomic_and_owner_scoped(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        enable_start = source.index("    public static synchronized PrimarySettingsSnapshot enableAllPrimarySettings(")
+        restore_start = source.index("    public static synchronized boolean restorePrimarySettings(", enable_start)
+        enable = source[enable_start:restore_start]
+        restore_end = source.index("    public static void clearAccount(", restore_start)
+        restore = source[restore_start:restore_end]
+
+        for key in (
+            "ENABLED",
+            "HIDE_ONLINE",
+            "HIDE_TYPING",
+            "HIDE_READ_RECEIPTS",
+            "HIDE_STORY_VIEWS",
+            "AUTOMATIC_OFFLINE",
+        ):
+            self.assertIn(f".putBoolean({key}, true)", enable)
+            self.assertIn(f".putBoolean({key}, snapshot.", restore)
+
+        self.assertIn("UserConfig.getInstance(account).getClientUserId() != snapshot.owner", restore)
+        self.assertIn("preferences.getLong(OWNER, 0) != snapshot.owner", restore)
+        self.assertNotIn("READ_ON_ACTIONS", enable)
+        self.assertNotIn("USE_SEND_DELAY", enable)
+        self.assertNotIn("SILENT_SEND_MODE", enable)
+        self.assertNotIn("SUGGEST_FOR_STORIES", enable)
+
     def test_logout_clears_ghost_mode_preferences(self):
         storage = (JAVA / "messenger/MessagesStorage.java").read_text()
         cleanup = storage[storage.index("    public void cleanup(boolean isLogin)"):
@@ -391,6 +417,86 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("storyItem.media != null", policy)
         self.assertIn("!(storyItem.media instanceof TLRPC.TL_messageMediaVideoStream)", policy)
         self.assertIn("storiesController.shouldMarkStoryAsRead(dialogId, this.storyItem)", peer_view)
+
+    def test_story_prompt_uses_shared_structural_eligibility(self):
+        controller = (JAVA / "ui/Stories/StoriesController.java").read_text()
+        prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
+        policy_start = controller.index("    public static boolean isGhostModeStoryViewEligible(")
+        policy_end = controller.index("    public int getTotalStoriesCount(", policy_start)
+        policy = controller[policy_start:policy_end]
+
+        self.assertIn("dialogId != UserConfig.getInstance(account).getClientUserId()", policy)
+        self.assertIn("storyItem instanceof TL_stories.TL_storyItem", policy)
+        self.assertIn("storyItem.media != null", policy)
+        self.assertIn("!(storyItem.media instanceof TLRPC.TL_messageMediaVideoStream)", policy)
+        self.assertIn("StoriesController.isGhostModeStoryViewEligible(account, target.dialogId, target.storyItem)", prompt)
+
+    def test_story_prompt_is_gated_before_the_terminal_viewer_open(self):
+        viewer = (JAVA / "ui/Stories/StoryViewer.java").read_text()
+        start = viewer.index("    private void open(int account, Context context,")
+        end = viewer.index("        setSpeed(1f);", start)
+        opening = viewer[start:end]
+
+        self.assertLess(opening.index("if (isShowing)"), opening.index("ghostModeStoryOpenPrompt.maybeShow("))
+        self.assertIn("skipGhostModePrompt", opening)
+        self.assertIn("reversed, true)", opening)
+
+    def test_story_prompt_matches_visible_receipt_state_and_choice_semantics(self):
+        prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
+
+        self.assertIn("!GhostModeSettings.suggestsForStories(account) || GhostModeSettings.shouldHideStoryViews(account)", prompt)
+        self.assertIn("if (promptShowing)", prompt)
+        self.assertIn("setPositiveButton(LocaleController.getString(R.string.Enable)", prompt)
+        self.assertIn("setNegativeButton(LocaleController.getString(R.string.Continue)", prompt)
+        self.assertNotIn("setOnCancelListener(alertDialog -> continueOnDismiss = true)", prompt)
+        self.assertIn("setOnPreDismissListener(alertDialog -> finishPrompt())", prompt)
+        self.assertIn("fragment.showDialog(dialog)", prompt)
+        self.assertIn("GhostModeSettings.enableAllPrimarySettings(account)", prompt)
+        self.assertIn("MessagesController.getInstance(account).updateGhostModeOnlineStatus();", prompt)
+        self.assertIn("fragment.getCurrentAccount() != account", prompt)
+        self.assertIn("AndroidUtilities.runOnUIThread(() ->", prompt)
+        self.assertIn("isContextCurrent(requestAccount, requestFragmentAccount, requestOwner)", prompt)
+        self.assertIn("UserConfig.getInstance(account).getClientUserId() == owner", prompt)
+
+    def test_story_prompt_restores_temporary_settings_on_open_failure_and_close(self):
+        prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
+        viewer = (JAVA / "ui/Stories/StoryViewer.java").read_text()
+
+        self.assertIn("boolean opened = pendingContinuation.open();", prompt)
+        self.assertIn("if (opened)", prompt)
+        self.assertIn("restoreTemporaryGhostMode(requestAccount, snapshot);", prompt)
+        self.assertIn("GhostModeSettings.restorePrimarySettings(account, snapshot)", prompt)
+        self.assertGreaterEqual(viewer.count("ghostModeStoryOpenPrompt.onViewerClosed();"), 2)
+        self.assertIn("return isShowing && currentAccount == account;", viewer)
+
+    def test_story_prompt_does_not_continue_after_lifecycle_dismiss(self):
+        prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
+        finish_start = prompt.index("    private void finishPrompt(")
+        finish_end = prompt.index("    private boolean isRequestCurrent(", finish_start)
+        finish = prompt[finish_start:finish_end]
+
+        self.assertIn("continueOnDismiss && isRequestCurrent(pendingAccount)", finish)
+        self.assertIn("clearPending();", finish)
+        self.assertIn("if (shouldContinue && pendingContinuation != null)", finish)
+
+    def test_story_prompt_resolves_owner_for_cross_peer_story_lists(self):
+        prompt = (JAVA / "ui/fluxgram/GhostModeStoryOpenPrompt.java").read_text()
+
+        self.assertIn("if (dialogId == 0 && listMessage != null)", prompt)
+        self.assertIn("dialogId = listMessage.getDialogId();", prompt)
+        self.assertIn("if (dialogId == 0 && listStory != null)", prompt)
+        self.assertIn("dialogId = listStory.dialogId;", prompt)
+
+    def test_story_prompt_has_english_and_russian_resources(self):
+        english = ET.parse(RES / "values/strings.xml").getroot()
+        russian = ET.parse(RES / "values-ru/strings.xml").getroot()
+        english_strings = {item.attrib["name"]: item.text for item in english.findall("string")}
+        russian_strings = {item.attrib["name"]: item.text for item in russian.findall("string")}
+
+        self.assertIn("FluxGramGhostModeStoryPrompt", english_strings)
+        self.assertIn("FluxGramGhostModeStoryPrompt", russian_strings)
+        self.assertTrue(english_strings["FluxGramGhostModeStoryPrompt"])
+        self.assertTrue(russian_strings["FluxGramGhostModeStoryPrompt"])
 
     def test_story_lists_hide_increment_views_without_using_telegram_seen_state(self):
         source = (JAVA / "ui/Stories/StoriesController.java").read_text()

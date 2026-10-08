@@ -89,6 +89,7 @@ import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.Stories.recorder.LivePlayerView;
+import org.telegram.ui.fluxgram.GhostModeStoryOpenPrompt;
 
 import java.util.ArrayList;
 
@@ -106,6 +107,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
     public static ArrayList<StoryViewer> globalInstances = new ArrayList<>();
 
     BaseFragment fragment;
+    private final GhostModeStoryOpenPrompt ghostModeStoryOpenPrompt;
     public int currentAccount;
     WindowManager windowManager;
     WindowManager.LayoutParams windowLayoutParams;
@@ -292,6 +294,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
     public StoryViewer(BaseFragment fragment) {
         inputBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         this.fragment = fragment;
+        ghostModeStoryOpenPrompt = new GhostModeStoryOpenPrompt(fragment);
     }
 
     public void setSpeed(float speed) {
@@ -373,6 +376,9 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
         open(UserConfig.selectedAccount, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed);
     }
     public void open(int account, Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed) {
+        open(account, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed, false);
+    }
+    private void open(int account, Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed, boolean skipGhostModePrompt) {
         if (!isContextSafe(context)) {
             doOnAnimationReadyRunnables.clear();
             return;
@@ -383,6 +389,22 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
         }
         if (isShowing) {
             doOnAnimationReadyRunnables.clear();
+            return;
+        }
+        if (!skipGhostModePrompt && ghostModeStoryOpenPrompt.maybeShow(
+                account,
+                storyItem,
+                peerIds,
+                position,
+                storiesList,
+                userStories,
+                dayStoryId,
+                () -> {
+                    open(account, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed, true);
+
+                    return isShowing && currentAccount == account;
+                }
+        )) {
             return;
         }
         setSpeed(1f);
@@ -2486,6 +2508,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
         if (!isShowing) {
             return;
         }
+        ghostModeStoryOpenPrompt.onViewerClosed();
         AndroidUtilities.hideKeyboard(windowView);
         isClosed = true;
         fullyVisible = false;
@@ -2668,6 +2691,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     public void close(boolean backAnimation) {
+        ghostModeStoryOpenPrompt.onViewerClosed();
         AndroidUtilities.hideKeyboard(windowView);
         isClosed = true;
         invalidateOutRect = true;

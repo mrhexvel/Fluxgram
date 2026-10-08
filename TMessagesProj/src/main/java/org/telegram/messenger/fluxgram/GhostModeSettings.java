@@ -155,6 +155,58 @@ public final class GhostModeSettings {
         set(account, SUGGEST_FOR_STORIES, enabled);
     }
 
+    public static synchronized PrimarySettingsSnapshot enableAllPrimarySettings(int account) {
+        SharedPreferences preferences = activePreferences(account);
+
+        if (preferences == null) {
+            return null;
+        }
+
+        PrimarySettingsSnapshot snapshot = new PrimarySettingsSnapshot(
+                UserConfig.getInstance(account).getClientUserId(),
+                preferences.getBoolean(ENABLED, false),
+                preferences.getBoolean(HIDE_ONLINE, false),
+                preferences.getBoolean(HIDE_TYPING, false),
+                preferences.getBoolean(HIDE_READ_RECEIPTS, false),
+                preferences.getBoolean(HIDE_STORY_VIEWS, false),
+                preferences.getBoolean(AUTOMATIC_OFFLINE, false)
+        );
+
+        preferences.edit()
+                .putBoolean(ENABLED, true)
+                .putBoolean(HIDE_ONLINE, true)
+                .putBoolean(HIDE_TYPING, true)
+                .putBoolean(HIDE_READ_RECEIPTS, true)
+                .putBoolean(HIDE_STORY_VIEWS, true)
+                .putBoolean(AUTOMATIC_OFFLINE, true)
+                .apply();
+
+        return snapshot;
+    }
+
+    public static synchronized boolean restorePrimarySettings(int account, PrimarySettingsSnapshot snapshot) {
+        if (snapshot == null || snapshot.owner == 0 || UserConfig.getInstance(account).getClientUserId() != snapshot.owner) {
+            return false;
+        }
+
+        SharedPreferences preferences = preferences(account);
+
+        if (preferences.getLong(OWNER, 0) != snapshot.owner) {
+            return false;
+        }
+
+        preferences.edit()
+                .putBoolean(ENABLED, snapshot.enabled)
+                .putBoolean(HIDE_ONLINE, snapshot.hideOnline)
+                .putBoolean(HIDE_TYPING, snapshot.hideTyping)
+                .putBoolean(HIDE_READ_RECEIPTS, snapshot.hideReadReceipts)
+                .putBoolean(HIDE_STORY_VIEWS, snapshot.hideStoryViews)
+                .putBoolean(AUTOMATIC_OFFLINE, snapshot.automaticOffline)
+                .apply();
+
+        return true;
+    }
+
     public static void clearAccount(int account) {
         preferences(account).edit().clear().apply();
         GhostModeReadState.clearAccount(account);
@@ -213,5 +265,33 @@ public final class GhostModeSettings {
         return ApplicationLoader.applicationContext.getSharedPreferences(
                 "fluxgram_ghost_mode_" + account, Context.MODE_PRIVATE
         );
+    }
+
+    public static final class PrimarySettingsSnapshot {
+        private final long owner;
+        private final boolean enabled;
+        private final boolean hideOnline;
+        private final boolean hideTyping;
+        private final boolean hideReadReceipts;
+        private final boolean hideStoryViews;
+        private final boolean automaticOffline;
+
+        private PrimarySettingsSnapshot(
+                long owner,
+                boolean enabled,
+                boolean hideOnline,
+                boolean hideTyping,
+                boolean hideReadReceipts,
+                boolean hideStoryViews,
+                boolean automaticOffline
+        ) {
+            this.owner = owner;
+            this.enabled = enabled;
+            this.hideOnline = hideOnline;
+            this.hideTyping = hideTyping;
+            this.hideReadReceipts = hideReadReceipts;
+            this.hideStoryViews = hideStoryViews;
+            this.automaticOffline = automaticOffline;
+        }
     }
 }

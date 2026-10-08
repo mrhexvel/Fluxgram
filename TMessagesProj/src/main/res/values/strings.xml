@@ -11301,6 +11301,7 @@
     <string name="FluxGramGhostModeSendSilentlyAlways">Always</string>
     <string name="FluxGramGhostModeSuggestForStories">Suggest Ghost Mode for stories</string>
     <string name="FluxGramGhostModeSuggestForStoriesInfo">Warns before opening a story while Ghost Mode is off.</string>
+    <string name="FluxGramGhostModeStoryPrompt">Turn on Ghost Mode before viewing this story?</string>
     <string name="FluxGramGhostModePreviewInfo">Choose which activity signals to hide.</string>
     <string name="FluxGramStealth">History &amp; Storage</string>
     <string name="FluxGramStealthDescription">Deleted messages, edit history and attachments</string>

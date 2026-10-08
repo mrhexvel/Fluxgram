@@ -329,6 +329,7 @@
     <string name="FluxGramGhostModeSendSilentlyAlways">Всегда</string>
     <string name="FluxGramGhostModeSuggestForStories">Предлагать призрака для сторис</string>
     <string name="FluxGramGhostModeSuggestForStoriesInfo">Предупреждает перед открытием истории, когда режим выключен.</string>
+    <string name="FluxGramGhostModeStoryPrompt">Включить режим призрака перед просмотром истории?</string>
     <string name="FluxGramGhostModePreviewInfo">Выберите, какие признаки активности скрывать.</string>
     <string name="FluxGramStealth">История и хранилище</string>
     <string name="FluxGramStealthDescription">Удалённые сообщения, история изменений и вложения</string>

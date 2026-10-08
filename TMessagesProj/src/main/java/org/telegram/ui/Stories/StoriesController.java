@@ -1729,7 +1729,11 @@ public class StoriesController {
 
     private static boolean shouldHideStoryView(int account, long dialogId, TL_stories.StoryItem storyItem) {
         return GhostModeSettings.shouldHideStoryViews(account)
-                && dialogId != UserConfig.getInstance(account).getClientUserId()
+                && isGhostModeStoryViewEligible(account, dialogId, storyItem);
+    }
+
+    public static boolean isGhostModeStoryViewEligible(int account, long dialogId, TL_stories.StoryItem storyItem) {
+        return dialogId != UserConfig.getInstance(account).getClientUserId()
                 && storyItem instanceof TL_stories.TL_storyItem
                 && storyItem.media != null
                 && !(storyItem.media instanceof TLRPC.TL_messageMediaVideoStream);
