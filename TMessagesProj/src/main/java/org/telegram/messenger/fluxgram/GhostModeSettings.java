@@ -13,6 +13,15 @@ public final class GhostModeSettings {
     private static final String HIDE_TYPING = "hide_typing";
     private static final String HIDE_READ_RECEIPTS = "hide_read_receipts";
     private static final String HIDE_STORY_VIEWS = "hide_story_views";
+    private static final String AUTOMATIC_OFFLINE = "automatic_offline";
+    private static final String READ_ON_ACTIONS = "read_on_actions";
+    private static final String USE_SEND_DELAY = "use_send_delay";
+    private static final String SILENT_SEND_MODE = "silent_send_mode";
+    private static final String SUGGEST_FOR_STORIES = "suggest_for_stories";
+
+    public static final int SILENT_SEND_NEVER = 0;
+    public static final int SILENT_SEND_IN_GHOST_MODE = 1;
+    public static final int SILENT_SEND_ALWAYS = 2;
 
     private GhostModeSettings() {
     }
@@ -77,6 +86,50 @@ public final class GhostModeSettings {
         return isEnabled(account) && hidesStoryViews(account);
     }
 
+    public static boolean usesAutomaticOffline(int account) {
+        return get(account, AUTOMATIC_OFFLINE);
+    }
+
+    public static void setUsesAutomaticOffline(int account, boolean enabled) {
+        set(account, AUTOMATIC_OFFLINE, enabled);
+    }
+
+    public static boolean readsOnActions(int account) {
+        return get(account, READ_ON_ACTIONS, true);
+    }
+
+    public static void setReadsOnActions(int account, boolean enabled) {
+        set(account, READ_ON_ACTIONS, enabled);
+    }
+
+    public static boolean usesSendDelay(int account) {
+        return get(account, USE_SEND_DELAY);
+    }
+
+    public static void setUsesSendDelay(int account, boolean enabled) {
+        set(account, USE_SEND_DELAY, enabled);
+    }
+
+    public static int getSilentSendMode(int account) {
+        return getInt(account, SILENT_SEND_MODE, SILENT_SEND_NEVER);
+    }
+
+    public static void setSilentSendMode(int account, int mode) {
+        if (mode < SILENT_SEND_NEVER || mode > SILENT_SEND_ALWAYS) {
+            return;
+        }
+
+        setInt(account, SILENT_SEND_MODE, mode);
+    }
+
+    public static boolean suggestsForStories(int account) {
+        return get(account, SUGGEST_FOR_STORIES, true);
+    }
+
+    public static void setSuggestsForStories(int account, boolean enabled) {
+        set(account, SUGGEST_FOR_STORIES, enabled);
+    }
+
     public static void clearAccount(int account) {
         preferences(account).edit().clear().apply();
         GhostModeReadState.clearAccount(account);
@@ -84,9 +137,13 @@ public final class GhostModeSettings {
     }
 
     private static boolean get(int account, String key) {
+        return get(account, key, false);
+    }
+
+    private static boolean get(int account, String key, boolean defaultValue) {
         SharedPreferences preferences = activePreferences(account);
 
-        return preferences != null && preferences.getBoolean(key, false);
+        return preferences != null && preferences.getBoolean(key, defaultValue);
     }
 
     private static void set(int account, String key, boolean value) {
@@ -94,6 +151,20 @@ public final class GhostModeSettings {
 
         if (preferences != null) {
             preferences.edit().putBoolean(key, value).apply();
+        }
+    }
+
+    private static int getInt(int account, String key, int defaultValue) {
+        SharedPreferences preferences = activePreferences(account);
+
+        return preferences == null ? defaultValue : preferences.getInt(key, defaultValue);
+    }
+
+    private static void setInt(int account, String key, int value) {
+        SharedPreferences preferences = activePreferences(account);
+
+        if (preferences != null) {
+            preferences.edit().putInt(key, value).apply();
         }
     }
 

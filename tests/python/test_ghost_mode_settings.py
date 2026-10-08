@@ -16,10 +16,25 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("getClientUserId()", source)
         self.assertIn("preferences.getLong(OWNER, 0) != owner", source)
         self.assertIn("preferences.edit().clear().putLong(OWNER, owner).apply()", source)
-        self.assertIn("preferences.getBoolean(key, false)", source)
+        self.assertIn("preferences.getBoolean(key, defaultValue)", source)
 
-        for key in ("enabled", "hide_online", "hide_typing", "hide_read_receipts", "hide_story_views"):
+        for key in (
+            "enabled",
+            "hide_online",
+            "hide_typing",
+            "hide_read_receipts",
+            "hide_story_views",
+            "automatic_offline",
+            "read_on_actions",
+            "use_send_delay",
+            "silent_send_mode",
+            "suggest_for_stories",
+        ):
             self.assertIn(f'"{key}"', source)
+
+        self.assertIn("return get(account, READ_ON_ACTIONS, true);", source)
+        self.assertIn("return get(account, SUGGEST_FOR_STORIES, true);", source)
+        self.assertIn("return getInt(account, SILENT_SEND_MODE, SILENT_SEND_NEVER);", source)
 
     def test_logout_clears_ghost_mode_preferences(self):
         storage = (JAVA / "messenger/MessagesStorage.java").read_text()
@@ -30,18 +45,32 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("GhostModeSettings.clearAccount(currentAccount);", cleanup)
         self.assertIn("GhostModeReadState.clearAccount(account);", settings)
 
-    def test_screen_uses_expandable_menu_and_applies_online_changes(self):
+    def test_screen_uses_five_item_expandable_menu_and_applies_online_changes(self):
         source = (JAVA / "ui/FluxGramGhostModeActivity.java").read_text()
 
         self.assertIn("UItem.asExpandableSwitch(", source)
-        self.assertIn('selected + "/4"', source)
+        self.assertIn('selected + "/5"', source)
         self.assertIn(".setCollapsed(!expanded)", source)
         self.assertIn("expanded = !expanded;", source)
         self.assertIn("GhostModeSettings.setEnabled(currentAccount, !GhostModeSettings.isEnabled(currentAccount));", source)
         self.assertIn("MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();", source)
-        self.assertIn(".setEnabled(enabled)", source)
         self.assertIn("if (expanded)", source)
+        self.assertIn("UItem.asCheck(AUTOMATIC_OFFLINE", source)
+        self.assertNotIn("if (!GhostModeSettings.isEnabled(currentAccount))", source)
         self.assertNotIn("ConnectionsManager", source)
+
+    def test_extended_screen_has_compact_secondary_settings(self):
+        source = (JAVA / "ui/FluxGramGhostModeActivity.java").read_text()
+
+        self.assertIn("UItem.asCheck(READ_ON_ACTIONS", source)
+        self.assertIn("UItem.asCheck(USE_SEND_DELAY", source)
+        self.assertIn("UItem.asButton(\n                SILENT_SEND_MODE", source)
+        self.assertIn("UItem.asCheck(SUGGEST_FOR_STORIES", source)
+        self.assertIn("GhostModeSettings.setReadsOnActions", source)
+        self.assertIn("GhostModeSettings.setUsesSendDelay", source)
+        self.assertIn("GhostModeSettings.setSilentSendMode", source)
+        self.assertIn("GhostModeSettings.setSuggestsForStories", source)
+        self.assertIn("new AlertDialog.Builder(getParentActivity(), getResourceProvider())", source)
 
     def test_online_policy_requires_master_and_child_switches(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
@@ -431,6 +460,18 @@ class GhostModeSettingsTest(unittest.TestCase):
             "FluxGramGhostModeHideTyping",
             "FluxGramGhostModeHideReadReceipts",
             "FluxGramGhostModeHideStoryViews",
+            "FluxGramGhostModeAutomaticOffline",
+            "FluxGramGhostModeReadOnActions",
+            "FluxGramGhostModeReadOnActionsInfo",
+            "FluxGramGhostModeUseSendDelay",
+            "FluxGramGhostModeUseSendDelayInfo",
+            "FluxGramGhostModeSendSilently",
+            "FluxGramGhostModeSendSilentlyInfo",
+            "FluxGramGhostModeSendSilentlyNever",
+            "FluxGramGhostModeSendSilentlyInGhostMode",
+            "FluxGramGhostModeSendSilentlyAlways",
+            "FluxGramGhostModeSuggestForStories",
+            "FluxGramGhostModeSuggestForStoriesInfo",
             "FluxGramGhostModePreviewInfo",
         }
 

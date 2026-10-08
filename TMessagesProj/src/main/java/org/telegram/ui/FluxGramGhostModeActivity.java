@@ -9,6 +9,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
@@ -25,6 +26,11 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
     private static final int HIDE_TYPING = 3;
     private static final int HIDE_READ_RECEIPTS = 4;
     private static final int HIDE_STORY_VIEWS = 5;
+    private static final int AUTOMATIC_OFFLINE = 6;
+    private static final int READ_ON_ACTIONS = 7;
+    private static final int USE_SEND_DELAY = 8;
+    private static final int SILENT_SEND_MODE = 9;
+    private static final int SUGGEST_FOR_STORIES = 10;
 
     private UniversalRecyclerView listView;
     private boolean expanded = false;
@@ -62,12 +68,14 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
         boolean hideTyping = GhostModeSettings.hidesTyping(currentAccount);
         boolean hideReadReceipts = GhostModeSettings.hidesReadReceipts(currentAccount);
         boolean hideStoryViews = GhostModeSettings.hidesStoryViews(currentAccount);
+        boolean automaticOffline = GhostModeSettings.usesAutomaticOffline(currentAccount);
         int selected = (hideOnline ? 1 : 0) + (hideTyping ? 1 : 0)
-                + (hideReadReceipts ? 1 : 0) + (hideStoryViews ? 1 : 0);
+                + (hideReadReceipts ? 1 : 0) + (hideStoryViews ? 1 : 0)
+                + (automaticOffline ? 1 : 0);
 
         items.add(UItem.asHeader(text(R.string.FluxGramGhostMode)));
         items.add(UItem.asExpandableSwitch(
-                        ENABLED, text(R.string.FluxGramGhostMode), selected + "/4"
+                        ENABLED, text(R.string.FluxGramGhostMode), selected + "/5"
                 )
                 .setChecked(enabled)
                 .setCollapsed(!expanded)
@@ -83,19 +91,37 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
                 }));
 
         if (expanded) {
-            items.add(UItem.asCheck(HIDE_ONLINE, text(R.string.FluxGramGhostModeHideOnline))
-                    .setChecked(hideOnline).setEnabled(enabled));
-            items.add(UItem.asCheck(HIDE_TYPING, text(R.string.FluxGramGhostModeHideTyping))
-                    .setChecked(hideTyping).setEnabled(enabled));
             items.add(UItem.asCheck(HIDE_READ_RECEIPTS, text(R.string.FluxGramGhostModeHideReadReceipts))
-                    .setChecked(hideReadReceipts).setEnabled(enabled));
+                    .setChecked(hideReadReceipts));
             items.add(UItem.asCheck(HIDE_STORY_VIEWS, text(R.string.FluxGramGhostModeHideStoryViews))
-                    .setChecked(hideStoryViews).setEnabled(enabled));
+                    .setChecked(hideStoryViews));
+            items.add(UItem.asCheck(HIDE_ONLINE, text(R.string.FluxGramGhostModeHideOnline))
+                    .setChecked(hideOnline));
+            items.add(UItem.asCheck(HIDE_TYPING, text(R.string.FluxGramGhostModeHideTyping))
+                    .setChecked(hideTyping));
+            items.add(UItem.asCheck(AUTOMATIC_OFFLINE, text(R.string.FluxGramGhostModeAutomaticOffline))
+                    .setChecked(automaticOffline));
+            items.add(UItem.asShadow(null));
         }
 
-        items.add(UItem.asShadow(text(enabled
-                ? R.string.FluxGramGhostModePreviewInfo
-                : R.string.FluxGramGhostModeDisabledInfo)));
+        items.add(UItem.asCheck(READ_ON_ACTIONS, text(R.string.FluxGramGhostModeReadOnActions))
+                .setChecked(GhostModeSettings.readsOnActions(currentAccount)));
+        items.add(UItem.asShadow(text(R.string.FluxGramGhostModeReadOnActionsInfo)));
+
+        items.add(UItem.asCheck(USE_SEND_DELAY, text(R.string.FluxGramGhostModeUseSendDelay))
+                .setChecked(GhostModeSettings.usesSendDelay(currentAccount)));
+        items.add(UItem.asShadow(text(R.string.FluxGramGhostModeUseSendDelayInfo)));
+
+        items.add(UItem.asButton(
+                SILENT_SEND_MODE,
+                text(R.string.FluxGramGhostModeSendSilently),
+                silentSendModeText(GhostModeSettings.getSilentSendMode(currentAccount))
+        ));
+        items.add(UItem.asShadow(text(R.string.FluxGramGhostModeSendSilentlyInfo)));
+
+        items.add(UItem.asCheck(SUGGEST_FOR_STORIES, text(R.string.FluxGramGhostModeSuggestForStories))
+                .setChecked(GhostModeSettings.suggestsForStories(currentAccount)));
+        items.add(UItem.asShadow(text(R.string.FluxGramGhostModeSuggestForStoriesInfo)));
     }
 
     private void onItemClick(UItem item, View view, int position, float x, float y) {
@@ -105,7 +131,8 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
             return;
         }
 
-        if (!GhostModeSettings.isEnabled(currentAccount)) {
+        if (item.id == SILENT_SEND_MODE) {
+            showSilentSendModeDialog();
             return;
         }
 
@@ -124,12 +151,55 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
             GhostModeSettings.setHidesReadReceipts(currentAccount, checked);
         } else if (item.id == HIDE_STORY_VIEWS) {
             GhostModeSettings.setHidesStoryViews(currentAccount, checked);
+        } else if (item.id == AUTOMATIC_OFFLINE) {
+            GhostModeSettings.setUsesAutomaticOffline(currentAccount, checked);
+        } else if (item.id == READ_ON_ACTIONS) {
+            GhostModeSettings.setReadsOnActions(currentAccount, checked);
+        } else if (item.id == USE_SEND_DELAY) {
+            GhostModeSettings.setUsesSendDelay(currentAccount, checked);
+        } else if (item.id == SUGGEST_FOR_STORIES) {
+            GhostModeSettings.setSuggestsForStories(currentAccount, checked);
         } else {
             return;
         }
 
         ((TextCheckCell) view).setChecked(checked);
         listView.adapter.update(true);
+    }
+
+    private void showSilentSendModeDialog() {
+        CharSequence[] options = {
+                text(R.string.FluxGramGhostModeSendSilentlyNever),
+                text(R.string.FluxGramGhostModeSendSilentlyInGhostMode),
+                text(R.string.FluxGramGhostModeSendSilentlyAlways)
+        };
+        int selected = GhostModeSettings.getSilentSendMode(currentAccount);
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(text(R.string.FluxGramGhostModeSendSilently))
+                .setItems(options, (dialog, index) -> {
+                    GhostModeSettings.setSilentSendMode(currentAccount, index);
+                    listView.adapter.update(true);
+                })
+                .setNegativeButton(text(R.string.Cancel), null)
+                .create());
+    }
+
+    private String silentSendModeText(int mode) {
+        if (mode == GhostModeSettings.SILENT_SEND_IN_GHOST_MODE) {
+            return text(R.string.FluxGramGhostModeSendSilentlyInGhostMode);
+        }
+        if (mode == GhostModeSettings.SILENT_SEND_ALWAYS) {
+            return text(R.string.FluxGramGhostModeSendSilentlyAlways);
+        }
+
+        return text(R.string.FluxGramGhostModeSendSilentlyNever);
     }
 
     private String text(int resource) {
