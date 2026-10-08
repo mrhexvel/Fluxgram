@@ -81,9 +81,11 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
                 .setCollapsed(!expanded)
                 .setClickCallback(view -> {
                     boolean hiddenBefore = GhostModeSettings.shouldHideOnline(currentAccount);
+                    boolean automaticOfflineBefore = GhostModeSettings.shouldUseAutomaticOffline(currentAccount);
                     GhostModeSettings.setEnabled(currentAccount, !GhostModeSettings.isEnabled(currentAccount));
 
-                    if (hiddenBefore != GhostModeSettings.shouldHideOnline(currentAccount)) {
+                    if (hiddenBefore != GhostModeSettings.shouldHideOnline(currentAccount)
+                            || automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(currentAccount)) {
                         MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
                     }
 
@@ -152,7 +154,12 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
         } else if (item.id == HIDE_STORY_VIEWS) {
             GhostModeSettings.setHidesStoryViews(currentAccount, checked);
         } else if (item.id == AUTOMATIC_OFFLINE) {
+            boolean automaticOfflineBefore = GhostModeSettings.shouldUseAutomaticOffline(currentAccount);
             GhostModeSettings.setUsesAutomaticOffline(currentAccount, checked);
+
+            if (automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(currentAccount)) {
+                MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
+            }
         } else if (item.id == READ_ON_ACTIONS) {
             GhostModeSettings.setReadsOnActions(currentAccount, checked);
         } else if (item.id == USE_SEND_DELAY) {

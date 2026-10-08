@@ -94,6 +94,10 @@ public final class GhostModeSettings {
         set(account, AUTOMATIC_OFFLINE, enabled);
     }
 
+    public static boolean shouldUseAutomaticOffline(int account) {
+        return isEnabled(account) && usesAutomaticOffline(account);
+    }
+
     public static boolean readsOnActions(int account) {
         return get(account, READ_ON_ACTIONS, true);
     }

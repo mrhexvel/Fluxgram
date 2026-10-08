@@ -401,7 +401,9 @@ public class MessagesController extends BaseController implements NotificationCe
     private volatile static long lastPasswordCheckTime;
     private Runnable passwordCheckRunnable = () -> getUserConfig().checkSavedPassword();
 
+    private static final long AUTOMATIC_OFFLINE_INTERVAL = 5000;
     private long lastStatusUpdateTime;
+    private long lastAutomaticOfflineTime;
     private int statusRequest;
     private int statusRequestGeneration;
     private int statusSettingState;
@@ -6678,6 +6680,7 @@ public class MessagesController extends BaseController implements NotificationCe
         updatingState = false;
         resetingDialogs = false;
         lastStatusUpdateTime = 0;
+        lastAutomaticOfflineTime = 0;
         offlineSent = false;
         registeringForPush = false;
         getDifferenceFirstSync = true;
@@ -11174,11 +11177,24 @@ public class MessagesController extends BaseController implements NotificationCe
             return;
         }
 
-        boolean hideOnline = GhostModeSettings.shouldHideOnline(currentAccount);
-        boolean active = !hideOnline && !ignoreSetOnline
-                && getConnectionsManager().getPauseTime() == 0
+        boolean foreground = !ignoreSetOnline && getConnectionsManager().getPauseTime() == 0
                 && ApplicationLoader.isScreenOn
                 && !ApplicationLoader.mainInterfacePausedStageQueue;
+        boolean automaticOffline = GhostModeSettings.shouldUseAutomaticOffline(currentAccount);
+
+        if (automaticOffline && foreground) {
+            boolean expired = force || lastAutomaticOfflineTime == 0
+                    || Math.abs(currentTime - lastAutomaticOfflineTime) >= AUTOMATIC_OFFLINE_INTERVAL;
+
+            if (statusSettingState != 2 && expired) {
+                sendOnlineStatus(true, true);
+            }
+
+            return;
+        }
+
+        boolean hideOnline = GhostModeSettings.shouldHideOnline(currentAccount);
+        boolean active = !hideOnline && foreground;
 
         if (active) {
             boolean resumed = force || ApplicationLoader.mainInterfacePausedStageQueueTime != 0
@@ -11187,19 +11203,19 @@ public class MessagesController extends BaseController implements NotificationCe
                     || Math.abs(currentTime - lastStatusUpdateTime) >= 55000 || offlineSent;
 
             if (resumed && statusSettingState != 1 && expired) {
-                sendOnlineStatus(false);
+                sendOnlineStatus(false, false);
             }
         } else {
             boolean pauseExpired = hideOnline
                     || Math.abs(currentTime - getConnectionsManager().getPauseTime()) >= 2000;
 
             if (statusSettingState != 2 && (force || !offlineSent) && pauseExpired) {
-                sendOnlineStatus(true);
+                sendOnlineStatus(true, false);
             }
         }
     }
 
-    private void sendOnlineStatus(boolean offline) {
+    private void sendOnlineStatus(boolean offline, boolean automaticOffline) {
         boolean requestOffline = offline || GhostModeSettings.shouldHideOnline(currentAccount);
         statusSettingState = requestOffline ? 2 : 1;
 
@@ -11224,6 +11240,10 @@ public class MessagesController extends BaseController implements NotificationCe
 
                 if (requestOffline) {
                     offlineSent = true;
+
+                    if (automaticOffline) {
+                        lastAutomaticOfflineTime = System.currentTimeMillis();
+                    }
                 } else {
                     lastStatusUpdateTime = System.currentTimeMillis();
                     offlineSent = false;

@@ -79,6 +79,29 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("return isEnabled(account) && hidesOnline(account);", source[start:end])
 
+    def test_automatic_offline_requires_master_and_runs_in_status_state_machine(self):
+        settings = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        controller = (JAVA / "messenger/MessagesController.java").read_text()
+        screen = (JAVA / "ui/FluxGramGhostModeActivity.java").read_text()
+
+        self.assertIn("return isEnabled(account) && usesAutomaticOffline(account);", settings)
+        self.assertIn("private static final long AUTOMATIC_OFFLINE_INTERVAL = 5000;", controller)
+        self.assertIn("GhostModeSettings.shouldUseAutomaticOffline(currentAccount)", controller)
+
+        update_start = controller.index("    private void updateOnlineStatus(")
+        update_end = controller.index("    private void sendOnlineStatus(", update_start)
+        update = controller[update_start:update_end]
+        automatic = update.index("if (automaticOffline && foreground)")
+        normal = update.index("if (active)")
+
+        self.assertLess(automatic, normal)
+        self.assertIn("sendOnlineStatus(true, true);", update[automatic:normal])
+        self.assertIn("return;", update[automatic:normal])
+        self.assertIn("lastAutomaticOfflineTime = System.currentTimeMillis();", controller)
+        self.assertIn("lastAutomaticOfflineTime = 0;", controller)
+        self.assertIn("automaticOfflineBefore", screen)
+        self.assertGreaterEqual(screen.count("updateGhostModeOnlineStatus();"), 3)
+
     def test_read_policy_requires_master_and_child_switches(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
         start = source.index("    public static boolean shouldHideReadReceipts(")
