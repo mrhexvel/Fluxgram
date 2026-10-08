@@ -45,6 +45,14 @@ public final class GhostModeSettings {
         set(account, HIDE_TYPING, enabled);
     }
 
+    public static boolean shouldHideTypingAction(int account, int action) {
+        if (!isEnabled(account) || !hidesTyping(account)) {
+            return false;
+        }
+
+        return action == 0 || action == 1 || action == 3 || action == 4 || action == 5 || action == 7 || action == 8 || action == 9 || action == 10;
+    }
+
     public static boolean hidesReadReceipts(int account) {
         return get(account, HIDE_READ_RECEIPTS);
     }

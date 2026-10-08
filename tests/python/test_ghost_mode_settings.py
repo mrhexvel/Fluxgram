@@ -57,6 +57,41 @@ class GhostModeSettingsTest(unittest.TestCase):
 
         self.assertIn("return isEnabled(account) && hidesReadReceipts(account);", source[start:end])
 
+    def test_typing_policy_requires_master_and_child_switches(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+        start = source.index("    public static boolean shouldHideTypingAction(")
+        end = source.index("    public static boolean hidesReadReceipts(", start)
+        method = source[start:end]
+
+        self.assertIn("!isEnabled(account) || !hidesTyping(account)", method)
+        for action in (0, 1, 3, 4, 5, 7, 8, 9, 10):
+            self.assertIn(f"action == {action}", method)
+        for action in (2, 6, 11):
+            self.assertNotIn(f"action == {action}", method)
+
+    def test_hidden_typing_returns_before_telegram_retry_state_changes(self):
+        controller = (JAVA / "messenger/MessagesController.java").read_text()
+        start = controller.index("    public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid)")
+        end = controller.index("    protected void removeDeletedMessagesFromArray", start)
+        method = controller[start:end]
+
+        policy = method.index("GhostModeSettings.shouldHideTypingAction(currentAccount, action)")
+        retry_state = method.index("LongSparseArray<LongSparseArray<Boolean>> dialogs = sendingTypings[action]")
+        request = method.index("TLRPC.TL_messages_setTyping req")
+
+        self.assertLess(policy, retry_state)
+        self.assertLess(policy, request)
+
+    def test_interactive_emoji_and_group_call_speaking_keep_direct_paths(self):
+        emoji = (JAVA / "ui/EmojiAnimationsOverlay.java").read_text()
+        voip = (JAVA / "messenger/voip/VoIPService.java").read_text()
+
+        self.assertIn("TLRPC.TL_sendMessageEmojiInteraction interaction", emoji)
+        self.assertIn("TLRPC.TL_messages_setTyping req", emoji)
+        self.assertNotIn("GhostModeSettings", emoji)
+        self.assertIn("TLRPC.TL_speakingInGroupCallAction", voip)
+        self.assertNotIn("GhostModeSettings", voip)
+
     def test_online_status_is_forced_offline_without_pausing_network(self):
         source = (JAVA / "messenger/MessagesController.java").read_text()
         start = source.index("    public void updateGhostModeOnlineStatus(")
