@@ -1261,6 +1261,7 @@ public class MessagesController extends BaseController implements NotificationCe
         public int maxId;
         public int maxDate;
         public long sendRequestTime;
+        public boolean suppressReceipt;
     }
 
     public static class PrintingUser {
@@ -14660,7 +14661,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
-        if (!DialogObject.isEncryptedDialog(task.dialogId) && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+        if (!DialogObject.isEncryptedDialog(task.dialogId) && (task.suppressReceipt || GhostModeSettings.shouldHideReadReceipts(currentAccount))) {
             return;
         }
 
@@ -14784,11 +14785,12 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void markDialogAsRead(long dialogId, int maxPositiveId, int maxNegativeId, int maxDate, boolean popup, long threadId, int countDiff, boolean readNow, int scheduledCount) {
         boolean createReadTask;
+        boolean suppressReceipt = !DialogObject.isEncryptedDialog(dialogId) && GhostModeSettings.shouldHideReadReceipts(currentAccount);
 
         if (threadId != 0) {
             createReadTask = maxPositiveId != Integer.MAX_VALUE;
 
-            if (createReadTask && !DialogObject.isEncryptedDialog(dialogId) && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+            if (createReadTask && suppressReceipt) {
                 GhostModeReadState.recordTopic(currentAccount, dialogId, threadId, maxPositiveId);
             }
         } else {
@@ -14803,7 +14805,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 dialogs_read_inbox_max.put(dialogId, Math.max(value, maxPositiveId));
 
-                boolean preserveLocalRead = GhostModeSettings.shouldHideReadReceipts(currentAccount);
+                boolean preserveLocalRead = suppressReceipt;
 
                 if (preserveLocalRead) {
                     GhostModeReadState.recordDialog(currentAccount, dialogId, maxPositiveId);
@@ -14940,6 +14942,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 currentReadTask.maxDate = maxDate;
                 currentReadTask.maxId = maxPositiveId;
+                currentReadTask.suppressReceipt = suppressReceipt;
                 if (readNow) {
                     completeReadTask(currentReadTask);
                 }

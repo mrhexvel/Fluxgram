@@ -159,6 +159,26 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("!DialogObject.isEncryptedDialog(task.dialogId)", method[:cloud_history])
         self.assertGreater(secret_history, policy)
 
+    def test_delayed_hidden_read_stays_suppressed_after_setting_is_disabled(self):
+        source = (JAVA / "messenger/MessagesController.java").read_text()
+        task_start = source.index("    private static class ReadTask {")
+        task_end = source.index("    public static class PrintingUser", task_start)
+        task = source[task_start:task_end]
+        complete_start = source.index("    private void completeReadTask(")
+        complete_end = source.index("    private void checkReadTasks(", complete_start)
+        complete = source[complete_start:complete_end]
+        mark_start = source.index("    public void markDialogAsRead(long dialogId")
+        mark_end = source.index("    public void fetchCommunityPendingJoinRequests", mark_start)
+        mark = source[mark_start:mark_end]
+
+        self.assertIn("public boolean suppressReceipt;", task)
+        self.assertIn("task.suppressReceipt || GhostModeSettings.shouldHideReadReceipts(currentAccount)", complete)
+        self.assertIn("currentReadTask.suppressReceipt = suppressReceipt;", mark)
+        self.assertLess(
+            mark.index("currentReadTask.suppressReceipt = suppressReceipt;"),
+            mark.index("completeReadTask(currentReadTask);"),
+        )
+
     def test_local_content_and_mention_updates_run_before_receipt_suppression(self):
         source = (JAVA / "messenger/MessagesController.java").read_text()
 
