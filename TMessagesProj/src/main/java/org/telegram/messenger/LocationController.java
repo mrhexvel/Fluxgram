@@ -27,6 +27,7 @@ import androidx.collection.LongSparseArray;
 
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLitePreparedStatement;
+import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
@@ -907,6 +908,9 @@ public class LocationController extends BaseController implements NotificationCe
         }
         ArrayList<TLRPC.Message> messages = locationsCache.get(dialogId);
         if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        if (GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
             return;
         }
         Integer date = lastReadLocationTime.get(dialogId);

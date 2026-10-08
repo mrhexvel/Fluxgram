@@ -11289,7 +11289,7 @@
     <string name="FluxGramGhostModeHideTyping">Hide typing status</string>
     <string name="FluxGramGhostModeHideReadReceipts">Hide read receipts</string>
     <string name="FluxGramGhostModeHideStoryViews">Hide story views</string>
-    <string name="FluxGramGhostModePreviewInfo">These switches are saved now. Their Telegram network behavior will be connected in the next implementation stages.</string>
+    <string name="FluxGramGhostModePreviewInfo">Online status hiding is active. The other selected options are saved and will be connected in the next implementation stages.</string>
     <string name="FluxGramStealth">History &amp; Storage</string>
     <string name="FluxGramStealthDescription">Deleted messages, edit history and attachments</string>
     <string name="FluxGramStealthHistory">Conversation history</string>

@@ -33,6 +33,10 @@ public final class GhostModeSettings {
         set(account, HIDE_ONLINE, enabled);
     }
 
+    public static boolean shouldHideOnline(int account) {
+        return isEnabled(account) && hidesOnline(account);
+    }
+
     public static boolean hidesTyping(int account) {
         return get(account, HIDE_TYPING);
     }
@@ -47,6 +51,10 @@ public final class GhostModeSettings {
 
     public static void setHidesReadReceipts(int account, boolean enabled) {
         set(account, HIDE_READ_RECEIPTS, enabled);
+    }
+
+    public static boolean shouldHideReadReceipts(int account) {
+        return isEnabled(account) && hidesReadReceipts(account);
     }
 
     public static boolean hidesStoryViews(int account) {

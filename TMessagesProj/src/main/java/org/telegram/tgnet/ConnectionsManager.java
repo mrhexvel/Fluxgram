@@ -45,6 +45,8 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.StatsController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.fluxgram.GhostModeSettings;
+import org.telegram.tgnet.tl.TL_account;
 import org.telegram.utils.proxy.WebProxyConnectionTester;
 import org.telegram.utils.proxy.WebProxyTransport;
 import org.telegram.utils.proxy.ProxySettings;
@@ -395,6 +397,11 @@ public class ConnectionsManager extends BaseController {
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("send request " + object + " with token = " + requestToken);
         }
+        if (object instanceof TL_account.updateStatus && GhostModeSettings.shouldHideOnline(currentAccount)) {
+            ((TL_account.updateStatus) object).offline = true;
+        }
+
+        boolean reassertGhostModeOffline = isPresenceActivityRequest(object);
         try {
             NativeByteBuffer buffer = new NativeByteBuffer(object.getObjectSize());
             object.serializeToStream(buffer);
@@ -457,6 +464,9 @@ public class ConnectionsManager extends BaseController {
                     final TLObject finalResponse = resp;
                     final TLRPC.TL_error finalError = error;
                     Utilities.stageQueue.postRunnable(() -> {
+                        if (reassertGhostModeOffline) {
+                            getMessagesController().reassertGhostModeOfflineStatus();
+                        }
                         if (onComplete != null) {
                             onComplete.run(finalResponse, finalError);
                         } else if (onCompleteTimestamp != null) {
@@ -477,6 +487,21 @@ public class ConnectionsManager extends BaseController {
         } catch (Exception e) {
             FileLog.e(e);
         }
+    }
+
+    private boolean isPresenceActivityRequest(TLObject object) {
+        return object instanceof TLRPC.TL_messages_readHistory
+                || object instanceof TLRPC.TL_channels_readHistory
+                || object instanceof TLRPC.TL_messages_readDiscussion
+                || object instanceof TLRPC.TL_messages_readSavedHistory
+                || object instanceof TLRPC.TL_messages_readMessageContents
+                || object instanceof TLRPC.TL_channels_readMessageContents
+                || object instanceof TLRPC.TL_messages_readMentions
+                || object instanceof TLRPC.TL_messages_sendMessage
+                || object instanceof TLRPC.TL_messages_sendMedia
+                || object instanceof TLRPC.TL_messages_sendMultiMedia
+                || object instanceof TLRPC.TL_messages_forwardMessages
+                || object instanceof TLRPC.TL_messages_sendInlineBotResult;
     }
 
     private final ConcurrentHashMap<Integer, RequestCallbacks> requestCallbacks = new ConcurrentHashMap<>();

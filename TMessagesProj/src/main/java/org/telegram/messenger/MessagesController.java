@@ -52,6 +52,7 @@ import androidx.core.graphics.ColorUtils;
 import androidx.core.util.Consumer;
 
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
+import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLiteException;
@@ -401,8 +402,15 @@ public class MessagesController extends BaseController implements NotificationCe
 
     private long lastStatusUpdateTime;
     private int statusRequest;
+    private int statusRequestGeneration;
     private int statusSettingState;
     private boolean offlineSent;
+    private long statusRetryTime;
+    private final Runnable ghostModeOfflineReassertRunnable = () -> {
+        if (GhostModeSettings.shouldHideOnline(currentAccount)) {
+            updateOnlineStatus(true);
+        }
+    };
     private String uploadingAvatar;
     private final LongSparseArray<ArrayList<MessageObject>> welcomeMessages = new LongSparseArray<>();
 
@@ -6671,7 +6679,10 @@ public class MessagesController extends BaseController implements NotificationCe
         uploadingThemes.clear();
         gettingChatInviters.clear();
         statusRequest = 0;
+        statusRequestGeneration++;
         statusSettingState = 0;
+        statusRetryTime = 0;
+        Utilities.stageQueue.cancelRunnable(ghostModeOfflineReassertRunnable);
 
         Utilities.stageQueue.postRunnable(() -> {
             FileLog.d("cleanup: isUpdating = false");
@@ -10530,49 +10541,7 @@ public class MessagesController extends BaseController implements NotificationCe
         checkReadTasks();
 
         if (getUserConfig().isClientActivated()) {
-            if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
-                if (ApplicationLoader.mainInterfacePausedStageQueueTime != 0 && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - System.currentTimeMillis()) > 1000) {
-                    if (statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
-                        statusSettingState = 1;
-
-                        if (statusRequest != 0) {
-                            getConnectionsManager().cancelRequest(statusRequest, true);
-                        }
-
-                        TL_account.updateStatus req = new TL_account.updateStatus();
-                        req.offline = false;
-                        statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
-                            if (error == null) {
-                                lastStatusUpdateTime = System.currentTimeMillis();
-                                offlineSent = false;
-                                statusSettingState = 0;
-                            } else {
-                                if (lastStatusUpdateTime != 0) {
-                                    lastStatusUpdateTime += 5000;
-                                }
-                            }
-                            statusRequest = 0;
-                        });
-                    }
-                }
-            } else if (statusSettingState != 2 && !offlineSent && Math.abs(System.currentTimeMillis() - getConnectionsManager().getPauseTime()) >= 2000) {
-                statusSettingState = 2;
-                if (statusRequest != 0) {
-                    getConnectionsManager().cancelRequest(statusRequest, true);
-                }
-                TL_account.updateStatus req = new TL_account.updateStatus();
-                req.offline = true;
-                statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
-                    if (error == null) {
-                        offlineSent = true;
-                    } else {
-                        if (lastStatusUpdateTime != 0) {
-                            lastStatusUpdateTime += 5000;
-                        }
-                    }
-                    statusRequest = 0;
-                });
-            }
+            updateOnlineStatus(false);
 
             if (updatesQueueChannels.size() != 0) {
                 for (int a = 0; a < updatesQueueChannels.size(); a++) {
@@ -11151,6 +11120,98 @@ public class MessagesController extends BaseController implements NotificationCe
             getGlobalMainSettings().edit().putLong("proxy_dialog", promoDialogId).remove("proxyDialogAddress").putInt("nextPromoInfoCheckTime", nextPromoInfoCheckTime).commit();
             AndroidUtilities.runOnUIThread(this::removePromoDialog);
         }
+    }
+
+    public void updateGhostModeOnlineStatus() {
+        Utilities.stageQueue.postRunnable(() -> {
+            Utilities.stageQueue.cancelRunnable(ghostModeOfflineReassertRunnable);
+            statusRequestGeneration++;
+
+            if (statusRequest != 0) {
+                getConnectionsManager().cancelRequest(statusRequest, true);
+                statusRequest = 0;
+            }
+
+            statusSettingState = 0;
+            statusRetryTime = 0;
+            updateOnlineStatus(true);
+        });
+    }
+
+    public void reassertGhostModeOfflineStatus() {
+        if (!GhostModeSettings.shouldHideOnline(currentAccount)) {
+            return;
+        }
+
+        Utilities.stageQueue.cancelRunnable(ghostModeOfflineReassertRunnable);
+        Utilities.stageQueue.postRunnable(ghostModeOfflineReassertRunnable, 500);
+    }
+
+    private void updateOnlineStatus(boolean force) {
+        long currentTime = System.currentTimeMillis();
+
+        if (!force && currentTime < statusRetryTime) {
+            return;
+        }
+
+        boolean hideOnline = GhostModeSettings.shouldHideOnline(currentAccount);
+        boolean active = !hideOnline && !ignoreSetOnline
+                && getConnectionsManager().getPauseTime() == 0
+                && ApplicationLoader.isScreenOn
+                && !ApplicationLoader.mainInterfacePausedStageQueue;
+
+        if (active) {
+            boolean resumed = force || ApplicationLoader.mainInterfacePausedStageQueueTime != 0
+                    && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - currentTime) > 1000;
+            boolean expired = force || lastStatusUpdateTime == 0
+                    || Math.abs(currentTime - lastStatusUpdateTime) >= 55000 || offlineSent;
+
+            if (resumed && statusSettingState != 1 && expired) {
+                sendOnlineStatus(false);
+            }
+        } else {
+            boolean pauseExpired = hideOnline
+                    || Math.abs(currentTime - getConnectionsManager().getPauseTime()) >= 2000;
+
+            if (statusSettingState != 2 && (force || !offlineSent) && pauseExpired) {
+                sendOnlineStatus(true);
+            }
+        }
+    }
+
+    private void sendOnlineStatus(boolean offline) {
+        boolean requestOffline = offline || GhostModeSettings.shouldHideOnline(currentAccount);
+        statusSettingState = requestOffline ? 2 : 1;
+
+        if (statusRequest != 0) {
+            statusRequestGeneration++;
+            getConnectionsManager().cancelRequest(statusRequest, true);
+        }
+
+        int generation = ++statusRequestGeneration;
+        TL_account.updateStatus request = new TL_account.updateStatus();
+        request.offline = requestOffline;
+        statusRequest = getConnectionsManager().sendRequest(request, (response, error) -> {
+            if (generation != statusRequestGeneration) {
+                return;
+            }
+
+            statusRequest = 0;
+            statusSettingState = 0;
+
+            if (error == null) {
+                statusRetryTime = 0;
+
+                if (requestOffline) {
+                    offlineSent = true;
+                } else {
+                    lastStatusUpdateTime = System.currentTimeMillis();
+                    offlineSent = false;
+                }
+            } else {
+                statusRetryTime = System.currentTimeMillis() + 5000;
+            }
+        });
     }
 
     private void removePromoDialog() {
@@ -14411,6 +14472,9 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
+        if (messageObject.getId() > 0 && !messageObject.isSecretMedia() && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+            return;
+        }
         if (messageObject.getId() < 0) {
             markMessageAsRead(messageObject.getDialogId(), messageObject.messageOwner.random_id, Integer.MIN_VALUE);
         } else {
@@ -14437,8 +14501,12 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
-    public void markMentionMessageAsRead(int mid, long channelId, long did) {
+    public void markMentionMessageAsRead(MessageObject messageObject, long channelId, long did) {
+        int mid = messageObject.getId();
         getMessagesStorage().markMentionMessageAsRead(-channelId, mid, did);
+        if (!messageObject.isSecretMedia() && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+            return;
+        }
         if (channelId != 0) {
             TLRPC.TL_channels_readMessageContents req = new TLRPC.TL_channels_readMessageContents();
             req.channel = getInputChannel(channelId);
@@ -14563,6 +14631,10 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
+        if (!DialogObject.isEncryptedDialog(task.dialogId) && GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+            return;
+        }
+
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
@@ -14669,6 +14741,9 @@ public class MessagesController extends BaseController implements NotificationCe
             return;
         }
         getMessagesStorage().resetMentionsCount(dialogId, topicId, 0);
+        if (GhostModeSettings.shouldHideReadReceipts(currentAccount)) {
+            return;
+        }
         TLRPC.TL_messages_readMentions req = new TLRPC.TL_messages_readMentions();
         req.peer = getInputPeer(dialogId);
         if (topicId != 0) {

@@ -5,6 +5,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -71,7 +72,13 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
                 .setChecked(enabled)
                 .setCollapsed(!expanded)
                 .setClickCallback(view -> {
+                    boolean hiddenBefore = GhostModeSettings.shouldHideOnline(currentAccount);
                     GhostModeSettings.setEnabled(currentAccount, !GhostModeSettings.isEnabled(currentAccount));
+
+                    if (hiddenBefore != GhostModeSettings.shouldHideOnline(currentAccount)) {
+                        MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
+                    }
+
                     listView.adapter.update(true);
                 }));
 
@@ -105,7 +112,12 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
         boolean checked = !item.checked;
 
         if (item.id == HIDE_ONLINE) {
+            boolean hiddenBefore = GhostModeSettings.shouldHideOnline(currentAccount);
             GhostModeSettings.setHidesOnline(currentAccount, checked);
+
+            if (hiddenBefore != GhostModeSettings.shouldHideOnline(currentAccount)) {
+                MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
+            }
         } else if (item.id == HIDE_TYPING) {
             GhostModeSettings.setHidesTyping(currentAccount, checked);
         } else if (item.id == HIDE_READ_RECEIPTS) {

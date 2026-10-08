@@ -317,7 +317,7 @@
     <string name="FluxGramGhostModeHideTyping">Не показывать набор текста</string>
     <string name="FluxGramGhostModeHideReadReceipts">Не отправлять отметки прочтения</string>
     <string name="FluxGramGhostModeHideStoryViews">Не показывать просмотры историй</string>
-    <string name="FluxGramGhostModePreviewInfo">Сейчас переключатели только сохраняются. Их влияние на сетевое поведение Telegram будет подключено на следующих этапах.</string>
+    <string name="FluxGramGhostModePreviewInfo">Скрытие статуса онлайн уже работает. Остальные выбранные настройки сохраняются и будут подключены на следующих этапах.</string>
     <string name="FluxGramStealth">История и хранилище</string>
     <string name="FluxGramStealthDescription">Удалённые сообщения, история изменений и вложения</string>
     <string name="FluxGramStealthHistory">История переписки</string>
