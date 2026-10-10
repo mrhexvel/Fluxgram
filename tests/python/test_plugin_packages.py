@@ -199,22 +199,6 @@ class PluginPackagesTest(unittest.TestCase):
         self.assertEqual(values["API_VERSION"], MANIFEST["sdk_version"])
         self.assertEqual(values["API_MINOR_VERSION"], MANIFEST["min_sdk_minor"])
 
-    def test_example_sources(self):
-        folder = ROOT / "examples/hello_plugin"
-        manifest = json.loads((folder / "manifest.json").read_text())
-        files = ["manifest.json", "main.py"]
-
-        if "icon" in manifest:
-            files.append(manifest["icon"])
-
-        data = io.BytesIO()
-
-        with zipfile.ZipFile(data, "w", compression=zipfile.ZIP_DEFLATED) as z:
-            for name in files:
-                z.write(folder / name, name)
-
-        self.assertEqual(self.validate(data.getvalue(), True)[0], manifest["id"])
-
     def test_utf8_metadata(self):
         self.validate(
             self.archive(

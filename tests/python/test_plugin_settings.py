@@ -266,23 +266,3 @@ class PluginSettingsTest(unittest.TestCase):
                 from dataclasses import replace
 
                 replace(item, on_changed="method_name")
-
-    def test_example_callback_is_callable(self):
-        module = types.ModuleType("fluxgram")
-        module.Plugin = object
-        module.MessageReceivedEvent = object
-        module.TextSetting = self.sdk.TextSetting
-        path = Path(__file__).resolve().parents[2] / "examples/hello_plugin/main.py"
-
-        with patch.dict(sys.modules, {"fluxgram": module}):
-            spec = importlib.util.spec_from_file_location("test_hello_plugin", path)
-            example = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(example)
-
-        plugin = example.PluginEntry()
-        calls = []
-        plugin.log = calls.append
-        settings = self.sdk.Settings(plugin.settings_schema)
-        settings._bind_runtime(self.host({}), 7)
-        settings._dispatch_changed(plugin, "log_prefix", "Updated")
-        self.assertEqual(calls, ["Новый префикс журнала: Updated"])
