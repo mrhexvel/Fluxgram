@@ -43,3 +43,6 @@
 [submodule "TMessagesProj/jni/third_party/wamr"]
 	path = TMessagesProj/jni/third_party/wamr
 	url = https://github.com/wasm-micro-runtime/wasm-micro-runtime.git
+[submodule "sdk/python"]
+	path = sdk/python
+	url = https://github.com/mrhexvel/fluxgram-sdk.git

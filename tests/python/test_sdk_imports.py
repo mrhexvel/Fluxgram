@@ -100,7 +100,26 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
 
         gradle = (ROOT / "TMessagesProj/build.gradle").read_text()
-        self.assertIn('srcDir(rootProject.file("sdk/python/src"))', gradle)
+        self.assertIn('rootProject.file("sdk/python/src")', gradle)
+        self.assertIn("git submodule update --init --recursive", gradle)
+
+    def test_sdk_is_pinned_as_a_submodule(self):
+        modules = (ROOT / ".gitmodules").read_text()
+        self.assertIn('[submodule "sdk/python"]', modules)
+        self.assertIn("path = sdk/python", modules)
+        self.assertIn(
+            "url = https://github.com/mrhexvel/fluxgram-sdk.git",
+            modules,
+        )
+
+        result = subprocess.run(
+            ["git", "ls-files", "--stage", "sdk/python"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout, r"^160000 [0-9a-f]{40} 0\tsdk/python\n$")
 
 
 if __name__ == "__main__":

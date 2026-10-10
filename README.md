@@ -1,6 +1,7 @@
 ## FluxGram project decisions
 
 - [Модель доверия плагинов FluxGram](docs/decisions/0001-plugin-trust-model.md) — принятое решение о полном доступе, установке и восстановлении.
+- Публичный Python SDK подключён из [mrhexvel/fluxgram-sdk](https://github.com/mrhexvel/fluxgram-sdk) как submodule `sdk/python`.
 
 ## Telegram messenger for Android
 
@@ -32,12 +33,13 @@ You will require Android Studio 2025.1.4, Android NDK 27.2.12479018 and Android 
 
 1. Clone the Telegram source code with its submodules:
    ```bash
-   git clone --recursive --shallow-submodules https://github.com/DrKLO/Telegram.git Telegram
+   git clone --recursive --shallow-submodules https://github.com/mrhexvel/fluxgram.git FluxGram
    ```
    In case you forgot the `--recursive` flag, change to the `Telegram` directory and run:
    ```bash
    git submodule init && git submodule update --init --recursive --depth=1
    ```
+   GitHub source archives do not include submodule contents and cannot be used as complete build checkouts.
 2. Copy your release.keystore into TMessagesProj/config
 3. Fill out RELEASE_KEY_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_STORE_PASSWORD in gradle.properties to access your  release.keystore
 4.  Go to https://console.firebase.google.com/, create two android apps with application IDs org.telegram.messenger and org.telegram.messenger.beta, turn on firebase messaging and download google-services.json, which should be copied to the same folder as TMessagesProj.

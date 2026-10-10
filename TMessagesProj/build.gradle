@@ -250,10 +250,19 @@ android {
     namespace 'org.telegram.messenger'
 }
 
+def fluxGramSdkSource = rootProject.file("sdk/python/src")
+def fluxGramSdkEntryPoint = new File(fluxGramSdkSource, "fluxgram/__init__.py")
+
+if (!fluxGramSdkEntryPoint.isFile()) {
+    throw new GradleException(
+            "FluxGram SDK submodule is missing. Run: git submodule update --init --recursive"
+    )
+}
+
 chaquopy {
     sourceSets {
         getByName("main") {
-            srcDir(rootProject.file("sdk/python/src"))
+            srcDir(fluxGramSdkSource)
         }
     }
 

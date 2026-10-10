@@ -31,6 +31,9 @@ def java_imports():
 
 class SdkReleaseRulesTest(unittest.TestCase):
     def test_python_java_imports_keep_names_and_members(self):
+        for root in PYTHON_ROOTS:
+            self.assertTrue(root.is_dir(), f'Missing Python source root: {root}')
+
         patterns = re.findall(r'^-keep class (\S+) \{ \*; \}', RULES.read_text(), re.M)
         expressions = []
 
