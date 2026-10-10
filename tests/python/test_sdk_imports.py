@@ -19,6 +19,7 @@ import sys
 
 import fluxgram
 import fluxgram.models
+import fluxgram.testing
 import fluxgram.ui
 from fluxgram import (
     API_MINOR_VERSION,
@@ -36,6 +37,7 @@ from fluxgram import (
     TextSetting,
 )
 from fluxgram.ui import Bulletins, Navigation, Notifications, UI
+from fluxgram.testing import PluginHarness
 
 assert API_VERSION == 2
 assert API_MINOR_VERSION == 0
@@ -43,6 +45,7 @@ assert fluxgram.ChatInfo is fluxgram.models.ChatInfo
 assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notifications"}
 assert SwitchSetting("enabled", "Enabled").default is False
 assert UI()._active() is False
+assert PluginHarness.__module__ == "fluxgram.testing.harness"
 try:
     Plugin("standalone.test")
 except RuntimeError as error:
@@ -119,7 +122,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
     def test_package_metadata_and_chaquopy_source_set(self):
         metadata = tomllib.loads((SDK / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-sdk")
-        self.assertEqual(metadata["project"]["version"], "2.0.1")
+        self.assertEqual(metadata["project"]["version"], "2.1.0")
         self.assertEqual(metadata["project"]["requires-python"], ">=3.11")
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
 
