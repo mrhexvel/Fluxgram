@@ -1,10 +1,4 @@
-from android.util import Log
-
 from .events import BeforeSendEvent
-from ._event_bus import EventBus
-from .client import Client
-from .ui import UI
-from ._ui_thread import call_ui
 from .settings import Settings
 
 
@@ -12,7 +6,13 @@ class Plugin:
     settings_schema = ()
 
     def __init__(self, plugin_id: str):
+        from ._event_bus import EventBus
+        from .client import Client
+        from .ui import UI
+        from ._ui_thread import call_ui
+
         self._plugin_id = plugin_id
+        self._call_ui = call_ui
         self.settings = Settings(self.settings_schema)
         self.events = EventBus(plugin_id)
         self.client = Client()
@@ -27,9 +27,9 @@ class Plugin:
 
     def _unload(self):
         steps = (
-            ("ui", lambda: call_ui(self.ui._close)),
+            ("ui", lambda: self._call_ui(self.ui._close)),
             ("client", self.client._close),
-            ("events", lambda: call_ui(self.events.close)),
+            ("events", lambda: self._call_ui(self.events.close)),
             ("on_unload", self.on_unload),
         )
         errors = []
@@ -53,6 +53,8 @@ class Plugin:
         return self._plugin_id
 
     def log(self, message: str):
+        from android.util import Log
+
         Log.i(
             "FluxGramPython",
             f"[{self.id}] {message}",

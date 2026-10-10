@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 
-SOURCE = Path(__file__).resolve().parents[2] / 'TMessagesProj/src/main/python/fluxgram/ui/context.py'
+SOURCE = Path(__file__).resolve().parents[2] / 'sdk/python/src/fluxgram/ui/context.py'
 
 
 class UiContextTest(unittest.TestCase):
@@ -26,10 +26,12 @@ class UiContextTest(unittest.TestCase):
         )
         modules['fluxgram._ui_thread'].post_ui = self.pending.append
 
-        with patch.dict(sys.modules, modules):
-            spec = importlib.util.spec_from_file_location('fluxgram.ui.context', SOURCE)
-            sdk = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(sdk)
+        modules_patch = patch.dict(sys.modules, modules)
+        modules_patch.start()
+        self.addCleanup(modules_patch.stop)
+        spec = importlib.util.spec_from_file_location('fluxgram.ui.context', SOURCE)
+        sdk = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sdk)
 
         self.ui = sdk.UI()
         self.host = types.SimpleNamespace(isGenerationActive=lambda generation: generation == 7)

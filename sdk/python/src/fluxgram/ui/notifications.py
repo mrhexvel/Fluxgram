@@ -1,22 +1,32 @@
 import traceback
 
-from android.util import Log
-from org.telegram.ui import ChatActivity
-from org.telegram.ui.Components import BulletinFactory
-
-from .._telegram.bulletins import BulletinPresenter, has_visible_bulletin
-from .._telegram.navigation import foreground_fragment
-from .._telegram.notification_card import create_message_bulletin, update_message_bulletin
-from .._telegram.ui_lifecycle import UiLifecycle
-from .._ui_thread import post_ui
-from ..client import _require_integer
 from ._notification_queue import NotificationQueue, NotificationRequest
 from .navigation import Navigation
 
 
 class Notifications:
     def __init__(self, ui):
+        from android.util import Log
+        from org.telegram.ui import ChatActivity
+        from org.telegram.ui.Components import BulletinFactory
+
+        from .._telegram.bulletins import BulletinPresenter, has_visible_bulletin
+        from .._telegram.navigation import foreground_fragment
+        from .._telegram.notification_card import create_message_bulletin, update_message_bulletin
+        from .._telegram.ui_lifecycle import UiLifecycle
+        from .._ui_thread import post_ui
+        from ..client import _require_integer
+
         self._ui = ui
+        self._Log = Log
+        self._ChatActivity = ChatActivity
+        self._BulletinFactory = BulletinFactory
+        self._has_visible_bulletin = has_visible_bulletin
+        self._foreground_fragment = foreground_fragment
+        self._create_message_bulletin = create_message_bulletin
+        self._update_message_bulletin = update_message_bulletin
+        self._post_ui = post_ui
+        self._require_integer = _require_integer
         self._navigation = Navigation(ui)
         self._presenter = BulletinPresenter(ui)
         ui._register_cleanup(self._presenter.dismiss)
@@ -67,7 +77,7 @@ class Notifications:
 
         if (
             not request.show_in_current_chat
-            and isinstance(fragment, ChatActivity)
+            and isinstance(fragment, self._ChatActivity)
             and (int(fragment.getCurrentAccount()), int(fragment.getDialogId()), int(fragment.getTopicId()))
             == request.key
         ):
@@ -91,7 +101,7 @@ class Notifications:
         return on_click
 
     def _show(self, request, fragment):
-        bulletin = create_message_bulletin(fragment, request.event)
+        bulletin = self._create_message_bulletin(fragment, request.event)
         bulletin.setDuration(request.duration)
         handle = self._presenter.show(
             bulletin,
@@ -123,7 +133,7 @@ class Notifications:
         self._advance_pending = True
 
         try:
-            post_ui(lambda: self._advance(revision))
+            self._post_ui(lambda: self._advance(revision))
         except Exception:
             self._advance_pending = False
             raise
@@ -142,14 +152,14 @@ class Notifications:
         if self._notification_handle is not None:
             return
 
-        fragment = foreground_fragment()
+        fragment = self._foreground_fragment()
 
         if fragment is None:
             self._on_background()
 
             return
 
-        if not BulletinFactory.canShowBulletin(fragment) or has_visible_bulletin():
+        if not self._BulletinFactory.canShowBulletin(fragment) or self._has_visible_bulletin():
             self._queue.clear()
 
             return
@@ -164,7 +174,7 @@ class Notifications:
                 if self._show(request, fragment):
                     return
             except Exception:
-                Log.e("FluxGramPython", traceback.format_exc())
+                self._Log.e("FluxGramPython", traceback.format_exc())
 
     def show_message(self, event, *, respect_mute=True, show_in_current_chat=False, duration=5000):
         self._ui._require_ui()
@@ -172,16 +182,16 @@ class Notifications:
         if not isinstance(respect_mute, bool) or not isinstance(show_in_current_chat, bool):
             raise TypeError("Notification options must be booleans")
 
-        _require_integer("duration", duration, 1000, 10000)
+        self._require_integer("duration", duration, 1000, 10000)
         request = NotificationRequest(event, duration, respect_mute, show_in_current_chat)
-        fragment = foreground_fragment()
+        fragment = self._foreground_fragment()
 
         if fragment is None:
             self._on_background()
 
             return False
 
-        if not self._eligible(request, fragment) or not BulletinFactory.canShowBulletin(fragment):
+        if not self._eligible(request, fragment) or not self._BulletinFactory.canShowBulletin(fragment):
             return False
 
         self._lifecycle.start()
@@ -190,7 +200,7 @@ class Notifications:
         if handle is not None:
             if self._notification_key == request.key:
                 updated = handle.update(
-                    lambda bulletin: update_message_bulletin(bulletin, event),
+                    lambda bulletin: self._update_message_bulletin(bulletin, event),
                     on_click=self._click(request),
                     duration=duration,
                 )

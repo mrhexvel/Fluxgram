@@ -1,8 +1,7 @@
-from .._telegram.bulletins import BulletinPresenter
-
-
 class Bulletins:
     def __init__(self, ui):
+        from .._telegram.bulletins import BulletinPresenter
+
         self._presenter = BulletinPresenter(ui)
         ui._register_cleanup(self._presenter.dismiss)
 

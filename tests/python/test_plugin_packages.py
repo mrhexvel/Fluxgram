@@ -174,7 +174,7 @@ class PluginPackagesTest(unittest.TestCase):
 
     def test_sdk_version_matches_python(self):
         tree = ast.parse(
-            (ROOT / "TMessagesProj/src/main/python/fluxgram/__init__.py").read_text()
+            (ROOT / "sdk/python/src/fluxgram/__init__.py").read_text()
         )
         values = {
             target.id: node.value.value

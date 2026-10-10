@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 
-ROOT = Path(__file__).resolve().parents[2] / "TMessagesProj/src/main/python/fluxgram"
+ROOT = Path(__file__).resolve().parents[2] / "sdk/python/src/fluxgram"
 
 
 class Resource:
@@ -47,8 +47,8 @@ class PluginCleanupTest(unittest.TestCase):
             spec = importlib.util.spec_from_file_location("fluxgram.plugin", ROOT / "plugin.py")
             loaded = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(loaded)
+            self.plugin = loaded.Plugin("test.cleanup")
 
-        self.plugin = loaded.Plugin("test.cleanup")
         self.hook = Resource()
         self.plugin.on_unload = self.hook._close
 

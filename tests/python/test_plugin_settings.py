@@ -6,13 +6,17 @@ import unittest
 from unittest.mock import patch
 
 
-ROOT = Path(__file__).resolve().parents[2] / "TMessagesProj/src/main/python"
+PROJECT = Path(__file__).resolve().parents[2]
+SDK = PROJECT / "sdk/python/src"
+RUNTIME = PROJECT / "TMessagesProj/src/main/python"
 
 
 class PluginSettingsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location("settings_test_module", ROOT / "fluxgram/settings.py")
+        spec = importlib.util.spec_from_file_location(
+            "settings_test_module", SDK / "fluxgram/settings.py"
+        )
         cls.sdk = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = cls.sdk
         spec.loader.exec_module(cls.sdk)
@@ -88,7 +92,9 @@ class PluginSettingsTest(unittest.TestCase):
         )
 
         with patch.dict(sys.modules, {"fluxgram": module, "fluxgram.ui": ui_module}):
-            spec = importlib.util.spec_from_file_location("test_notifications", ROOT / "fluxgram_notifications.py")
+            spec = importlib.util.spec_from_file_location(
+                "test_notifications", RUNTIME / "fluxgram_notifications.py"
+            )
             builtin = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(builtin)
         plugin = builtin.PluginEntry()

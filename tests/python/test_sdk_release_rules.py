@@ -5,22 +5,26 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PYTHON = ROOT / 'TMessagesProj/src/main/python'
+PYTHON_ROOTS = (
+    ROOT / 'sdk/python/src',
+    ROOT / 'TMessagesProj/src/main/python',
+)
 RULES = ROOT / 'TMessagesProj/proguard-rules.pro'
 
 
 def java_imports():
     classes = set()
 
-    for path in PYTHON.rglob('*.py'):
-        for node in ast.walk(ast.parse(path.read_text())):
-            if isinstance(node, ast.ImportFrom) and (node.module or '').startswith('org.telegram.'):
-                classes.update(f'{node.module}.{name.name}' for name in node.names)
-            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'jclass':
-                if node.args and isinstance(node.args[0], ast.Constant):
-                    name = node.args[0].value
-                    if isinstance(name, str) and name.startswith('org.telegram.'):
-                        classes.add(name)
+    for root in PYTHON_ROOTS:
+        for path in root.rglob('*.py'):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.ImportFrom) and (node.module or '').startswith('org.telegram.'):
+                    classes.update(f'{node.module}.{name.name}' for name in node.names)
+                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'jclass':
+                    if node.args and isinstance(node.args[0], ast.Constant):
+                        name = node.args[0].value
+                        if isinstance(name, str) and name.startswith('org.telegram.'):
+                            classes.add(name)
 
     return classes
 

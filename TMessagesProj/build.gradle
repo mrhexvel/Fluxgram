@@ -251,6 +251,12 @@ android {
 }
 
 chaquopy {
+    sourceSets {
+        getByName("main") {
+            srcDir(rootProject.file("sdk/python/src"))
+        }
+    }
+
     defaultConfig {
         version = "3.11"
 

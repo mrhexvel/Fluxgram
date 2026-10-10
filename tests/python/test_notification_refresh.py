@@ -6,7 +6,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 
-SOURCE = Path(__file__).resolve().parents[2] / 'TMessagesProj/src/main/python/fluxgram/ui/__init__.py'
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE = ROOT / 'sdk/python/src/fluxgram/ui/__init__.py'
+RUNTIME = ROOT / 'TMessagesProj/src/main/python/fluxgram'
 
 
 class Bulletin:
@@ -116,18 +118,21 @@ class NotificationRefreshTest(unittest.TestCase):
             removeListener=self.lifecycle_listeners.remove,
         ))
 
-        with patch.dict(sys.modules, modules):
-            for name, path in (
-                ('fluxgram._telegram.bulletins', SOURCE.parent.parent / '_telegram/bulletins.py'),
-                ('fluxgram._telegram.ui_lifecycle', SOURCE.parent.parent / '_telegram/ui_lifecycle.py'),
-                ('fluxgram.ui', SOURCE),
-            ):
-                spec = importlib.util.spec_from_file_location(name, path)
-                loaded = importlib.util.module_from_spec(spec)
-                sys.modules[name] = loaded
-                spec.loader.exec_module(loaded)
+        modules_patch = patch.dict(sys.modules, modules)
+        modules_patch.start()
+        self.addCleanup(modules_patch.stop)
 
-            self.sdk = loaded
+        for name, path in (
+            ('fluxgram._telegram.bulletins', RUNTIME / '_telegram/bulletins.py'),
+            ('fluxgram._telegram.ui_lifecycle', RUNTIME / '_telegram/ui_lifecycle.py'),
+            ('fluxgram.ui', SOURCE),
+        ):
+            spec = importlib.util.spec_from_file_location(name, path)
+            loaded = importlib.util.module_from_spec(spec)
+            sys.modules[name] = loaded
+            spec.loader.exec_module(loaded)
+
+        self.sdk = loaded
 
         self.ui = self.sdk.UI()
         self.ui._is_active = lambda: True
