@@ -97,8 +97,34 @@ class AndroidStoragePort:
                 max_entries=limits["max_entries"],
                 max_value_bytes=limits["max_value_bytes"],
                 max_total_value_bytes=limits["max_total_value_bytes"],
+                max_files=limits["max_files"],
+                max_file_bytes=limits["max_file_bytes"],
+                max_total_file_bytes=limits["max_total_file_bytes"],
             ),
+            file_count=value["file_count"],
+            file_bytes=value["file_bytes"],
         )
+
+    def file_contains(self, scope, path):
+        self._require_operation()
+        return bool(self._call(lambda: self._session.fileContains(scope, path)))
+
+    def file_read(self, scope, path):
+        self._require_operation()
+        value = self._call(lambda: self._session.fileRead(scope, path))
+        return None if value is None else bytes(value)
+
+    def file_write(self, scope, path, data):
+        self._require_operation()
+        self._call(lambda: self._session.fileWrite(scope, path, data))
+
+    def file_delete(self, scope, path):
+        self._require_operation()
+        return bool(self._call(lambda: self._session.fileDelete(scope, path)))
+
+    def file_clear(self, scope):
+        self._require_operation()
+        self._call(lambda: self._session.fileClear(scope))
 
     def submit(self, callback):
         if not self._is_active():

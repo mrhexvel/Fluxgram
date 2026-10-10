@@ -8,6 +8,7 @@ import org.json.JSONObject;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
+import org.telegram.messenger.plugins.packages.PluginPackageStore;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,7 +38,7 @@ public final class PythonPluginAdapter implements Plugin {
     private volatile java.util.List<PluginSettings.Setting> settingsSchema;
 
     public PythonPluginAdapter(
-            org.telegram.messenger.plugins.packages.PluginPackageStore.Installed installed) {
+            PluginPackageStore.Installed installed) {
         this(
                 installed.manifest.id,
                 installed.manifest.entrypoint.split(":")[0],
@@ -82,6 +83,25 @@ public final class PythonPluginAdapter implements Plugin {
 
     public String getRuntimeState() {
         return lifecycle.getState().name();
+    }
+
+    void setPreflightError(Throwable error) {
+        loadError = error.toString();
+    }
+
+    public static void migrateStorage(
+            PluginPackageStore.Installed installed) {
+        migrateExternalStorage(
+                installed.directory.getAbsolutePath(),
+                installed.manifest.entrypoint.split(":")[0],
+                installed.manifest.id
+        );
+    }
+
+    private static void migrateExternalStorage(String path, String module, String pluginId) {
+        PythonRuntime.prepare()
+                .getModule("fluxgram_runtime._bridge")
+                .callAttr("migrate_external_plugin", path, module, pluginId);
     }
 
     private final ThreadPoolExecutor executor;
@@ -214,6 +234,23 @@ public final class PythonPluginAdapter implements Plugin {
 
         try {
             PyObject nextBridge = PythonRuntime.prepare().getModule("fluxgram_runtime._bridge");
+
+            if (!lifecycle.isCurrent(request)) {
+                return;
+            }
+
+            if (isExternal()) {
+                nextBridge.callAttr(
+                        "migrate_external_plugin",
+                        externalPath,
+                        moduleName,
+                        id
+                );
+            } else {
+                nextBridge.callAttr("migrate_plugin", moduleName, id);
+            }
+
+            loadError = null;
 
             if (!lifecycle.isCurrent(request)) {
                 return;

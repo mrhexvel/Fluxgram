@@ -16,11 +16,17 @@ import java.security.MessageDigest;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 public final class PluginStorage {
     public static final int MAX_ENTRIES = 4096;
     public static final int MAX_VALUE_BYTES = 256 * 1024;
     public static final int MAX_TOTAL_VALUE_BYTES = 4 * 1024 * 1024;
+    public static final int MAX_FILES = PluginPrivateFiles.MAX_FILES;
+    public static final int MAX_FILE_BYTES = PluginPrivateFiles.MAX_FILE_BYTES;
+    public static final int MAX_TOTAL_FILE_BYTES = PluginPrivateFiles.MAX_TOTAL_FILE_BYTES;
+    private static final ConcurrentHashMap<Integer, Object> ownerLocks = new ConcurrentHashMap<>();
 
     private PluginStorage() {
     }
@@ -29,17 +35,91 @@ public final class PluginStorage {
         return new Session(pluginId);
     }
 
+    public static void runWithAccountOwnerLock(int account, Runnable action) {
+        runWithAccountOwnerLock(account, () -> {
+            action.run();
+            return null;
+        });
+    }
+
+    private static <Result> Result runWithAccountOwnerLock(
+            int account, Supplier<Result> action) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            throw failure("INVALID_REQUEST", "Invalid Telegram account");
+        }
+
+        synchronized (ownerLocks.computeIfAbsent(account, ignored -> new Object())) {
+            return action.get();
+        }
+    }
+
+    public static synchronized void clearPlugin(String pluginId) {
+        validatePluginId(pluginId);
+        File database = databaseFile(pluginId);
+
+        if (database.exists() && !SQLiteDatabase.deleteDatabase(database)) {
+            throw failure("STORAGE_FAILURE", "Cannot delete plugin storage database");
+        }
+
+        deleteSidecar(new File(database.getPath() + "-wal"));
+        deleteSidecar(new File(database.getPath() + "-shm"));
+        deleteSidecar(new File(database.getPath() + "-journal"));
+
+        PluginPrivateFiles.clearPlugin(pluginId);
+    }
+
+    public static synchronized boolean clearOwner(int account, long owner) {
+        if (account < 0 || owner <= 0) {
+            throw failure("INVALID_REQUEST", "Invalid storage owner");
+        }
+
+        return runWithAccountOwnerLock(account, () -> clearOwnerLocked(account, owner));
+    }
+
+    private static boolean clearOwnerLocked(int account, long owner) {
+        if (UserConfig.getInstance(account).getClientUserId() == owner) {
+            return false;
+        }
+
+        File directory = storageDirectory();
+        File[] databases = directory.listFiles((folder, name) -> name.matches("[0-9a-f]{64}\\.db"));
+
+        if (databases == null) {
+            if (directory.exists()) {
+                throw failure("STORAGE_FAILURE", "Cannot inspect plugin storage databases");
+            }
+        } else {
+            for (File file : databases) {
+                SQLiteDatabase database = SQLiteDatabase.openDatabase(
+                        file.getAbsolutePath(),
+                        null,
+                        SQLiteDatabase.OPEN_READWRITE
+                );
+
+                try {
+                    database.delete(
+                            "storage_values",
+                            "scope_kind = 1 AND account = ? AND owner = ?",
+                            new String[] {Integer.toString(account), Long.toString(owner)}
+                    );
+                } finally {
+                    database.close();
+                }
+            }
+        }
+
+        PluginPrivateFiles.clearOwner(account, owner);
+        return true;
+    }
+
     public static final class Session {
         private final String pluginId;
         private SQLiteDatabase database;
+        private PluginPrivateFiles privateFiles;
         private boolean closed;
 
         private Session(String pluginId) {
-            if (pluginId == null
-                    || !pluginId.matches("[a-z][a-z0-9_.-]{0,127}")
-                    || pluginId.getBytes(StandardCharsets.UTF_8).length > 128) {
-                throw failure("INVALID_PLUGIN", "Invalid plugin ID");
-            }
+            validatePluginId(pluginId);
 
             this.pluginId = pluginId;
         }
@@ -198,16 +278,68 @@ public final class PluginStorage {
                 limits.put("max_entries", MAX_ENTRIES);
                 limits.put("max_value_bytes", MAX_VALUE_BYTES);
                 limits.put("max_total_value_bytes", MAX_TOTAL_VALUE_BYTES);
+                limits.put("max_files", MAX_FILES);
+                limits.put("max_file_bytes", MAX_FILE_BYTES);
+                limits.put("max_total_file_bytes", MAX_TOTAL_FILE_BYTES);
+
+                PluginPrivateFiles.Statistics fileStatistics = files().statistics();
 
                 JSONObject result = new JSONObject();
                 result.put("value_count", count);
                 result.put("value_bytes", bytes);
                 result.put("schema_version", schemaVersion);
+                result.put("file_count", fileStatistics.count);
+                result.put("file_bytes", fileStatistics.bytes);
                 result.put("limits", limits);
                 return result.toString();
             } catch (Exception error) {
                 throw failure("STORAGE_FAILURE", error.toString());
             }
+        }
+
+        public synchronized boolean fileContains(String scopeToken, String path) {
+            requireOpen();
+            Scope scope = parseScope(scopeToken);
+            return runFileOperation(
+                    scope,
+                    () -> files().contains(scopeToken, path)
+            );
+        }
+
+        public synchronized byte[] fileRead(String scopeToken, String path) {
+            requireOpen();
+            Scope scope = parseScope(scopeToken);
+            return runFileOperation(
+                    scope,
+                    () -> files().read(scopeToken, path)
+            );
+        }
+
+        public synchronized void fileWrite(String scopeToken, String path, byte[] data) {
+            requireOpen();
+            Scope scope = parseScope(scopeToken);
+            runFileOperation(scope, () -> {
+                files().write(scopeToken, path, data);
+                return null;
+            });
+        }
+
+        public synchronized boolean fileDelete(String scopeToken, String path) {
+            requireOpen();
+            Scope scope = parseScope(scopeToken);
+            return runFileOperation(
+                    scope,
+                    () -> files().delete(scopeToken, path)
+            );
+        }
+
+        public synchronized void fileClear(String scopeToken) {
+            requireOpen();
+            Scope scope = parseScope(scopeToken);
+            runFileOperation(scope, () -> {
+                files().clear(scopeToken);
+                return null;
+            });
         }
 
         public synchronized void close() {
@@ -303,17 +435,14 @@ public final class PluginStorage {
                 return database;
             }
 
-            File directory = new File(
-                    ApplicationLoader.applicationContext.getNoBackupFilesDir(),
-                    "fluxgram_plugins/storage"
-            );
+            File directory = storageDirectory();
 
             if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
                 throw failure("STORAGE_FAILURE", "Cannot create plugin storage directory");
             }
 
             database = SQLiteDatabase.openOrCreateDatabase(
-                    new File(directory, sha256(pluginId) + ".db"),
+                    databaseFile(pluginId),
                     null
             );
             database.execSQL("CREATE TABLE IF NOT EXISTS storage_metadata (singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1), plugin_id TEXT NOT NULL, schema_version INTEGER NOT NULL)");
@@ -339,6 +468,25 @@ public final class PluginStorage {
 
             database.setVersion(1);
             return database;
+        }
+
+        private PluginPrivateFiles files() {
+            if (privateFiles == null) {
+                privateFiles = new PluginPrivateFiles(pluginId);
+            }
+
+            return privateFiles;
+        }
+
+        private <Result> Result runFileOperation(Scope scope, Supplier<Result> action) {
+            if (scope.kind == 0) {
+                return action.get();
+            }
+
+            return runWithAccountOwnerLock(scope.account, () -> {
+                requireOwner(scope);
+                return action.get();
+            });
         }
 
         private void requireOpen() {
@@ -428,6 +576,31 @@ public final class PluginStorage {
             return new Scope(1, account, owner);
         } catch (NumberFormatException error) {
             throw failure("INVALID_REQUEST", "Invalid storage scope");
+        }
+    }
+
+    private static void validatePluginId(String pluginId) {
+        if (pluginId == null
+                || !pluginId.matches("[a-z][a-z0-9_.-]{0,127}")
+                || pluginId.getBytes(StandardCharsets.UTF_8).length > 128) {
+            throw failure("INVALID_PLUGIN", "Invalid plugin ID");
+        }
+    }
+
+    private static File storageDirectory() {
+        return new File(
+                ApplicationLoader.applicationContext.getNoBackupFilesDir(),
+                "fluxgram_plugins/storage"
+        );
+    }
+
+    private static File databaseFile(String pluginId) {
+        return new File(storageDirectory(), sha256(pluginId) + ".db");
+    }
+
+    private static void deleteSidecar(File file) {
+        if (file.exists() && !file.delete()) {
+            throw failure("STORAGE_FAILURE", "Cannot delete plugin storage sidecar");
         }
     }
 

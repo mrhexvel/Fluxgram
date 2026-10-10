@@ -167,6 +167,14 @@ public final class PluginManager {
         preferences.edit().remove(enabledKey(id)).apply();
     }
 
+    public synchronized boolean clearPersistedEnabledStateNow(String id) {
+        return preferences.edit().remove(enabledKey(id)).commit();
+    }
+
+    public synchronized boolean setPersistedEnabledState(String id, boolean enabled) {
+        return preferences.edit().putBoolean(enabledKey(id), enabled).commit();
+    }
+
     public synchronized ArrayList<Plugin> getPlugins() {
         ArrayList<Plugin> result = new ArrayList<>();
 

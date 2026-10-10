@@ -39,6 +39,8 @@ public interface SharedPreferences {
 
         Editor remove(String key);
 
+        boolean commit();
+
         void apply();
     }
 }
@@ -85,6 +87,10 @@ public class RegistryCheck {
         }
 
         public void apply() {}
+
+        public boolean commit() {
+            return true;
+        }
     }
 
     static class P implements Plugin {

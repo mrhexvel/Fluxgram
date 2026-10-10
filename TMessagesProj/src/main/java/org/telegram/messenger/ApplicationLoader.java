@@ -38,7 +38,9 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
 import org.json.JSONObject;
+import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.PluginManager;
+import org.telegram.messenger.plugins.PluginStorageMaintenance;
 import org.telegram.messenger.voip.VideoCapturerDevice;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
@@ -251,7 +253,6 @@ public class ApplicationLoader extends Application {
 
         PluginManager.getInstance().initialize(applicationContext);
         BuiltInPlugins.register();
-        org.telegram.messenger.plugins.ExternalPlugins.initialize(applicationContext);
 
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
             UserConfig.getInstance(a).loadConfig();
@@ -267,6 +268,9 @@ public class ApplicationLoader extends Application {
                 SendMessagesHelper.getInstance(a).checkUnsentMessages();
             }
         }
+
+        PluginStorageMaintenance.initialize(applicationContext);
+        ExternalPlugins.initialize(applicationContext);
 
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();

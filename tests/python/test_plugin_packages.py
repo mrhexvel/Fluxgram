@@ -24,7 +24,7 @@ MANIFEST = {
     "description": "Пакет для проверки установщика",
     "author": "FluxGram",
     "sdk_version": 2,
-    "min_sdk_minor": 1,
+    "min_sdk_minor": 2,
     "entrypoint": "main:PluginEntry",
     "access": "full",
     "declared_capabilities": [],
@@ -245,7 +245,7 @@ class PluginPackagesTest(unittest.TestCase):
             {"id": "fluxgram.impersonation"},
             {"id": "../escape"},
             {"sdk_version": 3},
-            {"min_sdk_minor": 2},
+            {"min_sdk_minor": 3},
             {"schema_version": "2"},
             {"access": "restricted"},
             {"entrypoint": "missing:PluginEntry"},
@@ -405,7 +405,7 @@ class PluginStoreTest(unittest.TestCase):
         self.store("apply")
         self.assertEqual(
             self.store("listcompat"),
-            [f'{legacy["id"]}:true:2:1'],
+            [f'{legacy["id"]}:true:2:2'],
         )
 
     def test_install_sheet_recognizes_incompatible_update(self):
@@ -539,6 +539,105 @@ class PluginStoreTest(unittest.TestCase):
         self.assertEqual(self.store("pending"), [])
         self.store("apply")
         self.assertEqual(self.installed_version(), "1.1.0")
+
+    def test_update_keeps_backup_until_migration_finishes(self):
+        self.store("install", self.archive())
+        self.store(
+            "update",
+            self.archive(fields={"version": "2.0.0"}),
+            extra=(MANIFEST["id"], MANIFEST["version"], "true", "true"),
+        )
+        root = self.root / "installed"
+
+        self.store("activate", extra=(MANIFEST["id"],))
+
+        self.assertEqual(self.installed_version(), "2.0.0")
+        self.assertTrue((root / (".backup-" + MANIFEST["id"])).is_dir())
+        self.assertTrue((root / (".pending-" + MANIFEST["id"])).is_dir())
+        self.assertEqual(
+            self.store("pendingfull"),
+            [MANIFEST["id"] + ":true:true:false"],
+        )
+
+        self.store("markmigrated", extra=(MANIFEST["id"],))
+        self.store("finish", extra=(MANIFEST["id"],))
+        self.assertEqual(self.installed_version(), "2.0.0")
+        self.assertEqual(self.store("pending"), [])
+
+    def test_update_cannot_finish_before_migration_marker(self):
+        self.store("install", self.archive())
+        self.update(version="2.0.0")
+        self.store("markmigrated", accepted=False, extra=(MANIFEST["id"],))
+        self.store("activate", extra=(MANIFEST["id"],))
+
+        self.store("finish", accepted=False, extra=(MANIFEST["id"],))
+
+        self.assertEqual(self.installed_version(), "2.0.0")
+        self.assertEqual(self.store("pending"), [MANIFEST["id"] + ":false:true"])
+
+    def test_failed_update_rolls_back_package_and_marks_direction(self):
+        self.store("install", self.archive())
+        self.update(version="2.0.0")
+        root = self.root / "installed"
+        self.store("activate", extra=(MANIFEST["id"],))
+
+        (root / (".pending-" + MANIFEST["id"]) / "rollback").write_bytes(b"")
+        self.assertEqual(
+            self.store("pendingfull"),
+            [MANIFEST["id"] + ":true:false:true"],
+        )
+
+        self.store("rollback", extra=(MANIFEST["id"],))
+        self.assertEqual(self.installed_version(), MANIFEST["version"])
+        self.assertEqual(self.store("pending"), [])
+
+    def test_interrupted_rollback_finishes_with_old_package(self):
+        self.store("install", self.archive())
+        self.update(version="2.0.0")
+        root = self.root / "installed"
+        self.store("activate", extra=(MANIFEST["id"],))
+        pending = root / (".pending-" + MANIFEST["id"])
+        (pending / "rollback").write_bytes(b"")
+        failed = root / ".install-failed-test"
+        (root / MANIFEST["id"]).rename(failed)
+        (root / (".backup-" + MANIFEST["id"])).rename(root / MANIFEST["id"])
+
+        self.store("rollback", extra=(MANIFEST["id"],))
+
+        self.assertEqual(self.installed_version(), MANIFEST["version"])
+        self.assertEqual(self.store("pending"), [])
+        self.store("list")
+        self.assertFalse(failed.exists())
+
+    def test_rollback_journal_survives_until_enabled_state_is_restored(self):
+        self.store("install", self.archive())
+        self.update(version="2.0.0")
+        self.store("activate", extra=(MANIFEST["id"],))
+
+        self.store("rollbackprepare", extra=(MANIFEST["id"],))
+
+        self.assertEqual(self.installed_version(), MANIFEST["version"])
+        self.assertEqual(
+            self.store("pendingfull"),
+            [MANIFEST["id"] + ":true:false:true"],
+        )
+        self.store("rollbackprepare", extra=(MANIFEST["id"],))
+        self.store("rollbackfinish", extra=(MANIFEST["id"],))
+        self.assertEqual(self.store("pending"), [])
+
+    def test_migrated_marker_finishes_after_backup_cleanup_crash(self):
+        self.store("install", self.archive())
+        self.update(version="2.0.0")
+        root = self.root / "installed"
+        self.store("activate", extra=(MANIFEST["id"],))
+        pending = root / (".pending-" + MANIFEST["id"])
+        (pending / "migrated").write_bytes(b"")
+        shutil.rmtree(root / (".backup-" + MANIFEST["id"]))
+
+        self.store("finish", extra=(MANIFEST["id"],))
+
+        self.assertEqual(self.installed_version(), "2.0.0")
+        self.assertEqual(self.store("pending"), [])
 
     def test_update_cannot_reuse_or_downgrade_version(self):
         self.store("install", self.archive())

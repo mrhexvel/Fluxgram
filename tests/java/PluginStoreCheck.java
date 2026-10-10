@@ -18,7 +18,8 @@ public final class PluginStoreCheck {
                         args[4],
                         args[5],
                         args[6],
-                        Boolean.parseBoolean(args[7]));
+                        Boolean.parseBoolean(args[7]),
+                        args.length > 8 && Boolean.parseBoolean(args[8]));
             }
 
             if (args[0].equals("remove")) {
@@ -31,6 +32,31 @@ public final class PluginStoreCheck {
 
             if (args[0].equals("apply")) {
                 store.applyPending();
+            }
+
+            if (args[0].equals("activate")) {
+                store.activatePendingUpdate(args[3]);
+            }
+
+            if (args[0].equals("finish")) {
+                store.finishPendingUpdate(args[3]);
+            }
+
+            if (args[0].equals("markmigrated")) {
+                store.markPendingMigrated(args[3]);
+            }
+
+            if (args[0].equals("rollback")) {
+                store.rollbackPending(args[3]);
+                store.finishPendingRollback(args[3]);
+            }
+
+            if (args[0].equals("rollbackprepare")) {
+                store.rollbackPending(args[3]);
+            }
+
+            if (args[0].equals("rollbackfinish")) {
+                store.finishPendingRollback(args[3]);
             }
 
             if (args[0].equals("export")) {
@@ -46,6 +72,21 @@ public final class PluginStoreCheck {
                                     + operation.delete
                                     + ":"
                                     + operation.enableAfterUpdate);
+                }
+
+                return;
+            }
+
+            if (args[0].equals("pendingfull")) {
+                for (PluginPackageStore.Pending operation : store.pending().values()) {
+                    System.out.println(
+                            operation.id
+                                    + ":"
+                                    + operation.enableAfterUpdate
+                                    + ":"
+                                    + operation.enabledBeforeUpdate
+                                    + ":"
+                                    + operation.rollback);
                 }
 
                 return;

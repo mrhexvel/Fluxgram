@@ -256,6 +256,14 @@ public final class PluginSettings {
     }
 
     public static void clearForPlugin(String id) {
+        clearForPlugin(id, false);
+    }
+
+    public static boolean clearForPluginNow(String id) {
+        return clearForPlugin(id, true);
+    }
+
+    private static boolean clearForPlugin(String id, boolean synchronous) {
         SharedPreferences stored = preferences();
         SharedPreferences.Editor edit = stored.edit();
         String valuePrefix = "value:" + id + ":";
@@ -267,6 +275,11 @@ public final class PluginSettings {
             }
         }
 
+        if (synchronous) {
+            return edit.commit();
+        }
+
         edit.apply();
+        return true;
     }
 }

@@ -257,9 +257,9 @@ public class PushListenerController {
                         }
                         case "SESSION_REVOKE": {
                             AndroidUtilities.runOnUIThread(() -> {
-                                if (UserConfig.getInstance(accountFinal).getClientUserId() != 0) {
-                                    UserConfig.getInstance(accountFinal).clearConfig();
-                                    MessagesController.getInstance(accountFinal).performLogout(0);
+                                long owner = UserConfig.getInstance(accountFinal).getClientUserId();
+                                if (owner != 0) {
+                                    MessagesController.getInstance(accountFinal).performLogout(0, owner);
                                 }
                             });
                             countDownLatch.countDown();

@@ -16367,6 +16367,18 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void performLogout(int type) {
+        performLogout(type, getUserConfig().getClientUserId());
+    }
+
+    public void performLogout(int type, long fluxGramPluginStorageOwner) {
+        if (fluxGramPluginStorageOwner > 0
+                && !org.telegram.messenger.plugins.PluginStorageMaintenance.scheduleOwnerCleanup(
+                        currentAccount,
+                        fluxGramPluginStorageOwner)) {
+            FileLog.e("Cannot schedule FluxGram plugin owner storage cleanup");
+            return;
+        }
+
         if (type == 1) {
             unregistedPush();
             TLRPC.TL_auth_logOut req = new TLRPC.TL_auth_logOut();
@@ -16384,6 +16396,7 @@ public class MessagesController extends BaseController implements NotificationCe
             getConnectionsManager().cleanup(type == 2);
         }
         getUserConfig().clearConfig();
+        org.telegram.messenger.plugins.PluginStorageMaintenance.runPendingOwnerCleanup();
         SharedPrefsHelper.cleanupAccount(currentAccount);
 
         boolean shouldHandle = true;

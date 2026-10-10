@@ -855,9 +855,9 @@ public class ConnectionsManager extends BaseController {
     public static void onLogout(final int currentAccount) {
         AndroidUtilities.runOnUIThread(() -> {
             AccountInstance accountInstance = AccountInstance.getInstance(currentAccount);
-            if (accountInstance.getUserConfig().getClientUserId() != 0) {
-                accountInstance.getUserConfig().clearConfig();
-                accountInstance.getMessagesController().performLogout(0);
+            long owner = accountInstance.getUserConfig().getClientUserId();
+            if (owner != 0) {
+                accountInstance.getMessagesController().performLogout(0, owner);
             }
         });
     }

@@ -259,12 +259,29 @@ public class UserConfig extends BaseController {
     }
 
     public void setCurrentUser(TLRPC.User user) {
-        synchronized (sync) {
-            TLRPC.User oldUser = currentUser;
-            currentUser = user;
-            clientUserId = user.id;
-            checkPremiumSelf(oldUser, user);
-        }
+        org.telegram.messenger.plugins.PluginStorage.runWithAccountOwnerLock(
+                currentAccount,
+                () -> {
+                    synchronized (sync) {
+                        TLRPC.User oldUser = currentUser;
+                        currentUser = user;
+                        clientUserId = user.id;
+                        checkPremiumSelf(oldUser, user);
+                    }
+                }
+        );
+    }
+
+    private void clearCurrentUser() {
+        org.telegram.messenger.plugins.PluginStorage.runWithAccountOwnerLock(
+                currentAccount,
+                () -> {
+                    synchronized (sync) {
+                        currentUser = null;
+                        clientUserId = 0;
+                    }
+                }
+        );
     }
 
     private void checkPremiumSelf(TLRPC.User oldUser, TLRPC.User newUser) {
@@ -463,8 +480,7 @@ public class UserConfig extends BaseController {
 
         sharingMyLocationUntil = 0;
         lastMyLocationShareTime = 0;
-        currentUser = null;
-        clientUserId = 0;
+        clearCurrentUser();
         registeredForPush = false;
         contactsSavedCount = 0;
         lastSendMessageId = -210000;

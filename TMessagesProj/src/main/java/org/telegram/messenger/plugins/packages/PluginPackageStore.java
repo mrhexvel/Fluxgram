@@ -34,24 +34,50 @@ public final class PluginPackageStore {
 
     public static final class Pending {
         public final String id;
-        public final boolean delete, enableAfterUpdate;
+        public final boolean delete, enableAfterUpdate, enabledBeforeUpdate, rollback, migrated;
 
-        Pending(String id, boolean delete, boolean enableAfterUpdate) {
+        Pending(
+                String id,
+                boolean delete,
+                boolean enableAfterUpdate,
+                boolean enabledBeforeUpdate,
+                boolean rollback,
+                boolean migrated) {
             this.id = id;
             this.delete = delete;
             this.enableAfterUpdate = enableAfterUpdate;
+            this.enabledBeforeUpdate = enabledBeforeUpdate;
+            this.rollback = rollback;
+            this.migrated = migrated;
         }
     }
 
     public synchronized Installed install(File reviewedArchive, String expectedHash)
             throws IOException {
-        return prepare(reviewedArchive, expectedHash, null, null, false);
+        return install(reviewedArchive, expectedHash, null);
+    }
+
+    public synchronized Installed install(
+            File reviewedArchive, String expectedHash, Runnable beforePublish)
+            throws IOException {
+        return prepare(reviewedArchive, expectedHash, null, null, false, false, beforePublish);
     }
 
     public synchronized void scheduleUpdate(
             File archive, String hash, String expectedId, String expectedVersion, boolean enable)
             throws IOException {
-        prepare(archive, hash, expectedId, expectedVersion, enable);
+        scheduleUpdate(archive, hash, expectedId, expectedVersion, enable, false);
+    }
+
+    public synchronized void scheduleUpdate(
+            File archive,
+            String hash,
+            String expectedId,
+            String expectedVersion,
+            boolean enable,
+            boolean enabledBefore)
+            throws IOException {
+        prepare(archive, hash, expectedId, expectedVersion, enable, enabledBefore, null);
     }
 
     private Installed prepare(
@@ -59,7 +85,9 @@ public final class PluginPackageStore {
             String expectedHash,
             String expectedId,
             String expectedVersion,
-            boolean enable)
+            boolean enable,
+            boolean enabledBefore,
+            Runnable beforePublish)
             throws IOException {
         File frozen = File.createTempFile("fgplugin-install-", ".zip", cache);
         File staging = null;
@@ -114,9 +142,11 @@ public final class PluginPackageStore {
             mkdir(payload);
 
             if (update && enable) {
-                try (FileOutputStream out = new FileOutputStream(new File(staging, "enable"))) {
-                    out.getFD().sync();
-                }
+                createMarker(staging, "enable");
+            }
+
+            if (update && enabledBefore) {
+                createMarker(staging, "enabled-before");
             }
 
             try (ZipFile zip = new ZipFile(frozen)) {
@@ -149,6 +179,10 @@ public final class PluginPackageStore {
                     FileOutputStream out = new FileOutputStream(new File(payload, SOURCE_ARCHIVE))) {
                 copy(in, out, PluginPackageValidator.MAX_ARCHIVE_BYTES);
                 out.getFD().sync();
+            }
+
+            if (beforePublish != null) {
+                beforePublish.run();
             }
 
             if (!staging.renameTo(destination)) {
@@ -354,7 +388,10 @@ public final class PluginPackageStore {
                     new Pending(
                             id,
                             new File(file, "delete").isFile(),
-                            new File(file, "enable").isFile()));
+                            new File(file, "enable").isFile(),
+                            new File(file, "enabled-before").isFile(),
+                            new File(file, "rollback").isFile(),
+                            new File(file, "migrated").isFile()));
         }
 
         return result;
@@ -362,42 +399,184 @@ public final class PluginPackageStore {
 
     public synchronized void applyPending() throws IOException {
         for (Pending operation : pending().values()) {
-            File journal = new File(root, ".pending-" + operation.id);
-            File current = new File(root, operation.id);
-            File backup = new File(root, ".backup-" + operation.id);
-            File replacement = new File(journal, "package");
-
             if (operation.delete) {
-                if (current.exists() && !current.renameTo(backup)) {
-                    throw new IOException("Cannot remove plugin");
-                }
-            } else if (replacement.exists()) {
-                readInstalled(replacement, operation.id);
+                applyPendingDelete(operation.id);
+            } else if (operation.rollback) {
+                rollbackPending(operation.id);
+                finishPendingRollback(operation.id);
+            } else {
+                activatePendingUpdate(operation.id);
+                markPendingMigrated(operation.id);
+                finishPendingUpdate(operation.id);
+            }
+        }
+    }
 
-                if (current.exists() && !current.renameTo(backup)) {
+    public synchronized Installed activatePendingUpdate(String id) throws IOException {
+        Pending operation = requirePendingUpdate(id);
+
+        if (operation.rollback) {
+            throw new IOException("Plugin update is rolling back");
+        }
+
+        File journal = new File(root, ".pending-" + id);
+        File current = new File(root, id);
+        File backup = new File(root, ".backup-" + id);
+        File replacement = new File(journal, "package");
+
+        if (replacement.exists()) {
+            readInstalled(replacement, id);
+
+            if (current.exists()) {
+                if (backup.exists() || !current.renameTo(backup)) {
                     throw new IOException("Cannot back up plugin");
                 }
-
-                if (!replacement.renameTo(current)) {
-                    if (backup.exists()) {
-                        backup.renameTo(current);
-                    }
-
-                    throw new IOException("Cannot activate plugin update");
-                }
-            } else {
-                readInstalled(current, operation.id);
+            } else if (!backup.exists()) {
+                throw new IOException("Missing plugin update backup");
             }
 
-            deleteTree(backup);
+            if (!replacement.renameTo(current)) {
+                throw new IOException("Cannot activate plugin update");
+            }
+        }
 
-            File finished = new File(root, ".install-done-" + java.util.UUID.randomUUID());
+        if (!backup.exists()) {
+            throw new IOException("Missing plugin update backup");
+        }
 
-            if (!journal.renameTo(finished)) {
-                throw new IOException("Cannot finish plugin operation");
+        return readInstalled(current, id);
+    }
+
+    public synchronized void rollbackPending(String id) throws IOException {
+        Pending operation = requirePendingUpdate(id);
+        File journal = new File(root, ".pending-" + id);
+
+        if (!operation.rollback) {
+            createMarker(journal, "rollback");
+        }
+
+        File current = new File(root, id);
+        File backup = new File(root, ".backup-" + id);
+
+        if (!backup.exists()) {
+            if (current.exists()) {
+                return;
             }
 
-            deleteTree(finished);
+            throw new IOException("Missing plugin update rollback backup");
+        }
+
+        File failed = new File(root, ".install-failed-" + java.util.UUID.randomUUID());
+
+        if (current.exists() && !current.renameTo(failed)) {
+            throw new IOException("Cannot isolate failed plugin update");
+        }
+
+        if (!backup.renameTo(current)) {
+            if (failed.exists()) {
+                failed.renameTo(current);
+            }
+
+            throw new IOException("Cannot restore plugin update backup");
+        }
+
+        deleteTree(failed);
+    }
+
+    public synchronized void finishPendingRollback(String id) throws IOException {
+        Pending operation = requirePendingUpdate(id);
+
+        if (!operation.rollback) {
+            throw new IOException("Plugin update is not rolling back");
+        }
+
+        File current = new File(root, id);
+        File backup = new File(root, ".backup-" + id);
+        readInstalled(current, id);
+
+        if (backup.exists()) {
+            throw new IOException("Plugin update rollback is incomplete");
+        }
+
+        finishJournal(id);
+    }
+
+    public synchronized void markPendingMigrated(String id) throws IOException {
+        Pending operation = requirePendingUpdate(id);
+        File journal = new File(root, ".pending-" + id);
+        File current = new File(root, id);
+        File backup = new File(root, ".backup-" + id);
+
+        if (operation.rollback
+                || new File(journal, "package").exists()
+                || !backup.exists()) {
+            throw new IOException("Plugin update is not active");
+        }
+
+        readInstalled(current, id);
+
+        if (!new File(journal, "migrated").isFile()) {
+            createMarker(journal, "migrated");
+        }
+    }
+
+    public synchronized void finishPendingUpdate(String id) throws IOException {
+        Pending operation = requirePendingUpdate(id);
+        File journal = new File(root, ".pending-" + id);
+        File current = new File(root, id);
+        File backup = new File(root, ".backup-" + id);
+        readInstalled(current, id);
+
+        if (operation.rollback || !new File(journal, "migrated").isFile()) {
+            throw new IOException("Plugin update migration is incomplete");
+        }
+
+        deleteTree(backup);
+        finishJournal(id);
+    }
+
+    public synchronized void applyPendingDelete(String id) throws IOException {
+        Pending operation = pending().get(id);
+
+        if (operation == null || !operation.delete) {
+            throw new IOException("Plugin has no pending deletion");
+        }
+
+        File current = new File(root, id);
+        File backup = new File(root, ".backup-" + id);
+
+        if (current.exists() && !current.renameTo(backup)) {
+            throw new IOException("Cannot remove plugin");
+        }
+
+        deleteTree(backup);
+        finishJournal(id);
+    }
+
+    private Pending requirePendingUpdate(String id) throws IOException {
+        Pending operation = pending().get(id);
+
+        if (operation == null || operation.delete) {
+            throw new IOException("Plugin has no pending update");
+        }
+
+        return operation;
+    }
+
+    private void finishJournal(String id) throws IOException {
+        File journal = new File(root, ".pending-" + id);
+        File finished = new File(root, ".install-done-" + java.util.UUID.randomUUID());
+
+        if (!journal.renameTo(finished)) {
+            throw new IOException("Cannot finish plugin operation");
+        }
+
+        deleteTree(finished);
+    }
+
+    private static void createMarker(File directory, String name) throws IOException {
+        try (FileOutputStream out = new FileOutputStream(new File(directory, name))) {
+            out.getFD().sync();
         }
     }
 
