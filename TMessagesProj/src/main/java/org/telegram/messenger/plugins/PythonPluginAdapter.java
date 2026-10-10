@@ -12,7 +12,9 @@ import org.telegram.messenger.R;
 import java.io.File;
 import java.io.IOException;
 
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -23,6 +25,7 @@ import java.util.concurrent.TimeoutException;
 
 public final class PythonPluginAdapter implements Plugin {
     private static final String TAG = "FluxGramPython";
+    private static final int MAILBOX_CAPACITY = 68;
     private final String id;
     private final String moduleName;
     private final int nameResId;
@@ -77,13 +80,28 @@ public final class PythonPluginAdapter implements Plugin {
         return loadError;
     }
 
+    public String getRuntimeState() {
+        return lifecycle.getState().name();
+    }
+
     private final ThreadPoolExecutor executor;
     private final Semaphore eventSlots = new Semaphore(64);
-    private volatile boolean enabled;
-    private volatile long generation;
+    private final PythonPluginLifecycle lifecycle = new PythonPluginLifecycle();
+    private final LinkedHashMap<String, PendingSetting> pendingSettings = new LinkedHashMap<>();
+    private boolean settingsDrainQueued;
     private PyObject bridge;
     private PyObject instance;
     private FutureTask<Void> removal;
+
+    private static final class PendingSetting {
+        final long generation;
+        final Object value;
+
+        PendingSetting(long generation, Object value) {
+            this.generation = generation;
+            this.value = value;
+        }
+    }
 
     public PythonPluginAdapter(
             String id, String moduleName, int nameResId, int descriptionResId, String version) {
@@ -100,7 +118,7 @@ public final class PythonPluginAdapter implements Plugin {
                         1,
                         30L,
                         TimeUnit.SECONDS,
-                        new LinkedBlockingQueue<>(),
+                        new PythonPluginTaskQueue(MAILBOX_CAPACITY),
                         runnable -> new Thread(runnable, "FluxGramPlugin-" + id));
 
         executor.allowCoreThreadTimeOut(true);
@@ -128,74 +146,155 @@ public final class PythonPluginAdapter implements Plugin {
 
     @Override
     public synchronized void onEnabledChanged(boolean enabled) {
-        if (removal != null) {
+        if (lifecycle.isRemovalPending()) {
             return;
         }
 
-        this.enabled = enabled;
-        loadError = null;
+        if (enabled) {
+            loadError = null;
+        }
 
-        final long request = ++generation;
+        if (lifecycle.requestEnabled(enabled)) {
+            try {
+                executeControl(this::reconcile);
+            } catch (RejectedExecutionException error) {
+                lifecycle.cancelReconcile();
+                Log.w(TAG, "[" + id + "] Reconcile rejected", error);
+            }
+        }
+    }
 
-        executor.execute(
+    private void executeControl(Runnable task) {
+        executor.execute(PythonPluginTaskQueue.control(task));
+    }
+
+    private void reconcile() {
+        while (true) {
+            PythonPluginLifecycle.Request request = lifecycle.currentRequest();
+
+            if (request.removal) {
+                lifecycle.finishReconcile(request.generation);
+
+                return;
+            }
+
+            if (instance != null) {
+                lifecycle.setState(request.generation, PythonPluginLifecycle.State.STOPPING);
+
+                if (!unload(request.generation, request.enabled)) {
+                    if (lifecycle.finishReconcile(request.generation)) {
+                        continue;
+                    }
+
+                    return;
+                }
+            }
+
+            if (!request.enabled || !lifecycle.isCurrent(request.generation)) {
+                lifecycle.setState(
+                        request.generation,
+                        loadError == null
+                                ? PythonPluginLifecycle.State.DISABLED
+                                : PythonPluginLifecycle.State.FAILED);
+            } else {
+                load(request.generation);
+            }
+
+            if (!lifecycle.finishReconcile(request.generation)) {
+                return;
+            }
+        }
+    }
+
+    private void load(long request) {
+        if (!lifecycle.setState(request, PythonPluginLifecycle.State.STARTING)) {
+            return;
+        }
+
+        try {
+            PyObject nextBridge = PythonRuntime.prepare().getModule("fluxgram_runtime._bridge");
+
+            if (!lifecycle.isCurrent(request)) {
+                return;
+            }
+
+            PyObject nextInstance =
+                    isExternal()
+                            ? nextBridge.callAttr(
+                                    "create_external_plugin",
+                                    externalPath,
+                                    moduleName,
+                                    id,
+                                    this,
+                                    request)
+                            : nextBridge.callAttr("create_plugin", moduleName, id, this, request);
+
+            bridge = nextBridge;
+            instance = nextInstance;
+
+            if (!lifecycle.isCurrent(request)) {
+                return;
+            }
+
+            String schema = bridge.callAttr("describe_settings", instance).toString();
+            java.util.List<PluginSettings.Setting> parsed = PluginSettings.parse(schema);
+
+            if (!lifecycle.isCurrent(request)) {
+                return;
+            }
+
+            settingsSchema = parsed;
+            PluginSettings.saveSchema(id, version, schema);
+            ExternalPlugins.changed();
+
+            if (!lifecycle.isCurrent(request)) {
+                return;
+            }
+
+            instance.callAttr("on_load");
+
+            if (!lifecycle.isCurrent(request)) {
+                return;
+            }
+
+            lifecycle.setState(request, PythonPluginLifecycle.State.RUNNING);
+        } catch (Exception | LinkageError error) {
+            handleFailure(request, "Load", error, true);
+
+            try {
+                unloadStrict();
+            } catch (Exception | LinkageError cleanupError) {
+                Log.e(TAG, "[" + id + "] Cleanup after load failure failed", cleanupError);
+            }
+        }
+    }
+
+    private void handleFailure(
+            long request,
+            String operation,
+            Throwable error,
+            boolean disableSelection) {
+        String message = error.toString();
+        Log.e(TAG, "[" + id + "] " + operation + " failed", error);
+
+        if (!lifecycle.fail(request)) {
+            return;
+        }
+
+        loadError = message;
+        org.telegram.messenger.AndroidUtilities.runOnUIThread(
                 () -> {
-                    if (!unload()) {
-                        this.enabled = false;
+                    if (lifecycle.getGeneration() != request
+                            || lifecycle.getState() != PythonPluginLifecycle.State.FAILED) {
                         return;
                     }
 
-                    if (!enabled || request != generation) {
-                        return;
+                    if (disableSelection) {
+                        PluginManager.getInstance().setEnabled(id, false);
                     }
 
-                    try {
-                        bridge = PythonRuntime.prepare().getModule("fluxgram_runtime._bridge");
-
-                        if (request != generation) {
-                            return;
-                        }
-
-                        instance =
-                                isExternal()
-                                        ? bridge.callAttr(
-                                                "create_external_plugin",
-                                                externalPath,
-                                                moduleName,
-                                                id,
-                                                this,
-                                                request)
-                                        : bridge.callAttr(
-                                                "create_plugin", moduleName, id, this, request);
-
-                        String schema = bridge.callAttr("describe_settings", instance).toString();
-                        settingsSchema = PluginSettings.parse(schema);
-                        PluginSettings.saveSchema(id, version, schema);
-                        ExternalPlugins.changed();
-                        instance.callAttr("on_load");
-
-                        if (request != generation) {
-                            unload();
-                        }
-                    } catch (Exception | LinkageError error) {
-                        Log.e(TAG, "[" + id + "] Load failed", error);
-
-                        if (request == generation) {
-                            loadError = error.toString();
-
-                            this.enabled = false;
-
-                            org.telegram.messenger.AndroidUtilities.runOnUIThread(
-                                    () -> {
-                                        if (request == generation) {
-                                            PluginManager.getInstance().setEnabled(id, false);
-                                            loadError = error.toString();
-                                            ExternalPlugins.changed();
-                                        }
-                                    });
-                        }
-
-                        unload();
-                    }
+                    loadError = message;
+                    ExternalPlugins.changed();
                 });
     }
 
@@ -238,20 +337,55 @@ public final class PythonPluginAdapter implements Plugin {
         }
 
         PluginSettings.setValue(id, declared, value);
-        long request = generation;
+        long request = lifecycle.getGeneration();
 
-        if (enabled) {
-            executor.execute(() -> {
-                if (!isGenerationActive(request) || instance == null) {
+        if (lifecycle.isEnabled()) {
+            pendingSettings.put(key, new PendingSetting(request, value));
+
+            if (!settingsDrainQueued) {
+                settingsDrainQueued = true;
+
+                try {
+                    executor.execute(this::drainSettings);
+                } catch (RejectedExecutionException error) {
+                    settingsDrainQueued = false;
+                    pendingSettings.clear();
+                    Log.w(TAG, "[" + id + "] Setting callback rejected", error);
+                }
+            }
+        }
+    }
+
+    private void drainSettings() {
+        while (true) {
+            String key;
+            PendingSetting pending;
+
+            synchronized (this) {
+                Iterator<Map.Entry<String, PendingSetting>> iterator =
+                        pendingSettings.entrySet().iterator();
+
+                if (!iterator.hasNext()) {
+                    settingsDrainQueued = false;
+
                     return;
                 }
 
-                try {
-                    bridge.callAttr("dispatch_setting_changed", instance, key, value);
-                } catch (Exception | LinkageError error) {
-                    Log.e(TAG, "[" + id + "] Setting callback failed", error);
-                }
-            });
+                Map.Entry<String, PendingSetting> entry = iterator.next();
+                key = entry.getKey();
+                pending = entry.getValue();
+                iterator.remove();
+            }
+
+            if (!lifecycle.isCurrent(pending.generation) || instance == null) {
+                continue;
+            }
+
+            try {
+                bridge.callAttr("dispatch_setting_changed", instance, key, pending.value);
+            } catch (Exception | LinkageError error) {
+                Log.e(TAG, "[" + id + "] Setting callback failed", error);
+            }
         }
     }
 
@@ -264,14 +398,30 @@ public final class PythonPluginAdapter implements Plugin {
 
         synchronized (this) {
             if (removal == null || (removal.isDone() && !executor.isShutdown())) {
-                enabled = false;
-                generation++;
+                lifecycle.beginRemoval();
+                pendingSettings.clear();
                 removal = new FutureTask<>(() -> {
-                    unloadStrict();
-                    executor.shutdown();
+                    try {
+                        unloadStrict();
+                        executor.getQueue().clear();
+                        lifecycle.terminate();
+                        executor.shutdown();
+                    } catch (Exception | LinkageError error) {
+                        lifecycle.failRemoval();
+                        throw error;
+                    }
+
                     return null;
                 });
-                executor.execute(removal);
+
+                try {
+                    executeControl(removal);
+                } catch (RejectedExecutionException error) {
+                    removal = null;
+                    lifecycle.failRemoval();
+
+                    throw new IOException("Plugin removal could not be scheduled", error);
+                }
             }
 
             task = removal;
@@ -290,16 +440,16 @@ public final class PythonPluginAdapter implements Plugin {
     }
 
     public boolean isGenerationActive(long value) {
-        return enabled && generation == value;
+        return lifecycle.isCurrent(value);
     }
 
-    private boolean unload() {
+    private boolean unload(long request, boolean disableSelection) {
         try {
             unloadStrict();
             return true;
         } catch (Exception | LinkageError error) {
-            loadError = error.toString();
-            Log.e(TAG, "[" + id + "] Unload failed", error);
+            handleFailure(request, "Unload", error, disableSelection);
+
             return false;
         }
     }
@@ -316,7 +466,7 @@ public final class PythonPluginAdapter implements Plugin {
 
     @Override
     public synchronized void beforeSend(BeforeSendEvent event) {
-        if (!enabled) {
+        if (!lifecycle.isEnabled()) {
             return;
         }
 
@@ -326,7 +476,7 @@ public final class PythonPluginAdapter implements Plugin {
             return;
         }
 
-        final long request = generation;
+        final long request = lifecycle.getGeneration();
         final int account = event.account;
         final int textLength = event.text.length();
         final int scheduleDate = event.scheduleDate;
@@ -335,7 +485,7 @@ public final class PythonPluginAdapter implements Plugin {
             executor.execute(
                     () -> {
                         try {
-                            if (!enabled || request != generation || instance == null) {
+                            if (!lifecycle.isCurrent(request) || instance == null) {
                                 return;
                             }
 
