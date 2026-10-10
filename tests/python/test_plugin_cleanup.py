@@ -21,6 +21,11 @@ class Resource:
 
     close = _close
 
+    def _bind_runtime(self, host, generation):
+        self.bound = (host, generation)
+
+    bind_runtime = _bind_runtime
+
 
 class PluginCleanupTest(unittest.TestCase):
     def setUp(self):
@@ -31,18 +36,21 @@ class PluginCleanupTest(unittest.TestCase):
 
         modules = {
             "fluxgram": module("fluxgram", __path__=[]),
-            "fluxgram_runtime": module("fluxgram_runtime", __path__=[]),
-            "android": module("android", __path__=[]),
-            "android.util": module("android.util", Log=object),
             "fluxgram.events": module("fluxgram.events", BeforeSendEvent=object),
-            "fluxgram_runtime._event_bus": module("fluxgram_runtime._event_bus", EventBus=Resource),
-            "fluxgram_runtime.client": module("fluxgram_runtime.client", Client=Resource),
             "fluxgram.ui": module("fluxgram.ui", UI=Resource),
-            "fluxgram_runtime._ui_thread": module(
-                "fluxgram_runtime._ui_thread",
-                call_ui=lambda callback: callback(),
-            ),
         }
+        resources = types.SimpleNamespace(
+            events=Resource(),
+            client=Resource(),
+            ui_thread=object(),
+            ui_services=object(),
+            call_ui=lambda callback: callback(),
+            log=lambda plugin_id, message: None,
+        )
+        modules["fluxgram._runtime"] = module(
+            "fluxgram._runtime",
+            create_runtime=lambda plugin_id: resources,
+        )
         with patch.dict(sys.modules, modules):
             settings_spec = importlib.util.spec_from_file_location("fluxgram.settings", ROOT / "settings.py")
             settings = importlib.util.module_from_spec(settings_spec)
@@ -88,3 +96,14 @@ class PluginCleanupTest(unittest.TestCase):
             self.plugin._unload()
         self.assertEqual(self.plugin.events.calls, 1)
         self.assertEqual(self.hook.calls, 1)
+
+    def test_runtime_cannot_be_rebound(self):
+        self.plugin._bind_runtime(object(), 1)
+
+        with self.assertRaisesRegex(RuntimeError, "already bound"):
+            self.plugin._bind_runtime(object(), 2)
+
+        self.plugin._unload()
+
+        with self.assertRaisesRegex(RuntimeError, "already bound"):
+            self.plugin._bind_runtime(object(), 3)

@@ -7,6 +7,9 @@ from pathlib import Path
 
 from fluxgram.events import BeforeSendEvent
 from fluxgram.plugin import Plugin
+from fluxgram._runtime import runtime_scope
+
+from ._bindings import create_runtime_bindings
 
 
 def create_plugin(module_name: str, plugin_id: str, host, generation):
@@ -29,7 +32,9 @@ def _instantiate(module, plugin_id, host, generation):
             f"{module_name}.PluginEntry must inherit from fluxgram.Plugin"
         )
 
-    plugin = plugin_class(plugin_id)
+    with runtime_scope(create_runtime_bindings):
+        plugin = plugin_class(plugin_id)
+
     plugin._bind_runtime(host, generation)
 
     return plugin

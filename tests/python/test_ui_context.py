@@ -1,9 +1,8 @@
 import importlib.util
 from pathlib import Path
-import sys
 import types
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 
 SOURCE = Path(__file__).resolve().parents[2] / 'sdk/python/src/fluxgram/ui/context.py'
@@ -13,34 +12,15 @@ class UiContextTest(unittest.TestCase):
     def setUp(self):
         self.thread = 'main'
         self.pending = []
-        modules = {}
-
-        for name in (
-            'android',
-            'android.os',
-            'fluxgram',
-            'fluxgram.ui',
-            'fluxgram_runtime',
-            'fluxgram_runtime._ui_thread',
-        ):
-            module = types.ModuleType(name)
-            module.__path__ = []
-            modules[name] = module
-
-        modules['android.os'].Looper = types.SimpleNamespace(
-            myLooper=lambda: self.thread,
-            getMainLooper=lambda: 'main',
-        )
-        modules['fluxgram_runtime._ui_thread'].post_ui = self.pending.append
-
-        modules_patch = patch.dict(sys.modules, modules)
-        modules_patch.start()
-        self.addCleanup(modules_patch.stop)
         spec = importlib.util.spec_from_file_location('fluxgram.ui.context', SOURCE)
         sdk = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sdk)
 
-        self.ui = sdk.UI()
+        runtime = types.SimpleNamespace(
+            is_ui_thread=lambda: self.thread == 'main',
+            post=self.pending.append,
+        )
+        self.ui = sdk.UI(runtime)
         self.host = types.SimpleNamespace(isGenerationActive=lambda generation: generation == 7)
         self.ui._bind_runtime(self.host, 7)
 

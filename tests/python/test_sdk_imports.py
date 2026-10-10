@@ -43,6 +43,12 @@ assert fluxgram.ChatInfo is fluxgram.models.ChatInfo
 assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notifications"}
 assert SwitchSetting("enabled", "Enabled").default is False
 assert UI()._active() is False
+try:
+    Plugin("standalone.test")
+except RuntimeError as error:
+    assert "only be created by FluxGram" in str(error)
+else:
+    raise AssertionError("Plugin construction unexpectedly succeeded")
 assert not any(name == "fluxgram_runtime" or name.startswith("fluxgram_runtime.") for name in sys.modules)
 assert not any(
     name == "android" or name.startswith("android.")
@@ -66,6 +72,24 @@ assert not any(
         self.assertTrue((SDK_SOURCE / "fluxgram/__init__.py").is_file())
         self.assertTrue((RUNTIME_SOURCE / "fluxgram_runtime/__init__.py").is_file())
         self.assertFalse((RUNTIME_SOURCE / "fluxgram").exists())
+
+    def test_public_sdk_does_not_import_client_runtime(self):
+        forbidden = (
+            "from android",
+            "from java",
+            "from org.telegram",
+            "from fluxgram_runtime",
+            "import android",
+            "import java",
+            "import org.telegram",
+            "import fluxgram_runtime",
+        )
+
+        for source in (SDK_SOURCE / "fluxgram").rglob("*.py"):
+            text = source.read_text()
+
+            with self.subTest(source=source.relative_to(SDK_SOURCE)):
+                self.assertFalse(any(value in text for value in forbidden))
 
     def test_public_package_discovers_separate_runtime_source(self):
         script = """
@@ -95,7 +119,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
     def test_package_metadata_and_chaquopy_source_set(self):
         metadata = tomllib.loads((SDK / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-sdk")
-        self.assertEqual(metadata["project"]["version"], "2.0.0")
+        self.assertEqual(metadata["project"]["version"], "2.0.1")
         self.assertEqual(metadata["project"]["requires-python"], ">=3.11")
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
 

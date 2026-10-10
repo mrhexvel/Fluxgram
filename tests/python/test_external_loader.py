@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import importlib.util
 from pathlib import Path
 import sys
@@ -25,15 +26,32 @@ class Plugin:
 
 class ExternalLoaderTest(unittest.TestCase):
     def setUp(self):
+        @contextmanager
+        def runtime_scope(factory):
+            yield
+
         package = types.ModuleType("fluxgram")
         package.__path__ = []
         plugin = types.ModuleType("fluxgram.plugin")
         plugin.Plugin = Plugin
         events = types.ModuleType("fluxgram.events")
         events.BeforeSendEvent = object
+        runtime = types.ModuleType("fluxgram._runtime")
+        runtime.runtime_scope = runtime_scope
+        runtime_package = types.ModuleType("fluxgram_runtime")
+        runtime_package.__path__ = []
+        bindings = types.ModuleType("fluxgram_runtime._bindings")
+        bindings.create_runtime_bindings = object()
         self.patch = patch.dict(
             sys.modules,
-            {"fluxgram": package, "fluxgram.plugin": plugin, "fluxgram.events": events},
+            {
+                "fluxgram": package,
+                "fluxgram.plugin": plugin,
+                "fluxgram.events": events,
+                "fluxgram._runtime": runtime,
+                "fluxgram_runtime": runtime_package,
+                "fluxgram_runtime._bindings": bindings,
+            },
         )
         self.patch.start()
         self.addCleanup(self.patch.stop)

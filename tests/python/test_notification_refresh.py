@@ -108,6 +108,7 @@ class NotificationRefreshTest(unittest.TestCase):
             return bulletin
 
         module('java', dynamic_proxy=lambda target: object, jclass=lambda name: object, jlong=int)
+        module('fluxgram.events', MessageReceivedEvent=object)
         module('android.os', Looper=types.SimpleNamespace(myLooper=lambda: 1, getMainLooper=lambda: 1))
         module('android.util', Log=Mock())
         module('org.telegram.messenger', DialogObject=Mock(), UserConfig=Mock())
@@ -133,17 +134,42 @@ class NotificationRefreshTest(unittest.TestCase):
             ('fluxgram_runtime._telegram.bulletins', RUNTIME / '_telegram/bulletins.py'),
             ('fluxgram_runtime._telegram.ui_lifecycle', RUNTIME / '_telegram/ui_lifecycle.py'),
             ('fluxgram.ui', SOURCE),
+            (
+                'fluxgram_runtime._telegram.notifications_service',
+                RUNTIME / '_telegram/notifications_service.py',
+            ),
         ):
             spec = importlib.util.spec_from_file_location(name, path)
             loaded = importlib.util.module_from_spec(spec)
             sys.modules[name] = loaded
             spec.loader.exec_module(loaded)
 
-        self.sdk = loaded
+        notifications_service = loaded
+        self.sdk = sys.modules['fluxgram.ui']
 
-        self.ui = self.sdk.UI()
+        class Services:
+            def create_bulletin_presenter(inner, ui):
+                presenter = sys.modules['fluxgram_runtime._telegram.bulletins']
+
+                return presenter.BulletinPresenter(ui)
+
+            def create_notifications(inner, ui):
+                return notifications_service.NotificationsService(ui)
+
+            def open_chat(inner, account, dialog_id, topic_id, message_id):
+                navigation = sys.modules['fluxgram_runtime._telegram.navigation']
+
+                return navigation.open_chat(account, dialog_id, topic_id, message_id)
+
+        self.ui_services = Services()
+
+        self.ui_runtime = types.SimpleNamespace(
+            is_ui_thread=lambda: True,
+            post=self.pending.append,
+        )
+        self.ui = self.sdk.UI(self.ui_runtime, self.ui_services)
         self.ui._is_active = lambda: True
-        self.notifications = self.sdk.Notifications(self.ui)
+        self.notifications = self.sdk.Notifications(self.ui)._delegate
         self.notifications._navigation.open_chat = Mock()
 
     def event(self, account=0, dialog=10, topic=0, mid=1, muted=False, outgoing=False):
@@ -332,15 +358,15 @@ class NotificationRefreshTest(unittest.TestCase):
             navigation.open_chat(account=0, dialog_id=10)
 
     def test_unused_context_allocates_no_feature_resources(self):
-        context = self.sdk.UI()
+        context = self.sdk.UI(self.ui_runtime, self.ui_services)
         self.assertEqual(context._cleanup_callbacks, [])
         self.assertFalse(hasattr(context, '_presenter'))
         self.assertFalse(hasattr(context, '_notification_handle'))
 
     def test_separate_context_shutdown_does_not_close_another_plugin(self):
-        other_ui = self.sdk.UI()
+        other_ui = self.sdk.UI(self.ui_runtime, self.ui_services)
         other_ui._is_active = lambda: True
-        other = self.sdk.Notifications(other_ui)
+        other = self.sdk.Notifications(other_ui)._delegate
         self.notifications.show_message(self.event())
         other.show_message(self.event(dialog=11))
         current = other._presenter.current.bulletin
