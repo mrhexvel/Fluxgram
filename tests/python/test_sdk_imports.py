@@ -36,6 +36,7 @@ from fluxgram import (
     SwitchSetting,
     TextSetting,
 )
+from fluxgram.storage import Storage, StorageMigration
 from fluxgram.ui import Bulletins, Navigation, Notifications, UI
 from fluxgram.testing import PluginHarness
 
@@ -46,6 +47,8 @@ assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notificati
 assert SwitchSetting("enabled", "Enabled").default is False
 assert UI()._active() is False
 assert PluginHarness.__module__ == "fluxgram.testing.harness"
+assert Storage.__module__ == "fluxgram.storage"
+assert StorageMigration.__module__ == "fluxgram.storage"
 try:
     Plugin("standalone.test")
 except RuntimeError as error:
