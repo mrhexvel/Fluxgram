@@ -24,7 +24,7 @@ MANIFEST = {
     "description": "Пакет для проверки установщика",
     "author": "FluxGram",
     "sdk_version": 2,
-    "min_sdk_minor": 0,
+    "min_sdk_minor": 1,
     "entrypoint": "main:PluginEntry",
     "access": "full",
     "declared_capabilities": [],
@@ -245,7 +245,7 @@ class PluginPackagesTest(unittest.TestCase):
             {"id": "fluxgram.impersonation"},
             {"id": "../escape"},
             {"sdk_version": 3},
-            {"min_sdk_minor": 1},
+            {"min_sdk_minor": 2},
             {"schema_version": "2"},
             {"access": "restricted"},
             {"entrypoint": "missing:PluginEntry"},
@@ -263,6 +263,10 @@ class PluginPackagesTest(unittest.TestCase):
         without_minor = MANIFEST.copy()
         del without_minor["min_sdk_minor"]
         self.validate(self.archive(raw_manifest=json.dumps(without_minor)), False)
+
+        previous_minor = MANIFEST.copy()
+        previous_minor["min_sdk_minor"] = 0
+        self.validate(self.archive(raw_manifest=json.dumps(previous_minor)), True)
 
         legacy = MANIFEST.copy()
         legacy["schema_version"] = 1
@@ -401,7 +405,7 @@ class PluginStoreTest(unittest.TestCase):
         self.store("apply")
         self.assertEqual(
             self.store("listcompat"),
-            [f'{legacy["id"]}:true:2:0'],
+            [f'{legacy["id"]}:true:2:1'],
         )
 
     def test_install_sheet_recognizes_incompatible_update(self):

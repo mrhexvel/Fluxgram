@@ -86,6 +86,7 @@ public final class PythonPluginAdapter implements Plugin {
 
     private final ThreadPoolExecutor executor;
     private final Semaphore eventSlots = new Semaphore(64);
+    private final Semaphore storageSlots = new Semaphore(2);
     private final PythonPluginLifecycle lifecycle = new PythonPluginLifecycle();
     private final LinkedHashMap<String, PendingSetting> pendingSettings = new LinkedHashMap<>();
     private boolean settingsDrainQueued;
@@ -441,6 +442,35 @@ public final class PythonPluginAdapter implements Plugin {
 
     public boolean isGenerationActive(long value) {
         return lifecycle.isCurrent(value);
+    }
+
+    public int submitStorage(long generation, PyObject callback) {
+        if (!lifecycle.isCurrent(generation)) {
+            return 2;
+        }
+
+        if (!storageSlots.tryAcquire()) {
+            return 1;
+        }
+
+        try {
+            executor.execute(
+                    () -> {
+                        try {
+                            if (lifecycle.isCurrent(generation)) {
+                                callback.call();
+                            }
+                        } catch (Exception | LinkageError error) {
+                            Log.e(TAG, "[" + id + "] Storage task failed", error);
+                        } finally {
+                            storageSlots.release();
+                        }
+                    });
+            return 0;
+        } catch (RejectedExecutionException error) {
+            storageSlots.release();
+            return lifecycle.isCurrent(generation) ? 1 : 2;
+        }
     }
 
     private boolean unload(long request, boolean disableSelection) {
