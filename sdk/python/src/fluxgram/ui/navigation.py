@@ -3,7 +3,7 @@ class Navigation:
         self._ui = ui
 
     def open_chat(self, *, account, dialog_id, topic_id=0, message_id=0):
-        from .._telegram.navigation import open_chat
+        from fluxgram_runtime._telegram.navigation import open_chat
 
         self._ui._require_ui()
 

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'sdk/python/src/fluxgram/ui/__init__.py'
-RUNTIME = ROOT / 'TMessagesProj/src/main/python/fluxgram'
+RUNTIME = ROOT / 'TMessagesProj/src/main/python/fluxgram_runtime'
 
 
 class Bulletin:
@@ -81,7 +81,14 @@ class NotificationRefreshTest(unittest.TestCase):
             result.__dict__.update(values)
             modules[name] = result
 
-        for name in ('android', 'org', 'org.telegram', 'fluxgram', 'fluxgram._telegram'):
+        for name in (
+            'android',
+            'org',
+            'org.telegram',
+            'fluxgram',
+            'fluxgram_runtime',
+            'fluxgram_runtime._telegram',
+        ):
             module(name)
 
         self.fragment = object()
@@ -109,10 +116,10 @@ class NotificationRefreshTest(unittest.TestCase):
             canShowBulletin=lambda fragment: True,
             of=lambda fragment: types.SimpleNamespace(createSimpleBulletin=lambda *args: Bulletin()),
         ))
-        module('fluxgram._telegram.navigation', foreground_fragment=lambda: self.fragment, open_chat=Mock())
-        module('fluxgram._telegram.notification_card', create_message_bulletin=create, update_message_bulletin=self.render)
-        module('fluxgram._ui_thread', post_ui=self.pending.append)
-        module('fluxgram.client', _require_integer=lambda *args: None)
+        module('fluxgram_runtime._telegram.navigation', foreground_fragment=lambda: self.fragment, open_chat=Mock())
+        module('fluxgram_runtime._telegram.notification_card', create_message_bulletin=create, update_message_bulletin=self.render)
+        module('fluxgram_runtime._ui_thread', post_ui=self.pending.append)
+        module('fluxgram_runtime.client', _require_integer=lambda *args: None)
         module('org.telegram.messenger.plugins', PluginUiLifecycle=types.SimpleNamespace(
             addListener=self.lifecycle_listeners.append,
             removeListener=self.lifecycle_listeners.remove,
@@ -123,8 +130,8 @@ class NotificationRefreshTest(unittest.TestCase):
         self.addCleanup(modules_patch.stop)
 
         for name, path in (
-            ('fluxgram._telegram.bulletins', RUNTIME / '_telegram/bulletins.py'),
-            ('fluxgram._telegram.ui_lifecycle', RUNTIME / '_telegram/ui_lifecycle.py'),
+            ('fluxgram_runtime._telegram.bulletins', RUNTIME / '_telegram/bulletins.py'),
+            ('fluxgram_runtime._telegram.ui_lifecycle', RUNTIME / '_telegram/ui_lifecycle.py'),
             ('fluxgram.ui', SOURCE),
         ):
             spec = importlib.util.spec_from_file_location(name, path)

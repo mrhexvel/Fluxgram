@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 SOURCE = (
     Path(__file__).resolve().parents[2]
-    / "TMessagesProj/src/main/python/fluxgram/_event_bus.py"
+    / "TMessagesProj/src/main/python/fluxgram_runtime/_event_bus.py"
 )
 
 
@@ -52,7 +52,7 @@ class NotificationEventsTest(unittest.TestCase):
             modules[name] = m
             return m
 
-        for name in ("android", "org", "org.telegram", "fluxgram"):
+        for name in ("android", "org", "org.telegram", "fluxgram_runtime"):
             module(name)
         module(
             "java", dynamic_proxy=lambda interface: object, jclass=lambda name: object
@@ -81,14 +81,14 @@ class NotificationEventsTest(unittest.TestCase):
             ),
         )
         module(
-            "fluxgram._context",
+            "fluxgram_runtime._context",
             build_message_event=lambda account, message: (account, message),
         )
-        module("fluxgram._ui_thread", post_ui=self.pending.append)
+        module("fluxgram_runtime._ui_thread", post_ui=self.pending.append)
         self.module_patch = patch.dict(sys.modules, modules)
         self.module_patch.start()
         self.addCleanup(self.module_patch.stop)
-        spec = importlib.util.spec_from_file_location("fluxgram._event_bus", SOURCE)
+        spec = importlib.util.spec_from_file_location("fluxgram_runtime._event_bus", SOURCE)
         self.sdk = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.sdk)
         self.sub = self.sdk._MessageSubscription(

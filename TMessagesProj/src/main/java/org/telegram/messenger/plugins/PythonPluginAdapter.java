@@ -149,7 +149,7 @@ public final class PythonPluginAdapter implements Plugin {
                     }
 
                     try {
-                        bridge = PythonRuntime.prepare().getModule("fluxgram._bridge");
+                        bridge = PythonRuntime.prepare().getModule("fluxgram_runtime._bridge");
 
                         if (request != generation) {
                             return;

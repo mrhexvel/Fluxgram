@@ -10,12 +10,12 @@ class Notifications:
         from org.telegram.ui import ChatActivity
         from org.telegram.ui.Components import BulletinFactory
 
-        from .._telegram.bulletins import BulletinPresenter, has_visible_bulletin
-        from .._telegram.navigation import foreground_fragment
-        from .._telegram.notification_card import create_message_bulletin, update_message_bulletin
-        from .._telegram.ui_lifecycle import UiLifecycle
-        from .._ui_thread import post_ui
-        from ..client import _require_integer
+        from fluxgram_runtime._telegram.bulletins import BulletinPresenter, has_visible_bulletin
+        from fluxgram_runtime._telegram.navigation import foreground_fragment
+        from fluxgram_runtime._telegram.notification_card import create_message_bulletin, update_message_bulletin
+        from fluxgram_runtime._telegram.ui_lifecycle import UiLifecycle
+        from fluxgram_runtime._ui_thread import post_ui
+        from fluxgram_runtime.client import _require_integer
 
         self._ui = ui
         self._Log = Log

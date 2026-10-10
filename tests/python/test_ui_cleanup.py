@@ -34,7 +34,7 @@ class UiCleanupTest(unittest.TestCase):
                 myLooper=threading.current_thread, getMainLooper=lambda: main)),
             "android.util": module("android.util", Log=types.SimpleNamespace(e=lambda *args: None)),
         }
-        source = Path(__file__).resolve().parents[2] / "TMessagesProj/src/main/python/fluxgram/_ui_thread.py"
+        source = Path(__file__).resolve().parents[2] / "TMessagesProj/src/main/python/fluxgram_runtime/_ui_thread.py"
         with patch.dict(sys.modules, modules):
             spec = importlib.util.spec_from_file_location("cleanup_ui", source)
             self.sdk = importlib.util.module_from_spec(spec)

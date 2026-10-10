@@ -6,10 +6,11 @@ class Plugin:
     settings_schema = ()
 
     def __init__(self, plugin_id: str):
-        from ._event_bus import EventBus
-        from .client import Client
+        from fluxgram_runtime._event_bus import EventBus
+        from fluxgram_runtime._ui_thread import call_ui
+        from fluxgram_runtime.client import Client
+
         from .ui import UI
-        from ._ui_thread import call_ui
 
         self._plugin_id = plugin_id
         self._call_ui = call_ui

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 SOURCE = (
     Path(__file__).resolve().parents[2]
-    / "TMessagesProj/src/main/python/fluxgram/_bridge.py"
+    / "TMessagesProj/src/main/python/fluxgram_runtime/_bridge.py"
 )
 
 
@@ -37,7 +37,7 @@ class ExternalLoaderTest(unittest.TestCase):
         )
         self.patch.start()
         self.addCleanup(self.patch.stop)
-        spec = importlib.util.spec_from_file_location("fluxgram._bridge", SOURCE)
+        spec = importlib.util.spec_from_file_location("fluxgram_runtime._bridge", SOURCE)
         self.bridge = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.bridge)
         self.temp = tempfile.TemporaryDirectory()

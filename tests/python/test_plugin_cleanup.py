@@ -31,13 +31,17 @@ class PluginCleanupTest(unittest.TestCase):
 
         modules = {
             "fluxgram": module("fluxgram", __path__=[]),
+            "fluxgram_runtime": module("fluxgram_runtime", __path__=[]),
             "android": module("android", __path__=[]),
             "android.util": module("android.util", Log=object),
             "fluxgram.events": module("fluxgram.events", BeforeSendEvent=object),
-            "fluxgram._event_bus": module("fluxgram._event_bus", EventBus=Resource),
-            "fluxgram.client": module("fluxgram.client", Client=Resource),
+            "fluxgram_runtime._event_bus": module("fluxgram_runtime._event_bus", EventBus=Resource),
+            "fluxgram_runtime.client": module("fluxgram_runtime.client", Client=Resource),
             "fluxgram.ui": module("fluxgram.ui", UI=Resource),
-            "fluxgram._ui_thread": module("fluxgram._ui_thread", call_ui=lambda callback: callback()),
+            "fluxgram_runtime._ui_thread": module(
+                "fluxgram_runtime._ui_thread",
+                call_ui=lambda callback: callback(),
+            ),
         }
         with patch.dict(sys.modules, modules):
             settings_spec = importlib.util.spec_from_file_location("fluxgram.settings", ROOT / "settings.py")

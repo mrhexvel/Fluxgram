@@ -1,4 +1,4 @@
-from ..models import MessageInfo
+from fluxgram.models import MessageInfo
 
 
 def read_message(message):

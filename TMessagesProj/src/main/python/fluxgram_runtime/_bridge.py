@@ -5,8 +5,8 @@ import types
 import uuid
 from pathlib import Path
 
-from .plugin import Plugin
-from .events import BeforeSendEvent
+from fluxgram.events import BeforeSendEvent
+from fluxgram.plugin import Plugin
 
 
 def create_plugin(module_name: str, plugin_id: str, host, generation):

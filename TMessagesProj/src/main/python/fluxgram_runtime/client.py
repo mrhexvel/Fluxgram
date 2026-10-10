@@ -2,8 +2,9 @@ from android.os import Looper
 from java import jlong
 from org.telegram.messenger import DialogObject, UserConfig
 
+from fluxgram.models import ChatInfo
+
 from ._telegram.chats import read_chat
-from .models import ChatInfo
 
 
 def _require_integer(name, value, minimum, maximum):

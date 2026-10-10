@@ -43,6 +43,7 @@ assert fluxgram.ChatInfo is fluxgram.models.ChatInfo
 assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notifications"}
 assert SwitchSetting("enabled", "Enabled").default is False
 assert UI()._active() is False
+assert not any(name == "fluxgram_runtime" or name.startswith("fluxgram_runtime.") for name in sys.modules)
 assert not any(
     name == "android" or name.startswith("android.")
     or name == "java" or name.startswith("java.")
@@ -61,16 +62,10 @@ assert not any(
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_sdk_and_runtime_have_no_duplicate_python_files(self):
-        sdk_files = {
-            path.relative_to(SDK_SOURCE / "fluxgram")
-            for path in (SDK_SOURCE / "fluxgram").rglob("*.py")
-        }
-        runtime_files = {
-            path.relative_to(RUNTIME_SOURCE / "fluxgram")
-            for path in (RUNTIME_SOURCE / "fluxgram").rglob("*.py")
-        }
-        self.assertEqual(sdk_files & runtime_files, set())
+    def test_public_and_runtime_packages_are_separate(self):
+        self.assertTrue((SDK_SOURCE / "fluxgram/__init__.py").is_file())
+        self.assertTrue((RUNTIME_SOURCE / "fluxgram_runtime/__init__.py").is_file())
+        self.assertFalse((RUNTIME_SOURCE / "fluxgram").exists())
 
     def test_public_package_discovers_separate_runtime_source(self):
         script = """
@@ -78,9 +73,10 @@ import importlib.util
 
 import fluxgram
 
-spec = importlib.util.find_spec("fluxgram._bridge")
-assert spec is not None
-assert "TMessagesProj/src/main/python/fluxgram/_bridge.py" in spec.origin
+runtime_spec = importlib.util.find_spec("fluxgram_runtime._bridge")
+assert runtime_spec is not None
+assert "TMessagesProj/src/main/python/fluxgram_runtime/_bridge.py" in runtime_spec.origin
+assert importlib.util.find_spec("fluxgram._bridge") is None
 """
         environment = os.environ.copy()
         environment["PYTHONPATH"] = os.pathsep.join((

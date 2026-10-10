@@ -6,7 +6,8 @@ from org.telegram.messenger import (
     MessagesController,
 )
 
-from ..models import ChatInfo
+from fluxgram.models import ChatInfo
+
 from .notifications import read_notifications
 
 

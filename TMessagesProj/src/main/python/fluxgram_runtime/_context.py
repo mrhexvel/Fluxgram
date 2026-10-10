@@ -1,4 +1,5 @@
-from .events import MessageReceivedEvent
+from fluxgram.events import MessageReceivedEvent
+
 from ._telegram.chats import read_chat
 from ._telegram.messages import read_message
 

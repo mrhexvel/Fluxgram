@@ -15,7 +15,14 @@ class UiContextTest(unittest.TestCase):
         self.pending = []
         modules = {}
 
-        for name in ('android', 'android.os', 'fluxgram', 'fluxgram.ui', 'fluxgram._ui_thread'):
+        for name in (
+            'android',
+            'android.os',
+            'fluxgram',
+            'fluxgram.ui',
+            'fluxgram_runtime',
+            'fluxgram_runtime._ui_thread',
+        ):
             module = types.ModuleType(name)
             module.__path__ = []
             modules[name] = module
@@ -24,7 +31,7 @@ class UiContextTest(unittest.TestCase):
             myLooper=lambda: self.thread,
             getMainLooper=lambda: 'main',
         )
-        modules['fluxgram._ui_thread'].post_ui = self.pending.append
+        modules['fluxgram_runtime._ui_thread'].post_ui = self.pending.append
 
         modules_patch = patch.dict(sys.modules, modules)
         modules_patch.start()

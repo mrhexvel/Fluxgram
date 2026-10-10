@@ -48,6 +48,6 @@ class UI:
         if Looper.myLooper() == Looper.getMainLooper():
             self._dispose()
         else:
-            from .._ui_thread import post_ui
+            from fluxgram_runtime._ui_thread import post_ui
 
             post_ui(self._dispose)

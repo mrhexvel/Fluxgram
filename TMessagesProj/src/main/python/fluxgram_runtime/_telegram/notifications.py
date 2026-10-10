@@ -5,7 +5,7 @@ from org.telegram.messenger import (
     NotificationsController,
 )
 
-from ..models import ChatNotifications, NotificationOverride
+from fluxgram.models import ChatNotifications, NotificationOverride
 
 
 def _read_override(preferences, dialog_id, topic_id):
