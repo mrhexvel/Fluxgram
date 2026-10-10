@@ -1,52 +1,119 @@
-## FluxGram project decisions
+# FluxGram
 
-- [Модель доверия плагинов FluxGram](docs/decisions/0001-plugin-trust-model.md) — принятое решение о полном доступе, установке и восстановлении.
-- Публичный Python SDK подключён из [mrhexvel/fluxgram-sdk](https://github.com/mrhexvel/fluxgram-sdk) как submodule `sdk/python`.
+FluxGram is an unofficial Telegram client for Android built on top of the
+open-source [Telegram Android client](https://github.com/DrKLO/Telegram).
+It keeps upstream behavior intact where possible and adds opt-in privacy,
+local history, appearance, and Python plugin features.
 
-## Telegram messenger for Android
+FluxGram is not affiliated with or endorsed by Telegram.
 
-[Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.
-This repo contains the official source code for [Telegram App for Android](https://play.google.com/store/apps/details?id=org.telegram.messenger).
+## Features
 
-## Creating your Telegram Application
+- Local edit history and an archive of deleted messages.
+- Optional local retention of attachments from deleted messages.
+- Ghost Mode controls for online status, typing, read receipts, story views,
+  delayed delivery, and silent sending.
+- Profile and list badges backed by a cache-first appearance API.
+- Full-trust Python plugins with an import-safe public SDK.
+- Account-aware local storage and lifecycle handling.
 
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
+Ghost Mode changes what this client sends in supported flows. It is not an
+anonymity system and cannot control other clients, Telegram servers, or flows
+which are explicitly outside its supported scope.
 
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
+## Plugin SDK
 
-### API, Protocol documentation
+The public Python SDK is maintained in
+[mrhexvel/fluxgram-sdk](https://github.com/mrhexvel/fluxgram-sdk) and is included
+here as the `sdk/python` Git submodule. Plugin code imports the public `fluxgram`
+package. Android and Chaquopy integration remains internal to this repository.
 
-Telegram API manuals: https://core.telegram.org/api
+Plugins are fully trusted code. FluxGram does not sandbox installed Python
+plugins. Install plugins only when you trust their source and publisher.
 
-MTproto protocol manuals: https://core.telegram.org/mtproto
+## Building
 
-### Compilation Guide
+### Requirements
 
-**Note**: In order to support [reproducible builds](https://core.telegram.org/reproducible-builds), this repo contains dummy release.keystore,  google-services.json and filled variables inside BuildVars.java. Before publishing your own APKs please make sure to replace all these files with your own.
+- Android Studio 2025.1.4
+- Android SDK 36
+- Android NDK 27.2.12479018
+- JDK 21
+- Python 3.12 for the repository test harness
 
-You will require Android Studio 2025.1.4, Android NDK 27.2.12479018 and Android SDK 36.
+### Checkout
 
-1. Clone the Telegram source code with its submodules:
-   ```bash
-   git clone --recursive --shallow-submodules https://github.com/mrhexvel/fluxgram.git FluxGram
-   ```
-   In case you forgot the `--recursive` flag, change to the `Telegram` directory and run:
-   ```bash
-   git submodule init && git submodule update --init --recursive --depth=1
-   ```
-   GitHub source archives do not include submodule contents and cannot be used as complete build checkouts.
-2. Copy your release.keystore into TMessagesProj/config
-3. Fill out RELEASE_KEY_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_STORE_PASSWORD in gradle.properties to access your  release.keystore
-4.  Go to https://console.firebase.google.com/, create two android apps with application IDs org.telegram.messenger and org.telegram.messenger.beta, turn on firebase messaging and download google-services.json, which should be copied to the same folder as TMessagesProj.
-5. Open the project in the Studio (note that it should be opened, NOT imported).
-6. Fill out values in TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java – there’s a link for each of the variables showing where and which data to obtain.
-7. You are ready to compile Telegram.
+Clone the repository with all submodules:
 
-### Localization
+```bash
+git clone --recurse-submodules https://github.com/mrhexvel/Fluxgram.git FluxGram
+cd FluxGram
+```
 
-We moved all translations to https://translations.telegram.org/en/android/. Please use it.
+If the repository was cloned without submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+GitHub source archives do not include submodule contents and are not complete
+build checkouts.
+
+### Local configuration
+
+Create the local configuration file:
+
+```bash
+cp fluxgram.local.properties.example fluxgram.local.properties
+```
+
+Obtain your own Telegram `api_id` and `api_hash` from
+[my.telegram.org](https://my.telegram.org) and set them in
+`fluxgram.local.properties`. The optional appearance API URL must use HTTPS.
+
+Firebase configuration is intentionally not tracked. To use Firebase services,
+create Android apps for `org.fluxgram.messenger` and
+`org.fluxgram.messenger.beta`, then place your generated configuration at:
+
+```text
+TMessagesProj_App/google-services.json
+```
+
+Do not commit local properties, production signing keys, passwords, or service
+credentials. The release keystore and values inherited from upstream are dummy
+development data and must not be used to publish an application.
+
+### Debug APK
+
+Build the arm64 debug variant with the Gradle wrapper:
+
+```bash
+./gradlew :TMessagesProj_App:assembleAfatDebug -Parm64Only --console=plain
+```
+
+## Tests
+
+Run the Python and Java harness tests from the repository root:
+
+```bash
+python3.12 -B -m unittest discover -s tests/python
+```
+
+Some tests compile and execute Java harnesses and therefore require `java` and
+`javac` from a compatible JDK in `PATH`.
+
+## Telegram API
+
+- [Obtaining an API ID](https://core.telegram.org/api/obtaining_api_id)
+- [Telegram API documentation](https://core.telegram.org/api)
+- [MTProto documentation](https://core.telegram.org/mtproto)
+- [Telegram security guidelines](https://core.telegram.org/mtproto/security_guidelines)
+
+Applications built from this source must follow Telegram's API terms, use their
+own credentials and branding, and clearly identify themselves as unofficial.
+
+## License
+
+FluxGram is distributed under the GNU General Public License v2.0. See
+[`LICENSE`](LICENSE). The project includes code and dependencies from their
+respective upstream projects under their applicable licenses.

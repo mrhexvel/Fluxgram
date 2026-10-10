@@ -18,5 +18,11 @@ TMessagesProj_AppHuawei/afat/
 TMessagesProj/jni/ffmpeg/build_android
 
 /fluxgram.local.properties
+TMessagesProj_App/google-services.json
+/AGENTS.md
+/ARCHITECTURE.md
+/HANDOFF.md
+/OPENCODE.md
+/opencode.json
 /.opencode
 /graphify-out
