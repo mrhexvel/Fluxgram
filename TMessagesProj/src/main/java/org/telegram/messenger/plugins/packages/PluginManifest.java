@@ -13,15 +13,18 @@ import java.util.List;
 import java.util.Set;
 
 public final class PluginManifest {
-    public static final int SCHEMA_VERSION = 1;
-    public static final int SDK_VERSION = 1;
-    public final int schemaVersion = SCHEMA_VERSION;
-    public final int sdkVersion = SDK_VERSION;
+    public static final int SCHEMA_VERSION = 2;
+    public static final int SDK_VERSION = 2;
+    public static final int SDK_MINOR_VERSION = 0;
+    public final int schemaVersion, sdkVersion, minSdkMinor;
     public final String access = "full";
     public final String id, name, version, description, author, entrypoint, icon;
     public final List<String> declaredCapabilities;
 
     private PluginManifest(
+            int schemaVersion,
+            int sdkVersion,
+            int minSdkMinor,
             String id,
             String name,
             String version,
@@ -30,6 +33,9 @@ public final class PluginManifest {
             String entrypoint,
             String icon,
             List<String> capabilities) {
+        this.schemaVersion = schemaVersion;
+        this.sdkVersion = sdkVersion;
+        this.minSdkMinor = minSdkMinor;
         this.id = id;
         this.name = name;
         this.version = version;
@@ -41,6 +47,7 @@ public final class PluginManifest {
     }
 
     public static PluginManifest parse(String json) throws IOException {
+        int schemaVersion = -1, sdkVersion = -1, minSdkMinor = -1;
         String id = null,
                 name = null,
                 version = null,
@@ -62,10 +69,13 @@ public final class PluginManifest {
 
                 switch (field) {
                     case "schema_version":
-                        exactVersion(reader, SCHEMA_VERSION, field);
+                        schemaVersion = version(reader, field);
                         break;
                     case "sdk_version":
-                        exactVersion(reader, SDK_VERSION, field);
+                        sdkVersion = version(reader, field);
+                        break;
+                    case "min_sdk_minor":
+                        minSdkMinor = version(reader, field);
                         break;
                     case "id":
                         id = string(reader, 100);
@@ -132,6 +142,18 @@ public final class PluginManifest {
             require(fields.contains(field), "Missing manifest field: " + field);
         }
 
+        require(
+                schemaVersion == 1 || schemaVersion == SCHEMA_VERSION,
+                "Unsupported schema_version");
+
+        if (schemaVersion == 1) {
+            require(sdkVersion == 1, "Unsupported sdk_version for schema_version 1");
+            require(!fields.contains("min_sdk_minor"), "Unknown manifest field: min_sdk_minor");
+            minSdkMinor = 0;
+        } else {
+            require(fields.contains("min_sdk_minor"), "Missing manifest field: min_sdk_minor");
+        }
+
         require(id.matches("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+"), "Invalid plugin id");
 
         require(
@@ -150,11 +172,38 @@ public final class PluginManifest {
                 !entrypoint.equals("fluxgram:PluginEntry"),
                 "The SDK module cannot be an entrypoint");
 
-        return new PluginManifest(id, name, version, description, author, entrypoint, icon, capabilities);
+        return new PluginManifest(
+                schemaVersion,
+                sdkVersion,
+                minSdkMinor,
+                id,
+                name,
+                version,
+                description,
+                author,
+                entrypoint,
+                icon,
+                capabilities);
     }
 
     public String entryFile() {
         return entrypoint.substring(0, entrypoint.indexOf(':')) + ".py";
+    }
+
+    public boolean isCompatible() {
+        return schemaVersion == SCHEMA_VERSION
+                && sdkVersion == SDK_VERSION
+                && minSdkMinor <= SDK_MINOR_VERSION;
+    }
+
+    public String compatibilityError() {
+        if (schemaVersion != SCHEMA_VERSION) {
+            return "Plugin manifest schema " + schemaVersion
+                    + " is incompatible with schema " + SCHEMA_VERSION;
+        }
+
+        return "Plugin requires SDK " + sdkVersion + "." + minSdkMinor
+                + ", but FluxGram provides SDK " + SDK_VERSION + "." + SDK_MINOR_VERSION;
     }
 
     private static String string(JsonReader reader, int limit) throws IOException {
@@ -182,10 +231,17 @@ public final class PluginManifest {
         return value;
     }
 
-    private static void exactVersion(JsonReader reader, int expected, String field)
-            throws IOException {
+    private static int version(JsonReader reader, String field) throws IOException {
         require(reader.peek() == JsonToken.NUMBER, "Expected numeric " + field);
-        require(Integer.toString(expected).equals(reader.nextString()), "Unsupported " + field);
+
+        String value = reader.nextString();
+        require(value.matches("0|[1-9][0-9]*"), "Invalid " + field);
+
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException error) {
+            throw new IOException("Invalid " + field, error);
+        }
     }
 
     static void require(boolean condition, String message) throws IOException {

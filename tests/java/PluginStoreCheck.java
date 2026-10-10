@@ -52,7 +52,18 @@ public final class PluginStoreCheck {
             }
 
             for (PluginPackageStore.Installed item : store.list()) {
-                System.out.println(item.manifest.id);
+                if (args[0].equals("listcompat")) {
+                    System.out.println(
+                            item.manifest.id
+                                    + ":"
+                                    + item.manifest.isCompatible()
+                                    + ":"
+                                    + item.manifest.sdkVersion
+                                    + ":"
+                                    + item.manifest.minSdkMinor);
+                } else {
+                    System.out.println(item.manifest.id);
+                }
             }
         } catch (IOException error) {
             System.err.println(error.getMessage());

@@ -77,7 +77,7 @@ public class FluxGramPluginCard extends LinearLayout {
                     LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 18, 0, 18, 12));
         }
 
-        if (share == null && settings == null) {
+        if (share == null && settings == null && delete == null) {
             return;
         }
 

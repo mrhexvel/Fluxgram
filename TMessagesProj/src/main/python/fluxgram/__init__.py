@@ -8,7 +8,8 @@ from .models import (
     NotificationOverride,
 )
 
-API_VERSION = 1
+API_VERSION = 2
+API_MINOR_VERSION = 0
 
 __all__ = [
     "Plugin",
@@ -19,6 +20,7 @@ __all__ = [
     "BeforeSendEvent",
     "MessageReceivedEvent",
     "API_VERSION",
+    "API_MINOR_VERSION",
     "ChatInfo",
     "ChatNotifications",
     "MessageInfo",

@@ -18,6 +18,7 @@ import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.messenger.plugins.PythonPluginAdapter;
+import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -166,10 +167,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
         for (boolean external : new boolean[] {false, true}) {
             boolean headerAdded = false;
+            ArrayList<Plugin> plugins = manager.getPlugins();
 
-            for (Plugin plugin : manager.getPlugins()) {
-                boolean isExternal = plugin instanceof PythonPluginAdapter
-                        && ((PythonPluginAdapter) plugin).isExternal();
+            if (external) {
+                plugins.addAll(ExternalPlugins.getIncompatiblePlugins());
+            }
+
+            for (Plugin plugin : plugins) {
+                boolean isExternal = ExternalPlugins.isExternal(plugin);
 
                 if (isExternal != external) {
                     continue;
@@ -183,6 +188,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
                 PluginPackageStore.Pending pending = ExternalPlugins.getPending(plugin.getId());
                 String description = plugin.getDescription();
+                boolean incompatible = plugin instanceof ExternalPlugins.IncompatiblePlugin;
 
                 if (pending != null) {
                     description += "\n\n" + LocaleController.getString(pending.delete
@@ -194,16 +200,31 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     description += "\n\n" + LocaleController.getString(R.string.FluxGramPluginLoadFailed);
                 }
 
+                if (incompatible) {
+                    PluginManifest manifest =
+                            ((ExternalPlugins.IncompatiblePlugin) plugin).getManifest();
+                    description += "\n\n" + LocaleController.formatString(
+                            "FluxGramPluginIncompatible",
+                            R.string.FluxGramPluginIncompatible,
+                            manifest.sdkVersion,
+                            manifest.minSdkMinor,
+                            PluginManifest.SDK_VERSION,
+                            PluginManifest.SDK_MINOR_VERSION);
+                }
+
                 FluxGramPluginCard card = new FluxGramPluginCard(
                         getParentActivity(), getResourceProvider(), plugin, plugin.getName(),
                         LocaleController.getString(R.string.FluxGramPluginVersion) + " " + plugin.getVersion(),
-                        description, manager.isEnabled(plugin.getId()),
-                        pending == null && !ExternalPlugins.isRemoving(plugin.getId())
+                        description, !incompatible && manager.isEnabled(plugin.getId()),
+                        !incompatible && pending == null && !ExternalPlugins.isRemoving(plugin.getId())
                                 && !(plugin instanceof PythonPluginAdapter
                                 && ((PythonPluginAdapter) plugin).isStoppingForRemoval()),
-                        () -> manager.setEnabled(plugin.getId(), !manager.isEnabled(plugin.getId())),
+                        incompatible ? null
+                                : () -> manager.setEnabled(
+                                        plugin.getId(), !manager.isEnabled(plugin.getId())),
                         () -> sharePlugin(plugin),
-                        () -> presentFragment(new PluginSettingsActivity(plugin.getId())),
+                        incompatible ? null
+                                : () -> presentFragment(new PluginSettingsActivity(plugin.getId())),
                         external && pending == null && !ExternalPlugins.isRemoving(plugin.getId())
                                 ? () -> confirmDelete(plugin) : null);
                 items.add(UItem.asCustom(card, LayoutHelper.WRAP_CONTENT));
@@ -222,7 +243,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private boolean preparingShare;
 
     private void sharePlugin(Plugin plugin) {
-        if (!(plugin instanceof PythonPluginAdapter) || !((PythonPluginAdapter) plugin).isExternal()) {
+        if (!ExternalPlugins.isExternal(plugin)) {
             showInfo(plugin.getName(), LocaleController.getString(R.string.FluxGramBuiltInShareInfo));
             return;
         }

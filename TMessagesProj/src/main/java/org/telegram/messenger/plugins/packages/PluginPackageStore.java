@@ -192,7 +192,8 @@ public final class PluginPackageStore {
                 copy(in, out, PluginPackageValidator.MAX_ARCHIVE_BYTES);
             }
 
-            PluginPackageValidator.Result checked = PluginPackageValidator.inspect(result, cache);
+            PluginPackageValidator.Result checked =
+                    PluginPackageValidator.inspectInstalledArchive(result, cache);
 
             if (!checked.manifest.id.equals(id)
                     || !checked.manifest.version.equals(installed.manifest.version)) {

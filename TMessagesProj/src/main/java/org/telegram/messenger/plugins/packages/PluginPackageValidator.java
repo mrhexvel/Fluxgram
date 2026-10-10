@@ -57,6 +57,17 @@ public final class PluginPackageValidator {
     private PluginPackageValidator() {}
 
     public static Result inspect(File archive, File privateCacheDirectory) throws IOException {
+        return inspect(archive, privateCacheDirectory, true);
+    }
+
+    static Result inspectInstalledArchive(File archive, File privateCacheDirectory)
+            throws IOException {
+        return inspect(archive, privateCacheDirectory, false);
+    }
+
+    private static Result inspect(
+            File archive, File privateCacheDirectory, boolean requireCompatible)
+            throws IOException {
         File snapshot = File.createTempFile("fgplugin-review-", ".zip", privateCacheDirectory);
 
         try {
@@ -182,6 +193,10 @@ public final class PluginPackageValidator {
             require(manifestBytes != null, "Missing root manifest.json");
 
             PluginManifest manifest = PluginManifest.parse(decodeUtf8(manifestBytes));
+
+            if (requireCompatible) {
+                require(manifest.isCompatible(), manifest.compatibilityError());
+            }
 
             require(
                     Boolean.FALSE.equals(paths.get(manifest.entryFile())),

@@ -6,11 +6,14 @@ import android.net.Uri;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
 import org.telegram.messenger.plugins.packages.PluginPackageValidator;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -30,6 +33,8 @@ public final class ExternalPlugins {
     private static volatile String startupError;
     private static volatile Map<String, PluginPackageStore.Pending> pending =
             Collections.emptyMap();
+    private static volatile Map<String, IncompatiblePlugin> incompatible =
+            Collections.emptyMap();
 
     public static PluginPackageStore.Pending getPending(String id) {
         return pending.get(id);
@@ -37,6 +42,64 @@ public final class ExternalPlugins {
 
     public interface Callback<T> {
         void complete(T value, Exception error);
+    }
+
+    public static final class IncompatiblePlugin implements Plugin {
+        private final PluginPackageStore.Installed installed;
+        private final File iconFile;
+
+        IncompatiblePlugin(PluginPackageStore.Installed installed) {
+            this.installed = installed;
+
+            File resolvedIcon = null;
+
+            if (installed.manifest.icon != null) {
+                File file = new File(installed.directory, installed.manifest.icon);
+
+                try {
+                    if (file.getCanonicalPath().startsWith(
+                            installed.directory.getCanonicalPath() + File.separator)) {
+                        resolvedIcon = file;
+                    }
+                } catch (IOException error) {
+                    FileLog.e(error);
+                }
+            }
+
+            iconFile = resolvedIcon;
+        }
+
+        public PluginManifest getManifest() {
+            return installed.manifest;
+        }
+
+        @Override
+        public String getId() {
+            return installed.manifest.id;
+        }
+
+        @Override
+        public String getName() {
+            return installed.manifest.name;
+        }
+
+        @Override
+        public String getDescription() {
+            return installed.manifest.description;
+        }
+
+        @Override
+        public String getVersion() {
+            return installed.manifest.version;
+        }
+
+        @Override
+        public File getIconFile() {
+            return iconFile;
+        }
+
+        @Override
+        public void beforeSend(BeforeSendEvent event) {}
     }
 
     public static final class Review implements AutoCloseable {
@@ -95,10 +158,22 @@ public final class ExternalPlugins {
 
                         store.applyPending();
 
+                        LinkedHashMap<String, IncompatiblePlugin> unavailable =
+                                new LinkedHashMap<>();
+                        PluginManager manager = PluginManager.getInstance();
+
                         for (PluginPackageStore.Installed installed : store.list()) {
-                            PluginManager.getInstance()
-                                    .register(new PythonPluginAdapter(installed), false);
+                            if (installed.manifest.isCompatible()) {
+                                manager.register(new PythonPluginAdapter(installed), false);
+                            } else {
+                                unavailable.put(
+                                        installed.manifest.id,
+                                        new IncompatiblePlugin(installed));
+                                manager.clearPersistedEnabledState(installed.manifest.id);
+                            }
                         }
+
+                        incompatible = Collections.unmodifiableMap(unavailable);
                     } catch (Exception error) {
                         startupError = error.toString();
                         FileLog.e(error);
@@ -110,6 +185,20 @@ public final class ExternalPlugins {
 
     public static String getStartupError() {
         return startupError;
+    }
+
+    public static ArrayList<Plugin> getIncompatiblePlugins() {
+        return new ArrayList<>(incompatible.values());
+    }
+
+    public static Plugin getIncompatiblePlugin(String id) {
+        return incompatible.get(id);
+    }
+
+    public static boolean isExternal(Plugin plugin) {
+        return plugin instanceof IncompatiblePlugin
+                || (plugin instanceof PythonPluginAdapter
+                && ((PythonPluginAdapter) plugin).isExternal());
     }
 
     public static void addListener(Runnable listener) {
@@ -271,10 +360,13 @@ public final class ExternalPlugins {
                             throw new IOException("Plugin storage unavailable: " + startupError);
                         }
 
-                        Plugin plugin = PluginManager.getInstance().getPlugin(id);
+                        PluginManager manager = PluginManager.getInstance();
+                        Plugin plugin = manager.getPlugin(id);
+                        IncompatiblePlugin incompatiblePlugin = incompatible.get(id);
+                        boolean runningExternal = plugin instanceof PythonPluginAdapter
+                                && ((PythonPluginAdapter) plugin).isExternal();
 
-                        if (!(plugin instanceof PythonPluginAdapter)
-                                || !((PythonPluginAdapter) plugin).isExternal()) {
+                        if (!runningExternal && incompatiblePlugin == null) {
                             throw new IOException("Only installed external plugins can be removed");
                         }
 
@@ -282,22 +374,32 @@ public final class ExternalPlugins {
                             throw new IOException("Plugin already has a pending operation");
                         }
 
-                        PluginManager manager = PluginManager.getInstance();
-                        manager.blockUntilRestart(id);
-                        changed();
-                        ((PythonPluginAdapter) plugin).stopForRemoval();
+                        if (runningExternal) {
+                            manager.blockUntilRestart(id);
+                            changed();
+                            ((PythonPluginAdapter) plugin).stopForRemoval();
 
-                        CountDownLatch uiCleanup = new CountDownLatch(1);
-                        AndroidUtilities.runOnUIThread(uiCleanup::countDown);
+                            CountDownLatch uiCleanup = new CountDownLatch(1);
+                            AndroidUtilities.runOnUIThread(uiCleanup::countDown);
 
-                        if (!uiCleanup.await(10, TimeUnit.SECONDS)) {
-                            throw new IOException("Plugin UI cleanup has not finished. Try deleting it again shortly.");
+                            if (!uiCleanup.await(10, TimeUnit.SECONDS)) {
+                                throw new IOException("Plugin UI cleanup has not finished. Try deleting it again shortly.");
+                            }
                         }
 
                         store.remove(id);
                         PluginSettings.clearForPlugin(id);
                         manager.clearPersistedEnabledState(id);
-                        manager.unregister(id);
+
+                        if (runningExternal) {
+                            manager.unregister(id);
+                        } else {
+                            LinkedHashMap<String, IncompatiblePlugin> remaining =
+                                    new LinkedHashMap<>(incompatible);
+                            remaining.remove(id);
+                            incompatible = Collections.unmodifiableMap(remaining);
+                        }
+
                         pending = Collections.unmodifiableMap(store.pending());
                     } catch (Exception error) {
                         failure = error;

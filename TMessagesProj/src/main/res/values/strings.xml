@@ -11250,6 +11250,7 @@
     <string name="FluxGramPluginChecking">Checking plugin…</string>
     <string name="FluxGramPluginInstalling">Installing plugin…</string>
     <string name="FluxGramPluginLoadFailed">Could not start the plugin. It has been disabled. Details in Logcat: FluxGramPython.</string>
+    <string name="FluxGramPluginIncompatible">Plugin disabled: requires SDK %1$d.%2$d, but FluxGram provides SDK %3$d.%4$d.</string>
     <string name="FluxGramOpenAndroidSettings">Open Android app settings</string>
     <string name="FluxGramUpdatePlugin">Update plugin</string>
     <string name="FluxGramDeletePlugin">Delete plugin</string>

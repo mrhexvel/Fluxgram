@@ -17,13 +17,14 @@ import zlib
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = {
-    "schema_version": 1,
+    "schema_version": 2,
     "id": "test.package.fixture",
     "name": "Тестовый плагин",
     "version": "1.0.0",
     "description": "Пакет для проверки установщика",
     "author": "FluxGram",
-    "sdk_version": 1,
+    "sdk_version": 2,
+    "min_sdk_minor": 0,
     "entrypoint": "main:PluginEntry",
     "access": "full",
     "declared_capabilities": [],
@@ -175,21 +176,28 @@ class PluginPackagesTest(unittest.TestCase):
         tree = ast.parse(
             (ROOT / "TMessagesProj/src/main/python/fluxgram/__init__.py").read_text()
         )
-        version = next(
-            node.value.value
+        values = {
+            target.id: node.value.value
             for node in tree.body
             if isinstance(node, ast.Assign)
-            and any(
-                isinstance(target, ast.Name) and target.id == "API_VERSION"
-                for target in node.targets
-            )
-        )
+            and isinstance(node.value, ast.Constant)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+        }
         java = (
             ROOT
             / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/packages/PluginManifest.java"
         ).read_text()
-        self.assertEqual(version, int(re.search(r"SDK_VERSION = (\d+)", java).group(1)))
-        self.assertEqual(version, MANIFEST["sdk_version"])
+        self.assertEqual(
+            values["API_VERSION"],
+            int(re.search(r"SDK_VERSION = (\d+)", java).group(1)),
+        )
+        self.assertEqual(
+            values["API_MINOR_VERSION"],
+            int(re.search(r"SDK_MINOR_VERSION = (\d+)", java).group(1)),
+        )
+        self.assertEqual(values["API_VERSION"], MANIFEST["sdk_version"])
+        self.assertEqual(values["API_MINOR_VERSION"], MANIFEST["min_sdk_minor"])
 
     def test_example_sources(self):
         folder = ROOT / "examples/hello_plugin"
@@ -252,8 +260,9 @@ class PluginPackagesTest(unittest.TestCase):
         for fields in (
             {"id": "fluxgram.impersonation"},
             {"id": "../escape"},
-            {"sdk_version": 2},
-            {"schema_version": "1"},
+            {"sdk_version": 3},
+            {"min_sdk_minor": 1},
+            {"schema_version": "2"},
             {"access": "restricted"},
             {"entrypoint": "missing:PluginEntry"},
             {"entrypoint": "../main:PluginEntry"},
@@ -266,6 +275,16 @@ class PluginPackagesTest(unittest.TestCase):
         ):
             with self.subTest(fields=fields):
                 self.validate(self.archive(fields=fields), False)
+
+        without_minor = MANIFEST.copy()
+        del without_minor["min_sdk_minor"]
+        self.validate(self.archive(raw_manifest=json.dumps(without_minor)), False)
+
+        legacy = MANIFEST.copy()
+        legacy["schema_version"] = 1
+        legacy["sdk_version"] = 1
+        del legacy["min_sdk_minor"]
+        self.validate(self.archive(raw_manifest=json.dumps(legacy)), False)
 
     def test_missing_manifest_field(self):
         manifest = MANIFEST.copy()
@@ -367,6 +386,48 @@ class PluginStoreTest(unittest.TestCase):
         self.assertEqual(self.store("list"), [MANIFEST["id"]])
         self.assertTrue(
             (self.root / "installed" / MANIFEST["id"] / "helpers/__init__.py").is_file()
+        )
+
+    def test_legacy_installation_remains_visible_and_exportable(self):
+        legacy = MANIFEST.copy()
+        legacy["schema_version"] = 1
+        legacy["sdk_version"] = 1
+        del legacy["min_sdk_minor"]
+        data = self.archive(raw_manifest=json.dumps(legacy))
+        installed = self.root / "installed" / legacy["id"]
+        installed.mkdir(parents=True)
+        (installed / "manifest.json").write_text(json.dumps(legacy))
+        (installed / "main.py").write_text("class PluginEntry: pass\n")
+        (installed / ".fluxgram-source.fgplugin").write_bytes(data)
+
+        self.assertEqual(
+            self.store("listcompat"),
+            [f'{legacy["id"]}:false:1:0'],
+        )
+        output = self.store(
+            "export", extra=(legacy["id"], str(self.root / "shares"))
+        )
+        self.assertEqual(Path(output[0]).read_bytes(), data)
+
+        self.store(
+            "update",
+            self.archive(fields={"version": "2.0.0"}),
+            extra=(legacy["id"], legacy["version"], "false"),
+        )
+        self.store("apply")
+        self.assertEqual(
+            self.store("listcompat"),
+            [f'{legacy["id"]}:true:2:0'],
+        )
+
+    def test_install_sheet_recognizes_incompatible_update(self):
+        source = (
+            ROOT
+            / "TMessagesProj/src/main/java/org/telegram/ui/PluginInstallSheet.java"
+        ).read_text()
+        self.assertIn(
+            "installed = ExternalPlugins.getIncompatiblePlugin(manifest.id);",
+            source,
         )
 
     def test_remove_without_restart_and_reinstall(self):

@@ -131,7 +131,13 @@ public final class PluginInstallSheet {
     private void show(ExternalPlugins.Review review) {
         Context context = fragment.getParentActivity();
         PluginManifest manifest = review.result.manifest;
-        Plugin existing = PluginManager.getInstance().getPlugin(manifest.id);
+        Plugin installed = PluginManager.getInstance().getPlugin(manifest.id);
+
+        if (installed == null) {
+            installed = ExternalPlugins.getIncompatiblePlugin(manifest.id);
+        }
+
+        Plugin existing = installed;
         boolean update = existing != null;
         PluginPackageStore.Pending pending = ExternalPlugins.getPending(manifest.id);
         boolean sameVersion = update && manifest.version.equals(existing.getVersion());
