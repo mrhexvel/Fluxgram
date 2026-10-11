@@ -62,6 +62,10 @@ public final class PluginMessageReceivedEvent {}
 
 public final class PluginMessageEditedEvent {}
 """,
+            "org/telegram/messenger/plugins/PluginMessagesDeletedEvent.java": """package org.telegram.messenger.plugins;
+
+public final class PluginMessagesDeletedEvent {}
+""",
             "org/telegram/messenger/plugins/PluginMessageEvents.java": """package org.telegram.messenger.plugins;
 
 final class PluginMessageEvents {

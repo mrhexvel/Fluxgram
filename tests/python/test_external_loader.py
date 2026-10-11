@@ -52,6 +52,7 @@ class ExternalLoaderTest(unittest.TestCase):
         events = types.ModuleType("fluxgram.events")
         events.BeforeSendEvent = object
         events.EventContext = EventContext
+        events.MessageDeletedEvent = Record
         events.MessageEditedEvent = Record
         events.MessageReceivedEvent = Record
         events.PluginSettingChangedEvent = PluginSettingChangedEvent
@@ -295,3 +296,46 @@ class ExternalLoaderTest(unittest.TestCase):
             ),
             (1, 77, 5, 8, True, "Edited", 123456),
         )
+
+    def test_typed_message_deleted_batch_is_rebuilt_from_json(self):
+        calls = []
+        plugin = Plugin("test.message-deletes")
+        plugin.events = types.SimpleNamespace(
+            _dispatch=lambda event: calls.append(event)
+        )
+
+        self.bridge.dispatch_messages_deleted(
+            plugin,
+            '{"channel_id":10,"message_ids":[7,7,8]}',
+            2,
+            88,
+            9,
+        )
+
+        self.assertEqual(
+            [
+                (
+                    event.context.account,
+                    event.context.owner_id,
+                    event.context.generation,
+                    event.message_id,
+                    event.channel_id,
+                )
+                for event in calls
+            ],
+            [
+                (2, 88, 9, 7, 10),
+                (2, 88, 9, 7, 10),
+                (2, 88, 9, 8, 10),
+            ],
+        )
+
+        calls.clear()
+        self.bridge.dispatch_messages_deleted(
+            plugin,
+            '{"channel_id":null,"message_ids":[9]}',
+            2,
+            88,
+            9,
+        )
+        self.assertIsNone(calls[0].channel_id)

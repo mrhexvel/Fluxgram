@@ -258,6 +258,42 @@ public final class PluginManager {
         }
     }
 
+    synchronized boolean hasMessageDeletedPlugins() {
+        if (!systemEnabled) {
+            return false;
+        }
+
+        for (Entry entry : plugins.values()) {
+            if (entry.enabled && entry.plugin.hasMessageDeletedSubscribers()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void messagesDeleted(PluginMessagesDeletedEvent event) {
+        ArrayList<Entry> snapshot;
+
+        synchronized (this) {
+            snapshot = new ArrayList<>(plugins.values());
+        }
+
+        for (Entry entry : snapshot) {
+            if (!systemEnabled
+                    || !entry.enabled
+                    || !entry.plugin.hasMessageDeletedSubscribers()) {
+                continue;
+            }
+
+            try {
+                entry.plugin.messagesDeleted(event);
+            } catch (Exception e) {
+                FileLog.e("FluxGram message_deleted plugin failed: " + entry.id, e);
+            }
+        }
+    }
+
     public void beforeSend(BeforeSendEvent event) {
         ArrayList<Entry> snapshot;
 

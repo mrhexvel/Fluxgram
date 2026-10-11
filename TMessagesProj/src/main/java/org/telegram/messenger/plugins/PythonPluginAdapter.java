@@ -118,6 +118,7 @@ public final class PythonPluginAdapter implements Plugin {
     private FutureTask<Void> removal;
     private volatile boolean messageReceivedSubscribers;
     private volatile boolean messageEditedSubscribers;
+    private volatile boolean messageDeletedSubscribers;
 
     private static final class PendingSetting {
         final long generation;
@@ -203,6 +204,7 @@ public final class PythonPluginAdapter implements Plugin {
         observedMessages.clear();
         messageReceivedSubscribers = false;
         messageEditedSubscribers = false;
+        messageDeletedSubscribers = false;
 
         if (reconcile) {
             try {
@@ -797,5 +799,65 @@ public final class PythonPluginAdapter implements Plugin {
     @Override
     public boolean hasMessageEditedSubscribers() {
         return messageEditedSubscribers;
+    }
+
+    @Override
+    public synchronized void messagesDeleted(PluginMessagesDeletedEvent event) {
+        if (!lifecycle.isEnabled() || !messageDeletedSubscribers) {
+            return;
+        }
+
+        if (!eventSlots.tryAcquire()) {
+            Log.w(TAG, "[" + id + "] Queue full; message deleted batch skipped");
+
+            return;
+        }
+
+        final long request = lifecycle.getGeneration();
+        final long ownerId = event.ownerId;
+
+        try {
+            executor.execute(
+                    () -> {
+                        try {
+                            if (!lifecycle.isCurrent(request) || instance == null) {
+                                return;
+                            }
+
+                            if (UserConfig.getInstance(event.account).getClientUserId() != ownerId) {
+                                return;
+                            }
+
+                            bridge.callAttr(
+                                    "dispatch_messages_deleted",
+                                    instance,
+                                    event.toJson(),
+                                    event.account,
+                                    ownerId,
+                                    request
+                            );
+                        } catch (Exception | LinkageError error) {
+                            Log.e(TAG, "[" + id + "] Message deleted event handler failed", error);
+                        } finally {
+                            eventSlots.release();
+                        }
+                    });
+        } catch (RejectedExecutionException error) {
+            eventSlots.release();
+            Log.w(TAG, "[" + id + "] Message deleted batch rejected", error);
+        }
+    }
+
+    public synchronized void setMessageDeletedSubscriptionActive(
+            long generation,
+            boolean active) {
+        if (lifecycle.isCurrent(generation)) {
+            messageDeletedSubscribers = active;
+        }
+    }
+
+    @Override
+    public boolean hasMessageDeletedSubscribers() {
+        return messageDeletedSubscribers;
     }
 }

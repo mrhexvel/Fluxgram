@@ -21271,6 +21271,7 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;
         SparseIntArray markAsReadEncryptedFinal = markAsReadEncrypted;
         LongSparseArray<ArrayList<Integer>> deletedMessagesFinal = deletedMessages;
+        long deletedMessagesOwnerId = clientUserId;
         DeletedMessagesRetention.Builder archivedDeletedMessages = new DeletedMessagesRetention.Builder();
         if (deletedMessagesFinal != null) {
             getMessagesStorage().getStorageQueue().postRunnable(() -> {
@@ -21374,6 +21375,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     if (arrayList == null) {
                         continue;
                     }
+                    getNotificationCenter().postNotificationName(NotificationCenter.fluxgramMessagesDeleted, arrayList, -dialogId, deletedMessagesOwnerId);
                     getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false, false, false, 0, null, retained);
                     if (dialogId == 0) {
                         for (int b = 0, size2 = arrayList.size(); b < size2; b++) {

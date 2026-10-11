@@ -57,7 +57,6 @@ class PluginMessageEventsTest(unittest.TestCase):
             ROOT
             / "TMessagesProj/src/main/java/org/telegram/messenger/NotificationCenter.java"
         ).read_text()
-
         self.assertIn("fluxgramMessageEdited = totalEvents++", notification_center)
         self.assertEqual(controller.count(
             "postNotificationName(NotificationCenter.fluxgramMessageEdited"
@@ -85,6 +84,62 @@ class PluginMessageEventsTest(unittest.TestCase):
         self.assertIn("eventSlots.tryAcquire()", edited_handler)
         self.assertIn('"dispatch_message_edited"', edited_handler)
         self.assertNotIn("observedMessages", edited_handler)
+
+    def test_server_delete_updates_use_a_dedicated_ids_only_notification(self):
+        observer = (PLUGIN_SOURCE / "PluginMessageEvents.java").read_text()
+        controller = (
+            ROOT
+            / "TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java"
+        ).read_text()
+        notification_center = (
+            ROOT
+            / "TMessagesProj/src/main/java/org/telegram/messenger/NotificationCenter.java"
+        ).read_text()
+        process_updates = controller.split(
+            "public boolean processUpdateArray",
+            1,
+        )[1]
+
+        self.assertIn("fluxgramMessagesDeleted = totalEvents++", notification_center)
+        self.assertEqual(controller.count(
+            "postNotificationName(NotificationCenter.fluxgramMessagesDeleted"
+        ), 1)
+        self.assertIn(
+            "long clientUserId = getUserConfig().getClientUserId()",
+            process_updates,
+        )
+        self.assertIn("long deletedMessagesOwnerId = clientUserId", process_updates)
+        self.assertLess(
+            process_updates.index("long clientUserId"),
+            process_updates.index(
+                "TL_update.TL_updateDeleteMessages",
+                process_updates.index("long clientUserId"),
+            ),
+        )
+        self.assertLess(
+            process_updates.index("long deletedMessagesOwnerId = clientUserId"),
+            process_updates.index("archivedDeletedMessages.deliverOnUiThread"),
+        )
+        self.assertIn("NotificationCenter.fluxgramMessagesDeleted", observer)
+        self.assertNotIn("NotificationCenter.messagesDeleted", observer)
+        self.assertIn("manager.hasMessageDeletedPlugins()", observer)
+        self.assertIn("PluginMessagesDeletedEvent.capture", observer)
+
+    def test_deleted_batch_uses_one_slot_and_no_snapshot_or_dedupe(self):
+        event = (PLUGIN_SOURCE / "PluginMessagesDeletedEvent.java").read_text()
+        adapter = (PLUGIN_SOURCE / "PythonPluginAdapter.java").read_text()
+        deleted_handler = adapter.split(
+            "void messagesDeleted(PluginMessagesDeletedEvent event)",
+            1,
+        )[1]
+
+        self.assertNotIn("MessageObject", event)
+        self.assertIn("Collections.unmodifiableList(messageIds)", event)
+        self.assertIn('result.put("message_ids", ids)', event)
+        self.assertIn("!messageDeletedSubscribers", deleted_handler)
+        self.assertEqual(deleted_handler.count("eventSlots.tryAcquire()"), 1)
+        self.assertIn('"dispatch_messages_deleted"', deleted_handler)
+        self.assertNotIn("observedMessages", deleted_handler)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from pathlib import Path
 from fluxgram.events import (
     BeforeSendEvent,
     EventContext,
+    MessageDeletedEvent,
     MessageEditedEvent,
     MessageReceivedEvent,
     PluginSettingChangedEvent,
@@ -206,6 +207,33 @@ def dispatch_message_edited(
         edit_date=int(data["edit_date"]),
         context=context,
     ))
+
+
+def dispatch_messages_deleted(
+        plugin,
+        payload,
+        account,
+        owner_id,
+        generation,
+):
+    data = json.loads(str(payload))
+    context = EventContext(
+        account=int(account),
+        owner_id=int(owner_id),
+        generation=int(generation),
+    )
+    channel_id = (
+        int(data["channel_id"])
+        if data.get("channel_id") is not None
+        else None
+    )
+
+    for message_id in data["message_ids"]:
+        plugin.events._dispatch(MessageDeletedEvent(
+            context=context,
+            message_id=int(message_id),
+            channel_id=channel_id,
+        ))
 
 
 def _decode_message_snapshot(payload):

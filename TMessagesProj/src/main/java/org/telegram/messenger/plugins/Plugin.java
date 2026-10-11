@@ -33,5 +33,11 @@ public interface Plugin {
         return false;
     }
 
+    default void messagesDeleted(PluginMessagesDeletedEvent event) {}
+
+    default boolean hasMessageDeletedSubscribers() {
+        return false;
+    }
+
     void beforeSend(BeforeSendEvent event);
 }

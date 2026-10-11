@@ -31,6 +31,10 @@ final class PluginMessageEvents implements NotificationCenter.NotificationCenter
                     INSTANCE,
                     NotificationCenter.fluxgramMessageEdited
             );
+            NotificationCenter.getInstance(account).addObserver(
+                    INSTANCE,
+                    NotificationCenter.fluxgramMessagesDeleted
+            );
         }
     }
 
@@ -40,6 +44,8 @@ final class PluginMessageEvents implements NotificationCenter.NotificationCenter
             messageReceived(account, args);
         } else if (id == NotificationCenter.fluxgramMessageEdited) {
             messageEdited(account, args);
+        } else if (id == NotificationCenter.fluxgramMessagesDeleted) {
+            messagesDeleted(account, args);
         }
     }
 
@@ -114,6 +120,45 @@ final class PluginMessageEvents implements NotificationCenter.NotificationCenter
             } catch (Exception | LinkageError error) {
                 FileLog.e("FluxGram message edited event snapshot failed", error);
             }
+        }
+    }
+
+    private void messagesDeleted(int account, Object... args) {
+        if (args.length < 3
+                || !(args[0] instanceof ArrayList)
+                || !(args[1] instanceof Number)
+                || !(args[2] instanceof Number)) {
+            return;
+        }
+
+        long channelId = ((Number) args[1]).longValue();
+        long ownerId = ((Number) args[2]).longValue();
+
+        if (channelId < 0
+                || ownerId <= 0
+                || UserConfig.getInstance(account).getClientUserId() != ownerId) {
+            return;
+        }
+
+        PluginManager manager = PluginManager.getInstance();
+
+        if (!manager.hasMessageDeletedPlugins()) {
+            return;
+        }
+
+        try {
+            PluginMessagesDeletedEvent event = PluginMessagesDeletedEvent.capture(
+                    account,
+                    ownerId,
+                    channelId,
+                    (ArrayList<?>) args[0]
+            );
+
+            if (!event.messageIds.isEmpty()) {
+                manager.messagesDeleted(event);
+            }
+        } catch (Exception | LinkageError error) {
+            FileLog.e("FluxGram message deleted event snapshot failed", error);
         }
     }
 }
