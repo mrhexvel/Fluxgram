@@ -1,6 +1,8 @@
 package org.telegram.messenger.plugins;
 
 import android.util.Log;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.chaquo.python.PyObject;
 
@@ -11,6 +13,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.plugins.packages.PluginManifest;
+import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
 
 import java.io.File;
@@ -29,6 +32,7 @@ import java.util.concurrent.TimeoutException;
 
 public final class PythonPluginAdapter implements Plugin {
     private static final String TAG = "FluxGramPython";
+    private static final Handler UI_HANDLER = new Handler(Looper.getMainLooper());
     private static final int MAILBOX_CAPACITY = 69;
     private final String id;
     private final String moduleName;
@@ -38,6 +42,7 @@ public final class PythonPluginAdapter implements Plugin {
     private String externalPath, externalName, externalDescription;
     private PluginManifest.JavaModule javaModule;
     private JavaPluginLoader javaLoader;
+    private JavaPluginUiStop javaUiStop;
     private volatile Thread workerThread;
     private volatile String loadError;
     private File iconFile;
@@ -247,8 +252,12 @@ public final class PythonPluginAdapter implements Plugin {
                 return;
             }
 
-            if (instance != null || javaLoader != null) {
+            if (instance != null || javaLoader != null || javaUiStop != null) {
                 lifecycle.setState(request.generation, PythonPluginLifecycle.State.STOPPING);
+
+                if (javaUiStop != null && !javaUiStop.prepare(request.generation, this::reconcile)) {
+                    return;
+                }
 
                 if (!unload(request.generation, request.enabled)) {
                     if (lifecycle.finishReconcile(request.generation)) {
@@ -267,6 +276,12 @@ public final class PythonPluginAdapter implements Plugin {
                                 : PythonPluginLifecycle.State.FAILED);
             } else {
                 load(request.generation);
+
+                if ((instance != null || javaLoader != null || javaUiStop != null)
+                        && !lifecycle.isCurrent(request.generation)
+                        && !lifecycle.isRemovalPending()) {
+                    continue;
+                }
             }
 
             if (!lifecycle.finishReconcile(request.generation)) {
@@ -305,9 +320,24 @@ public final class PythonPluginAdapter implements Plugin {
             }
 
             if (javaModule != null) {
+                JavaPluginUiResources uiResources = new JavaPluginUiResources(
+                        new JavaPluginUiResources.Dispatcher() {
+                            @Override
+                            public void post(Runnable action) {
+                                UI_HANDLER.post(action);
+                            }
+
+                            @Override
+                            public boolean isUiThread() {
+                                return Looper.myLooper() == Looper.getMainLooper();
+                            }
+                        },
+                        () -> lifecycle.isCurrent(request),
+                        error -> Log.e(TAG, "[" + id + "] Java UI resource failed", error));
+                javaUiStop = new JavaPluginUiStop(uiResources, this::executeControl);
                 javaLoader = JavaPluginLoader.prepare(
                         ApplicationLoader.applicationContext,
-                        new File(externalPath), javaModule, id, request, javaHost());
+                        new File(externalPath), javaModule, id, request, javaHost(uiResources));
 
                 if (!lifecycle.isCurrent(request)) {
                     return;
@@ -361,15 +391,11 @@ public final class PythonPluginAdapter implements Plugin {
                 return;
             }
 
-            lifecycle.setState(request, PythonPluginLifecycle.State.RUNNING);
+            if (lifecycle.setState(request, PythonPluginLifecycle.State.RUNNING) && javaUiStop != null) {
+                javaUiStop.activate();
+            }
         } catch (Exception | LinkageError error) {
             handleFailure(request, "Load", error, true);
-
-            try {
-                unloadStrict();
-            } catch (Exception | LinkageError cleanupError) {
-                Log.e(TAG, "[" + id + "] Cleanup after load failure failed", cleanupError);
-            }
         }
     }
 
@@ -391,7 +417,8 @@ public final class PythonPluginAdapter implements Plugin {
         org.telegram.messenger.AndroidUtilities.runOnUIThread(
                 () -> {
                     if (lifecycle.getGeneration() != request
-                            || lifecycle.getState() != PythonPluginLifecycle.State.FAILED) {
+                            || lifecycle.isEnabled()
+                            || lifecycle.isRemovalPending()) {
                         return;
                     }
 
@@ -404,7 +431,7 @@ public final class PythonPluginAdapter implements Plugin {
                 });
     }
 
-    private JavaPluginSession.Host javaHost() {
+    private JavaPluginSession.Host javaHost(JavaPluginUiResources uiResources) {
         return new JavaPluginSession.Host() {
             @Override
             public boolean isActive(long generation) {
@@ -434,6 +461,15 @@ public final class PythonPluginAdapter implements Plugin {
             @Override
             public void log(String message) {
                 Log.i(TAG, "[" + id + "] Java: " + message);
+            }
+
+            @Override
+            public JavaPluginUiResource registerUiResource(long generation, JavaPluginUiResource.Factory factory) {
+                if (!lifecycle.isCurrent(generation)) {
+                    throw new IllegalStateException("Java UI generation is inactive");
+                }
+
+                return uiResources.register(factory);
             }
         };
     }
@@ -586,7 +622,7 @@ public final class PythonPluginAdapter implements Plugin {
                 });
 
                 try {
-                    executeControl(removal);
+                    scheduleRemoval(removal);
                 } catch (RejectedExecutionException error) {
                     removal = null;
                     lifecycle.failRemoval();
@@ -612,6 +648,15 @@ public final class PythonPluginAdapter implements Plugin {
 
     public boolean isGenerationActive(long value) {
         return lifecycle.isCurrent(value);
+    }
+
+    private void scheduleRemoval(FutureTask<Void> task) {
+        executeControl(() -> {
+            if (javaUiStop == null
+                    || javaUiStop.prepare(task, () -> scheduleRemoval(task))) {
+                task.run();
+            }
+        });
     }
 
     public int submitStorage(long generation, PyObject callback) {
@@ -695,7 +740,16 @@ public final class PythonPluginAdapter implements Plugin {
     private void unloadStrict() throws Exception {
         Exception failure = null;
 
-        if (javaLoader != null) {
+        if (javaUiStop != null) {
+            try {
+                javaUiStop.requireSuccess();
+                javaUiStop = null;
+            } catch (Exception error) {
+                failure = error;
+            }
+        }
+
+        if (javaLoader != null && javaUiStop == null) {
             try {
                 javaLoader.close();
                 javaLoader = null;

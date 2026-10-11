@@ -10,6 +10,29 @@ SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins"
 
 
 class JavaPluginRuntimeTest(unittest.TestCase):
+    def test_ui_resource_lifecycle_and_nonblocking_stop(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        sources = [
+            *sorted((SOURCE / "api").glob("*.java")),
+            SOURCE / "JavaPluginUiResources.java",
+            SOURCE / "JavaPluginUiStop.java",
+            ROOT / "tests/java/JavaPluginUiResourcesCheck.java",
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(
+                ["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["java", "-cp", directory, "org.telegram.messenger.plugins.JavaPluginUiResourcesCheck"],
+                check=True,
+                capture_output=True,
+            )
+
     def test_lifecycle_resources_failures_and_generation(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")
@@ -53,6 +76,18 @@ class JavaPluginRuntimeTest(unittest.TestCase):
     def test_release_keeps_java_api(self):
         rules = (ROOT / "TMessagesProj/proguard-rules.pro").read_text()
         self.assertIn("-keep class org.telegram.messenger.plugins.** { *; }", rules)
+
+    def test_adapter_waits_for_ui_acknowledgement(self):
+        source = (SOURCE / "PythonPluginAdapter.java").read_text()
+        reconcile = source.split("private void reconcile()", 1)[1].split("private void load", 1)[0]
+        self.assertLess(reconcile.index("javaUiStop.prepare"), reconcile.index("if (!unload("))
+        teardown = source.split("private void unloadStrict()", 1)[1].split("public synchronized void beforeSend", 1)[0]
+        self.assertLess(teardown.index("javaUiStop.requireSuccess()"), teardown.index("javaLoader.close()"))
+        self.assertIn("javaLoader != null && javaUiStop == null", teardown)
+        self.assertIn('bridge.callAttr("unload_plugin", instance)', teardown)
+        self.assertIn("scheduleRemoval(removal)", source)
+        self.assertIn("javaUiStop.prepare(task, () -> scheduleRemoval(task))", source)
+        self.assertNotIn("lifecycle.getState() != PythonPluginLifecycle.State.FAILED", source)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,10 @@ public interface JavaPluginContext {
 
     AutoCloseable registerResource(AutoCloseable resource);
 
+    default JavaPluginUiResource registerUiResource(JavaPluginUiResource.Factory factory) {
+        throw new UnsupportedOperationException("Java UI resources require API 1.1");
+    }
+
     boolean readBooleanSetting(String key, boolean fallback);
 
     int readIntSetting(String key, int fallback);

@@ -2,6 +2,7 @@ package org.telegram.messenger.plugins;
 
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
+import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
@@ -20,6 +21,10 @@ final class JavaPluginSession implements AutoCloseable {
         String readStringSetting(String key, String fallback);
 
         void log(String message);
+
+        default JavaPluginUiResource registerUiResource(long generation, JavaPluginUiResource.Factory factory) {
+            throw new UnsupportedOperationException("Java UI resources are unavailable");
+        }
     }
 
     private final Constructor<? extends JavaPluginModule> constructor;
@@ -173,6 +178,12 @@ final class JavaPluginSession implements AutoCloseable {
         }
 
         @Override
+        public JavaPluginUiResource registerUiResource(JavaPluginUiResource.Factory factory) {
+            requireActive();
+            return host.registerUiResource(generation, factory);
+        }
+
+        @Override
         public boolean readBooleanSetting(String key, boolean fallback) {
             requireActive();
             return host.readBooleanSetting(key, fallback);
@@ -192,7 +203,6 @@ final class JavaPluginSession implements AutoCloseable {
 
         @Override
         public void log(String message) {
-            requireThread();
             host.log(message);
         }
     }
