@@ -26,6 +26,9 @@ class Resource:
 
     bind_runtime = _bind_runtime
 
+    def _set_error_handler(self, callback):
+        self.error_handler = callback
+
 
 class PluginCleanupTest(unittest.TestCase):
     def setUp(self):
@@ -36,7 +39,11 @@ class PluginCleanupTest(unittest.TestCase):
 
         modules = {
             "fluxgram": module("fluxgram", __path__=[]),
-            "fluxgram.events": module("fluxgram.events", BeforeSendEvent=object),
+            "fluxgram.events": module(
+                "fluxgram.events",
+                BeforeSendEvent=object,
+                Events=Resource,
+            ),
             "fluxgram.storage": module(
                 "fluxgram.storage",
                 Storage=Resource,

@@ -8,6 +8,7 @@ import org.json.JSONObject;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
 
 import java.io.File;
@@ -117,10 +118,14 @@ public final class PythonPluginAdapter implements Plugin {
 
     private static final class PendingSetting {
         final long generation;
+        final int account;
+        final long ownerId;
         final Object value;
 
-        PendingSetting(long generation, Object value) {
+        PendingSetting(long generation, int account, long ownerId, Object value) {
             this.generation = generation;
+            this.account = account;
+            this.ownerId = ownerId;
             this.value = value;
         }
     }
@@ -396,9 +401,14 @@ public final class PythonPluginAdapter implements Plugin {
 
         PluginSettings.setValue(id, declared, value);
         long request = lifecycle.getGeneration();
+        int account = UserConfig.selectedAccount;
+        long ownerId = UserConfig.getInstance(account).getClientUserId();
 
         if (lifecycle.isEnabled()) {
-            pendingSettings.put(key, new PendingSetting(request, value));
+            pendingSettings.put(
+                    key,
+                    new PendingSetting(request, account, ownerId, value)
+            );
 
             if (!settingsDrainQueued) {
                 settingsDrainQueued = true;
@@ -439,8 +449,20 @@ public final class PythonPluginAdapter implements Plugin {
                 continue;
             }
 
+            if (UserConfig.getInstance(pending.account).getClientUserId() != pending.ownerId) {
+                continue;
+            }
+
             try {
-                bridge.callAttr("dispatch_setting_changed", instance, key, pending.value);
+                bridge.callAttr(
+                        "dispatch_setting_changed",
+                        instance,
+                        key,
+                        pending.value,
+                        pending.account,
+                        pending.ownerId,
+                        pending.generation
+                );
             } catch (Exception | LinkageError error) {
                 Log.e(TAG, "[" + id + "] Setting callback failed", error);
             }

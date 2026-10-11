@@ -24,6 +24,16 @@ class Plugin:
         self.closed = True
 
 
+class EventContext:
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+
+class PluginSettingChangedEvent:
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+
 class ExternalLoaderTest(unittest.TestCase):
     def setUp(self):
         @contextmanager
@@ -36,6 +46,8 @@ class ExternalLoaderTest(unittest.TestCase):
         plugin.Plugin = Plugin
         events = types.ModuleType("fluxgram.events")
         events.BeforeSendEvent = object
+        events.EventContext = EventContext
+        events.PluginSettingChangedEvent = PluginSettingChangedEvent
         runtime = types.ModuleType("fluxgram._runtime")
         runtime.runtime_scope = runtime_scope
         runtime_package = types.ModuleType("fluxgram_runtime")
@@ -137,3 +149,36 @@ class ExternalLoaderTest(unittest.TestCase):
         plugin.settings = types.SimpleNamespace(_dispatch_changed=lambda *args: calls.append(args))
         self.bridge.dispatch_setting_changed(plugin, "prefix", "Updated")
         self.assertEqual(calls, [(plugin, "prefix", "Updated")])
+
+    def test_typed_setting_event_precedes_legacy_dispatch(self):
+        calls = []
+        plugin = Plugin("test.settings")
+        plugin.events = types.SimpleNamespace(
+            _dispatch=lambda event: calls.append(("typed", event))
+        )
+        plugin.settings = types.SimpleNamespace(
+            _dispatch_changed=lambda *args: calls.append(("legacy", args))
+        )
+
+        self.bridge.dispatch_setting_changed(
+            plugin,
+            "prefix",
+            "Updated",
+            2,
+            99,
+            7,
+        )
+
+        event = calls[0][1]
+        self.assertEqual(
+            (
+                calls[0][0],
+                event.context.account,
+                event.context.owner_id,
+                event.context.generation,
+                event.key,
+                event.value,
+            ),
+            ("typed", 2, 99, 7, "prefix", "Updated"),
+        )
+        self.assertEqual(calls[1], ("legacy", (plugin, "prefix", "Updated")))

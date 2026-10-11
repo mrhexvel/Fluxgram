@@ -5,7 +5,11 @@ import types
 import uuid
 from pathlib import Path
 
-from fluxgram.events import BeforeSendEvent
+from fluxgram.events import (
+    BeforeSendEvent,
+    EventContext,
+    PluginSettingChangedEvent,
+)
 from fluxgram.plugin import Plugin
 from fluxgram._runtime import runtime_scope
 
@@ -136,5 +140,23 @@ def describe_settings(plugin):
     return json.dumps(plugin.settings._describe(), ensure_ascii=False)
 
 
-def dispatch_setting_changed(plugin, key, value):
+def dispatch_setting_changed(
+        plugin,
+        key,
+        value,
+        account=None,
+        owner_id=None,
+        generation=None,
+):
+    if account is not None and owner_id is not None and generation is not None:
+        plugin.events._dispatch(PluginSettingChangedEvent(
+            context=EventContext(
+                account=int(account),
+                owner_id=int(owner_id),
+                generation=int(generation),
+            ),
+            key=str(key),
+            value=value,
+        ))
+
     plugin.settings._dispatch_changed(plugin, key, value)

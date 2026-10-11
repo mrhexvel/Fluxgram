@@ -41,7 +41,9 @@ class PluginRuntimeTest(unittest.TestCase):
         source = (PLUGIN_SOURCE / "PythonPluginAdapter.java").read_text()
         self.assertIn("new PythonPluginTaskQueue(MAILBOX_CAPACITY)", source)
         self.assertIn("lifecycle.requestEnabled(enabled)", source)
-        self.assertIn("pendingSettings.put(key, new PendingSetting(request, value))", source)
+        self.assertIn("new PendingSetting(request, account, ownerId, value)", source)
+        self.assertIn("getClientUserId() != pending.ownerId", source)
+        self.assertIn('"dispatch_setting_changed"', source)
         self.assertGreaterEqual(source.count("lifecycle.isCurrent(request)"), 5)
 
 
