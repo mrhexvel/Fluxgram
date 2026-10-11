@@ -202,6 +202,15 @@ public final class PluginPackageValidator {
                     Boolean.FALSE.equals(paths.get(manifest.entryFile())),
                     "Missing Python entrypoint file");
 
+            if (manifest.javaModule != null) {
+                require(Boolean.FALSE.equals(paths.get(manifest.javaModule.path)), "Missing Java module");
+
+                try (ZipFile zip = new ZipFile(snapshot);
+                        InputStream in = zip.getInputStream(zip.getEntry(manifest.javaModule.path))) {
+                    PluginDexValidator.read(in, manifest.javaModule);
+                }
+            }
+
             byte[] iconBytes = null;
 
             if (manifest.icon != null) {
@@ -337,7 +346,7 @@ public final class PluginPackageValidator {
         return value;
     }
 
-    private static String validatePath(String name, boolean directory) throws IOException {
+    static String validatePath(String name, boolean directory) throws IOException {
         require(name.length() > 0 && name.length() <= 240, "Invalid ZIP path length");
 
         String path = directory ? name.substring(0, name.length() - 1) : name;

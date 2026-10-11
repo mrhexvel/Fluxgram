@@ -203,13 +203,23 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 if (incompatible) {
                     PluginManifest manifest =
                             ((ExternalPlugins.IncompatiblePlugin) plugin).getManifest();
-                    description += "\n\n" + LocaleController.formatString(
+                    if (manifest.javaModule != null && !manifest.javaModule.isCompatible()) {
+                        description += "\n\n" + LocaleController.formatString(
+                                "FluxGramPluginJavaIncompatible",
+                                R.string.FluxGramPluginJavaIncompatible,
+                                manifest.javaModule.apiVersion,
+                                manifest.javaModule.minApiMinor,
+                                PluginManifest.JAVA_API_VERSION,
+                                PluginManifest.JAVA_API_MINOR_VERSION);
+                    } else {
+                        description += "\n\n" + LocaleController.formatString(
                             "FluxGramPluginIncompatible",
                             R.string.FluxGramPluginIncompatible,
                             manifest.sdkVersion,
                             manifest.minSdkMinor,
                             PluginManifest.SDK_VERSION,
                             PluginManifest.SDK_MINOR_VERSION);
+                    }
                 }
 
                 FluxGramPluginCard card = new FluxGramPluginCard(

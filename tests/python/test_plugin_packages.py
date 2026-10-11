@@ -59,6 +59,7 @@ class PluginPackagesTest(unittest.TestCase):
                 cls.compiled.name,
                 str(folder / "PluginManifest.java"),
                 str(folder / "PluginPackageValidator.java"),
+                str(folder / "PluginDexValidator.java"),
                 str(folder / "PluginPackageStore.java"),
                 str(ROOT / "tests/java/PluginStoreCheck.java"),
                 str(ROOT / "tests/java/PluginPackageCheck.java"),
@@ -117,6 +118,78 @@ class PluginPackagesTest(unittest.TestCase):
     def test_source_archive_path_is_reserved(self):
         self.validate(self.archive(entries=[(".fluxgram-source.fgplugin", "fake")]), False)
         self.validate(self.archive(entries=[(".FLUXGRAM-SOURCE.fgplugin/payload", "fake")]), False)
+
+    @staticmethod
+    def dex_fixture(descriptor="Lexample/Module;"):
+        encoded = descriptor.encode()
+        data = bytearray(152) + bytes([len(encoded)]) + encoded + b"\x00"
+        data[:8] = b"dex\n035\x00"
+        struct.pack_into("<III", data, 32, len(data), 112, 0x12345678)
+        struct.pack_into("<II", data, 56, 1, 112)
+        struct.pack_into("<II", data, 64, 1, 116)
+        struct.pack_into("<II", data, 96, 1, 120)
+        struct.pack_into("<I", data, 112, 152)
+        return bytes(data)
+
+    @staticmethod
+    def java_fields(data):
+        return {
+            "schema_version": 3,
+            "java_module": {
+                "path": "java/module.dex",
+                "entrypoint": "example.Module",
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "api_version": 1,
+                "min_api_minor": 0,
+            },
+        }
+
+    def test_java_module_metadata_and_hash(self):
+        data = self.dex_fixture()
+        fields = self.java_fields(data)
+        self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), True)
+        self.validate(self.archive(fields=fields), False)
+        self.validate(self.archive(fields=fields, entries=[("java/module.dex", data + b"x")]), False)
+        self.validate(self.archive(fields={"schema_version": 3}), False)
+        fields["schema_version"] = 2
+        self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
+
+    def test_java_module_compatibility_and_strict_fields(self):
+        data = self.dex_fixture()
+
+        for key, value in (
+            ("api_version", 2), ("min_api_minor", 1), ("min_api_minor", -1),
+            ("path", "../module.dex"), ("path", "module.jar"),
+            ("entrypoint", "example.Missing"), ("entrypoint", "bad/class"),
+            ("sha256", "abc"), ("unknown", "value"),
+        ):
+            with self.subTest(key=key, value=value):
+                fields = self.java_fields(data)
+                fields["java_module"][key] = value
+                self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
+
+        for key in self.java_fields(data)["java_module"]:
+            fields = self.java_fields(data)
+            del fields["java_module"][key]
+            self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
+
+        manifest = {**MANIFEST, **self.java_fields(data)}
+        raw = json.dumps(manifest).replace('"api_version": 1', '"api_version": 1, "api_version": 1')
+        self.validate(self.archive(raw_manifest=raw, entries=[("java/module.dex", data)]), False)
+
+    def test_dex_structure_and_host_class_rejection(self):
+        malformed = [b"not dex", self.dex_fixture("Lorg/telegram/messenger/plugins/api/Copy;")]
+
+        for offset in (32, 36, 40, 60, 68, 100, 112, 116, 120):
+            data = bytearray(self.dex_fixture())
+            struct.pack_into("<I", data, offset, 0x7FFFFFFF)
+            malformed.append(bytes(data))
+
+        malformed.append(self.dex_fixture()[:-1])
+
+        for data in malformed:
+            with self.subTest(size=len(data), digest=hashlib.sha256(data).hexdigest()):
+                self.validate(self.archive(fields=self.java_fields(data), entries=[("java/module.dex", data)]), False)
 
     def png(self, width=2, height=2, animated=False):
         def chunk(kind, payload):
@@ -347,6 +420,38 @@ class PluginStoreTest(unittest.TestCase):
     setUpClass = classmethod(PluginPackagesTest.setUpClass.__func__)
     setUp = PluginPackagesTest.setUp
     archive = PluginPackagesTest.archive
+
+    def test_java_module_restart_update_and_rollback(self):
+        data = PluginPackagesTest.dex_fixture()
+        fields = PluginPackagesTest.java_fields(data)
+        base = self.archive(fields=fields, entries=[("java/module.dex", data)])
+        self.store("install", base)
+        fields["version"] = "2.0.0"
+        update = self.archive(fields=fields, entries=[("java/module.dex", data)])
+        self.store("update", update, extra=(MANIFEST["id"], "1.0.0", "true", "false"))
+        installed = self.root / "installed" / MANIFEST["id"]
+        self.assertEqual(json.loads((installed / "manifest.json").read_text())["version"], "1.0.0")
+        self.store("activate", extra=(MANIFEST["id"],))
+        self.assertEqual(json.loads((installed / "manifest.json").read_text())["version"], "2.0.0")
+        self.store("rollback", extra=(MANIFEST["id"],))
+        self.assertEqual(json.loads((installed / "manifest.json").read_text())["version"], "1.0.0")
+        self.assertEqual((installed / "java/module.dex").read_bytes(), data)
+
+    def test_installed_incompatible_java_api_remains_visible(self):
+        data = PluginPackagesTest.dex_fixture()
+        fields = PluginPackagesTest.java_fields(data)
+        fields["java_module"]["api_version"] = 2
+        manifest = {**MANIFEST, **fields}
+        installed = self.root / "installed" / MANIFEST["id"]
+        (installed / "java").mkdir(parents=True)
+        (installed / "manifest.json").write_text(json.dumps(manifest))
+        (installed / "main.py").write_text("raise RuntimeError('not executed')")
+        (installed / "java/module.dex").write_bytes(data)
+        archive = self.archive(fields=fields, entries=[("java/module.dex", data)])
+        (installed / ".fluxgram-source.fgplugin").write_bytes(archive)
+        self.assertEqual(self.store("listcompat"), [f'{MANIFEST["id"]}:false:2:9'])
+        output = self.store("export", extra=(MANIFEST["id"], str(self.root / "shares")))
+        self.assertEqual(Path(output[0]).read_bytes(), archive)
 
     def store(self, action, data=None, expected_hash=None, accepted=True, extra=()):
         args = [

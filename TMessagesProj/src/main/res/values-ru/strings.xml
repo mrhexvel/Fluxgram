@@ -279,6 +279,7 @@
     <string name="FluxGramPluginInstalling">Установка плагина…</string>
     <string name="FluxGramPluginLoadFailed">Не удалось запустить плагин. Он отключён. Подробности в Logcat: FluxGramPython.</string>
     <string name="FluxGramPluginIncompatible">Плагин отключён: требуется SDK %1$d.%2$d, а FluxGram предоставляет SDK %3$d.%4$d.</string>
+    <string name="FluxGramPluginJavaIncompatible">Плагин отключён: требуется Java API %1$d.%2$d, а FluxGram предоставляет Java API %3$d.%4$d.</string>
     <string name="FluxGramOpenAndroidSettings">Открыть настройки приложения в Android</string>
     <string name="FluxGramUpdatePlugin">Обновить плагин</string>
     <string name="FluxGramDeletePlugin">Удалить плагин</string>

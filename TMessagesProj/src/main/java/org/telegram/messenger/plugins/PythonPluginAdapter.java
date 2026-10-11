@@ -9,6 +9,8 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
 
 import java.io.File;
@@ -34,6 +36,9 @@ public final class PythonPluginAdapter implements Plugin {
     private final int descriptionResId;
     private final String version;
     private String externalPath, externalName, externalDescription;
+    private PluginManifest.JavaModule javaModule;
+    private JavaPluginLoader javaLoader;
+    private volatile Thread workerThread;
     private volatile String loadError;
     private File iconFile;
     private volatile java.util.List<PluginSettings.Setting> settingsSchema;
@@ -47,6 +52,7 @@ public final class PythonPluginAdapter implements Plugin {
                 0,
                 installed.manifest.version);
         externalPath = installed.directory.getAbsolutePath();
+        javaModule = installed.manifest.javaModule;
         externalName = installed.manifest.name;
         externalDescription = installed.manifest.description;
 
@@ -154,7 +160,10 @@ public final class PythonPluginAdapter implements Plugin {
                         30L,
                         TimeUnit.SECONDS,
                         new PythonPluginTaskQueue(MAILBOX_CAPACITY),
-                        runnable -> new Thread(runnable, "FluxGramPlugin-" + id));
+                        runnable -> new Thread(() -> {
+                            workerThread = Thread.currentThread();
+                            runnable.run();
+                        }, "FluxGramPlugin-" + id));
 
         executor.allowCoreThreadTimeOut(true);
         taskScheduler = new PythonPluginTaskScheduler(
@@ -238,7 +247,7 @@ public final class PythonPluginAdapter implements Plugin {
                 return;
             }
 
-            if (instance != null) {
+            if (instance != null || javaLoader != null) {
                 lifecycle.setState(request.generation, PythonPluginLifecycle.State.STOPPING);
 
                 if (!unload(request.generation, request.enabled)) {
@@ -295,6 +304,16 @@ public final class PythonPluginAdapter implements Plugin {
                 return;
             }
 
+            if (javaModule != null) {
+                javaLoader = JavaPluginLoader.prepare(
+                        ApplicationLoader.applicationContext,
+                        new File(externalPath), javaModule, id, request, javaHost());
+
+                if (!lifecycle.isCurrent(request)) {
+                    return;
+                }
+            }
+
             PyObject nextInstance =
                     isExternal()
                             ? nextBridge.callAttr(
@@ -326,6 +345,14 @@ public final class PythonPluginAdapter implements Plugin {
 
             if (!lifecycle.isCurrent(request)) {
                 return;
+            }
+
+            if (javaLoader != null) {
+                javaLoader.start();
+
+                if (!lifecycle.isCurrent(request)) {
+                    return;
+                }
             }
 
             instance.callAttr("on_load");
@@ -375,6 +402,40 @@ public final class PythonPluginAdapter implements Plugin {
                     loadError = message;
                     ExternalPlugins.changed();
                 });
+    }
+
+    private JavaPluginSession.Host javaHost() {
+        return new JavaPluginSession.Host() {
+            @Override
+            public boolean isActive(long generation) {
+                return lifecycle.isCurrent(generation);
+            }
+
+            @Override
+            public boolean isWorkerThread() {
+                return Thread.currentThread() == workerThread;
+            }
+
+            @Override
+            public boolean readBooleanSetting(String key, boolean fallback) {
+                return PythonPluginAdapter.this.readBooleanSetting(key, fallback);
+            }
+
+            @Override
+            public int readIntSetting(String key, int fallback) {
+                return PythonPluginAdapter.this.readIntSetting(key, fallback);
+            }
+
+            @Override
+            public String readStringSetting(String key, String fallback) {
+                return PythonPluginAdapter.this.readStringSetting(key, fallback);
+            }
+
+            @Override
+            public void log(String message) {
+                Log.i(TAG, "[" + id + "] Java: " + message);
+            }
+        };
     }
 
     public java.util.List<PluginSettings.Setting> getSettingsSchema() {
@@ -466,6 +527,19 @@ public final class PythonPluginAdapter implements Plugin {
             }
 
             if (UserConfig.getInstance(pending.account).getClientUserId() != pending.ownerId) {
+                continue;
+            }
+
+            try {
+                if (javaLoader != null) {
+                    javaLoader.settingChanged(key, pending.value);
+                }
+            } catch (Exception | LinkageError error) {
+                Log.e(TAG, "[" + id + "] Java setting callback failed", error);
+            }
+
+            if (!lifecycle.isCurrent(pending.generation)
+                    || UserConfig.getInstance(pending.account).getClientUserId() != pending.ownerId) {
                 continue;
             }
 
@@ -618,14 +692,35 @@ public final class PythonPluginAdapter implements Plugin {
         }
     }
 
-    private void unloadStrict() {
-        if (instance == null) {
-            return;
+    private void unloadStrict() throws Exception {
+        Exception failure = null;
+
+        if (javaLoader != null) {
+            try {
+                javaLoader.close();
+                javaLoader = null;
+            } catch (Exception | LinkageError error) {
+                failure = new Exception("Java cleanup failed", error);
+            }
         }
 
-        bridge.callAttr("unload_plugin", instance);
-        instance = null;
-        bridge = null;
+        if (instance != null) {
+            try {
+                bridge.callAttr("unload_plugin", instance);
+                instance = null;
+                bridge = null;
+            } catch (Exception | LinkageError error) {
+                if (failure == null) {
+                    failure = new Exception("Python cleanup failed", error);
+                } else {
+                    failure.addSuppressed(error);
+                }
+            }
+        }
+
+        if (failure != null) {
+            throw failure;
+        }
     }
 
     @Override

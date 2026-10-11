@@ -13,13 +13,33 @@ import java.util.List;
 import java.util.Set;
 
 public final class PluginManifest {
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
     public static final int SDK_VERSION = 2;
     public static final int SDK_MINOR_VERSION = 9;
+    public static final int JAVA_API_VERSION = 1;
+    public static final int JAVA_API_MINOR_VERSION = 0;
     public final int schemaVersion, sdkVersion, minSdkMinor;
     public final String access = "full";
     public final String id, name, version, description, author, entrypoint, icon;
     public final List<String> declaredCapabilities;
+    public final JavaModule javaModule;
+
+    public static final class JavaModule {
+        public final String path, entrypoint, sha256;
+        public final int apiVersion, minApiMinor;
+
+        private JavaModule(String path, String entrypoint, String sha256, int apiVersion, int minApiMinor) {
+            this.path = path;
+            this.entrypoint = entrypoint;
+            this.sha256 = sha256;
+            this.apiVersion = apiVersion;
+            this.minApiMinor = minApiMinor;
+        }
+
+        public boolean isCompatible() {
+            return apiVersion == JAVA_API_VERSION && minApiMinor <= JAVA_API_MINOR_VERSION;
+        }
+    }
 
     private PluginManifest(
             int schemaVersion,
@@ -32,7 +52,8 @@ public final class PluginManifest {
             String author,
             String entrypoint,
             String icon,
-            List<String> capabilities) {
+            List<String> capabilities,
+            JavaModule javaModule) {
         this.schemaVersion = schemaVersion;
         this.sdkVersion = sdkVersion;
         this.minSdkMinor = minSdkMinor;
@@ -44,6 +65,7 @@ public final class PluginManifest {
         this.entrypoint = entrypoint;
         this.icon = icon;
         this.declaredCapabilities = Collections.unmodifiableList(new ArrayList<>(capabilities));
+        this.javaModule = javaModule;
     }
 
     public static PluginManifest parse(String json) throws IOException {
@@ -58,6 +80,7 @@ public final class PluginManifest {
 
         List<String> capabilities = new ArrayList<>();
         Set<String> fields = new HashSet<>();
+        JavaModule javaModule = null;
 
         try (JsonReader reader = new JsonReader(new StringReader(json))) {
             reader.setStrictness(Strictness.STRICT);
@@ -115,6 +138,9 @@ public final class PluginManifest {
                         }
                         reader.endArray();
                         break;
+                    case "java_module":
+                        javaModule = javaModule(reader);
+                        break;
                     default:
                         throw new IOException("Unknown manifest field: " + field);
                 }
@@ -143,7 +169,7 @@ public final class PluginManifest {
         }
 
         require(
-                schemaVersion == 1 || schemaVersion == SCHEMA_VERSION,
+                schemaVersion >= 1 && schemaVersion <= SCHEMA_VERSION,
                 "Unsupported schema_version");
 
         if (schemaVersion == 1) {
@@ -153,6 +179,9 @@ public final class PluginManifest {
         } else {
             require(fields.contains("min_sdk_minor"), "Missing manifest field: min_sdk_minor");
         }
+
+        require((schemaVersion == 3) == (javaModule != null),
+                "java_module is required only in schema_version 3");
 
         require(id.matches("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+"), "Invalid plugin id");
 
@@ -183,7 +212,51 @@ public final class PluginManifest {
                 author,
                 entrypoint,
                 icon,
-                capabilities);
+                capabilities,
+                javaModule);
+    }
+
+    private static JavaModule javaModule(JsonReader reader) throws IOException {
+        String path = null, entrypoint = null, sha256 = null;
+        int apiVersion = -1, minApiMinor = -1;
+        Set<String> fields = new HashSet<>();
+        reader.beginObject();
+
+        while (reader.hasNext()) {
+            String field = reader.nextName();
+            require(fields.add(field), "Duplicate Java module field: " + field);
+
+            switch (field) {
+                case "path":
+                    path = string(reader, 240);
+                    PluginPackageValidator.validatePath(path, false);
+                    require(path.endsWith(".dex"), "Java module must be a DEX file");
+                    break;
+                case "entrypoint":
+                    entrypoint = string(reader, 240);
+                    require(entrypoint.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_$]*)+"),
+                            "Invalid Java entrypoint");
+                    break;
+                case "sha256":
+                    sha256 = string(reader, 64);
+                    require(sha256.matches("[a-f0-9]{64}"), "Invalid DEX SHA-256");
+                    break;
+                case "api_version":
+                    apiVersion = version(reader, field);
+                    break;
+                case "min_api_minor":
+                    minApiMinor = version(reader, field);
+                    break;
+                default:
+                    throw new IOException("Unknown Java module field: " + field);
+            }
+        }
+
+        reader.endObject();
+        require(path != null && entrypoint != null && sha256 != null
+                && apiVersion >= 0 && minApiMinor >= 0, "Incomplete java_module");
+
+        return new JavaModule(path, entrypoint, sha256, apiVersion, minApiMinor);
     }
 
     public String entryFile() {
@@ -191,15 +264,21 @@ public final class PluginManifest {
     }
 
     public boolean isCompatible() {
-        return schemaVersion == SCHEMA_VERSION
+        return (schemaVersion == 2 || schemaVersion == SCHEMA_VERSION)
                 && sdkVersion == SDK_VERSION
-                && minSdkMinor <= SDK_MINOR_VERSION;
+                && minSdkMinor <= SDK_MINOR_VERSION
+                && (javaModule == null || javaModule.isCompatible());
     }
 
     public String compatibilityError() {
-        if (schemaVersion != SCHEMA_VERSION) {
+        if (schemaVersion != 2 && schemaVersion != SCHEMA_VERSION) {
             return "Plugin manifest schema " + schemaVersion
                     + " is incompatible with schema " + SCHEMA_VERSION;
+        }
+
+        if (javaModule != null && !javaModule.isCompatible()) {
+            return "Plugin requires Java API " + javaModule.apiVersion + "." + javaModule.minApiMinor
+                    + ", but FluxGram provides Java API " + JAVA_API_VERSION + "." + JAVA_API_MINOR_VERSION;
         }
 
         return "Plugin requires SDK " + sdkVersion + "." + minSdkMinor
