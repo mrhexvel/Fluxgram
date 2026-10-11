@@ -24,6 +24,10 @@ public final class Choreographer {
         pending.add(callback);
     }
 
+    public void postFrameCallbackDelayed(FrameCallback callback, long delayMillis) {
+        pending.add(callback);
+    }
+
     public void removeFrameCallback(FrameCallback callback) {
         pending.remove(callback);
     }

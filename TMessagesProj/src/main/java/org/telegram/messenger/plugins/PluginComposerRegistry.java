@@ -49,8 +49,8 @@ public final class PluginComposerRegistry {
             Choreographer.FrameCallback callback = timestamp -> coordinator.frame(timestamp);
             coordinator = new ComposerFrameCoordinator(new ComposerFrameCoordinator.Driver() {
                 @Override
-                public void post() {
-                    choreographer.postFrameCallback(callback);
+                public void post(long delayMillis) {
+                    choreographer.postFrameCallbackDelayed(callback, delayMillis);
                 }
 
                 @Override
@@ -102,6 +102,7 @@ public final class PluginComposerRegistry {
         return "registrations=" + registrations.size() + " surfaces=" + surfaces.size()
                 + " pending=" + (coordinator == null ? 0 : coordinator.pendingCount())
                 + " frames=" + (coordinator == null ? 0 : coordinator.frames)
+                + " paced=" + (coordinator == null ? 0 : coordinator.paced)
                 + " deferred=" + (coordinator == null ? 0 : coordinator.deferred)
                 + " skippedDraws=" + skippedDraws;
     }

@@ -5,8 +5,10 @@ import java.util.LinkedHashSet;
 import java.util.function.LongSupplier;
 
 final class ComposerFrameCoordinator {
+    private static final long MIN_FRAME_INTERVAL_NANOS = 16_000_000L;
+
     interface Driver {
-        void post();
+        void post(long delayMillis);
 
         void cancel();
     }
@@ -25,7 +27,9 @@ final class ComposerFrameCoordinator {
     private final LinkedHashSet<Client> pending = new LinkedHashSet<>();
     private boolean posted;
     private boolean dispatching;
+    private long nextFrameTime;
     long frames;
+    long paced;
     long deferred;
     long requests;
 
@@ -63,6 +67,14 @@ final class ComposerFrameCoordinator {
 
     void frame(long frameTimeNanos) {
         posted = false;
+
+        if (frameTimeNanos < nextFrameTime) {
+            paced++;
+            schedule();
+            return;
+        }
+
+        nextFrameTime = frameTimeNanos + MIN_FRAME_INTERVAL_NANOS;
         dispatching = true;
         frames++;
         long start = clock.getAsLong();
@@ -103,7 +115,8 @@ final class ComposerFrameCoordinator {
     private void schedule() {
         if (!posted && !dispatching && !pending.isEmpty()) {
             posted = true;
-            driver.post();
+            long delay = Math.max(0, nextFrameTime - clock.getAsLong()) / 1_000_000L;
+            driver.post(delay);
         }
     }
 }

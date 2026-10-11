@@ -194,8 +194,8 @@ public final class ComposerRegistryCheck {
         AutoCloseable endlessRegistration = PluginComposerRegistry.register("test.endless", () -> true, context -> endless);
         surface = PluginComposerRegistry.attach(new Host());
         surface.input(new ComposerInput(1, 0, 1, false, false));
-        Choreographer.getInstance().tick(1_000_000_000L);
-        Choreographer.getInstance().tick(3_100_000_000L);
+        Choreographer.getInstance().tick(5_000_000_000L);
+        Choreographer.getInstance().tick(7_100_000_000L);
         require(endless.closes == 1 && Choreographer.getInstance().pending.isEmpty(), "endless effect was not stopped");
         surface.close();
         endlessRegistration.close();
@@ -234,7 +234,7 @@ public final class ComposerRegistryCheck {
 
     private static void tick() {
         for (int i = 0; i < 10 && !Choreographer.getInstance().pending.isEmpty(); i++) {
-            Choreographer.getInstance().tick(1_000_000_000L + i * 16_000_000L);
+            Choreographer.getInstance().tick(Choreographer.getInstance().getFrameTimeNanos() + 16_666_667L);
         }
     }
 
