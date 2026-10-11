@@ -121,6 +121,8 @@ public final class PythonPluginAdapter implements Plugin {
     private volatile boolean messageDeletedSubscribers;
     private volatile boolean chatOpenedSubscribers;
     private volatile boolean chatClosedSubscribers;
+    private volatile boolean applicationForegroundedSubscribers;
+    private volatile boolean applicationBackgroundedSubscribers;
 
     private static final class PendingSetting {
         final long generation;
@@ -209,6 +211,8 @@ public final class PythonPluginAdapter implements Plugin {
         messageDeletedSubscribers = false;
         chatOpenedSubscribers = false;
         chatClosedSubscribers = false;
+        applicationForegroundedSubscribers = false;
+        applicationBackgroundedSubscribers = false;
 
         if (reconcile) {
             try {
@@ -949,5 +953,92 @@ public final class PythonPluginAdapter implements Plugin {
     @Override
     public boolean hasChatClosedSubscribers() {
         return chatClosedSubscribers;
+    }
+
+    @Override
+    public void applicationForegrounded(PluginApplicationEvent event) {
+        enqueueApplicationEvent(event, true);
+    }
+
+    @Override
+    public void applicationBackgrounded(PluginApplicationEvent event) {
+        enqueueApplicationEvent(event, false);
+    }
+
+    private synchronized void enqueueApplicationEvent(
+            PluginApplicationEvent event,
+            boolean foregrounded) {
+        if (!lifecycle.isEnabled()
+                || foregrounded && !applicationForegroundedSubscribers
+                || !foregrounded && !applicationBackgroundedSubscribers) {
+            return;
+        }
+
+        if (!eventSlots.tryAcquire()) {
+            Log.w(TAG, "[" + id + "] Queue full; application event skipped");
+
+            return;
+        }
+
+        final long request = lifecycle.getGeneration();
+        final long ownerId = event.ownerId;
+
+        try {
+            executor.execute(
+                    () -> {
+                        try {
+                            if (!lifecycle.isCurrent(request) || instance == null) {
+                                return;
+                            }
+
+                            if (UserConfig.getInstance(event.account).getClientUserId() != ownerId) {
+                                return;
+                            }
+
+                            bridge.callAttr(
+                                    foregrounded
+                                            ? "dispatch_application_foregrounded"
+                                            : "dispatch_application_backgrounded",
+                                    instance,
+                                    event.account,
+                                    ownerId,
+                                    request
+                            );
+                        } catch (Exception | LinkageError error) {
+                            Log.e(TAG, "[" + id + "] Application event handler failed", error);
+                        } finally {
+                            eventSlots.release();
+                        }
+                    });
+        } catch (RejectedExecutionException error) {
+            eventSlots.release();
+            Log.w(TAG, "[" + id + "] Application event rejected", error);
+        }
+    }
+
+    public synchronized void setApplicationForegroundedSubscriptionActive(
+            long generation,
+            boolean active) {
+        if (lifecycle.isCurrent(generation)) {
+            applicationForegroundedSubscribers = active;
+        }
+    }
+
+    @Override
+    public boolean hasApplicationForegroundedSubscribers() {
+        return applicationForegroundedSubscribers;
+    }
+
+    public synchronized void setApplicationBackgroundedSubscriptionActive(
+            long generation,
+            boolean active) {
+        if (lifecycle.isCurrent(generation)) {
+            applicationBackgroundedSubscribers = active;
+        }
+    }
+
+    @Override
+    public boolean hasApplicationBackgroundedSubscribers() {
+        return applicationBackgroundedSubscribers;
     }
 }

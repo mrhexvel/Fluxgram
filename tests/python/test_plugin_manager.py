@@ -70,6 +70,17 @@ public final class PluginMessagesDeletedEvent {}
 
 public final class PluginChatEvent {}
 """,
+            "org/telegram/messenger/plugins/PluginApplicationEvent.java": """package org.telegram.messenger.plugins;
+
+public final class PluginApplicationEvent {}
+""",
+            "org/telegram/messenger/plugins/PluginApplicationLifecycle.java": """package org.telegram.messenger.plugins;
+
+final class PluginApplicationLifecycle {
+
+    static void initialize() {}
+}
+""",
             "org/telegram/messenger/plugins/PluginMessageEvents.java": """package org.telegram.messenger.plugins;
 
 final class PluginMessageEvents {

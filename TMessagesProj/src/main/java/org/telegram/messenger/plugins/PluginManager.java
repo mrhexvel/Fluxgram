@@ -40,6 +40,7 @@ public final class PluginManager {
         preferences = context.getSharedPreferences("fluxgram_plugins", Context.MODE_PRIVATE);
         systemEnabled = preferences.getBoolean("system.enabled", false);
         PluginMessageEvents.initialize();
+        PluginApplicationLifecycle.initialize();
     }
 
     public boolean isSystemEnabled() {
@@ -370,6 +371,86 @@ public final class PluginManager {
                 entry.plugin.chatClosed(event);
             } catch (Exception e) {
                 FileLog.e("FluxGram chat_closed plugin failed: " + entry.id, e);
+            }
+        }
+    }
+
+    synchronized boolean hasApplicationForegroundedPlugins() {
+        if (!systemEnabled) {
+            return false;
+        }
+
+        for (Entry entry : plugins.values()) {
+            if (entry.enabled && entry.plugin.hasApplicationForegroundedSubscribers()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void applicationForegrounded(PluginApplicationEvent event) {
+        ArrayList<Entry> snapshot;
+
+        synchronized (this) {
+            if (!hasApplicationForegroundedPlugins()) {
+                return;
+            }
+
+            snapshot = new ArrayList<>(plugins.values());
+        }
+
+        for (Entry entry : snapshot) {
+            if (!systemEnabled
+                    || !entry.enabled
+                    || !entry.plugin.hasApplicationForegroundedSubscribers()) {
+                continue;
+            }
+
+            try {
+                entry.plugin.applicationForegrounded(event);
+            } catch (Exception e) {
+                FileLog.e("FluxGram application_foregrounded plugin failed: " + entry.id, e);
+            }
+        }
+    }
+
+    synchronized boolean hasApplicationBackgroundedPlugins() {
+        if (!systemEnabled) {
+            return false;
+        }
+
+        for (Entry entry : plugins.values()) {
+            if (entry.enabled && entry.plugin.hasApplicationBackgroundedSubscribers()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void applicationBackgrounded(PluginApplicationEvent event) {
+        ArrayList<Entry> snapshot;
+
+        synchronized (this) {
+            if (!hasApplicationBackgroundedPlugins()) {
+                return;
+            }
+
+            snapshot = new ArrayList<>(plugins.values());
+        }
+
+        for (Entry entry : snapshot) {
+            if (!systemEnabled
+                    || !entry.enabled
+                    || !entry.plugin.hasApplicationBackgroundedSubscribers()) {
+                continue;
+            }
+
+            try {
+                entry.plugin.applicationBackgrounded(event);
+            } catch (Exception e) {
+                FileLog.e("FluxGram application_backgrounded plugin failed: " + entry.id, e);
             }
         }
     }

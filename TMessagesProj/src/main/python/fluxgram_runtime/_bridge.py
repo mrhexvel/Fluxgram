@@ -6,6 +6,8 @@ import uuid
 from pathlib import Path
 
 from fluxgram.events import (
+    ApplicationBackgroundedEvent,
+    ApplicationForegroundedEvent,
     BeforeSendEvent,
     ChatClosedEvent,
     ChatOpenedEvent,
@@ -277,6 +279,36 @@ def dispatch_chat_closed(
         presentation_id=int(presentation_id),
         dialog_id=int(dialog_id),
         topic_id=int(topic_id),
+    ))
+
+
+def dispatch_application_foregrounded(
+        plugin,
+        account,
+        owner_id,
+        generation,
+):
+    plugin.events._dispatch(ApplicationForegroundedEvent(
+        context=EventContext(
+            account=int(account),
+            owner_id=int(owner_id),
+            generation=int(generation),
+        ),
+    ))
+
+
+def dispatch_application_backgrounded(
+        plugin,
+        account,
+        owner_id,
+        generation,
+):
+    plugin.events._dispatch(ApplicationBackgroundedEvent(
+        context=EventContext(
+            account=int(account),
+            owner_id=int(owner_id),
+            generation=int(generation),
+        ),
     ))
 
 

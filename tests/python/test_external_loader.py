@@ -50,6 +50,8 @@ class ExternalLoaderTest(unittest.TestCase):
         plugin = types.ModuleType("fluxgram.plugin")
         plugin.Plugin = Plugin
         events = types.ModuleType("fluxgram.events")
+        events.ApplicationBackgroundedEvent = Record
+        events.ApplicationForegroundedEvent = Record
         events.BeforeSendEvent = object
         events.ChatClosedEvent = Record
         events.ChatOpenedEvent = Record
@@ -366,3 +368,25 @@ class ExternalLoaderTest(unittest.TestCase):
                 ),
                 (2, 88, 9, 50, -10, 7),
             )
+
+    def test_typed_application_lifecycle_context_is_rebuilt(self):
+        calls = []
+        plugin = Plugin("test.application-lifecycle")
+        plugin.events = types.SimpleNamespace(
+            _dispatch=lambda event: calls.append(event)
+        )
+
+        self.bridge.dispatch_application_backgrounded(plugin, 2, 88, 9)
+        self.bridge.dispatch_application_foregrounded(plugin, 3, 99, 10)
+
+        self.assertEqual(
+            [
+                (
+                    event.context.account,
+                    event.context.owner_id,
+                    event.context.generation,
+                )
+                for event in calls
+            ],
+            [(2, 88, 9), (3, 99, 10)],
+        )

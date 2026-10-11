@@ -51,5 +51,17 @@ public interface Plugin {
         return false;
     }
 
+    default void applicationForegrounded(PluginApplicationEvent event) {}
+
+    default boolean hasApplicationForegroundedSubscribers() {
+        return false;
+    }
+
+    default void applicationBackgrounded(PluginApplicationEvent event) {}
+
+    default boolean hasApplicationBackgroundedSubscribers() {
+        return false;
+    }
+
     void beforeSend(BeforeSendEvent event);
 }
