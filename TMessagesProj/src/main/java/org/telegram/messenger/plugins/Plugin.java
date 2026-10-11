@@ -39,5 +39,17 @@ public interface Plugin {
         return false;
     }
 
+    default void chatOpened(PluginChatEvent event) {}
+
+    default boolean hasChatOpenedSubscribers() {
+        return false;
+    }
+
+    default void chatClosed(PluginChatEvent event) {}
+
+    default boolean hasChatClosedSubscribers() {
+        return false;
+    }
+
     void beforeSend(BeforeSendEvent event);
 }

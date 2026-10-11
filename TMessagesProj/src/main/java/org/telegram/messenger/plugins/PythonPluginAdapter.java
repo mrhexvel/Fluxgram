@@ -119,6 +119,8 @@ public final class PythonPluginAdapter implements Plugin {
     private volatile boolean messageReceivedSubscribers;
     private volatile boolean messageEditedSubscribers;
     private volatile boolean messageDeletedSubscribers;
+    private volatile boolean chatOpenedSubscribers;
+    private volatile boolean chatClosedSubscribers;
 
     private static final class PendingSetting {
         final long generation;
@@ -205,6 +207,8 @@ public final class PythonPluginAdapter implements Plugin {
         messageReceivedSubscribers = false;
         messageEditedSubscribers = false;
         messageDeletedSubscribers = false;
+        chatOpenedSubscribers = false;
+        chatClosedSubscribers = false;
 
         if (reconcile) {
             try {
@@ -859,5 +863,91 @@ public final class PythonPluginAdapter implements Plugin {
     @Override
     public boolean hasMessageDeletedSubscribers() {
         return messageDeletedSubscribers;
+    }
+
+    @Override
+    public void chatOpened(PluginChatEvent event) {
+        enqueueChatEvent(event, true);
+    }
+
+    @Override
+    public void chatClosed(PluginChatEvent event) {
+        enqueueChatEvent(event, false);
+    }
+
+    private synchronized void enqueueChatEvent(PluginChatEvent event, boolean opened) {
+        if (!lifecycle.isEnabled()
+                || opened && !chatOpenedSubscribers
+                || !opened && !chatClosedSubscribers) {
+            return;
+        }
+
+        if (!eventSlots.tryAcquire()) {
+            Log.w(TAG, "[" + id + "] Queue full; chat event skipped");
+
+            return;
+        }
+
+        final long request = lifecycle.getGeneration();
+        final long ownerId = event.ownerId;
+
+        try {
+            executor.execute(
+                    () -> {
+                        try {
+                            if (!lifecycle.isCurrent(request) || instance == null) {
+                                return;
+                            }
+
+                            if (UserConfig.getInstance(event.account).getClientUserId() != ownerId) {
+                                return;
+                            }
+
+                            bridge.callAttr(
+                                    opened ? "dispatch_chat_opened" : "dispatch_chat_closed",
+                                    instance,
+                                    event.account,
+                                    ownerId,
+                                    request,
+                                    event.presentationId,
+                                    event.dialogId,
+                                    event.topicId
+                            );
+                        } catch (Exception | LinkageError error) {
+                            Log.e(TAG, "[" + id + "] Chat event handler failed", error);
+                        } finally {
+                            eventSlots.release();
+                        }
+                    });
+        } catch (RejectedExecutionException error) {
+            eventSlots.release();
+            Log.w(TAG, "[" + id + "] Chat event rejected", error);
+        }
+    }
+
+    public synchronized void setChatOpenedSubscriptionActive(
+            long generation,
+            boolean active) {
+        if (lifecycle.isCurrent(generation)) {
+            chatOpenedSubscribers = active;
+        }
+    }
+
+    @Override
+    public boolean hasChatOpenedSubscribers() {
+        return chatOpenedSubscribers;
+    }
+
+    public synchronized void setChatClosedSubscriptionActive(
+            long generation,
+            boolean active) {
+        if (lifecycle.isCurrent(generation)) {
+            chatClosedSubscribers = active;
+        }
+    }
+
+    @Override
+    public boolean hasChatClosedSubscribers() {
+        return chatClosedSubscribers;
     }
 }

@@ -294,6 +294,86 @@ public final class PluginManager {
         }
     }
 
+    synchronized boolean hasChatOpenedPlugins() {
+        if (!systemEnabled) {
+            return false;
+        }
+
+        for (Entry entry : plugins.values()) {
+            if (entry.enabled && entry.plugin.hasChatOpenedSubscribers()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void chatOpened(PluginChatEvent event) {
+        ArrayList<Entry> snapshot;
+
+        synchronized (this) {
+            if (!hasChatOpenedPlugins()) {
+                return;
+            }
+
+            snapshot = new ArrayList<>(plugins.values());
+        }
+
+        for (Entry entry : snapshot) {
+            if (!systemEnabled
+                    || !entry.enabled
+                    || !entry.plugin.hasChatOpenedSubscribers()) {
+                continue;
+            }
+
+            try {
+                entry.plugin.chatOpened(event);
+            } catch (Exception e) {
+                FileLog.e("FluxGram chat_opened plugin failed: " + entry.id, e);
+            }
+        }
+    }
+
+    synchronized boolean hasChatClosedPlugins() {
+        if (!systemEnabled) {
+            return false;
+        }
+
+        for (Entry entry : plugins.values()) {
+            if (entry.enabled && entry.plugin.hasChatClosedSubscribers()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void chatClosed(PluginChatEvent event) {
+        ArrayList<Entry> snapshot;
+
+        synchronized (this) {
+            if (!hasChatClosedPlugins()) {
+                return;
+            }
+
+            snapshot = new ArrayList<>(plugins.values());
+        }
+
+        for (Entry entry : snapshot) {
+            if (!systemEnabled
+                    || !entry.enabled
+                    || !entry.plugin.hasChatClosedSubscribers()) {
+                continue;
+            }
+
+            try {
+                entry.plugin.chatClosed(event);
+            } catch (Exception e) {
+                FileLog.e("FluxGram chat_closed plugin failed: " + entry.id, e);
+            }
+        }
+    }
+
     public void beforeSend(BeforeSendEvent event) {
         ArrayList<Entry> snapshot;
 

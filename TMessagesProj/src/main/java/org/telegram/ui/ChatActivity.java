@@ -189,6 +189,7 @@ import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.CameraView;
+import org.telegram.messenger.plugins.PluginChatLifecycle;
 import org.telegram.messenger.plugins.PluginUiLifecycle;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
@@ -497,6 +498,7 @@ public class ChatActivity extends BaseFragment implements
     private ArrayList<View> actionModeViews = new ArrayList<>();
     public ChatAvatarContainer avatarContainer;
     private FluxGramChatHeaderAppearanceController fluxGramChatHeaderAppearanceController;
+    private final PluginChatLifecycle pluginChatLifecycle = new PluginChatLifecycle();
     private AnimatedTextView selectedMessagesCountTextView;
     private RecyclerListView.OnItemClickListener mentionsOnItemClickListener;
     private SuggestEmojiView suggestEmojiPanel;
@@ -3361,6 +3363,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onFragmentDestroy() {
+        pluginChatLifecycle.onDestroyed();
         super.onFragmentDestroy();
         if (fluxGramChatHeaderAppearanceController != null) {
             fluxGramChatHeaderAppearanceController.destroy();
@@ -3523,6 +3526,52 @@ public class ChatActivity extends BaseFragment implements
         }
 
         return TelegramPeerKeyAdapter.fromUserId(userId);
+    }
+
+    private void updatePluginChatLifecycle() {
+        if (!isFullyVisible || !isPluginChatLifecycleEligible()) {
+            pluginChatLifecycle.onHidden();
+
+            return;
+        }
+
+        long ownerId = getUserConfig().getClientUserId();
+
+        if (ownerId <= 0) {
+            pluginChatLifecycle.onHidden();
+
+            return;
+        }
+
+        pluginChatLifecycle.onVisible(
+                currentAccount,
+                ownerId,
+                dialog_id,
+                getTopicId()
+        );
+    }
+
+    private boolean isPluginChatLifecycleEligible() {
+        if (chatMode != MODE_DEFAULT
+                || currentEncryptedChat != null
+                || isInPreviewMode()
+                || inBubbleMode
+                || isInsideContainer
+                || isComments
+                || isThreadChat() && !isTopic
+                || isReport()
+                || dialog_id == 0) {
+            return false;
+        }
+
+        if (currentUser != null) {
+            return dialog_id == currentUser.id
+                    && !UserObject.isReplyUser(currentUser)
+                    && !UserObject.isAnonymous(currentUser)
+                    && !UserObject.isService(currentUser.id);
+        }
+
+        return currentChat != null && dialog_id == -currentChat.id;
     }
 
     private static class ChatActivityTextSelectionHelper extends TextSelectionHelper.ChatListTextSelectionHelper {
@@ -10115,6 +10164,7 @@ public class ChatActivity extends BaseFragment implements
             if (chatMode == MODE_DEFAULT && !isInPreviewMode()) {
                 PluginUiLifecycle.onChatOpened(currentAccount, dialog_id, getTopicId());
             }
+            updatePluginChatLifecycle();
 
             if (chatAdapter != null) {
                 if (chatAdapter.botForumStartThreadRow >= 0 && !chatAdapter.needBotForumInfoRow()) {
@@ -27206,6 +27256,7 @@ public class ChatActivity extends BaseFragment implements
         if (chatMode == MODE_DEFAULT && !isInPreviewMode()) {
             PluginUiLifecycle.onChatOpened(currentAccount, dialog_id, getTopicId());
         }
+        updatePluginChatLifecycle();
 
         if (showCloseChatDialogLater) {
             showDialog(closeChatDialog);
@@ -27228,6 +27279,12 @@ public class ChatActivity extends BaseFragment implements
                 .setOnHideListener(this::checkConversionDateTimeToast)
                 .show(true);
         }
+    }
+
+    @Override
+    public void onPreviewOpenAnimationEnd() {
+        super.onPreviewOpenAnimationEnd();
+        updatePluginChatLifecycle();
     }
 
     private boolean shownConversionDateTimeToast;
@@ -27360,6 +27417,7 @@ public class ChatActivity extends BaseFragment implements
             }
         }
         isFullyVisible = false;
+        pluginChatLifecycle.onHidden();
         hideUndoViews();
         TranscribeButton.resetVideoTranscriptionsOpen();
 

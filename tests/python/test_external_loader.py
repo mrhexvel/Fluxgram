@@ -51,6 +51,8 @@ class ExternalLoaderTest(unittest.TestCase):
         plugin.Plugin = Plugin
         events = types.ModuleType("fluxgram.events")
         events.BeforeSendEvent = object
+        events.ChatClosedEvent = Record
+        events.ChatOpenedEvent = Record
         events.EventContext = EventContext
         events.MessageDeletedEvent = Record
         events.MessageEditedEvent = Record
@@ -339,3 +341,28 @@ class ExternalLoaderTest(unittest.TestCase):
             9,
         )
         self.assertIsNone(calls[0].channel_id)
+
+    def test_typed_chat_lifecycle_identity_is_rebuilt_from_primitives(self):
+        calls = []
+        plugin = Plugin("test.chat-lifecycle")
+        plugin.events = types.SimpleNamespace(
+            _dispatch=lambda event: calls.append(event)
+        )
+
+        self.bridge.dispatch_chat_opened(plugin, 2, 88, 9, 50, -10, 7)
+        self.bridge.dispatch_chat_closed(plugin, 2, 88, 9, 50, -10, 7)
+
+        self.assertEqual(len(calls), 2)
+
+        for event in calls:
+            self.assertEqual(
+                (
+                    event.context.account,
+                    event.context.owner_id,
+                    event.context.generation,
+                    event.presentation_id,
+                    event.dialog_id,
+                    event.topic_id,
+                ),
+                (2, 88, 9, 50, -10, 7),
+            )

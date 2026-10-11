@@ -25,8 +25,10 @@ from fluxgram import (
     API_MINOR_VERSION,
     API_VERSION,
     BeforeSendEvent,
+    ChatClosedEvent,
     ChatInfo,
     ChatNotifications,
+    ChatOpenedEvent,
     MessageInfo,
     MessageDeletedEvent,
     MessageEditedEvent,
@@ -50,7 +52,7 @@ from fluxgram.ui import Bulletins, Navigation, Notifications, UI
 from fluxgram.testing import PluginHarness
 
 assert API_VERSION == 2
-assert API_MINOR_VERSION == 7
+assert API_MINOR_VERSION == 8
 assert fluxgram.ChatInfo is fluxgram.models.ChatInfo
 assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notifications"}
 assert SwitchSetting("enabled", "Enabled").default is False
@@ -67,6 +69,8 @@ assert ExecutionContext.PLUGIN.value == "plugin"
 assert PluginSettingChangedEvent.__module__ == "fluxgram.events"
 assert MessageDeletedEvent.__module__ == "fluxgram.events"
 assert MessageEditedEvent.__module__ == "fluxgram.events"
+assert ChatClosedEvent.__module__ == "fluxgram.events"
+assert ChatOpenedEvent.__module__ == "fluxgram.events"
 try:
     Plugin("standalone.test")
 except RuntimeError as error:
@@ -143,7 +147,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
     def test_package_metadata_and_chaquopy_source_set(self):
         metadata = tomllib.loads((SDK / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-sdk")
-        self.assertEqual(metadata["project"]["version"], "2.8.0")
+        self.assertEqual(metadata["project"]["version"], "2.9.0")
         self.assertEqual(metadata["project"]["requires-python"], ">=3.11")
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
 

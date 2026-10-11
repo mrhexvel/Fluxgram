@@ -7,6 +7,8 @@ from pathlib import Path
 
 from fluxgram.events import (
     BeforeSendEvent,
+    ChatClosedEvent,
+    ChatOpenedEvent,
     EventContext,
     MessageDeletedEvent,
     MessageEditedEvent,
@@ -234,6 +236,48 @@ def dispatch_messages_deleted(
             message_id=int(message_id),
             channel_id=channel_id,
         ))
+
+
+def dispatch_chat_opened(
+        plugin,
+        account,
+        owner_id,
+        generation,
+        presentation_id,
+        dialog_id,
+        topic_id,
+):
+    plugin.events._dispatch(ChatOpenedEvent(
+        context=EventContext(
+            account=int(account),
+            owner_id=int(owner_id),
+            generation=int(generation),
+        ),
+        presentation_id=int(presentation_id),
+        dialog_id=int(dialog_id),
+        topic_id=int(topic_id),
+    ))
+
+
+def dispatch_chat_closed(
+        plugin,
+        account,
+        owner_id,
+        generation,
+        presentation_id,
+        dialog_id,
+        topic_id,
+):
+    plugin.events._dispatch(ChatClosedEvent(
+        context=EventContext(
+            account=int(account),
+            owner_id=int(owner_id),
+            generation=int(generation),
+        ),
+        presentation_id=int(presentation_id),
+        dialog_id=int(dialog_id),
+        topic_id=int(topic_id),
+    ))
 
 
 def _decode_message_snapshot(payload):

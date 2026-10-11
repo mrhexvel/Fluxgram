@@ -131,7 +131,10 @@ class PluginMessageEventsTest(unittest.TestCase):
         deleted_handler = adapter.split(
             "void messagesDeleted(PluginMessagesDeletedEvent event)",
             1,
-        )[1]
+        )[1].split(
+            "public synchronized void setMessageDeletedSubscriptionActive",
+            1,
+        )[0]
 
         self.assertNotIn("MessageObject", event)
         self.assertIn("Collections.unmodifiableList(messageIds)", event)
