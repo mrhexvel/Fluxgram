@@ -158,7 +158,7 @@ class PluginPackagesTest(unittest.TestCase):
         data = self.dex_fixture()
 
         for key, value in (
-            ("api_version", 2), ("min_api_minor", 2), ("min_api_minor", -1),
+            ("api_version", 2), ("min_api_minor", 3), ("min_api_minor", -1),
             ("path", "../module.dex"), ("path", "module.jar"),
             ("entrypoint", "example.Missing"), ("entrypoint", "bad/class"),
             ("sha256", "abc"), ("unknown", "value"),

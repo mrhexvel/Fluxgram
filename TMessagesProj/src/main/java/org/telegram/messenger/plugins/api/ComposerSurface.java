@@ -1,0 +1,15 @@
+package org.telegram.messenger.plugins.api;
+
+public interface ComposerSurface {
+    int getAccount();
+
+    long getOwnerId();
+
+    long getDialogId();
+
+    ComposerGeometry getGeometry();
+
+    boolean isActive();
+
+    void requestFrame();
+}

@@ -13,6 +13,10 @@ public interface JavaPluginContext {
         throw new UnsupportedOperationException("Java UI resources require API 1.1");
     }
 
+    default JavaPluginUiResource registerComposerEffect(ComposerEffect.Factory factory) {
+        throw new UnsupportedOperationException("Composer effects require Java API 1.2");
+    }
+
     boolean readBooleanSetting(String key, boolean fallback);
 
     int readIntSetting(String key, int fallback);

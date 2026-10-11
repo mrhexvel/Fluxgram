@@ -3,6 +3,7 @@ package org.telegram.messenger.plugins;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.ComposerEffect;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
@@ -24,6 +25,10 @@ final class JavaPluginSession implements AutoCloseable {
 
         default JavaPluginUiResource registerUiResource(long generation, JavaPluginUiResource.Factory factory) {
             throw new UnsupportedOperationException("Java UI resources are unavailable");
+        }
+
+        default JavaPluginUiResource registerComposerEffect(long generation, ComposerEffect.Factory factory) {
+            throw new UnsupportedOperationException("Composer effects are unavailable");
         }
     }
 
@@ -181,6 +186,12 @@ final class JavaPluginSession implements AutoCloseable {
         public JavaPluginUiResource registerUiResource(JavaPluginUiResource.Factory factory) {
             requireActive();
             return host.registerUiResource(generation, factory);
+        }
+
+        @Override
+        public JavaPluginUiResource registerComposerEffect(ComposerEffect.Factory factory) {
+            requireActive();
+            return host.registerComposerEffect(generation, factory);
         }
 
         @Override

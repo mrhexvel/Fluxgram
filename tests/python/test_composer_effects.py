@@ -1,0 +1,89 @@
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[2]
+JAVA = ROOT / "TMessagesProj/src/main/java/org/telegram"
+
+
+class ComposerEffectsTest(unittest.TestCase):
+    def test_composing_word_replacements_preserve_small_changes(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            sources = [
+                JAVA / "messenger/plugins/api/ComposerInput.java",
+                JAVA / "ui/fluxgram/ComposerInputChanges.java",
+                ROOT / "tests/java/ComposerInputChangesCheck.java",
+            ]
+            subprocess.run(["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                           check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory, "org.telegram.ui.fluxgram.ComposerInputChangesCheck"],
+                           check=True, capture_output=True)
+
+    def test_registry_identity_cleanup_failure_and_limits(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            sources = [
+                *sorted((ROOT / "tests/java/composer_stubs").rglob("*.java")),
+                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                JAVA / "messenger/plugins/ComposerFrameCoordinator.java",
+                JAVA / "messenger/plugins/PluginComposerRegistry.java",
+                ROOT / "tests/java/ComposerRegistryCheck.java",
+            ]
+            subprocess.run(["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                           check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory, "org.telegram.messenger.plugins.ComposerRegistryCheck"],
+                           check=True, capture_output=True)
+
+    def test_frame_coalescing_budget_fairness_and_cancellation(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            sources = [
+                JAVA / "messenger/plugins/ComposerFrameCoordinator.java",
+                ROOT / "tests/java/ComposerFrameCoordinatorCheck.java",
+            ]
+            subprocess.run(["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                           check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory,
+                            "org.telegram.messenger.plugins.ComposerFrameCoordinatorCheck"],
+                           check=True, capture_output=True)
+
+    def test_composer_is_opt_in_and_does_not_modify_text(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        policy = chat.split("private boolean isPluginComposerEligible()", 1)[1].split(
+            "private static class ChatActivityTextSelectionHelper", 1
+        )[0]
+        for gate in ("paused", "isFullyVisible", "isPluginChatLifecycleEligible", "isTopic",
+                     "isEditingMessage", "isInScheduleMode", "isRichDraftActive", "isStories",
+                     "isRecordingAudioVideo", "hasAudioToSend", "isEphemeralMessageVisible",
+                     "isForum", "isMonoForum", "isCommunity", "isChannelAndNotMegaGroup"):
+            self.assertIn(gate, policy)
+
+        controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
+        for forbidden in (".setText(", ".setSpan(", ".setSelection(", "getRootView()", "postDelayed("):
+            self.assertNotIn(forbidden, controller)
+
+        for required in ("getOverlay().remove", "removeTextChangedListener", "removeListener(this)",
+                         "removeOnPreDrawListener", "onBecameBackground", "onViewDetachedFromWindow",
+                         "getClientUserId() == ownerId", "selectedAccount == account"):
+            self.assertIn(required, controller)
+
+    def test_composer_registration_uses_ui_cleanup_scope(self):
+        adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
+        self.assertIn("uiResources.register(() -> PluginComposerRegistry.register", adapter)
+        api = (JAVA / "messenger/plugins/api/ComposerEffect.java").read_text()
+        self.assertIn("android.graphics.Canvas", api)
+        self.assertNotIn("org.telegram.ui", api)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -123,6 +123,7 @@ import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.ui.fluxgram.EditHistoryMenuController;
+import org.telegram.ui.fluxgram.FluxGramComposerController;
 import org.telegram.ui.recyclerview.ChatListItemAnimator;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.GridLayoutManagerFixed;
@@ -499,6 +500,7 @@ public class ChatActivity extends BaseFragment implements
     public ChatAvatarContainer avatarContainer;
     private FluxGramChatHeaderAppearanceController fluxGramChatHeaderAppearanceController;
     private final PluginChatLifecycle pluginChatLifecycle = new PluginChatLifecycle();
+    private FluxGramComposerController pluginComposer;
     private AnimatedTextView selectedMessagesCountTextView;
     private RecyclerListView.OnItemClickListener mentionsOnItemClickListener;
     private SuggestEmojiView suggestEmojiPanel;
@@ -3364,6 +3366,10 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         pluginChatLifecycle.onDestroyed();
+        if (pluginComposer != null) {
+            pluginComposer.destroy();
+            pluginComposer = null;
+        }
         super.onFragmentDestroy();
         if (fluxGramChatHeaderAppearanceController != null) {
             fluxGramChatHeaderAppearanceController.destroy();
@@ -3529,6 +3535,10 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void updatePluginChatLifecycle() {
+        if (pluginComposer != null) {
+            pluginComposer.refresh();
+        }
+
         if (!isFullyVisible || !isPluginChatLifecycleEligible()) {
             pluginChatLifecycle.onHidden();
 
@@ -3572,6 +3582,42 @@ public class ChatActivity extends BaseFragment implements
         }
 
         return currentChat != null && dialog_id == -currentChat.id;
+    }
+
+    private void bindPluginComposer() {
+        if (pluginComposer != null) {
+            pluginComposer.destroy();
+            pluginComposer = null;
+        }
+
+        if (chatActivityEnterView == null || chatActivityEnterView.getEditField() == null) {
+            return;
+        }
+
+        long boundDialog = dialog_id;
+        int boundAccount = currentAccount;
+        pluginComposer = new FluxGramComposerController(
+                chatActivityEnterView.getEditField(), currentAccount, dialog_id,
+                () -> dialog_id == boundDialog && currentAccount == boundAccount && isPluginComposerEligible(),
+                themeDelegate);
+    }
+
+    private boolean isPluginComposerEligible() {
+        if (paused || !isFullyVisible || !isPluginChatLifecycleEligible()
+                || isTopic || isThreadChat() || isReplyChatComment() || threadMessageId != 0
+                || quickReplyShortcut != null || businessLink != null || BaseFragment.hasSheets(this)
+                || chatAttachAlert != null && chatAttachAlert.isShowing()
+                || chatActivityEnterView == null || chatActivityEnterView.isEditingMessage()
+                || chatActivityEnterView.isEditingCaption() || chatActivityEnterView.isInScheduleMode()
+                || chatActivityEnterView.isRichDraftActive() || chatActivityEnterView.isStories
+                || chatActivityEnterView.isRecordingAudioVideo() || chatActivityEnterView.hasAudioToSend()
+                || chatActivityEnterView.isEphemeralMessageVisible()) {
+            return false;
+        }
+
+        return currentChat == null || !ChatObject.isForum(currentChat)
+                && !ChatObject.isMonoForum(currentChat) && !ChatObject.isCommunity(currentChat)
+                && !ChatObject.isChannelAndNotMegaGroup(currentChat);
     }
 
     private static class ChatActivityTextSelectionHelper extends TextSelectionHelper.ChatListTextSelectionHelper {
@@ -8172,6 +8218,7 @@ public class ChatActivity extends BaseFragment implements
         }
         chatActivityEnterView.setInAppInsetsController(windowInsetsStateHolder);
         chatActivityEnterView.setDialogId(dialog_id, currentAccount);
+        bindPluginComposer();
         if (chatInfo != null) {
             chatActivityEnterView.setChatInfo(chatInfo);
         }
@@ -22096,6 +22143,7 @@ public class ChatActivity extends BaseFragment implements
                 updateBottomOverlay();
                 if (chatActivityEnterView != null) {
                     chatActivityEnterView.setDialogId(dialog_id, currentAccount);
+                    bindPluginComposer();
                 }
                 if (flagSecure != null) {
                     flagSecure.invalidate();
@@ -27418,6 +27466,9 @@ public class ChatActivity extends BaseFragment implements
         }
         isFullyVisible = false;
         pluginChatLifecycle.onHidden();
+        if (pluginComposer != null) {
+            pluginComposer.refresh();
+        }
         hideUndoViews();
         TranscribeButton.resetVideoTranscriptionsOpen();
 
@@ -30095,6 +30146,9 @@ public class ChatActivity extends BaseFragment implements
         }
 
         paused = false;
+        if (pluginComposer != null) {
+            pluginComposer.refresh();
+        }
         pausedOnLastMessage = false;
         checkScrollForLoad(false);
         if (wasPaused) {
@@ -30221,6 +30275,9 @@ public class ChatActivity extends BaseFragment implements
         getMessagesController().markDialogAsReadNow(dialog_id, replyId);
         MediaController.getInstance().stopRaiseToEarSensors(this, true, true);
         paused = true;
+        if (pluginComposer != null) {
+            pluginComposer.refresh();
+        }
         wasPaused = true;
         if (chatMode == 0) {
             getNotificationsController().setOpenedDialogId(0, 0);

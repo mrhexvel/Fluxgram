@@ -16,6 +16,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
 
         sources = [
             *sorted((SOURCE / "api").glob("*.java")),
+            ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
             SOURCE / "JavaPluginUiResources.java",
             SOURCE / "JavaPluginUiStop.java",
             ROOT / "tests/java/JavaPluginUiResourcesCheck.java",
@@ -39,6 +40,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
 
         sources = [
             *sorted((SOURCE / "api").glob("*.java")),
+            ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
             SOURCE / "JavaPluginSession.java",
             ROOT / "tests/java/JavaPluginSessionCheck.java",
         ]
