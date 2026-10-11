@@ -42,6 +42,7 @@ class PluginCleanupTest(unittest.TestCase):
                 Storage=Resource,
                 StorageMigration=object,
             ),
+            "fluxgram.tasks": module("fluxgram.tasks", Tasks=Resource),
             "fluxgram.ui": module("fluxgram.ui", UI=Resource),
         }
         resources = types.SimpleNamespace(
@@ -52,6 +53,7 @@ class PluginCleanupTest(unittest.TestCase):
             call_ui=lambda callback: callback(),
             log=lambda plugin_id, message: None,
             storage=Resource(),
+            tasks=Resource(),
         )
         modules["fluxgram._runtime"] = module(
             "fluxgram._runtime",
@@ -75,12 +77,13 @@ class PluginCleanupTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "ui"):
             self.plugin._unload()
         self.assertEqual([resource.calls for resource in (
+            self.plugin.tasks,
             self.plugin.ui,
             self.plugin.client,
             self.plugin.events,
             self.plugin.storage,
             self.hook,
-        )], [1, 1, 1, 1, 1])
+        )], [1, 1, 1, 1, 1, 1])
 
     def test_retry_only_repeats_failed_steps(self):
         self.hook.failure = RuntimeError("hook failed")
@@ -90,6 +93,7 @@ class PluginCleanupTest(unittest.TestCase):
         self.plugin._unload()
         self.plugin._unload()
         self.assertEqual(self.hook.calls, 2)
+        self.assertEqual(self.plugin.tasks.calls, 1)
         self.assertEqual(self.plugin.ui.calls, 1)
         self.assertEqual(self.plugin.events.calls, 1)
         self.assertEqual(self.plugin.storage.calls, 1)

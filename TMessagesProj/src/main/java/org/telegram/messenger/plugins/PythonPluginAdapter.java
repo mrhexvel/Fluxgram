@@ -26,7 +26,7 @@ import java.util.concurrent.TimeoutException;
 
 public final class PythonPluginAdapter implements Plugin {
     private static final String TAG = "FluxGramPython";
-    private static final int MAILBOX_CAPACITY = 68;
+    private static final int MAILBOX_CAPACITY = 69;
     private final String id;
     private final String moduleName;
     private final int nameResId;
@@ -108,6 +108,7 @@ public final class PythonPluginAdapter implements Plugin {
     private final Semaphore eventSlots = new Semaphore(64);
     private final Semaphore storageSlots = new Semaphore(2);
     private final PythonPluginLifecycle lifecycle = new PythonPluginLifecycle();
+    private final PythonPluginTaskScheduler taskScheduler;
     private final LinkedHashMap<String, PendingSetting> pendingSettings = new LinkedHashMap<>();
     private boolean settingsDrainQueued;
     private PyObject bridge;
@@ -143,6 +144,20 @@ public final class PythonPluginAdapter implements Plugin {
                         runnable -> new Thread(runnable, "FluxGramPlugin-" + id));
 
         executor.allowCoreThreadTimeOut(true);
+        taskScheduler = new PythonPluginTaskScheduler(
+                id,
+                new PythonPluginTaskScheduler.Host() {
+                    @Override
+                    public boolean isGenerationActive(long generation) {
+                        return lifecycle.isCurrent(generation);
+                    }
+
+                    @Override
+                    public boolean enqueue(Runnable task) {
+                        return enqueueManagedTask(task);
+                    }
+                }
+        );
     }
 
     @Override
@@ -175,7 +190,10 @@ public final class PythonPluginAdapter implements Plugin {
             loadError = null;
         }
 
-        if (lifecycle.requestEnabled(enabled)) {
+        boolean reconcile = lifecycle.requestEnabled(enabled);
+        taskScheduler.cancelAll();
+
+        if (reconcile) {
             try {
                 executeControl(this::reconcile);
             } catch (RejectedExecutionException error) {
@@ -319,6 +337,8 @@ public final class PythonPluginAdapter implements Plugin {
             return;
         }
 
+        taskScheduler.cancelGeneration(request);
+
         loadError = message;
         org.telegram.messenger.AndroidUtilities.runOnUIThread(
                 () -> {
@@ -437,6 +457,7 @@ public final class PythonPluginAdapter implements Plugin {
         synchronized (this) {
             if (removal == null || (removal.isDone() && !executor.isShutdown())) {
                 lifecycle.beginRemoval();
+                taskScheduler.cancelAll();
                 pendingSettings.clear();
                 removal = new FutureTask<>(() -> {
                     try {
@@ -507,6 +528,44 @@ public final class PythonPluginAdapter implements Plugin {
         } catch (RejectedExecutionException error) {
             storageSlots.release();
             return lifecycle.isCurrent(generation) ? 1 : 2;
+        }
+    }
+
+    public int scheduleManagedTask(
+            long generation,
+            long taskId,
+            long delayMs,
+            long intervalMs,
+            PyObject callback,
+            PyObject completion) {
+        return taskScheduler.schedule(
+                generation,
+                taskId,
+                delayMs,
+                intervalMs,
+                callback,
+                completion
+        );
+    }
+
+    public void cancelManagedTask(long generation, long taskId) {
+        taskScheduler.cancel(generation, taskId);
+    }
+
+    public void cancelManagedTasks(long generation) {
+        taskScheduler.cancelGeneration(generation);
+    }
+
+    public boolean isManagedTaskActive(long generation, long taskId) {
+        return taskScheduler.isActive(generation, taskId);
+    }
+
+    private boolean enqueueManagedTask(Runnable task) {
+        try {
+            executor.execute(task);
+            return true;
+        } catch (RejectedExecutionException error) {
+            return false;
         }
     }
 

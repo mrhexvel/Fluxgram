@@ -5,6 +5,7 @@ from fluxgram._runtime import RuntimeBindings
 
 from ._event_bus import EventBus
 from ._storage import AndroidStoragePort
+from ._tasks import AndroidTasksPort
 from ._ui_thread import call_ui, post_ui
 from .client import Client
 
@@ -50,4 +51,5 @@ def create_runtime_bindings(plugin_id):
         call_ui=call_ui,
         log=_log,
         storage=AndroidStoragePort(plugin_id),
+        tasks=AndroidTasksPort(),
     )
