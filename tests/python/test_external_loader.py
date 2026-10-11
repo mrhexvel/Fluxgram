@@ -34,6 +34,11 @@ class PluginSettingChangedEvent:
         self.__dict__.update(values)
 
 
+class Record:
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+
 class ExternalLoaderTest(unittest.TestCase):
     def setUp(self):
         @contextmanager
@@ -47,7 +52,13 @@ class ExternalLoaderTest(unittest.TestCase):
         events = types.ModuleType("fluxgram.events")
         events.BeforeSendEvent = object
         events.EventContext = EventContext
+        events.MessageReceivedEvent = Record
         events.PluginSettingChangedEvent = PluginSettingChangedEvent
+        models = types.ModuleType("fluxgram.models")
+        models.ChatInfo = Record
+        models.ChatNotifications = Record
+        models.MessageInfo = Record
+        models.NotificationOverride = Record
         runtime = types.ModuleType("fluxgram._runtime")
         runtime.runtime_scope = runtime_scope
         runtime_package = types.ModuleType("fluxgram_runtime")
@@ -60,6 +71,7 @@ class ExternalLoaderTest(unittest.TestCase):
                 "fluxgram": package,
                 "fluxgram.plugin": plugin,
                 "fluxgram.events": events,
+                "fluxgram.models": models,
                 "fluxgram._runtime": runtime,
                 "fluxgram_runtime": runtime_package,
                 "fluxgram_runtime._bindings": bindings,
@@ -182,3 +194,54 @@ class ExternalLoaderTest(unittest.TestCase):
             ("typed", 2, 99, 7, "prefix", "Updated"),
         )
         self.assertEqual(calls[1], ("legacy", (plugin, "prefix", "Updated")))
+
+    def test_typed_message_snapshot_is_rebuilt_from_json(self):
+        calls = []
+        plugin = Plugin("test.messages")
+        plugin.events = types.SimpleNamespace(
+            _dispatch=lambda event: calls.append(event)
+        )
+        payload = """{
+            "chat": {
+                "id": -10,
+                "title": "Group",
+                "kind": "group",
+                "is_forum": true,
+                "archived": false,
+                "notifications": {
+                    "chat_override": {"mode": "muted", "mute_until": null},
+                    "topic_override": {"mode": "until", "mute_until": 123},
+                    "effective_muted": true
+                }
+            },
+            "message": {
+                "id": 7,
+                "dialog_id": -10,
+                "topic_id": 3,
+                "sender_id": 99,
+                "text": "Hello",
+                "outgoing": false,
+                "mentioned": true,
+                "is_reply": true,
+                "silent": false
+            }
+        }"""
+
+        self.bridge.dispatch_message_received(plugin, payload, 2, 88, 9)
+
+        event = calls[0]
+        self.assertEqual(
+            (
+                event.account,
+                event.context.account,
+                event.context.owner_id,
+                event.context.generation,
+                event.chat.id,
+                event.chat.kind,
+                event.chat.notifications.topic_override.mute_until,
+                event.message.id,
+                event.message.sender_id,
+                event.message.text,
+            ),
+            (2, 2, 88, 9, -10, "group", 123, 7, 99, "Hello"),
+        )

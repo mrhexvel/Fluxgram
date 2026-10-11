@@ -44,6 +44,11 @@ class PluginRuntimeTest(unittest.TestCase):
         self.assertIn("new PendingSetting(request, account, ownerId, value)", source)
         self.assertIn("getClientUserId() != pending.ownerId", source)
         self.assertIn('"dispatch_setting_changed"', source)
+        self.assertIn("void messageReceived(PluginMessageReceivedEvent event)", source)
+        self.assertIn('"dispatch_message_received"', source)
+        self.assertIn("setMessageReceivedSubscriptionActive", source)
+        self.assertIn("eventSlots.tryAcquire()", source)
+        self.assertIn("getClientUserId() != ownerId", source)
         self.assertGreaterEqual(source.count("lifecycle.isCurrent(request)"), 5)
 
 

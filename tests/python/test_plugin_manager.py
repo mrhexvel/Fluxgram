@@ -54,6 +54,17 @@ public class FileLog {
     }
 }
 """,
+            "org/telegram/messenger/plugins/PluginMessageReceivedEvent.java": """package org.telegram.messenger.plugins;
+
+public final class PluginMessageReceivedEvent {}
+""",
+            "org/telegram/messenger/plugins/PluginMessageEvents.java": """package org.telegram.messenger.plugins;
+
+final class PluginMessageEvents {
+
+    static void initialize() {}
+}
+""",
             "RegistryCheck.java": """import android.content.*;
 
 import org.telegram.messenger.plugins.*;

@@ -39,6 +39,7 @@ public final class PluginManager {
 
         preferences = context.getSharedPreferences("fluxgram_plugins", Context.MODE_PRIVATE);
         systemEnabled = preferences.getBoolean("system.enabled", false);
+        PluginMessageEvents.initialize();
     }
 
     public boolean isSystemEnabled() {
@@ -183,6 +184,42 @@ public final class PluginManager {
         }
 
         return result;
+    }
+
+    synchronized boolean hasMessageReceivedPlugins() {
+        if (!systemEnabled) {
+            return false;
+        }
+
+        for (Entry entry : plugins.values()) {
+            if (entry.enabled && entry.plugin.hasMessageReceivedSubscribers()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void messageReceived(PluginMessageReceivedEvent event) {
+        ArrayList<Entry> snapshot;
+
+        synchronized (this) {
+            snapshot = new ArrayList<>(plugins.values());
+        }
+
+        for (Entry entry : snapshot) {
+            if (!systemEnabled
+                    || !entry.enabled
+                    || !entry.plugin.hasMessageReceivedSubscribers()) {
+                continue;
+            }
+
+            try {
+                entry.plugin.messageReceived(event);
+            } catch (Exception e) {
+                FileLog.e("FluxGram message_received plugin failed: " + entry.id, e);
+            }
+        }
     }
 
     public void beforeSend(BeforeSendEvent event) {

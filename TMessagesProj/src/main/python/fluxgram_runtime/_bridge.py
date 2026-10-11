@@ -8,8 +8,10 @@ from pathlib import Path
 from fluxgram.events import (
     BeforeSendEvent,
     EventContext,
+    MessageReceivedEvent,
     PluginSettingChangedEvent,
 )
+from fluxgram.models import ChatInfo, ChatNotifications, MessageInfo, NotificationOverride
 from fluxgram.plugin import Plugin
 from fluxgram._runtime import runtime_scope
 
@@ -160,3 +162,93 @@ def dispatch_setting_changed(
         ))
 
     plugin.settings._dispatch_changed(plugin, key, value)
+
+
+def dispatch_message_received(
+        plugin,
+        payload,
+        account,
+        owner_id,
+        generation,
+):
+    data = json.loads(str(payload))
+    chat_data = data["chat"]
+    message_data = data["message"]
+    notifications_data = chat_data["notifications"]
+    chat_override_data = notifications_data["chat_override"]
+    topic_override_data = notifications_data.get("topic_override")
+    context = EventContext(
+        account=int(account),
+        owner_id=int(owner_id),
+        generation=int(generation),
+    )
+    chat_override = NotificationOverride(
+        mode=str(chat_override_data["mode"]),
+        mute_until=(
+            int(chat_override_data["mute_until"])
+            if chat_override_data.get("mute_until") is not None
+            else None
+        ),
+    )
+    topic_override = (
+        NotificationOverride(
+            mode=str(topic_override_data["mode"]),
+            mute_until=(
+                int(topic_override_data["mute_until"])
+                if topic_override_data.get("mute_until") is not None
+                else None
+            ),
+        )
+        if topic_override_data is not None
+        else None
+    )
+    notifications = ChatNotifications(
+        chat_override=chat_override,
+        topic_override=topic_override,
+        effective_muted=(
+            bool(notifications_data["effective_muted"])
+            if notifications_data.get("effective_muted") is not None
+            else None
+        ),
+    )
+    chat = ChatInfo(
+        id=int(chat_data["id"]),
+        title=(
+            str(chat_data["title"])
+            if chat_data.get("title") is not None
+            else None
+        ),
+        kind=str(chat_data["kind"]),
+        is_forum=(
+            bool(chat_data["is_forum"])
+            if chat_data.get("is_forum") is not None
+            else None
+        ),
+        archived=(
+            bool(chat_data["archived"])
+            if chat_data.get("archived") is not None
+            else None
+        ),
+        notifications=notifications,
+    )
+    message = MessageInfo(
+        id=int(message_data["id"]),
+        dialog_id=int(message_data["dialog_id"]),
+        topic_id=int(message_data["topic_id"]),
+        sender_id=(
+            int(message_data["sender_id"])
+            if message_data.get("sender_id") is not None
+            else None
+        ),
+        text=str(message_data["text"]),
+        outgoing=bool(message_data["outgoing"]),
+        mentioned=bool(message_data["mentioned"]),
+        is_reply=bool(message_data["is_reply"]),
+        silent=bool(message_data["silent"]),
+    )
+    plugin.events._dispatch(MessageReceivedEvent(
+        account=context.account,
+        chat=chat,
+        message=message,
+        context=context,
+    ))

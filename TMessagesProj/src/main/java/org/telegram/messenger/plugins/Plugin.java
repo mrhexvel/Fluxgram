@@ -21,5 +21,11 @@ public interface Plugin {
 
     default void onEnabledChanged(boolean enabled) {}
 
+    default void messageReceived(PluginMessageReceivedEvent event) {}
+
+    default boolean hasMessageReceivedSubscribers() {
+        return false;
+    }
+
     void beforeSend(BeforeSendEvent event);
 }

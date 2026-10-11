@@ -111,10 +111,12 @@ public final class PythonPluginAdapter implements Plugin {
     private final PythonPluginLifecycle lifecycle = new PythonPluginLifecycle();
     private final PythonPluginTaskScheduler taskScheduler;
     private final LinkedHashMap<String, PendingSetting> pendingSettings = new LinkedHashMap<>();
+    private final LinkedHashMap<String, Boolean> observedMessages = new LinkedHashMap<>();
     private boolean settingsDrainQueued;
     private PyObject bridge;
     private PyObject instance;
     private FutureTask<Void> removal;
+    private volatile boolean messageReceivedSubscribers;
 
     private static final class PendingSetting {
         final long generation;
@@ -197,6 +199,8 @@ public final class PythonPluginAdapter implements Plugin {
 
         boolean reconcile = lifecycle.requestEnabled(enabled);
         taskScheduler.cancelAll();
+        observedMessages.clear();
+        messageReceivedSubscribers = false;
 
         if (reconcile) {
             try {
@@ -653,5 +657,83 @@ public final class PythonPluginAdapter implements Plugin {
             eventSlots.release();
             Log.w(TAG, "[" + id + "] Event rejected", error);
         }
+    }
+
+    @Override
+    public synchronized void messageReceived(PluginMessageReceivedEvent event) {
+        if (!lifecycle.isEnabled() || !messageReceivedSubscribers) {
+            return;
+        }
+
+        String key = event.account
+                + ":" + event.ownerId
+                + ":" + event.dialogId
+                + ":" + event.messageId;
+
+        if (observedMessages.containsKey(key)) {
+            return;
+        }
+
+        if (!eventSlots.tryAcquire()) {
+            Log.w(TAG, "[" + id + "] Queue full; message event skipped");
+
+            return;
+        }
+
+        observedMessages.put(key, true);
+
+        if (observedMessages.size() > 512) {
+            Iterator<String> iterator = observedMessages.keySet().iterator();
+            iterator.next();
+            iterator.remove();
+        }
+
+        final long request = lifecycle.getGeneration();
+        final long ownerId = event.ownerId;
+
+        try {
+            executor.execute(
+                    () -> {
+                        try {
+                            if (!lifecycle.isCurrent(request) || instance == null) {
+                                return;
+                            }
+
+                            if (UserConfig.getInstance(event.account).getClientUserId() != ownerId) {
+                                return;
+                            }
+
+                            bridge.callAttr(
+                                    "dispatch_message_received",
+                                    instance,
+                                    event.toJson(),
+                                    event.account,
+                                    ownerId,
+                                    request
+                            );
+                        } catch (Exception | LinkageError error) {
+                            Log.e(TAG, "[" + id + "] Message event handler failed", error);
+                        } finally {
+                            eventSlots.release();
+                        }
+                    });
+        } catch (RejectedExecutionException error) {
+            eventSlots.release();
+            observedMessages.remove(key);
+            Log.w(TAG, "[" + id + "] Message event rejected", error);
+        }
+    }
+
+    public synchronized void setMessageReceivedSubscriptionActive(
+            long generation,
+            boolean active) {
+        if (lifecycle.isCurrent(generation)) {
+            messageReceivedSubscribers = active;
+        }
+    }
+
+    @Override
+    public boolean hasMessageReceivedSubscribers() {
+        return messageReceivedSubscribers;
     }
 }
