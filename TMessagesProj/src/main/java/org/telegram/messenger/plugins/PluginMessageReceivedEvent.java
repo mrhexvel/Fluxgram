@@ -196,42 +196,46 @@ public final class PluginMessageReceivedEvent {
 
     public String toJson() {
         try {
-            JSONObject message = new JSONObject();
-            message.put("id", messageId);
-            message.put("dialog_id", dialogId);
-            message.put("topic_id", topicId);
-            putNullable(message, "sender_id", senderId);
-            message.put("text", text);
-            message.put("outgoing", outgoing);
-            message.put("mentioned", mentioned);
-            message.put("is_reply", reply);
-            message.put("silent", silent);
-
-            JSONObject notifications = new JSONObject();
-            notifications.put("chat_override", overrideToJson(chatOverride));
-            putNullable(
-                    notifications,
-                    "topic_override",
-                    topicOverride == null ? null : overrideToJson(topicOverride)
-            );
-            putNullable(notifications, "effective_muted", effectiveMuted);
-
-            JSONObject chat = new JSONObject();
-            chat.put("id", dialogId);
-            putNullable(chat, "title", chatTitle);
-            chat.put("kind", chatKind);
-            putNullable(chat, "is_forum", chatForum);
-            putNullable(chat, "archived", chatArchived);
-            chat.put("notifications", notifications);
-
-            JSONObject result = new JSONObject();
-            result.put("chat", chat);
-            result.put("message", message);
-
-            return result.toString();
+            return toJsonObject().toString();
         } catch (JSONException error) {
             throw new IllegalStateException("Could not serialize message event", error);
         }
+    }
+
+    JSONObject toJsonObject() throws JSONException {
+        JSONObject message = new JSONObject();
+        message.put("id", messageId);
+        message.put("dialog_id", dialogId);
+        message.put("topic_id", topicId);
+        putNullable(message, "sender_id", senderId);
+        message.put("text", text);
+        message.put("outgoing", outgoing);
+        message.put("mentioned", mentioned);
+        message.put("is_reply", reply);
+        message.put("silent", silent);
+
+        JSONObject notifications = new JSONObject();
+        notifications.put("chat_override", overrideToJson(chatOverride));
+        putNullable(
+                notifications,
+                "topic_override",
+                topicOverride == null ? null : overrideToJson(topicOverride)
+        );
+        putNullable(notifications, "effective_muted", effectiveMuted);
+
+        JSONObject chat = new JSONObject();
+        chat.put("id", dialogId);
+        putNullable(chat, "title", chatTitle);
+        chat.put("kind", chatKind);
+        putNullable(chat, "is_forum", chatForum);
+        putNullable(chat, "archived", chatArchived);
+        chat.put("notifications", notifications);
+
+        JSONObject result = new JSONObject();
+        result.put("chat", chat);
+        result.put("message", message);
+
+        return result;
     }
 
     private static JSONObject overrideToJson(NotificationOverride override)

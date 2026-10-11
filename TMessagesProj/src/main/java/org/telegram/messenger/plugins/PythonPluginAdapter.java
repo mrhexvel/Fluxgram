@@ -117,6 +117,7 @@ public final class PythonPluginAdapter implements Plugin {
     private PyObject instance;
     private FutureTask<Void> removal;
     private volatile boolean messageReceivedSubscribers;
+    private volatile boolean messageEditedSubscribers;
 
     private static final class PendingSetting {
         final long generation;
@@ -201,6 +202,7 @@ public final class PythonPluginAdapter implements Plugin {
         taskScheduler.cancelAll();
         observedMessages.clear();
         messageReceivedSubscribers = false;
+        messageEditedSubscribers = false;
 
         if (reconcile) {
             try {
@@ -735,5 +737,65 @@ public final class PythonPluginAdapter implements Plugin {
     @Override
     public boolean hasMessageReceivedSubscribers() {
         return messageReceivedSubscribers;
+    }
+
+    @Override
+    public synchronized void messageEdited(PluginMessageEditedEvent event) {
+        if (!lifecycle.isEnabled() || !messageEditedSubscribers) {
+            return;
+        }
+
+        if (!eventSlots.tryAcquire()) {
+            Log.w(TAG, "[" + id + "] Queue full; message edited event skipped");
+
+            return;
+        }
+
+        final long request = lifecycle.getGeneration();
+        final long ownerId = event.ownerId;
+
+        try {
+            executor.execute(
+                    () -> {
+                        try {
+                            if (!lifecycle.isCurrent(request) || instance == null) {
+                                return;
+                            }
+
+                            if (UserConfig.getInstance(event.account).getClientUserId() != ownerId) {
+                                return;
+                            }
+
+                            bridge.callAttr(
+                                    "dispatch_message_edited",
+                                    instance,
+                                    event.toJson(),
+                                    event.account,
+                                    ownerId,
+                                    request
+                            );
+                        } catch (Exception | LinkageError error) {
+                            Log.e(TAG, "[" + id + "] Message edited event handler failed", error);
+                        } finally {
+                            eventSlots.release();
+                        }
+                    });
+        } catch (RejectedExecutionException error) {
+            eventSlots.release();
+            Log.w(TAG, "[" + id + "] Message edited event rejected", error);
+        }
+    }
+
+    public synchronized void setMessageEditedSubscriptionActive(
+            long generation,
+            boolean active) {
+        if (lifecycle.isCurrent(generation)) {
+            messageEditedSubscribers = active;
+        }
+    }
+
+    @Override
+    public boolean hasMessageEditedSubscribers() {
+        return messageEditedSubscribers;
     }
 }

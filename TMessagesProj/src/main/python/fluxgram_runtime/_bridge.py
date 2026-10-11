@@ -8,6 +8,7 @@ from pathlib import Path
 from fluxgram.events import (
     BeforeSendEvent,
     EventContext,
+    MessageEditedEvent,
     MessageReceivedEvent,
     PluginSettingChangedEvent,
 )
@@ -171,17 +172,49 @@ def dispatch_message_received(
         owner_id,
         generation,
 ):
+    data, chat, message = _decode_message_snapshot(payload)
+    context = EventContext(
+        account=int(account),
+        owner_id=int(owner_id),
+        generation=int(generation),
+    )
+    plugin.events._dispatch(MessageReceivedEvent(
+        account=context.account,
+        chat=chat,
+        message=message,
+        context=context,
+    ))
+
+
+def dispatch_message_edited(
+        plugin,
+        payload,
+        account,
+        owner_id,
+        generation,
+):
+    data, chat, message = _decode_message_snapshot(payload)
+    context = EventContext(
+        account=int(account),
+        owner_id=int(owner_id),
+        generation=int(generation),
+    )
+    plugin.events._dispatch(MessageEditedEvent(
+        account=context.account,
+        chat=chat,
+        message=message,
+        edit_date=int(data["edit_date"]),
+        context=context,
+    ))
+
+
+def _decode_message_snapshot(payload):
     data = json.loads(str(payload))
     chat_data = data["chat"]
     message_data = data["message"]
     notifications_data = chat_data["notifications"]
     chat_override_data = notifications_data["chat_override"]
     topic_override_data = notifications_data.get("topic_override")
-    context = EventContext(
-        account=int(account),
-        owner_id=int(owner_id),
-        generation=int(generation),
-    )
     chat_override = NotificationOverride(
         mode=str(chat_override_data["mode"]),
         mute_until=(
@@ -246,9 +279,5 @@ def dispatch_message_received(
         is_reply=bool(message_data["is_reply"]),
         silent=bool(message_data["silent"]),
     )
-    plugin.events._dispatch(MessageReceivedEvent(
-        account=context.account,
-        chat=chat,
-        message=message,
-        context=context,
-    ))
+
+    return data, chat, message

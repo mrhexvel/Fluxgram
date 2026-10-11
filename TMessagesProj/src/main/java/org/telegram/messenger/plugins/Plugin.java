@@ -27,5 +27,11 @@ public interface Plugin {
         return false;
     }
 
+    default void messageEdited(PluginMessageEditedEvent event) {}
+
+    default boolean hasMessageEditedSubscribers() {
+        return false;
+    }
+
     void beforeSend(BeforeSendEvent event);
 }

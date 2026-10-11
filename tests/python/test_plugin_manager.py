@@ -58,6 +58,10 @@ public class FileLog {
 
 public final class PluginMessageReceivedEvent {}
 """,
+            "org/telegram/messenger/plugins/PluginMessageEditedEvent.java": """package org.telegram.messenger.plugins;
+
+public final class PluginMessageEditedEvent {}
+""",
             "org/telegram/messenger/plugins/PluginMessageEvents.java": """package org.telegram.messenger.plugins;
 
 final class PluginMessageEvents {

@@ -52,6 +52,7 @@ class ExternalLoaderTest(unittest.TestCase):
         events = types.ModuleType("fluxgram.events")
         events.BeforeSendEvent = object
         events.EventContext = EventContext
+        events.MessageEditedEvent = Record
         events.MessageReceivedEvent = Record
         events.PluginSettingChangedEvent = PluginSettingChangedEvent
         models = types.ModuleType("fluxgram.models")
@@ -244,4 +245,53 @@ class ExternalLoaderTest(unittest.TestCase):
                 event.message.text,
             ),
             (2, 2, 88, 9, -10, "group", 123, 7, 99, "Hello"),
+        )
+
+    def test_typed_message_edited_snapshot_is_rebuilt_from_json(self):
+        calls = []
+        plugin = Plugin("test.message-edits")
+        plugin.events = types.SimpleNamespace(
+            _dispatch=lambda event: calls.append(event)
+        )
+        payload = """{
+            "edit_date": 123456,
+            "chat": {
+                "id": 10,
+                "title": "Alice",
+                "kind": "private",
+                "is_forum": false,
+                "archived": false,
+                "notifications": {
+                    "chat_override": {"mode": "inherit", "mute_until": null},
+                    "topic_override": null,
+                    "effective_muted": false
+                }
+            },
+            "message": {
+                "id": 8,
+                "dialog_id": 10,
+                "topic_id": 0,
+                "sender_id": 10,
+                "text": "Edited",
+                "outgoing": true,
+                "mentioned": false,
+                "is_reply": false,
+                "silent": false
+            }
+        }"""
+
+        self.bridge.dispatch_message_edited(plugin, payload, 1, 77, 5)
+
+        event = calls[0]
+        self.assertEqual(
+            (
+                event.account,
+                event.context.owner_id,
+                event.context.generation,
+                event.message.id,
+                event.message.outgoing,
+                event.message.text,
+                event.edit_date,
+            ),
+            (1, 77, 5, 8, True, "Edited", 123456),
         )

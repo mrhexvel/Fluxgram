@@ -21206,6 +21206,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                     getMediaDataController().loadReplyMessagesForMessages(arrayList, dialogId, 0, 0,null, 0, null);
                     getNotificationCenter().postNotificationName(NotificationCenter.replaceMessagesObjects, dialogId, arrayList, false);
+                    getNotificationCenter().postNotificationName(NotificationCenter.fluxgramMessageEdited, dialogId, arrayList);
                 }
             }
 

@@ -43,6 +43,7 @@ public class NotificationCenter {
     public static final int closeProfileActivity = totalEvents++;
     public static final int messagesDeleted = totalEvents++;
     public static final int fluxgramAttachmentsChanged = totalEvents++;
+    public static final int fluxgramMessageEdited = totalEvents++;
     public static final int historyCleared = totalEvents++;
     public static final int messagesRead = totalEvents++;
     public static final int threadMessagesRead = totalEvents++;

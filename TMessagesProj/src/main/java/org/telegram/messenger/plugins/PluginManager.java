@@ -222,6 +222,42 @@ public final class PluginManager {
         }
     }
 
+    synchronized boolean hasMessageEditedPlugins() {
+        if (!systemEnabled) {
+            return false;
+        }
+
+        for (Entry entry : plugins.values()) {
+            if (entry.enabled && entry.plugin.hasMessageEditedSubscribers()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void messageEdited(PluginMessageEditedEvent event) {
+        ArrayList<Entry> snapshot;
+
+        synchronized (this) {
+            snapshot = new ArrayList<>(plugins.values());
+        }
+
+        for (Entry entry : snapshot) {
+            if (!systemEnabled
+                    || !entry.enabled
+                    || !entry.plugin.hasMessageEditedSubscribers()) {
+                continue;
+            }
+
+            try {
+                entry.plugin.messageEdited(event);
+            } catch (Exception e) {
+                FileLog.e("FluxGram message_edited plugin failed: " + entry.id, e);
+            }
+        }
+    }
+
     public void beforeSend(BeforeSendEvent event) {
         ArrayList<Entry> snapshot;
 
