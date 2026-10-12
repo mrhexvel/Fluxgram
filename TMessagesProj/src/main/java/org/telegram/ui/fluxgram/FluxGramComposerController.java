@@ -18,6 +18,8 @@ import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.ForegroundDetector;
 import org.telegram.ui.Components.EditTextCaption;
@@ -45,6 +47,10 @@ public final class FluxGramComposerController implements TextWatcher,
     private int changeRemoved;
     private int changeInserted;
     private long textRevision;
+    private ComposerTextLayoutSnapshot pendingLayoutBefore;
+    private String pendingLayoutAfterText;
+    private boolean pendingLayoutChange;
+    private boolean pendingLayoutCoalesced;
 
     public FluxGramComposerController(EditText field, int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
@@ -182,6 +188,7 @@ public final class FluxGramComposerController implements TextWatcher,
 
         inputChanges.reset();
         beforeText = null;
+        clearPendingLayout();
     }
 
     public void drawText(EditTextCaption source, Canvas canvas, Consumer<Canvas> nativeDraw) {
@@ -235,6 +242,7 @@ public final class FluxGramComposerController implements TextWatcher,
         refresh();
 
         if (surface != null) {
+            deliverTextLayout();
             surface.prepareText();
         }
 
@@ -260,6 +268,19 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         beforeText = null;
+
+        if (surface != null && surface.hasTextLayoutEffect() && field instanceof EditTextCaption
+                && text != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
+            if (!pendingLayoutChange) {
+                pendingLayoutChange = true;
+                pendingLayoutBefore = ComposerTextLayoutSnapshots.capture(
+                        (EditTextCaption) field, textRevision, text.toString());
+            } else {
+                pendingLayoutCoalesced = true;
+            }
+        } else {
+            clearPendingLayout();
+        }
 
         if (surface != null && surface.hasTextEffect() && text != null
                 && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH
@@ -301,11 +322,69 @@ public final class FluxGramComposerController implements TextWatcher,
                 }
 
                 surface.textChanged(change);
+
+                if (pendingLayoutBefore != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
+                    pendingLayoutAfterText = text.toString();
+                } else {
+                    clearPendingLayout();
+                }
             }
         } else {
             inputChanges.reset();
+            clearPendingLayout();
         }
 
         beforeText = null;
+    }
+
+    private void deliverTextLayout() {
+        if (pendingLayoutBefore == null || pendingLayoutAfterText == null
+                || !(field instanceof EditTextCaption) || surface == null
+                || !surface.hasTextLayoutEffect()) {
+            return;
+        }
+
+        ComposerTextLayoutSnapshot before = pendingLayoutBefore;
+        String afterText = pendingLayoutAfterText;
+        boolean coalesced = pendingLayoutCoalesced;
+        ComposerTextLayoutSnapshot after = ComposerTextLayoutSnapshots.capture(
+                (EditTextCaption) field, textRevision, afterText);
+        clearPendingLayout();
+
+        if (after == null) {
+            return;
+        }
+
+        int prefix = 0;
+        int beforeLength = before.text.length();
+        int afterLength = after.text.length();
+        int sharedLength = Math.min(beforeLength, afterLength);
+
+        while (prefix < sharedLength && before.text.charAt(prefix) == after.text.charAt(prefix)) {
+            prefix++;
+        }
+
+        int suffix = 0;
+
+        while (suffix < beforeLength - prefix && suffix < afterLength - prefix
+                && before.text.charAt(beforeLength - suffix - 1) == after.text.charAt(afterLength - suffix - 1)) {
+            suffix++;
+        }
+
+        surface.textLayoutChanged(new ComposerTextLayoutChange(
+                after.revision,
+                before,
+                after,
+                prefix,
+                beforeLength - prefix - suffix,
+                afterLength - prefix - suffix,
+                coalesced));
+    }
+
+    private void clearPendingLayout() {
+        pendingLayoutBefore = null;
+        pendingLayoutAfterText = null;
+        pendingLayoutChange = false;
+        pendingLayoutCoalesced = false;
     }
 }

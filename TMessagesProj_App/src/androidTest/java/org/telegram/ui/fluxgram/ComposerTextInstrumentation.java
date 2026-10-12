@@ -29,6 +29,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Components.EditTextCaption;
@@ -106,6 +107,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 staleAndFallbackCase();
                 imeCase();
                 replayFailureCase();
+                layoutSnapshotCase();
             });
 
             if (Build.VERSION.SDK_INT >= 26) {
@@ -197,6 +199,20 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 new ComposerTextPresentation(0, 0, 1));
         require(nativeDraws.get() == 1 && !capture.isValid(), "replay fallback was not single-pass native");
         image.recycle();
+        cases++;
+    }
+
+    private void layoutSnapshotCase() {
+        setText("ab\n\u05d0\u05d1");
+        ComposerTextLayoutSnapshot snapshot = ComposerTextLayoutSnapshots.capture(
+                field, 11, "ab\n\u05d0\u05d1");
+        require(snapshot != null && snapshot.revision == 11 && snapshot.getLineCount() == 2,
+                "layout snapshot lines");
+        require(!snapshot.getLine(0).rtl && snapshot.getLine(1).rtl,
+                "layout snapshot directions");
+        field.getText().setSpan(new StyleSpan(Typeface.BOLD), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        snapshot = ComposerTextLayoutSnapshots.capture(field, 12, "ab\n\u05d0\u05d1");
+        require(snapshot != null && snapshot.unsupportedSpans, "unsupported span was not reported");
         cases++;
     }
 

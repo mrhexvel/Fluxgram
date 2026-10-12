@@ -15,6 +15,8 @@ import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 
 import java.util.ArrayList;
@@ -184,6 +186,14 @@ public final class PluginComposerRegistry {
             }
         }
 
+        public void textLayoutChanged(ComposerTextLayoutChange change) {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                binding.textLayoutChanged(change);
+            }
+        }
+
         public void drawText(Canvas canvas, Consumer<Canvas> nativeDraw) {
             requireUi();
 
@@ -235,6 +245,18 @@ public final class PluginComposerRegistry {
 
             for (Binding binding : snapshot) {
                 if (binding.registration.text) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public boolean hasTextLayoutEffect() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.registration.text && binding.effect instanceof ComposerTextLayoutEffect) {
                     return true;
                 }
             }
@@ -484,6 +506,23 @@ public final class PluginComposerRegistry {
                 textCapture = surface.host.captureText(candidate, expectedText);
             } catch (Exception | LinkageError | AssertionError error) {
                 Log.e("FluxGramComposer", "Native text capture failed", error);
+            }
+        }
+
+        void textLayoutChanged(ComposerTextLayoutChange change) {
+            if (!registration.text || !isActive() || !(effect instanceof ComposerTextLayoutEffect)
+                    || change == null) {
+                return;
+            }
+
+            long start = System.nanoTime();
+
+            try {
+                ((ComposerTextLayoutEffect) effect).onTextLayoutChanged(change);
+            } catch (Exception | LinkageError | AssertionError error) {
+                registration.quarantine(error);
+            } finally {
+                record(start);
             }
         }
 

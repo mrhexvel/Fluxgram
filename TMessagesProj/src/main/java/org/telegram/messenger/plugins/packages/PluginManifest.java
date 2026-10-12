@@ -17,7 +17,7 @@ public final class PluginManifest {
     public static final int SDK_VERSION = 2;
     public static final int SDK_MINOR_VERSION = 9;
     public static final int JAVA_API_VERSION = 1;
-    public static final int JAVA_API_MINOR_VERSION = 3;
+    public static final int JAVA_API_MINOR_VERSION = 4;
     public final int schemaVersion, sdkVersion, minSdkMinor;
     public final String access = "full";
     public final String id, name, version, description, author, entrypoint, icon;

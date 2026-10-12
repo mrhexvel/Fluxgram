@@ -11,6 +11,10 @@ import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
+import org.telegram.messenger.plugins.api.ComposerTextLineSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 
 import java.util.ArrayList;
@@ -179,7 +183,7 @@ public final class ComposerRegistryCheck {
         }
     }
 
-    private static final class TextEffect extends Effect implements ComposerTextEffect {
+    private static class TextEffect extends Effect implements ComposerTextEffect {
         ComposerSurface surface;
         ComposerTextChange change;
         ComposerTextCapture capture;
@@ -206,6 +210,15 @@ public final class ComposerRegistryCheck {
         public ComposerTextPresentation present(ComposerTextCapture value) {
             capture = value;
             return presentation;
+        }
+    }
+
+    private static final class LayoutTextEffect extends TextEffect implements ComposerTextLayoutEffect {
+        ComposerTextLayoutChange layoutChange;
+
+        @Override
+        public void onTextLayoutChanged(ComposerTextLayoutChange value) {
+            layoutChange = value;
         }
     }
 
@@ -321,6 +334,7 @@ public final class ComposerRegistryCheck {
         Host textHost = new Host();
         surface = PluginComposerRegistry.attach(textHost);
         require(surface.hasTextEffect(), "text owner not attached");
+        require(!surface.hasTextLayoutEffect(), "legacy text effect became layout-aware");
         ComposerTextChange change = new ComposerTextChange(7, "ab", "abc", 2, 0, 1, 3, 3, -1, -1);
         surface.textChanged(change);
         surface.prepareText();
@@ -354,6 +368,36 @@ public final class ComposerRegistryCheck {
         require(nativeDraws[0] == 3 && text.closes == 1, "invalid presentation did not fail closed");
         surface.close();
         textRegistration.close();
+
+        LayoutTextEffect layoutText = new LayoutTextEffect();
+        AutoCloseable layoutTextRegistration = PluginComposerRegistry.registerText(
+                "test.text.layout", () -> true, context -> {
+                    layoutText.surface = context;
+                    return layoutText;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        require(surface.hasTextLayoutEffect(), "layout text effect not attached");
+        ComposerTextLineSnapshot[] sourceLines = {
+                new ComposerTextLineSnapshot(0, 2, 2, 4, 20, 3, 18, 15, false)
+        };
+        ComposerTextLayoutSnapshot beforeLayout = new ComposerTextLayoutSnapshot(
+                20, "ab", 2, 2, -1, -1, 100, 40, 4, 3, 0, 0,
+                false, false, sourceLines);
+        sourceLines[0] = null;
+        require(beforeLayout.getLineCount() == 1 && beforeLayout.getLine(0) != null,
+                "layout snapshot retained mutable line array");
+        ComposerTextLayoutSnapshot afterLayout = new ComposerTextLayoutSnapshot(
+                21, "abc", 3, 3, -1, -1, 100, 40, 4, 3, 0, 0,
+                false, false, new ComposerTextLineSnapshot[] {
+                        new ComposerTextLineSnapshot(0, 3, 3, 4, 28, 3, 18, 15, false)
+                });
+        ComposerTextLayoutChange layoutChange = new ComposerTextLayoutChange(
+                21, beforeLayout, afterLayout, 2, 0, 1, false);
+        surface.textLayoutChanged(layoutChange);
+        require(layoutText.layoutChange == layoutChange && layoutText.layoutChange.after.revision == 21,
+                "layout change was not delivered");
+        surface.close();
+        layoutTextRegistration.close();
 
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 
