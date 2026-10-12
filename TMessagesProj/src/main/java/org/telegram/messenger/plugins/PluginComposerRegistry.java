@@ -660,6 +660,9 @@ public final class PluginComposerRegistry {
                     || presentation.pivotX > width
                     || !Float.isFinite(presentation.pivotY) || presentation.pivotY < 0
                     || presentation.pivotY > height
+                    || !Float.isFinite(presentation.tintAmount)
+                    || presentation.tintAmount < 0 || presentation.tintAmount > 1
+                    || (presentation.tintAmount > 0 && (presentation.tintColor >>> 24) != 0xFF)
                     || Math.abs(presentation.translationX) > limit
                     || Math.abs(presentation.translationY) > limit
                     || !validTransformedBounds(presentation, capture, limit)) {

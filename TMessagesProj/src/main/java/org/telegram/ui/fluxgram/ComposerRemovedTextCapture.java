@@ -24,6 +24,7 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
     private final int start;
     private final int end;
     private final float baseline;
+    private final ComposerTextLayer layer = new ComposerTextLayer();
     private boolean failed;
 
     private ComposerRemovedTextCapture(
@@ -168,9 +169,7 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
             canvas.translate(ink.left, ink.top);
             ComposerNativeTextCapture.applyTransform(canvas, presentation);
 
-            if (presentation.alpha < 1) {
-                canvas.saveLayerAlpha(0, 0, ink.width(), ink.height(), Math.round(255 * presentation.alpha));
-            }
+            layer.save(canvas, ink.width(), ink.height(), presentation);
 
             if (presentation.alpha > 0) {
                 canvas.drawPicture(picture);

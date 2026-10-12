@@ -105,6 +105,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
             onUi(() -> {
                 identityAndSuppressionCase();
                 affineReplayCase();
+                tintReplayCase();
                 staleAndFallbackCase();
                 imeCase();
                 replayFailureCase();
@@ -221,6 +222,34 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 new ComposerTextPresentation(0, 0, 1));
         require(nativeDraws.get() == 1 && !capture.isValid(), "replay fallback was not single-pass native");
         image.recycle();
+        cases++;
+    }
+
+    private void tintReplayCase() {
+        setText("HH");
+        Bitmap original = software();
+        ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
+                field, new ComposerTextCandidate(16, 1, 2), "HH");
+        require(capture != null, "tint capture rejected");
+        field.capture = capture;
+        field.presentation = new ComposerTextPresentation(
+                0, 0, 1, 1, 1, 0, 0, 0, Color.RED, 1);
+        Bitmap tinted = software();
+        require(redPixels(tinted) > 10, "tint replay did not recolor captured text");
+        field.presentation = new ComposerTextPresentation(
+                0, 0, 1, 1, 1, 0, 0, 0, Color.RED, 0);
+        Bitmap restored = software();
+        compare(original, restored, 0);
+        field.presentation = new ComposerTextPresentation(
+                0, 0, 1, 1, 1, 0, 0, 0, Color.RED, 1);
+        Bitmap tintedAgain = software();
+        require(redPixels(tintedAgain) > 10, "tint replay was not restored after zero amount");
+        require(field.getText().toString().equals("HH"), "tint replay mutated Editable");
+        clearCapture();
+        original.recycle();
+        tinted.recycle();
+        restored.recycle();
+        tintedAgain.recycle();
         cases++;
     }
 
@@ -407,6 +436,24 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         for (int y = 0; y < image.getHeight(); y++) {
             for (int x = 0; x < image.getWidth(); x++) {
                 if (Color.alpha(image.getPixel(x, y)) != 0) {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static int redPixels(Bitmap image) {
+        int count = 0;
+
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int color = image.getPixel(x, y);
+
+                if (Color.red(color) > Color.green(color) * 2
+                        && Color.red(color) > Color.blue(color) * 2
+                        && Color.alpha(color) > 20) {
                     count++;
                 }
             }

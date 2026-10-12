@@ -435,12 +435,14 @@ public final class ComposerRegistryCheck {
         surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
         require(nativeDraws[0] == 2, "native fallback missing for stale candidate");
         text.stale = false;
-        text.presentation = new ComposerTextPresentation(3, -2, 0.75f, 1.5f, 0.5f, 30, 5, 5);
+        text.presentation = new ComposerTextPresentation(
+                3, -2, 0.75f, 1.5f, 0.5f, 30, 5, 5, 0xFFFF8800, 0.4f);
         surface.textChanged(new ComposerTextChange(9, "abcd", "abcde", 4, 0, 1, 5, 5, -1, -1));
         surface.prepareText();
         surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
         require(nativeDraws[0] == 3 && text.capture instanceof Capture
-                && ((Capture) text.capture).presentation == text.presentation,
+                && ((Capture) text.capture).presentation == text.presentation
+                && text.presentation.tintColor == 0xFFFF8800 && text.presentation.tintAmount == 0.4f,
                 "bounded transform presentation was not applied");
         text.presentation = new ComposerTextPresentation(0, 0, 1, 5, 1, 0, 0, 0);
         surface.textChanged(new ComposerTextChange(10, "abcde", "abcdef", 5, 0, 1, 6, 6, -1, -1));
@@ -449,6 +451,22 @@ public final class ComposerRegistryCheck {
         require(nativeDraws[0] == 4 && text.closes == 1, "invalid transform did not fail closed");
         surface.close();
         textRegistration.close();
+
+        TextEffect invalidTint = new TextEffect();
+        invalidTint.presentation = new ComposerTextPresentation(
+                0, 0, 1, 1, 1, 0, 0, 0, 0xFFFF0000, 2);
+        AutoCloseable invalidTintRegistration = PluginComposerRegistry.registerText(
+                "test.text.invalid_tint", () -> true, context -> {
+                    invalidTint.surface = context;
+                    return invalidTint;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        surface.textChanged(new ComposerTextChange(13, "a", "ab", 1, 0, 1, 2, 2, -1, -1));
+        surface.prepareText();
+        surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
+        require(invalidTint.closes == 1, "invalid tint did not fail closed");
+        surface.close();
+        invalidTintRegistration.close();
 
         LayoutTextEffect layoutText = new LayoutTextEffect();
         AutoCloseable layoutTextRegistration = PluginComposerRegistry.registerText(
@@ -506,7 +524,7 @@ public final class ComposerRegistryCheck {
         require(surface.hasTextTransitionEffect(), "transition text effect not attached");
         OverlayCapture overlayCapture = new OverlayCapture();
         transitionText.removedPresentation = new ComposerTextPresentation(
-                2, 1, 0.5f, 0.8f, 1.2f, -20, 5, 5);
+                2, 1, 0.5f, 0.8f, 1.2f, -20, 5, 5, 0xFF00AAFF, 0.6f);
         ComposerTextLayoutChange transitionChange = new ComposerTextLayoutChange(
                 21, beforeLayout, afterLayout, 1, 1, 0, false, overlayCapture);
         surface.textLayoutChanged(transitionChange);

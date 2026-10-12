@@ -50,6 +50,7 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
     private final int selectionEnd;
     private final int composingStart;
     private final int composingEnd;
+    private final ComposerTextLayer layer = new ComposerTextLayer();
     private boolean failed;
 
     private ComposerNativeTextCapture(EditTextCaption field, Layout layout, Picture picture, Rect ink,
@@ -259,9 +260,7 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
             canvas.translate(ink.left, ink.top);
             applyTransform(canvas, presentation);
 
-            if (presentation.alpha < 1) {
-                canvas.saveLayerAlpha(0, 0, ink.width(), ink.height(), Math.round(255 * presentation.alpha));
-            }
+            layer.save(canvas, ink.width(), ink.height(), presentation);
 
             if (presentation.alpha > 0) {
                 canvas.drawPicture(picture);
