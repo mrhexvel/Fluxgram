@@ -33,13 +33,19 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 12", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 13", manifest)
         enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         self.assertIn("onComposerSelectionChanged(this, selStart, selEnd)", enter_view)
         self.assertIn("pluginComposer.selectionChanged(field, start, end)", chat)
         self.assertIn("surface.selectionChanged(null, null)", controller)
+        self.assertIn(
+            "} else {\n                    onComposerSend(messageEditText, sendButton);\n"
+            "                    messageTransitionIsRunning",
+            enter_view,
+        )
+        self.assertIn("pluginComposer.sent(field, button)", chat)
 
     def test_external_module_compiles_against_api_1_3(self):
         if not shutil.which("javac"):
@@ -252,6 +258,62 @@ class ComposerTextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             module = directory / "external/SelectionModule.java"
+            module.parent.mkdir()
+            module.write_text(source)
+            sources = [
+                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                module,
+            ]
+            subprocess.run(
+                ["javac", "--release", "8", "-d", str(directory / "classes"), *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+
+    def test_external_send_effect_compiles_against_api_1_13(self):
+        if not shutil.which("javac"):
+            self.skipTest("Requires JDK")
+
+        source = textwrap.dedent(
+            """
+            package external;
+
+            import android.graphics.Canvas;
+            import org.telegram.messenger.plugins.api.*;
+
+            public final class SendModule implements JavaPluginModule {
+                public void onLoad(JavaPluginContext context) {
+                    context.registerComposerEffect(Effect::new);
+                }
+
+                public void onUnload() {}
+
+                private static final class Effect implements ComposerSendEffect {
+                    private final ComposerSurface surface;
+
+                    Effect(ComposerSurface surface) {
+                        this.surface = surface;
+                    }
+
+                    public void onSend(ComposerSendEvent event) {
+                        if (event.hasTarget && event.sequence > 0) {
+                            surface.requestFrame();
+                        }
+                    }
+
+                    public void onInput(ComposerInput input) {}
+                    public boolean onFrame(long timestamp) { return false; }
+                    public void draw(Canvas canvas, ComposerGeometry geometry) {}
+                    public void close() {}
+                }
+            }
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            module = directory / "external/SendModule.java"
             module.parent.mkdir()
             module.write_text(source)
             sources = [

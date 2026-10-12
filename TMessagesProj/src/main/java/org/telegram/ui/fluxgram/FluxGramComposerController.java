@@ -4,11 +4,14 @@ import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.os.SystemClock;
 import android.text.Editable;
 import android.text.Layout;
 import android.text.TextWatcher;
 import android.view.View;
+import android.view.ViewParent;
 import android.view.ViewTreeObserver;
 import android.view.inputmethod.BaseInputConnection;
 import android.widget.EditText;
@@ -28,6 +31,7 @@ import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.ForegroundDetector;
+import org.telegram.ui.Components.ChatActivityEnterView;
 import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.function.BooleanSupplier;
@@ -43,6 +47,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private final Theme.ResourcesProvider colors;
     private final ForegroundDetector foreground;
     private final Drawable overlay;
+    private View overlayHost;
     private PluginComposerRegistry.Surface surface;
     private ComposerGeometry geometry;
     private ViewTreeObserver observer;
@@ -67,6 +72,10 @@ public final class FluxGramComposerController implements TextWatcher,
     private boolean cursorRtl;
     private ComposerSelectionCapture selectionCapture;
     private long selectionRevision;
+    private final RectF sendBounds = new RectF();
+    private final int[] fieldLocation = new int[2];
+    private final int[] sendLocation = new int[2];
+    private long sendTransitionDeadline;
 
     public FluxGramComposerController(EditText field, int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
@@ -81,7 +90,15 @@ public final class FluxGramComposerController implements TextWatcher,
             @Override
             public void draw(Canvas canvas) {
                 if (surface != null && available()) {
-                    surface.draw(canvas);
+                    Rect bounds = getBounds();
+                    int save = canvas.save();
+
+                    try {
+                        canvas.translate(bounds.left, bounds.top);
+                        surface.draw(canvas);
+                    } finally {
+                        canvas.restoreToCount(save);
+                    }
                 }
             }
 
@@ -115,7 +132,8 @@ public final class FluxGramComposerController implements TextWatcher,
                 && ownerId > 0 && UserConfig.selectedAccount == account
                 && UserConfig.getInstance(account).getClientUserId() == ownerId
                 && field.isAttachedToWindow() && field.isShown() && field.isEnabled()
-                && field.hasFocus() && field.hasWindowFocus() && field.getAlpha() > 0
+                && field.hasFocus() && field.hasWindowFocus()
+                && (field.getAlpha() > 0 || SystemClock.uptimeMillis() <= sendTransitionDeadline)
                 && field.getWindowVisibility() == View.VISIBLE
                 && field.getWidth() > 0 && field.getHeight() > 0
                 && foreground != null && foreground.isForeground()
@@ -124,7 +142,7 @@ public final class FluxGramComposerController implements TextWatcher,
 
     public void refresh() {
         if (surface != null && surface.isClosed()) {
-            field.getOverlay().remove(overlay);
+            removeOverlay();
             surface = null;
         }
 
@@ -138,11 +156,30 @@ public final class FluxGramComposerController implements TextWatcher,
         float density = field.getResources().getDisplayMetrics().density;
         int accent = Theme.getColor(Theme.key_chat_messagePanelCursor, colors);
         boolean rtl = field.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+        ViewParent parent = field.getParent();
+        View currentOverlayHost = parent instanceof View ? (View) parent : null;
+
+        if (currentOverlayHost == null) {
+            hide();
+            return;
+        }
+
+        if (overlayHost != currentOverlayHost) {
+            removeOverlay();
+            overlayHost = currentOverlayHost;
+
+            if (surface != null) {
+                overlayHost.getOverlay().add(overlay);
+            }
+        }
+
+        int overlayLeft = field.getLeft() + Math.round(field.getTranslationX());
+        int overlayTop = field.getTop() + Math.round(field.getTranslationY());
+        overlay.setBounds(overlayLeft, overlayTop, overlayLeft + width, overlayTop + height);
 
         if (geometry == null || geometry.width != width || geometry.height != height
                 || geometry.density != density || geometry.accentColor != accent || geometry.rtl != rtl) {
             geometry = new ComposerGeometry(width, height, density, accent, rtl);
-            overlay.setBounds(0, 0, width, height);
             cursorRevision++;
             cursorCapture.release();
             clearSelectionCapture();
@@ -216,8 +253,15 @@ public final class FluxGramComposerController implements TextWatcher,
             });
 
             if (surface != null) {
-                field.getOverlay().add(overlay);
+                overlayHost.getOverlay().add(overlay);
             }
+        }
+    }
+
+    private void removeOverlay() {
+        if (overlayHost != null) {
+            overlayHost.getOverlay().remove(overlay);
+            overlayHost = null;
         }
     }
 
@@ -225,9 +269,11 @@ public final class FluxGramComposerController implements TextWatcher,
         if (surface != null) {
             PluginComposerRegistry.Surface previous = surface;
             surface = null;
-            field.getOverlay().remove(overlay);
+            removeOverlay();
             previous.close();
         }
+
+        sendTransitionDeadline = 0;
 
         inputChanges.reset();
         beforeText = null;
@@ -285,6 +331,38 @@ public final class FluxGramComposerController implements TextWatcher,
         clearSelectionCapture();
         surface.selectionChanged(null, null);
         field.invalidate();
+    }
+
+    public void sent(EditTextCaption source, View button) {
+        if (source != field || destroyed) {
+            return;
+        }
+
+        sendTransitionDeadline = SystemClock.uptimeMillis() + 1_000;
+        refresh();
+
+        if (surface == null || !surface.hasSendEffect()) {
+            sendTransitionDeadline = 0;
+            return;
+        }
+
+        boolean hasTarget = button instanceof ChatActivityEnterView.SendButton
+                && button.isAttachedToWindow() && button.isShown()
+                && button.getWindowToken() == field.getWindowToken()
+                && button.getWidth() > 0 && button.getHeight() > 0;
+        float targetX = 0;
+        float targetY = 0;
+
+        if (hasTarget) {
+            ((ChatActivityEnterView.SendButton) button).getBounds(sendBounds);
+            field.getLocationInWindow(fieldLocation);
+            button.getLocationInWindow(sendLocation);
+            targetX = sendLocation[0] - fieldLocation[0] + sendBounds.centerX();
+            targetY = sendLocation[1] - fieldLocation[1] + sendBounds.centerY();
+            hasTarget = !sendBounds.isEmpty() && Float.isFinite(targetX) && Float.isFinite(targetY);
+        }
+
+        surface.sent(hasTarget, targetX, targetY);
     }
 
     public void destroy() {

@@ -5700,6 +5700,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     protected void onComposerSelectionChanged(EditTextCaption field, int start, int end) {
     }
 
+    protected void onComposerSend(EditTextCaption field, View button) {
+    }
+
     private void createMessageEditText() {
         if (messageEditText != null) {
             return;
@@ -7424,6 +7427,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                         delegate.onMessageSend(message, notify, scheduleDate, scheduleRepeatPeriod, payStars);
                     }
                 } else {
+                    onComposerSend(messageEditText, sendButton);
                     messageTransitionIsRunning = false;
                     AndroidUtilities.runOnUIThread(moveToSendStateRunnable = () -> {
                         moveToSendStateRunnable = null;

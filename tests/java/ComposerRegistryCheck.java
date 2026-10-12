@@ -12,6 +12,8 @@ import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
+import org.telegram.messenger.plugins.api.ComposerSendEffect;
+import org.telegram.messenger.plugins.api.ComposerSendEvent;
 import org.telegram.messenger.plugins.api.ComposerSurface;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
@@ -288,6 +290,22 @@ public final class ComposerRegistryCheck {
             }
 
             return presentation;
+        }
+    }
+
+    private static final class SendEffect extends Effect implements ComposerSendEffect {
+        ComposerSendEvent event;
+        int sends;
+        boolean failSend;
+
+        @Override
+        public void onSend(ComposerSendEvent value) {
+            event = value;
+            sends++;
+
+            if (failSend) {
+                throw new IllegalStateException("intentional send failure");
+            }
         }
     }
 
@@ -792,6 +810,38 @@ public final class ComposerRegistryCheck {
         require(selectionHost.selectionOwnerChanges == 2,
                 "selection owner lifecycle was not reported");
         selectionRegistration.close();
+
+        SendEffect firstSend = new SendEffect();
+        SendEffect secondSend = new SendEffect();
+        AutoCloseable firstSendRegistration = PluginComposerRegistry.register(
+                "test.send.first", () -> true, context -> {
+                    firstSend.context = context;
+                    return firstSend;
+                });
+        AutoCloseable secondSendRegistration = PluginComposerRegistry.register(
+                "test.send.second", () -> true, context -> secondSend);
+        Host sendHost = new Host();
+        surface = PluginComposerRegistry.attach(sendHost);
+        require(surface.hasSendEffect(), "send effect not attached");
+        surface.sent(true, 350, 25);
+        require(firstSend.sends == 1 && secondSend.sends == 1
+                && firstSend.event == secondSend.event && firstSend.event.sequence == 1
+                && firstSend.event.hasTarget && firstSend.event.targetX == 350
+                && firstSend.event.targetY == 25, "send event was not delivered consistently");
+        surface.sent(true, Float.NaN, 25);
+        require(firstSend.sends == 2 && firstSend.event.sequence == 2
+                && !firstSend.event.hasTarget && firstSend.event.targetX == 0
+                && firstSend.event.targetY == 0, "invalid send target did not fail closed");
+        firstSend.failSend = true;
+        surface.sent(false, 0, 0);
+        require(firstSend.closes == 1 && secondSend.sends == 3,
+                "send failure broke another additive effect");
+        sendHost.available = false;
+        surface.sent(false, 0, 0);
+        require(secondSend.sends == 3, "inactive surface received send event");
+        surface.close();
+        firstSendRegistration.close();
+        secondSendRegistration.close();
 
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 

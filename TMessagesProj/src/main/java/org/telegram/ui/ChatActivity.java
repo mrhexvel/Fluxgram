@@ -8004,6 +8004,13 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
+            @Override
+            protected void onComposerSend(EditTextCaption field, View button) {
+                if (pluginComposer != null) {
+                    pluginComposer.sent(field, button);
+                }
+            }
+
             int lastContentViewHeight;
             int messageEditTextPredrawHeigth;
             int messageEditTextPredrawScrollY;

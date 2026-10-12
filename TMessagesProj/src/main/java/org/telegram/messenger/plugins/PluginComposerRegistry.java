@@ -16,6 +16,8 @@ import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
+import org.telegram.messenger.plugins.api.ComposerSendEffect;
+import org.telegram.messenger.plugins.api.ComposerSendEvent;
 import org.telegram.messenger.plugins.api.ComposerSurface;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
@@ -253,6 +255,7 @@ public final class PluginComposerRegistry {
         private Binding selectionOwner;
         private ComposerSelectionSnapshot selectionSnapshot;
         private SelectionCapture selectionCapture;
+        private long sendSequence;
         private int nextDraw;
         private boolean drawingPresentedText;
 
@@ -289,6 +292,23 @@ public final class PluginComposerRegistry {
 
             for (Binding binding : snapshot) {
                 binding.textLayoutChanged(change);
+            }
+        }
+
+        public void sent(boolean hasTarget, float targetX, float targetY) {
+            requireUi();
+            ComposerGeometry geometry = host == null ? null : host.geometry();
+            float limit = geometry == null ? 0
+                    : Math.max(96 * geometry.density, geometry.height * 2f);
+            boolean validTarget = hasTarget && geometry != null
+                    && Float.isFinite(targetX) && Float.isFinite(targetY)
+                    && targetX >= -limit && targetX <= geometry.width + limit
+                    && targetY >= -limit && targetY <= geometry.height + limit;
+            ComposerSendEvent event = new ComposerSendEvent(
+                    ++sendSequence, validTarget, validTarget ? targetX : 0, validTarget ? targetY : 0);
+
+            for (Binding binding : snapshot) {
+                binding.sent(event);
             }
         }
 
@@ -449,6 +469,18 @@ public final class PluginComposerRegistry {
         public boolean hasSelectionEffect() {
             requireUi();
             return selectionOwner != null;
+        }
+
+        public boolean hasSendEffect() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.effect instanceof ComposerSendEffect) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public boolean isClosed() {
@@ -772,6 +804,22 @@ public final class PluginComposerRegistry {
                     removedChange = change;
                     removedCapture = (OverlayTextCapture) change.removedCapture;
                 }
+            } catch (Exception | LinkageError | AssertionError error) {
+                registration.quarantine(error);
+            } finally {
+                record(start);
+            }
+        }
+
+        void sent(ComposerSendEvent event) {
+            if (!isActive() || !(effect instanceof ComposerSendEffect) || event == null) {
+                return;
+            }
+
+            long start = System.nanoTime();
+
+            try {
+                ((ComposerSendEffect) effect).onSend(event);
             } catch (Exception | LinkageError | AssertionError error) {
                 registration.quarantine(error);
             } finally {

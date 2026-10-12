@@ -74,7 +74,8 @@ class ComposerEffectsTest(unittest.TestCase):
 
         for required in ("getOverlay().remove", "removeTextChangedListener", "removeListener(this)",
                          "removeOnPreDrawListener", "onBecameBackground", "onViewDetachedFromWindow",
-                         "getClientUserId() == ownerId", "selectedAccount == account"):
+                         "getClientUserId() == ownerId", "selectedAccount == account",
+                         "field.getParent()", "sendTransitionDeadline"):
             self.assertIn(required, controller)
 
     def test_composer_registration_uses_ui_cleanup_scope(self):
