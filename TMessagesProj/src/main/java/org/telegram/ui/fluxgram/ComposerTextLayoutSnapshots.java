@@ -1,20 +1,26 @@
 package org.telegram.ui.fluxgram;
 
 import android.graphics.Paint;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.text.Editable;
 import android.text.Layout;
 import android.text.Spanned;
+import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.style.CharacterStyle;
+import android.text.style.MetricAffectingSpan;
 import android.text.style.ParagraphStyle;
+import android.text.style.ReplacementSpan;
 import android.text.style.SuggestionSpan;
 import android.text.style.UnderlineSpan;
 import android.view.inputmethod.BaseInputConnection;
 
 import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
+import org.telegram.messenger.plugins.api.ComposerTextFontSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLineSnapshot;
+import org.telegram.messenger.plugins.api.ComposerTextRunSnapshot;
 import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.ArrayList;
@@ -75,15 +81,21 @@ public final class ComposerTextLayoutSnapshots {
                     layout.getParagraphDirection(line) == Layout.DIR_RIGHT_TO_LEFT));
         }
 
-        boolean unsupportedSpans = hasUnsupportedSpans(content);
+        int spanFlags = spanFlags(content);
+        boolean unsupportedSpans = (spanFlags & (ComposerTextLayoutSnapshot.SPAN_METRIC
+                | ComposerTextLayoutSnapshot.SPAN_REPLACEMENT
+                | ComposerTextLayoutSnapshot.SPAN_PARAGRAPH
+                | ComposerTextLayoutSnapshot.SPAN_UNKNOWN_CHARACTER)) != 0;
         boolean unsupportedClusters = unsupportedSpans;
         boolean truncated = firstLine > 0 || endLine < layout.getLineCount() - 1;
         ArrayList<ComposerTextClusterSnapshot> clusters = new ArrayList<>();
+        ArrayList<ComposerTextRunSnapshot> runs = new ArrayList<>();
 
         if (!unsupportedSpans) {
             clusterLines:
             for (int line = firstLine; line <= endLine; line++) {
                 int clusterLineStart = clusters.size();
+                int runLineStart = runs.size();
                 int runStart = layout.getLineStart(line);
                 int lineEnd = layout.getLineVisibleEnd(line);
 
@@ -96,10 +108,16 @@ public final class ComposerTextLayoutSnapshots {
                     }
 
                     int offset = runStart;
+                    int clusterRunStart = clusters.size();
 
                     while (offset < runEnd) {
                         if (clusters.size() >= MAX_CLUSTERS) {
                             truncated = true;
+
+                            while (clusters.size() > clusterRunStart) {
+                                clusters.remove(clusters.size() - 1);
+                            }
+
                             break clusterLines;
                         }
 
@@ -114,6 +132,10 @@ public final class ComposerTextLayoutSnapshots {
 
                             while (clusters.size() > clusterLineStart) {
                                 clusters.remove(clusters.size() - 1);
+                            }
+
+                            while (runs.size() > runLineStart) {
+                                runs.remove(runs.size() - 1);
                             }
 
                             continue clusterLines;
@@ -132,6 +154,14 @@ public final class ComposerTextLayoutSnapshots {
                                         content, offset, next, runStart, runEnd, rtl, next))));
                         offset = next;
                     }
+
+                    runs.add(new ComposerTextRunSnapshot(
+                            runStart,
+                            runEnd,
+                            line - firstLine,
+                            rtl,
+                            clusterRunStart,
+                            clusters.size() - clusterRunStart));
 
                     runStart = runEnd;
                 }
@@ -154,28 +184,63 @@ public final class ComposerTextLayoutSnapshots {
                 truncated,
                 unsupportedSpans,
                 unsupportedClusters,
+                spanFlags,
+                font(field.getPaint(), field.getCurrentTextColor()),
                 lines.toArray(new ComposerTextLineSnapshot[0]),
-                clusters.toArray(new ComposerTextClusterSnapshot[0]));
+                clusters.toArray(new ComposerTextClusterSnapshot[0]),
+                runs.toArray(new ComposerTextRunSnapshot[0]));
     }
 
-    private static boolean hasUnsupportedSpans(CharSequence content) {
+    private static int spanFlags(CharSequence content) {
         if (!(content instanceof Spanned)) {
-            return false;
+            return 0;
         }
 
         Spanned spans = (Spanned) content;
+        int flags = 0;
 
         if (spans.getSpans(0, content.length(), ParagraphStyle.class).length != 0) {
-            return true;
+            flags |= ComposerTextLayoutSnapshot.SPAN_PARAGRAPH;
         }
 
         for (CharacterStyle style : spans.getSpans(0, content.length(), CharacterStyle.class)) {
-            if (!(style instanceof UnderlineSpan) && !(style instanceof SuggestionSpan)) {
-                return true;
+            if (style instanceof ReplacementSpan) {
+                flags |= ComposerTextLayoutSnapshot.SPAN_REPLACEMENT;
+            } else if (style instanceof MetricAffectingSpan) {
+                flags |= ComposerTextLayoutSnapshot.SPAN_METRIC;
+            } else if (style instanceof UnderlineSpan) {
+                flags |= ComposerTextLayoutSnapshot.SPAN_UNDERLINE;
+            } else if (style instanceof SuggestionSpan) {
+                flags |= ComposerTextLayoutSnapshot.SPAN_SUGGESTION;
+            } else {
+                flags |= ComposerTextLayoutSnapshot.SPAN_UNKNOWN_CHARACTER;
             }
         }
 
-        return false;
+        return flags;
+    }
+
+    private static ComposerTextFontSnapshot font(TextPaint paint, int color) {
+        Typeface typeface = paint.getTypeface();
+        int style = typeface == null ? Typeface.NORMAL : typeface.getStyle();
+        int weight = (style & Typeface.BOLD) != 0 ? 700 : 400;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && typeface != null) {
+            weight = typeface.getWeight();
+        }
+
+        return new ComposerTextFontSnapshot(
+                paint.getTextSize(),
+                paint.getTextScaleX(),
+                paint.getTextSkewX(),
+                paint.getLetterSpacing(),
+                paint.getFlags(),
+                color,
+                style,
+                weight,
+                paint.getTextLocales().toLanguageTags(),
+                paint.getFontFeatureSettings(),
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? paint.getFontVariationSettings() : null);
     }
 
     private static boolean unsafeBoundary(CharSequence text, int offset, int start, int end) {

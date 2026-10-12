@@ -33,7 +33,7 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 6", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 7", manifest)
 
     def test_external_module_compiles_against_api_1_3(self):
         if not shutil.which("javac"):
@@ -116,6 +116,10 @@ class ComposerTextTest(unittest.TestCase):
                     for (int i = 0; i < change.after.getClusterCount(); i++) {
                         ComposerTextClusterSnapshot cluster = change.after.getCluster(i);
                     }
+                    for (int i = 0; i < change.after.getRunCount(); i++) {
+                        ComposerTextRunSnapshot run = change.after.getRun(i);
+                    }
+                    ComposerTextFontSnapshot font = change.after.font;
                 }
                 public void onInput(ComposerInput input) {}
                 public boolean onFrame(long timestamp) { return false; }

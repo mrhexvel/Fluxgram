@@ -12,11 +12,13 @@ import org.telegram.messenger.plugins.api.ComposerTextCapture;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
+import org.telegram.messenger.plugins.api.ComposerTextFontSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLineSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextRunSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextTransitionEffect;
 
 import java.util.ArrayList;
@@ -457,14 +459,24 @@ public final class ComposerRegistryCheck {
         ComposerTextClusterSnapshot[] sourceClusters = {
                 new ComposerTextClusterSnapshot(2, 3, 0, false, 20, 28, 20, 28, 8)
         };
+        ComposerTextRunSnapshot[] sourceRuns = {
+                new ComposerTextRunSnapshot(0, 3, 0, false, 0, 1)
+        };
+        ComposerTextFontSnapshot font = new ComposerTextFontSnapshot(
+                16, 1, 0, 0, 1, 0xFF112233, 0, 400, "en", null, null);
         ComposerTextLayoutSnapshot afterLayout = new ComposerTextLayoutSnapshot(
                 21, "abc", 3, 3, -1, -1, 100, 40, 4, 3, 0, 0,
-                false, false, false, new ComposerTextLineSnapshot[] {
+                false, false, false, ComposerTextLayoutSnapshot.SPAN_UNDERLINE, font,
+                new ComposerTextLineSnapshot[] {
                         new ComposerTextLineSnapshot(0, 3, 3, 4, 28, 3, 18, 15, false)
-                }, sourceClusters);
+                }, sourceClusters, sourceRuns);
         sourceClusters[0] = null;
+        sourceRuns[0] = null;
         require(afterLayout.getClusterCount() == 1 && afterLayout.getCluster(0) != null,
                 "layout snapshot retained mutable cluster array");
+        require(afterLayout.getRunCount() == 1 && afterLayout.getRun(0) != null
+                && afterLayout.font == font && afterLayout.spanFlags == ComposerTextLayoutSnapshot.SPAN_UNDERLINE,
+                "layout snapshot retained mutable run array or lost font metadata");
         ComposerTextLayoutChange layoutChange = new ComposerTextLayoutChange(
                 21, beforeLayout, afterLayout, 2, 0, 1, false);
         surface.textLayoutChanged(layoutChange);

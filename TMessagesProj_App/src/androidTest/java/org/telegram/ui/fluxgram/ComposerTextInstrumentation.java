@@ -213,6 +213,9 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 "layout snapshot directions");
         require(snapshot.getClusterCount() == 4 && !snapshot.getCluster(0).rtl
                 && snapshot.getCluster(2).rtl, "layout snapshot clusters");
+        require(snapshot.getRunCount() == 2 && !snapshot.getRun(0).rtl && snapshot.getRun(1).rtl
+                && snapshot.font != null && snapshot.font.textSize == field.getTextSize(),
+                "layout snapshot runs and font");
         setText("A\uD83D\uDC69\u200D\uD83D\uDCBB");
         snapshot = ComposerTextLayoutSnapshots.capture(field, 12, "A\uD83D\uDC69\u200D\uD83D\uDCBB");
         require(snapshot != null && (snapshot.unsupportedClusters && snapshot.getClusterCount() == 0
@@ -223,6 +226,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         field.getText().setSpan(new StyleSpan(Typeface.BOLD), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         snapshot = ComposerTextLayoutSnapshots.capture(field, 13, "ab\n\u05d0\u05d1");
         require(snapshot != null && snapshot.unsupportedSpans && snapshot.unsupportedClusters
+                && (snapshot.spanFlags & ComposerTextLayoutSnapshot.SPAN_METRIC) != 0
                 && snapshot.getClusterCount() == 0, "unsupported span was not reported");
         cases++;
     }
