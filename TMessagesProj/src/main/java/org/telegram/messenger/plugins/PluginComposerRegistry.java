@@ -13,6 +13,9 @@ import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
+import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
+import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
+import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerSurface;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
@@ -50,6 +53,10 @@ public final class PluginComposerRegistry {
             invalidateCursor();
         }
 
+        default void selectionOwnerChanged() {
+            invalidate();
+        }
+
         TextCapture captureText(ComposerTextCandidate candidate, String expectedText);
 
         default void drawCursor(Canvas canvas, Consumer<Canvas> nativeDraw,
@@ -71,6 +78,15 @@ public final class PluginComposerRegistry {
         boolean isValid();
 
         void draw(Canvas canvas, ComposerTextPresentation presentation);
+
+        default void release() {
+        }
+    }
+
+    public interface SelectionCapture extends ComposerTextCapture {
+        boolean isValid();
+
+        void draw(Canvas canvas, ComposerSelectionPresentation presentation);
 
         default void release() {
         }
@@ -115,7 +131,7 @@ public final class PluginComposerRegistry {
             throw new IllegalStateException("Composer effect limit reached or factory missing");
         }
 
-        Registration registration = new Registration(pluginId, active, factory, false, false);
+        Registration registration = new Registration(pluginId, active, factory, false, false, false);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -138,7 +154,7 @@ public final class PluginComposerRegistry {
             }
         }
 
-        Registration registration = new Registration(pluginId, active, factory::create, true, false);
+        Registration registration = new Registration(pluginId, active, factory::create, true, false, false);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -162,7 +178,31 @@ public final class PluginComposerRegistry {
             }
         }
 
-        Registration registration = new Registration(pluginId, active, factory::create, false, true);
+        Registration registration = new Registration(pluginId, active, factory::create, false, true, false);
+        registrations.add(registration);
+
+        for (Surface surface : new ArrayList<>(surfaces)) {
+            registration.attach(surface);
+        }
+
+        return registration;
+    }
+
+    static AutoCloseable registerSelection(
+            String pluginId, BooleanSupplier active, ComposerSelectionEffect.Factory factory) {
+        requireUi();
+
+        if (factory == null || registrations.size() >= 8) {
+            throw new IllegalStateException("Composer effect limit reached or factory missing");
+        }
+
+        for (Registration registration : registrations) {
+            if (registration.selection && !registration.closed) {
+                throw new IllegalStateException("Composer selection presentation is already owned");
+            }
+        }
+
+        Registration registration = new Registration(pluginId, active, factory::create, false, false, true);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -210,6 +250,9 @@ public final class PluginComposerRegistry {
         private final ArrayList<Binding> bindings = new ArrayList<>();
         private Binding[] snapshot = new Binding[0];
         private Binding cursorOwner;
+        private Binding selectionOwner;
+        private ComposerSelectionSnapshot selectionSnapshot;
+        private SelectionCapture selectionCapture;
         private int nextDraw;
         private boolean drawingPresentedText;
 
@@ -294,6 +337,24 @@ public final class PluginComposerRegistry {
             nativeDraw.accept(canvas);
         }
 
+        public void selectionChanged(ComposerSelectionSnapshot selection, SelectionCapture capture) {
+            requireUi();
+            boolean changed = selectionSnapshot != null || selectionCapture != null
+                    || selection != null || capture != null;
+            clearSelectionCapture();
+
+            if (selectionOwner != null && selection != null && capture != null) {
+                selectionSnapshot = selection;
+                selectionCapture = capture;
+            } else if (capture != null) {
+                capture.release();
+            }
+
+            if (changed && host != null) {
+                host.invalidate();
+            }
+        }
+
         public void draw(Canvas canvas) {
             requireUi();
             long timestamp = AnimationUtils.currentAnimationTimeMillis();
@@ -305,18 +366,27 @@ public final class PluginComposerRegistry {
 
             Binding[] current = snapshot;
             int count = current.length;
-            int from = count == 0 ? 0 : nextDraw % count;
+            boolean drawSelection = selectionOwner != null
+                    && selectionSnapshot != null && selectionCapture != null;
+            int drawCount = count + (drawSelection ? 1 : 0);
+            int from = drawCount == 0 ? 0 : nextDraw % drawCount;
             skippedDraws += from;
 
-            for (int index = from; index < count; index++) {
+            for (int index = from; index < drawCount; index++) {
                 if (drawNanos >= 2_000_000L) {
-                    skippedDraws += count - index;
+                    skippedDraws += drawCount - index;
                     nextDraw = index;
                     return;
                 }
 
                 long start = System.nanoTime();
-                current[index].draw(canvas);
+
+                if (index < count) {
+                    current[index].draw(canvas);
+                } else if (selectionOwner != null && selectionSnapshot != null && selectionCapture != null) {
+                    selectionOwner.drawSelection(canvas, selectionSnapshot, selectionCapture);
+                }
+
                 drawNanos += System.nanoTime() - start;
             }
 
@@ -376,6 +446,11 @@ public final class PluginComposerRegistry {
             return false;
         }
 
+        public boolean hasSelectionEffect() {
+            requireUi();
+            return selectionOwner != null;
+        }
+
         public boolean isClosed() {
             requireUi();
             return host == null;
@@ -384,11 +459,13 @@ public final class PluginComposerRegistry {
         private void changed() {
             snapshot = bindings.toArray(new Binding[0]);
             Binding nextCursorOwner = null;
+            Binding nextSelectionOwner = null;
 
             for (Binding binding : snapshot) {
                 if (binding.registration.cursor) {
                     nextCursorOwner = binding;
-                    break;
+                } else if (binding.registration.selection) {
+                    nextSelectionOwner = binding;
                 }
             }
 
@@ -398,6 +475,29 @@ public final class PluginComposerRegistry {
                 if (host != null) {
                     host.cursorOwnerChanged();
                 }
+            }
+
+            if (selectionOwner != nextSelectionOwner) {
+                selectionOwner = nextSelectionOwner;
+                clearSelectionCapture();
+
+                if (host != null) {
+                    host.selectionOwnerChanged();
+                }
+            }
+        }
+
+        private void clearSelectionCapture() {
+            selectionSnapshot = null;
+
+            if (selectionCapture != null) {
+                try {
+                    selectionCapture.release();
+                } catch (Exception | LinkageError | AssertionError error) {
+                    Log.e("FluxGramComposer", "Selection capture release failed", error);
+                }
+
+                selectionCapture = null;
             }
         }
 
@@ -416,6 +516,7 @@ public final class PluginComposerRegistry {
 
             bindings.clear();
             changed();
+            clearSelectionCapture();
             host = null;
         }
     }
@@ -426,17 +527,19 @@ public final class PluginComposerRegistry {
         final ComposerEffect.Factory factory;
         final boolean text;
         final boolean cursor;
+        final boolean selection;
         final ArrayList<Binding> owned = new ArrayList<>();
         boolean closed;
         boolean failed;
 
         Registration(String pluginId, BooleanSupplier active, ComposerEffect.Factory factory,
-                boolean text, boolean cursor) {
+                boolean text, boolean cursor, boolean selection) {
             this.pluginId = pluginId;
             this.active = active;
             this.factory = factory;
             this.text = text;
             this.cursor = cursor;
+            this.selection = selection;
         }
 
         void attach(Surface surface) {
@@ -533,6 +636,7 @@ public final class PluginComposerRegistry {
         long burstStart;
         int overruns;
         boolean detached;
+        boolean framing;
 
         Binding(Registration registration, Surface surface) {
             this.registration = registration;
@@ -580,6 +684,11 @@ public final class PluginComposerRegistry {
         @Override
         public void requestFrame() {
             requireUi();
+
+            if (!framing) {
+                burstStart = 0;
+            }
+
             frames().request(this);
         }
 
@@ -782,6 +891,52 @@ public final class PluginComposerRegistry {
             }
         }
 
+        void drawSelection(Canvas canvas, ComposerSelectionSnapshot selection, SelectionCapture capture) {
+            if (!registration.selection || !isActive() || !(effect instanceof ComposerSelectionEffect)
+                    || selection == null || capture == null) {
+                return;
+            }
+
+            if (!capture.isValid()) {
+                surface.selectionChanged(null, null);
+                return;
+            }
+
+            long start = System.nanoTime();
+            ComposerSelectionPresentation presentation;
+
+            try {
+                presentation = ((ComposerSelectionEffect) effect).presentSelection(selection);
+
+                if (presentation == null) {
+                    return;
+                }
+
+                validateSelectionPresentation(presentation, selection, capture);
+
+                if (!capture.isValid()) {
+                    surface.selectionChanged(null, null);
+                    return;
+                }
+            } catch (Exception | LinkageError | AssertionError error) {
+                surface.selectionChanged(null, null);
+                registration.quarantine(error);
+                return;
+            } finally {
+                record(start);
+            }
+
+            try {
+                capture.draw(canvas, presentation);
+            } catch (OutOfMemoryError error) {
+                surface.selectionChanged(null, null);
+                Log.e("FluxGramComposer", "Selection replay failed", error);
+            } catch (Exception | LinkageError | AssertionError error) {
+                surface.selectionChanged(null, null);
+                Log.e("FluxGramComposer", "Selection replay failed", error);
+            }
+        }
+
         private void validatePresentation(ComposerTextPresentation presentation, ComposerTextCapture capture) {
             float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
             float width = capture.getRight() - capture.getLeft();
@@ -803,12 +958,35 @@ public final class PluginComposerRegistry {
             validatePresentation(presentation, cursor.left, cursor.top, width, height, limit);
         }
 
+        private void validateSelectionPresentation(ComposerSelectionPresentation presentation,
+                ComposerSelectionSnapshot selection, SelectionCapture capture) {
+            float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
+            float width = capture.getRight() - capture.getLeft();
+            float height = capture.getBottom() - capture.getTop();
+
+            if (selection.start < 0 || selection.start >= selection.end || selection.lineCount < 1
+                    || selection.lineCount > 16 || selection.left != capture.getLeft()
+                    || selection.top != capture.getTop() || selection.right != capture.getRight()
+                    || selection.bottom != capture.getBottom()
+                    || selection.revision != capture.getRevision()) {
+                throw new IllegalArgumentException("Invalid composer selection snapshot");
+            }
+
+            validatePresentation(presentation, capture.getLeft(), capture.getTop(), width, height, limit, 512, 256);
+        }
+
         private void validatePresentation(ComposerTextPresentation presentation,
                 float left, float top, float width, float height, float limit) {
+            validatePresentation(presentation, left, top, width, height, limit, 256, 256);
+        }
+
+        private void validatePresentation(ComposerTextPresentation presentation,
+                float left, float top, float width, float height, float limit,
+                float maxWidth, float maxHeight) {
 
             if (!Float.isFinite(presentation.translationX) || !Float.isFinite(presentation.translationY)
-                    || !Float.isFinite(width) || width <= 0 || width > 256
-                    || !Float.isFinite(height) || height <= 0 || height > 256
+                    || !Float.isFinite(width) || width <= 0 || width > maxWidth
+                    || !Float.isFinite(height) || height <= 0 || height > maxHeight
                     || !Float.isFinite(presentation.alpha) || presentation.alpha < 0 || presentation.alpha > 1
                     || !Float.isFinite(presentation.scaleX) || presentation.scaleX < 0 || presentation.scaleX > 4
                     || !Float.isFinite(presentation.scaleY) || presentation.scaleY < 0 || presentation.scaleY > 4
@@ -921,6 +1099,7 @@ public final class PluginComposerRegistry {
 
             long start = System.nanoTime();
             Trace.beginSection("FGComposer.frame");
+            framing = true;
 
             try {
                 ComposerInput input = pendingInput;
@@ -945,6 +1124,7 @@ public final class PluginComposerRegistry {
                 registration.quarantine(error);
                 return false;
             } finally {
+                framing = false;
                 Trace.endSection();
                 record(start);
             }

@@ -9,6 +9,9 @@ import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
+import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
+import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
+import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerSurface;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
@@ -37,6 +40,7 @@ public final class ComposerRegistryCheck {
         int cursorDraws;
         int cursorInvalidations;
         int cursorOwnerChanges;
+        int selectionOwnerChanges;
         ComposerCursorSnapshot cursorSnapshot;
         ComposerCursorPresentation cursorPresentation;
         final ComposerGeometry geometry = new ComposerGeometry(320, 50, 1, 0xFF123456, false);
@@ -79,6 +83,11 @@ public final class ComposerRegistryCheck {
         @Override
         public void cursorOwnerChanged() {
             cursorOwnerChanges++;
+        }
+
+        @Override
+        public void selectionOwnerChanged() {
+            selectionOwnerChanges++;
         }
 
         @Override
@@ -260,6 +269,88 @@ public final class ComposerRegistryCheck {
         public ComposerCursorPresentation presentCursor(ComposerCursorSnapshot value) {
             snapshot = value;
             return presentation;
+        }
+    }
+
+    private static final class SelectionEffect extends Effect implements ComposerSelectionEffect {
+        ComposerSelectionSnapshot snapshot;
+        ComposerSelectionPresentation presentation = new ComposerSelectionPresentation(0, 0, 1);
+        Runnable onPresent;
+
+        @Override
+        public ComposerSelectionPresentation presentSelection(ComposerSelectionSnapshot value) {
+            snapshot = value;
+
+            if (onPresent != null) {
+                Runnable action = onPresent;
+                onPresent = null;
+                action.run();
+            }
+
+            return presentation;
+        }
+    }
+
+    private static final class SelectionCapture implements PluginComposerRegistry.SelectionCapture {
+        int draws;
+        int releases;
+        boolean valid = true;
+        ComposerSelectionPresentation presentation;
+
+        @Override
+        public long getRevision() {
+            return 40;
+        }
+
+        @Override
+        public int getStart() {
+            return 1;
+        }
+
+        @Override
+        public int getEnd() {
+            return 3;
+        }
+
+        @Override
+        public float getLeft() {
+            return 10;
+        }
+
+        @Override
+        public float getTop() {
+            return 5;
+        }
+
+        @Override
+        public float getRight() {
+            return 300;
+        }
+
+        @Override
+        public float getBottom() {
+            return 15;
+        }
+
+        @Override
+        public float getBaseline() {
+            return 15;
+        }
+
+        @Override
+        public boolean isValid() {
+            return valid;
+        }
+
+        @Override
+        public void draw(Canvas canvas, ComposerSelectionPresentation value) {
+            draws++;
+            presentation = value;
+        }
+
+        @Override
+        public void release() {
+            releases++;
         }
     }
 
@@ -645,6 +736,62 @@ public final class ComposerRegistryCheck {
         require(cursorHost.cursorOwnerChanges == 2,
                 "cursor owner lifecycle was not reported");
         cursorRegistration.close();
+
+        Effect selectionBlocker = new Effect();
+        selectionBlocker.slow = true;
+        AutoCloseable selectionBlockerRegistration = PluginComposerRegistry.register(
+                "test.selection.blocker", () -> true, context -> selectionBlocker);
+        SelectionEffect selection = new SelectionEffect();
+        AutoCloseable selectionRegistration = PluginComposerRegistry.registerSelection(
+                "test.selection", () -> true, context -> {
+                    selection.context = context;
+                    return selection;
+                });
+        rejects(() -> PluginComposerRegistry.registerSelection(
+                "test.selection.conflict", () -> true, context -> new SelectionEffect()));
+        Host selectionHost = new Host();
+        surface = PluginComposerRegistry.attach(selectionHost);
+        require(surface.hasSelectionEffect(), "selection owner not attached");
+        ComposerSelectionSnapshot selectionSnapshot = new ComposerSelectionSnapshot(
+                40, 1, 3, 1, 10, 5, 300, 15);
+        SelectionCapture selectionCapture = new SelectionCapture();
+        surface.selectionChanged(selectionSnapshot, selectionCapture);
+        Choreographer.getInstance().tick(30_000_000_000L);
+        surface.draw(new Canvas());
+        require(selectionCapture.draws == 0,
+                "selection replay bypassed aggregate draw budget");
+        Choreographer.getInstance().tick(30_016_666_667L);
+        surface.draw(new Canvas());
+        require(selection.snapshot == selectionSnapshot && selectionCapture.draws == 1
+                && selectionCapture.presentation == selection.presentation,
+                "deferred selection presentation was not resumed");
+        selectionBlockerRegistration.close();
+        selection.context.requestFrame();
+        Choreographer.getInstance().tick(31_000_000_000L);
+        selection.context.requestFrame();
+        Choreographer.getInstance().tick(34_000_000_000L);
+        require(selection.closes == 0,
+                "separate selection animation burst reused stale deadline");
+        selection.presentation = null;
+        surface.draw(new Canvas());
+        require(selectionCapture.draws == 1 && selectionCapture.releases == 0,
+                "null selection presentation discarded capture");
+        selection.presentation = new ComposerSelectionPresentation(0, 0, 1);
+        SelectionCapture staleSelectionCapture = selectionCapture;
+        selection.onPresent = () -> staleSelectionCapture.valid = false;
+        surface.draw(new Canvas());
+        require(selectionCapture.draws == 1 && selectionCapture.releases == 1,
+                "reentrant selection mutation replayed stale capture");
+        selectionCapture = new SelectionCapture();
+        surface.selectionChanged(selectionSnapshot, selectionCapture);
+        selection.presentation = new ComposerSelectionPresentation(0, 0, 1, 5, 1, 0, 0, 0);
+        surface.draw(new Canvas());
+        require(selectionCapture.releases == 1 && selection.closes == 1,
+                "invalid selection presentation did not fail closed");
+        surface.close();
+        require(selectionHost.selectionOwnerChanges == 2,
+                "selection owner lifecycle was not reported");
+        selectionRegistration.close();
 
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 

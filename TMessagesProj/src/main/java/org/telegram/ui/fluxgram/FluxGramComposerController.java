@@ -14,12 +14,14 @@ import android.view.inputmethod.BaseInputConnection;
 import android.widget.EditText;
 
 import org.telegram.messenger.LiteMode;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
+import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
@@ -63,6 +65,8 @@ public final class FluxGramComposerController implements TextWatcher,
     private int cursorLine = -1;
     private float cursorBaseline = Float.NaN;
     private boolean cursorRtl;
+    private ComposerSelectionCapture selectionCapture;
+    private long selectionRevision;
 
     public FluxGramComposerController(EditText field, int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
@@ -141,6 +145,7 @@ public final class FluxGramComposerController implements TextWatcher,
             overlay.setBounds(0, 0, width, height);
             cursorRevision++;
             cursorCapture.release();
+            clearSelectionCapture();
         }
 
         if (surface == null) {
@@ -188,6 +193,12 @@ public final class FluxGramComposerController implements TextWatcher,
                 }
 
                 @Override
+                public void selectionOwnerChanged() {
+                    clearSelectionCapture();
+                    overlay.invalidateSelf();
+                }
+
+                @Override
                 public PluginComposerRegistry.TextCapture captureText(
                         ComposerTextCandidate candidate, String expectedText) {
                     if (!(field instanceof EditTextCaption)) {
@@ -222,6 +233,7 @@ public final class FluxGramComposerController implements TextWatcher,
         beforeText = null;
         clearPendingLayout();
         cursorCapture.release();
+        clearSelectionCapture();
     }
 
     public void drawText(EditTextCaption source, Canvas canvas, Consumer<Canvas> nativeDraw) {
@@ -263,6 +275,16 @@ public final class FluxGramComposerController implements TextWatcher,
         surface.drawCursor(canvas, new ComposerCursorSnapshot(
                 cursorRevision, offset, line,
                 bounds.left, bounds.top, bounds.right, bounds.bottom, baseline, rtl), nativeDraw);
+    }
+
+    public void selectionChanged(EditTextCaption source, int start, int end) {
+        if (source != field || destroyed || surface == null || !surface.hasSelectionEffect()) {
+            return;
+        }
+
+        clearSelectionCapture();
+        surface.selectionChanged(null, null);
+        field.invalidate();
     }
 
     public void destroy() {
@@ -310,6 +332,7 @@ public final class FluxGramComposerController implements TextWatcher,
         if (surface != null) {
             deliverTextLayout();
             surface.prepareText();
+            prepareSelection();
         }
 
         return true;
@@ -461,6 +484,39 @@ public final class FluxGramComposerController implements TextWatcher,
                 afterLength - prefix - suffix,
                 coalesced,
                 removedCapture));
+    }
+
+    private void prepareSelection() {
+        if (!(field instanceof EditTextCaption) || surface == null || !surface.hasSelectionEffect()) {
+            clearSelectionCapture();
+            return;
+        }
+
+        if (selectionCapture != null && selectionCapture.isValid()) {
+            return;
+        }
+
+        clearSelectionCapture();
+        ComposerSelectionCapture capture;
+
+        try {
+            capture = ComposerSelectionCapture.capture((EditTextCaption) field, ++selectionRevision);
+        } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
+            FileLog.e(error);
+            capture = null;
+        }
+
+        if (capture != null) {
+            selectionCapture = capture;
+            ComposerSelectionSnapshot snapshot = capture.snapshot();
+            surface.selectionChanged(snapshot, capture);
+        } else {
+            surface.selectionChanged(null, null);
+        }
+    }
+
+    private void clearSelectionCapture() {
+        selectionCapture = null;
     }
 
     private void clearPendingLayout() {

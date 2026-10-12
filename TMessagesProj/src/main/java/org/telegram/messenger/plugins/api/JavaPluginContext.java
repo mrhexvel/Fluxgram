@@ -25,6 +25,10 @@ public interface JavaPluginContext {
         throw new UnsupportedOperationException("Composer cursor effects require Java API 1.11");
     }
 
+    default JavaPluginUiResource registerComposerSelectionEffect(ComposerSelectionEffect.Factory factory) {
+        throw new UnsupportedOperationException("Composer selection effects require Java API 1.12");
+    }
+
     boolean readBooleanSetting(String key, boolean fallback);
 
     int readIntSetting(String key, int fallback);

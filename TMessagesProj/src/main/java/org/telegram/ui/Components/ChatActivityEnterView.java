@@ -5493,6 +5493,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         @Override
         protected void onSelectionChanged(int selStart, int selEnd) {
             super.onSelectionChanged(selStart, selEnd);
+            onComposerSelectionChanged(this, selStart, selEnd);
+
             if (delegate != null) {
                 delegate.onTextSelectionChanged(selStart, selEnd);
             }
@@ -5693,6 +5695,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     protected void drawComposerCursor(Canvas canvas, EditTextCaption field, Rect bounds,
             int line, float baseline, boolean rtl, Consumer<Canvas> nativeDraw) {
         nativeDraw.accept(canvas);
+    }
+
+    protected void onComposerSelectionChanged(EditTextCaption field, int start, int end) {
     }
 
     private void createMessageEditText() {

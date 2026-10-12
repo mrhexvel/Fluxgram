@@ -5,6 +5,7 @@ import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
+import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 
 import java.lang.reflect.Constructor;
@@ -40,6 +41,11 @@ final class JavaPluginSession implements AutoCloseable {
         default JavaPluginUiResource registerComposerCursorEffect(
                 long generation, ComposerCursorEffect.Factory factory) {
             throw new UnsupportedOperationException("Composer cursor effects are unavailable");
+        }
+
+        default JavaPluginUiResource registerComposerSelectionEffect(
+                long generation, ComposerSelectionEffect.Factory factory) {
+            throw new UnsupportedOperationException("Composer selection effects are unavailable");
         }
     }
 
@@ -215,6 +221,12 @@ final class JavaPluginSession implements AutoCloseable {
         public JavaPluginUiResource registerComposerCursorEffect(ComposerCursorEffect.Factory factory) {
             requireActive();
             return host.registerComposerCursorEffect(generation, factory);
+        }
+
+        @Override
+        public JavaPluginUiResource registerComposerSelectionEffect(ComposerSelectionEffect.Factory factory) {
+            requireActive();
+            return host.registerComposerSelectionEffect(generation, factory);
         }
 
         @Override

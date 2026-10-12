@@ -33,7 +33,13 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 11", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 12", manifest)
+        enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
+        controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        self.assertIn("onComposerSelectionChanged(this, selStart, selEnd)", enter_view)
+        self.assertIn("pluginComposer.selectionChanged(field, start, end)", chat)
+        self.assertIn("surface.selectionChanged(null, null)", controller)
 
     def test_external_module_compiles_against_api_1_3(self):
         if not shutil.which("javac"):
@@ -189,6 +195,63 @@ class ComposerTextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             module = directory / "external/CursorModule.java"
+            module.parent.mkdir()
+            module.write_text(source)
+            sources = [
+                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                module,
+            ]
+            subprocess.run(
+                ["javac", "--release", "8", "-d", str(directory / "classes"), *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+
+    def test_external_selection_effect_compiles_against_api_1_12(self):
+        if not shutil.which("javac"):
+            self.skipTest("Requires JDK")
+
+        source = textwrap.dedent(
+            """
+            package external;
+
+            import android.graphics.Canvas;
+            import org.telegram.messenger.plugins.api.*;
+
+            public final class SelectionModule implements JavaPluginModule {
+                public void onLoad(JavaPluginContext context) {
+                    context.registerComposerSelectionEffect(Effect::new);
+                }
+
+                public void onUnload() {}
+
+                private static final class Effect implements ComposerSelectionEffect {
+                    private final ComposerSurface surface;
+
+                    Effect(ComposerSurface surface) {
+                        this.surface = surface;
+                    }
+
+                    public ComposerSelectionPresentation presentSelection(
+                            ComposerSelectionSnapshot selection) {
+                        return new ComposerSelectionPresentation(
+                                0, 2, 0.4f, 1, 1, 0, 6, 8,
+                                0xFF44AAFF, 1, 3);
+                    }
+
+                    public void onInput(ComposerInput input) { surface.requestFrame(); }
+                    public boolean onFrame(long timestamp) { return false; }
+                    public void draw(Canvas canvas, ComposerGeometry geometry) {}
+                    public void close() {}
+                }
+            }
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            module = directory / "external/SelectionModule.java"
             module.parent.mkdir()
             module.write_text(source)
             sources = [

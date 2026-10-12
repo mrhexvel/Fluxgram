@@ -3,6 +3,7 @@ package org.telegram.messenger.plugins;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 
 import java.util.ArrayList;
@@ -70,6 +71,7 @@ public final class JavaPluginSessionCheck {
         long generation = 1;
         Thread worker = Thread.currentThread();
         int textRegistrations;
+        int selectionRegistrations;
 
         @Override
         public boolean isActive(long value) {
@@ -120,6 +122,28 @@ public final class JavaPluginSessionCheck {
                 }
             };
         }
+
+        @Override
+        public JavaPluginUiResource registerComposerSelectionEffect(
+                long value, ComposerSelectionEffect.Factory factory) {
+            check(value == generation && factory != null, "selection registration identity");
+            selectionRegistrations++;
+            return new JavaPluginUiResource() {
+                @Override
+                public boolean isActive() {
+                    return true;
+                }
+
+                @Override
+                public boolean isClosed() {
+                    return false;
+                }
+
+                @Override
+                public void close() {
+                }
+            };
+        }
     }
 
     public static final class BrokenModule implements JavaPluginModule {
@@ -152,11 +176,14 @@ public final class JavaPluginSessionCheck {
         check(context.readStringSetting("name", "x").equals("x!"), "string setting");
         context.registerComposerTextEffect(surface -> null);
         check(host.textRegistrations == 1, "text effect registration was not delegated");
+        context.registerComposerSelectionEffect(surface -> null);
+        check(host.selectionRegistrations == 1, "selection effect registration was not delegated");
         session.settingChanged("enabled", true);
         host.generation++;
         session.settingChanged("stale", true);
         rejects(() -> context.registerResource(() -> {}));
         rejects(() -> context.registerComposerTextEffect(surface -> null));
+        rejects(() -> context.registerComposerSelectionEffect(surface -> null));
         rejects(() -> context.readIntSetting("count", 0));
         session.close();
         session.close();

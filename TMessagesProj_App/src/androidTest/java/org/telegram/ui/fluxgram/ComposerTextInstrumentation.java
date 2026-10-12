@@ -32,6 +32,7 @@ import android.view.inputmethod.InputConnection;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
+import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -112,6 +113,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 tintReplayCase();
                 blurReplayCase();
                 cursorCaptureCase();
+                selectionCaptureCase();
                 staleAndFallbackCase();
                 imeCase();
                 replayFailureCase();
@@ -353,6 +355,49 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         transformed.recycle();
         hidden.recycle();
         failureImage.recycle();
+        cases++;
+    }
+
+    private void selectionCaptureCase() {
+        setText("HH");
+        field.setSelection(0, 1);
+        layoutField();
+        ComposerSelectionCapture capture = ComposerSelectionCapture.capture(field, 21);
+        require(capture != null && capture.getRevision() == 21
+                && capture.getStart() == 0 && capture.getEnd() == 1,
+                "selection capture identity");
+        float originalTop = capture.getTop();
+        capture.release();
+        field.setOffsetY(7);
+        capture = ComposerSelectionCapture.capture(field, 22);
+        require(capture != null && Math.abs(capture.getTop() - originalTop - 7) < 0.1f,
+                "selection capture ignored editor offset");
+        field.setOffsetY(0);
+        require(!capture.isValid(), "editor offset retained stale selection capture");
+        capture.release();
+        capture = ComposerSelectionCapture.capture(field, 23);
+        require(capture != null, "selection recapture after offset failed");
+        Bitmap nativeImage = software();
+        Bitmap decorated = software();
+        float pivotX = (capture.getRight() - capture.getLeft()) / 2;
+        float pivotY = (capture.getBottom() - capture.getTop()) / 2;
+        capture.draw(new Canvas(decorated), new ComposerSelectionPresentation(
+                2, 1, 0.65f, 0.9f, 1.1f, 4, pivotX, pivotY, Color.CYAN, 1, 3));
+        require(different(nativeImage, decorated) > 20,
+                "selection decoration did not add pixels");
+        require(field.getSelectionStart() == 0 && field.getSelectionEnd() == 1
+                && field.getText().toString().equals("HH"),
+                "selection decoration mutated editor state");
+        Bitmap hidden = Bitmap.createBitmap(
+                field.getWidth(), field.getHeight(), Bitmap.Config.ARGB_8888);
+        capture.draw(new Canvas(hidden), new ComposerSelectionPresentation(0, 0, 0));
+        require(nonTransparent(hidden) == 0, "zero-alpha selection decoration was not suppressed");
+        field.setSelection(2);
+        require(!capture.isValid(), "selection change retained capture");
+        capture.release();
+        nativeImage.recycle();
+        decorated.recycle();
+        hidden.recycle();
         cases++;
     }
 
