@@ -4,6 +4,9 @@ import android.graphics.Canvas;
 import android.view.Choreographer;
 
 import org.telegram.messenger.plugins.api.ComposerEffect;
+import org.telegram.messenger.plugins.api.ComposerCursorEffect;
+import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
+import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSurface;
@@ -31,6 +34,11 @@ public final class ComposerRegistryCheck {
         int captures;
         ComposerTextCandidate capturedCandidate;
         boolean failCapture;
+        int cursorDraws;
+        int cursorInvalidations;
+        int cursorOwnerChanges;
+        ComposerCursorSnapshot cursorSnapshot;
+        ComposerCursorPresentation cursorPresentation;
         final ComposerGeometry geometry = new ComposerGeometry(320, 50, 1, 0xFF123456, false);
 
         @Override
@@ -64,6 +72,16 @@ public final class ComposerRegistryCheck {
         }
 
         @Override
+        public void invalidateCursor() {
+            cursorInvalidations++;
+        }
+
+        @Override
+        public void cursorOwnerChanged() {
+            cursorOwnerChanges++;
+        }
+
+        @Override
         public PluginComposerRegistry.TextCapture captureText(ComposerTextCandidate candidate, String expectedText) {
             if (failCapture) {
                 failCapture = false;
@@ -73,6 +91,15 @@ public final class ComposerRegistryCheck {
             captures++;
             capturedCandidate = candidate;
             return new Capture(candidate);
+        }
+
+        @Override
+        public void drawCursor(Canvas canvas, java.util.function.Consumer<Canvas> nativeDraw,
+                ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation) {
+            cursorDraws++;
+            cursorSnapshot = snapshot;
+            cursorPresentation = presentation;
+            nativeDraw.accept(canvas);
         }
     }
 
@@ -221,6 +248,17 @@ public final class ComposerRegistryCheck {
         @Override
         public ComposerTextPresentation present(ComposerTextCapture value) {
             capture = value;
+            return presentation;
+        }
+    }
+
+    private static final class CursorEffect extends Effect implements ComposerCursorEffect {
+        ComposerCursorSnapshot snapshot;
+        ComposerCursorPresentation presentation = new ComposerCursorPresentation(0, 0, 1);
+
+        @Override
+        public ComposerCursorPresentation presentCursor(ComposerCursorSnapshot value) {
+            snapshot = value;
             return presentation;
         }
     }
@@ -571,6 +609,42 @@ public final class ComposerRegistryCheck {
                 "finished removed text overlay was retained");
         surface.close();
         transitionRegistration.close();
+
+        CursorEffect cursor = new CursorEffect();
+        AutoCloseable cursorRegistration = PluginComposerRegistry.registerCursor(
+                "test.cursor", () -> true, context -> {
+                    cursor.context = context;
+                    return cursor;
+                });
+        rejects(() -> PluginComposerRegistry.registerCursor(
+                "test.cursor.conflict", () -> true, context -> new CursorEffect()));
+        Host cursorHost = new Host();
+        surface = PluginComposerRegistry.attach(cursorHost);
+        require(surface.hasCursorEffect(), "cursor owner not attached");
+        ComposerCursorSnapshot cursorSnapshot = new ComposerCursorSnapshot(
+                30, 3, 0, 20, 5, 22, 29, 25, false);
+        int[] cursorNativeDraws = {0};
+        surface.drawCursor(new Canvas(), cursorSnapshot, canvas -> cursorNativeDraws[0]++);
+        require(cursor.snapshot == cursorSnapshot && cursorHost.cursorDraws == 1
+                && cursorHost.cursorSnapshot == cursorSnapshot
+                && cursorHost.cursorPresentation == cursor.presentation
+                && cursorNativeDraws[0] == 1, "cursor presentation was not applied");
+        cursor.context.requestFrame();
+        tick();
+        require(cursorHost.cursorInvalidations == 1,
+                "cursor frame did not invalidate the input field");
+        cursor.presentation = null;
+        surface.drawCursor(new Canvas(), cursorSnapshot, canvas -> cursorNativeDraws[0]++);
+        require(cursorNativeDraws[0] == 2 && cursorHost.cursorDraws == 1,
+                "null cursor presentation did not use native fallback");
+        cursor.presentation = new ComposerCursorPresentation(0, 0, 1, 5, 1, 0, 0, 0);
+        surface.drawCursor(new Canvas(), cursorSnapshot, canvas -> cursorNativeDraws[0]++);
+        require(cursorNativeDraws[0] == 3 && cursor.closes == 1,
+                "invalid cursor presentation did not fail closed");
+        surface.close();
+        require(cursorHost.cursorOwnerChanges == 2,
+                "cursor owner lifecycle was not reported");
+        cursorRegistration.close();
 
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 

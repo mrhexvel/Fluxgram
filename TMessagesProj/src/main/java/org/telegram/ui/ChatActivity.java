@@ -7987,6 +7987,16 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
+            @Override
+            protected void drawComposerCursor(Canvas canvas, EditTextCaption field, Rect bounds,
+                    int line, float baseline, boolean rtl, Consumer<Canvas> nativeDraw) {
+                if (pluginComposer != null) {
+                    pluginComposer.drawCursor(field, canvas, bounds, line, baseline, rtl, nativeDraw);
+                } else {
+                    nativeDraw.accept(canvas);
+                }
+            }
+
             int lastContentViewHeight;
             int messageEditTextPredrawHeigth;
             int messageEditTextPredrawScrollY;

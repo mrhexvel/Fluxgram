@@ -74,6 +74,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class EditTextBoldCursor extends EditTextEffects {
 
@@ -919,35 +920,7 @@ public class EditTextBoldCursor extends EditTextEffects {
                     cursorDrawn = false;
                 }
                 if (allowDrawCursor && showCursor) {
-                    canvas.save();
-                    int voffsetCursor = 0;
-                    if (getVerticalOffsetMethod != null) {
-                        if ((getGravity() & Gravity.VERTICAL_GRAVITY_MASK) != Gravity.TOP) {
-                            voffsetCursor = (int) getVerticalOffsetMethod.invoke(this, true);
-                        }
-                    } else {
-                        if ((getGravity() & Gravity.VERTICAL_GRAVITY_MASK) != Gravity.TOP) {
-                            voffsetCursor = getTotalPaddingTop() - getExtendedPaddingTop();
-                        }
-                    }
-                    canvas.translate(getPaddingLeft(), getExtendedPaddingTop() + voffsetCursor);
-                    Layout layout = getLayout();
-                    int line = layout.getLineForOffset(getSelectionStart());
-                    int lineCount = layout.getLineCount();
-                    updateCursorPosition();
-                    Rect bounds = gradientDrawable.getBounds();
-                    rect.left = bounds.left;
-                    rect.right = bounds.left + dp(cursorWidth);
-                    rect.bottom = bounds.bottom;
-                    rect.top = bounds.top;
-                    if (lineSpacingExtra != 0 && line < lineCount - 1) {
-                        rect.bottom -= lineSpacingExtra;
-                    }
-                    rect.top = rect.centerY() - cursorSize / 2;
-                    rect.bottom = rect.top + cursorSize;
-                    gradientDrawable.setBounds(rect);
-                    gradientDrawable.draw(canvas);
-                    canvas.restore();
+                    drawCursorDrawable(canvas);
                 }
             } catch (Throwable exception) {
                 if (BuildVars.DEBUG_PRIVATE_VERSION) {
@@ -957,35 +930,7 @@ public class EditTextBoldCursor extends EditTextEffects {
         } else {
             if (cursorDrawn && allowDrawCursor) {
                 try {
-                    canvas.save();
-                    int voffsetCursor = 0;
-                    if (getVerticalOffsetMethod != null) {
-                        if ((getGravity() & Gravity.VERTICAL_GRAVITY_MASK) != Gravity.TOP) {
-                            voffsetCursor = (int) getVerticalOffsetMethod.invoke(this, true);
-                        }
-                    } else {
-                        if ((getGravity() & Gravity.VERTICAL_GRAVITY_MASK) != Gravity.TOP) {
-                            voffsetCursor = getTotalPaddingTop() - getExtendedPaddingTop();
-                        }
-                    }
-                    canvas.translate(getPaddingLeft(), getExtendedPaddingTop() + voffsetCursor);
-                    Layout layout = getLayout();
-                    int line = layout.getLineForOffset(getSelectionStart());
-                    int lineCount = layout.getLineCount();
-                    updateCursorPosition();
-                    Rect bounds = gradientDrawable.getBounds();
-                    rect.left = bounds.left;
-                    rect.right = bounds.left + dp(cursorWidth);
-                    rect.bottom = bounds.bottom;
-                    rect.top = bounds.top;
-                    if (lineSpacingExtra != 0 && line < lineCount - 1) {
-                        rect.bottom -= lineSpacingExtra;
-                    }
-                    rect.top = rect.centerY() - cursorSize / 2;
-                    rect.bottom = rect.top + cursorSize;
-                    gradientDrawable.setBounds(rect);
-                    gradientDrawable.draw(canvas);
-                    canvas.restore();
+                    drawCursorDrawable(canvas);
                     cursorDrawn = false;
                 } catch (Throwable exception) {
                     if (BuildVars.DEBUG_PRIVATE_VERSION) {
@@ -1063,6 +1008,57 @@ public class EditTextBoldCursor extends EditTextEffects {
             errorLayout.draw(canvas);
             canvas.restore();
         }*/
+    }
+
+    private void drawCursorDrawable(Canvas canvas) throws Exception {
+        int voffsetCursor = 0;
+
+        if (getVerticalOffsetMethod != null) {
+            if ((getGravity() & Gravity.VERTICAL_GRAVITY_MASK) != Gravity.TOP) {
+                voffsetCursor = (int) getVerticalOffsetMethod.invoke(this, true);
+            }
+        } else if ((getGravity() & Gravity.VERTICAL_GRAVITY_MASK) != Gravity.TOP) {
+            voffsetCursor = getTotalPaddingTop() - getExtendedPaddingTop();
+        }
+
+        int offsetX = getPaddingLeft();
+        int offsetY = getExtendedPaddingTop() + voffsetCursor;
+        Layout layout = getLayout();
+        int line = layout.getLineForOffset(getSelectionStart());
+        int lineCount = layout.getLineCount();
+        updateCursorPosition();
+        Rect bounds = gradientDrawable.getBounds();
+        rect.left = bounds.left;
+        rect.right = bounds.left + dp(cursorWidth);
+        rect.bottom = bounds.bottom;
+        rect.top = bounds.top;
+
+        if (lineSpacingExtra != 0 && line < lineCount - 1) {
+            rect.bottom -= lineSpacingExtra;
+        }
+
+        rect.top = rect.centerY() - cursorSize / 2;
+        rect.bottom = rect.top + cursorSize;
+        gradientDrawable.setBounds(rect);
+
+        Rect fieldBounds = new Rect(rect);
+        fieldBounds.offset(offsetX, offsetY);
+        drawCursor(canvas, fieldBounds, line, offsetY + layout.getLineBaseline(line),
+                layout.getParagraphDirection(line) == Layout.DIR_RIGHT_TO_LEFT, target -> {
+            int save = target.save();
+
+            try {
+                target.translate(offsetX, offsetY);
+                gradientDrawable.draw(target);
+            } finally {
+                target.restoreToCount(save);
+            }
+        });
+    }
+
+    protected void drawCursor(Canvas canvas, Rect bounds, int line, float baseline,
+            boolean rtl, Consumer<Canvas> nativeDraw) {
+        nativeDraw.accept(canvas);
     }
 
     public void setWindowView(View view) {

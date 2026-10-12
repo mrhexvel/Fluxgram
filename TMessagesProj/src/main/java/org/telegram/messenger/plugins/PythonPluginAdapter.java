@@ -13,6 +13,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
@@ -492,6 +493,17 @@ public final class PythonPluginAdapter implements Plugin {
                 }
 
                 return uiResources.register(() -> PluginComposerRegistry.registerText(
+                        id, () -> lifecycle.isCurrent(generation), factory));
+            }
+
+            @Override
+            public JavaPluginUiResource registerComposerCursorEffect(
+                    long generation, ComposerCursorEffect.Factory factory) {
+                if (!lifecycle.isCurrent(generation)) {
+                    throw new IllegalStateException("Composer cursor generation is inactive");
+                }
+
+                return uiResources.register(() -> PluginComposerRegistry.registerCursor(
                         id, () -> lifecycle.isCurrent(generation), factory));
             }
         };

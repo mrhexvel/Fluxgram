@@ -8,6 +8,9 @@ import android.view.Choreographer;
 import android.view.animation.AnimationUtils;
 
 import org.telegram.messenger.plugins.api.ComposerEffect;
+import org.telegram.messenger.plugins.api.ComposerCursorEffect;
+import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
+import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSurface;
@@ -39,7 +42,20 @@ public final class PluginComposerRegistry {
 
         void invalidate();
 
+        default void invalidateCursor() {
+            invalidate();
+        }
+
+        default void cursorOwnerChanged() {
+            invalidateCursor();
+        }
+
         TextCapture captureText(ComposerTextCandidate candidate, String expectedText);
+
+        default void drawCursor(Canvas canvas, Consumer<Canvas> nativeDraw,
+                ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation) {
+            nativeDraw.accept(canvas);
+        }
     }
 
     public interface TextCapture extends ComposerTextCapture {
@@ -99,7 +115,7 @@ public final class PluginComposerRegistry {
             throw new IllegalStateException("Composer effect limit reached or factory missing");
         }
 
-        Registration registration = new Registration(pluginId, active, factory, false);
+        Registration registration = new Registration(pluginId, active, factory, false, false);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -122,7 +138,31 @@ public final class PluginComposerRegistry {
             }
         }
 
-        Registration registration = new Registration(pluginId, active, factory::create, true);
+        Registration registration = new Registration(pluginId, active, factory::create, true, false);
+        registrations.add(registration);
+
+        for (Surface surface : new ArrayList<>(surfaces)) {
+            registration.attach(surface);
+        }
+
+        return registration;
+    }
+
+    static AutoCloseable registerCursor(
+            String pluginId, BooleanSupplier active, ComposerCursorEffect.Factory factory) {
+        requireUi();
+
+        if (factory == null || registrations.size() >= 8) {
+            throw new IllegalStateException("Composer effect limit reached or factory missing");
+        }
+
+        for (Registration registration : registrations) {
+            if (registration.cursor && !registration.closed) {
+                throw new IllegalStateException("Composer cursor presentation is already owned");
+            }
+        }
+
+        Registration registration = new Registration(pluginId, active, factory::create, false, true);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -169,7 +209,9 @@ public final class PluginComposerRegistry {
         private Host host;
         private final ArrayList<Binding> bindings = new ArrayList<>();
         private Binding[] snapshot = new Binding[0];
+        private Binding cursorOwner;
         private int nextDraw;
+        private boolean drawingPresentedText;
 
         private Surface(Host host) {
             this.host = host;
@@ -212,9 +254,17 @@ public final class PluginComposerRegistry {
             boolean drawn = false;
 
             for (Binding binding : snapshot) {
-                if (binding.registration.text && binding.drawText(canvas, nativeDraw)) {
-                    drawn = true;
-                    break;
+                if (binding.registration.text) {
+                    drawingPresentedText = true;
+
+                    try {
+                        if (binding.drawText(canvas, nativeDraw)) {
+                            drawn = true;
+                            break;
+                        }
+                    } finally {
+                        drawingPresentedText = false;
+                    }
                 }
             }
 
@@ -225,6 +275,23 @@ public final class PluginComposerRegistry {
             for (Binding binding : snapshot) {
                 binding.drawRemovedText(canvas);
             }
+        }
+
+        public void drawCursor(Canvas canvas, ComposerCursorSnapshot cursor, Consumer<Canvas> nativeDraw) {
+            requireUi();
+
+            if (drawingPresentedText) {
+                nativeDraw.accept(canvas);
+                return;
+            }
+
+            for (Binding binding : snapshot) {
+                if (binding.registration.cursor && binding.drawCursor(canvas, cursor, nativeDraw)) {
+                    return;
+                }
+            }
+
+            nativeDraw.accept(canvas);
         }
 
         public void draw(Canvas canvas) {
@@ -297,6 +364,18 @@ public final class PluginComposerRegistry {
             return false;
         }
 
+        public boolean hasCursorEffect() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.registration.cursor) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public boolean isClosed() {
             requireUi();
             return host == null;
@@ -304,6 +383,22 @@ public final class PluginComposerRegistry {
 
         private void changed() {
             snapshot = bindings.toArray(new Binding[0]);
+            Binding nextCursorOwner = null;
+
+            for (Binding binding : snapshot) {
+                if (binding.registration.cursor) {
+                    nextCursorOwner = binding;
+                    break;
+                }
+            }
+
+            if (cursorOwner != nextCursorOwner) {
+                cursorOwner = nextCursorOwner;
+
+                if (host != null) {
+                    host.cursorOwnerChanged();
+                }
+            }
         }
 
         @Override
@@ -330,15 +425,18 @@ public final class PluginComposerRegistry {
         final BooleanSupplier active;
         final ComposerEffect.Factory factory;
         final boolean text;
+        final boolean cursor;
         final ArrayList<Binding> owned = new ArrayList<>();
         boolean closed;
         boolean failed;
 
-        Registration(String pluginId, BooleanSupplier active, ComposerEffect.Factory factory, boolean text) {
+        Registration(String pluginId, BooleanSupplier active, ComposerEffect.Factory factory,
+                boolean text, boolean cursor) {
             this.pluginId = pluginId;
             this.active = active;
             this.factory = factory;
             this.text = text;
+            this.cursor = cursor;
         }
 
         void attach(Surface surface) {
@@ -651,10 +749,62 @@ public final class PluginComposerRegistry {
             }
         }
 
+        boolean drawCursor(Canvas canvas, ComposerCursorSnapshot cursor, Consumer<Canvas> nativeDraw) {
+            if (!registration.cursor || !isActive() || !(effect instanceof ComposerCursorEffect)
+                    || cursor == null) {
+                return false;
+            }
+
+            long start = System.nanoTime();
+            ComposerCursorPresentation presentation;
+
+            try {
+                presentation = ((ComposerCursorEffect) effect).presentCursor(cursor);
+
+                if (presentation == null) {
+                    return false;
+                }
+
+                validateCursorPresentation(presentation, cursor);
+            } catch (Exception | LinkageError | AssertionError error) {
+                registration.quarantine(error);
+                return false;
+            } finally {
+                record(start);
+            }
+
+            try {
+                surface.host.drawCursor(canvas, nativeDraw, cursor, presentation);
+                return true;
+            } catch (Exception | LinkageError | AssertionError error) {
+                Log.e("FluxGramComposer", "Native cursor replay failed", error);
+                return false;
+            }
+        }
+
         private void validatePresentation(ComposerTextPresentation presentation, ComposerTextCapture capture) {
             float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
             float width = capture.getRight() - capture.getLeft();
             float height = capture.getBottom() - capture.getTop();
+
+            validatePresentation(presentation, capture.getLeft(), capture.getTop(), width, height, limit);
+        }
+
+        private void validateCursorPresentation(
+                ComposerCursorPresentation presentation, ComposerCursorSnapshot cursor) {
+            float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
+            float width = cursor.right - cursor.left;
+            float height = cursor.bottom - cursor.top;
+
+            if (cursor.selectionOffset < 0 || cursor.line < 0 || !Float.isFinite(cursor.baseline)) {
+                throw new IllegalArgumentException("Invalid composer cursor snapshot");
+            }
+
+            validatePresentation(presentation, cursor.left, cursor.top, width, height, limit);
+        }
+
+        private void validatePresentation(ComposerTextPresentation presentation,
+                float left, float top, float width, float height, float limit) {
 
             if (!Float.isFinite(presentation.translationX) || !Float.isFinite(presentation.translationY)
                     || !Float.isFinite(width) || width <= 0 || width > 256
@@ -675,18 +825,17 @@ public final class PluginComposerRegistry {
                     || presentation.blurRadius > ComposerTextPresentation.MAX_BLUR_RADIUS
                     || Math.abs(presentation.translationX) > limit
                     || Math.abs(presentation.translationY) > limit
-                    || !validTransformedBounds(presentation, capture, limit)) {
+                    || !validTransformedBounds(presentation, left, top, width, height, limit)) {
                 throw new IllegalArgumentException("Invalid composer text presentation");
             }
         }
 
         private boolean validTransformedBounds(
-                ComposerTextPresentation presentation, ComposerTextCapture capture, float limit) {
+                ComposerTextPresentation presentation, float left, float top,
+                float width, float height, float limit) {
             double radians = Math.toRadians(presentation.rotationDegrees);
             double cosine = Math.cos(radians);
             double sine = Math.sin(radians);
-            float width = capture.getRight() - capture.getLeft();
-            float height = capture.getBottom() - capture.getTop();
             float minX = Float.POSITIVE_INFINITY;
             float minY = Float.POSITIVE_INFINITY;
             float maxX = Float.NEGATIVE_INFINITY;
@@ -699,9 +848,9 @@ public final class PluginComposerRegistry {
                 float y = (corner & 2) == 0 ? -outset : height + outset;
                 double scaledX = (x - presentation.pivotX) * presentation.scaleX;
                 double scaledY = (y - presentation.pivotY) * presentation.scaleY;
-                float transformedX = (float) (capture.getLeft() + presentation.translationX
+                float transformedX = (float) (left + presentation.translationX
                         + presentation.pivotX + scaledX * cosine - scaledY * sine);
-                float transformedY = (float) (capture.getTop() + presentation.translationY
+                float transformedY = (float) (top + presentation.translationY
                         + presentation.pivotY + scaledX * sine + scaledY * cosine);
 
                 if (!Float.isFinite(transformedX) || !Float.isFinite(transformedY)) {
@@ -784,7 +933,11 @@ public final class PluginComposerRegistry {
                 boolean again = effect.onFrame(frameTimeNanos);
 
                 if (isActive()) {
-                    surface.host.invalidate();
+                    if (registration.cursor) {
+                        surface.host.invalidateCursor();
+                    } else {
+                        surface.host.invalidate();
+                    }
                 }
 
                 return again;

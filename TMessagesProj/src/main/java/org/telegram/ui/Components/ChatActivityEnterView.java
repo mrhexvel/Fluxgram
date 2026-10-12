@@ -5690,6 +5690,11 @@ public class ChatActivityEnterView extends FrameLayout implements
         nativeDraw.accept(canvas);
     }
 
+    protected void drawComposerCursor(Canvas canvas, EditTextCaption field, Rect bounds,
+            int line, float baseline, boolean rtl, Consumer<Canvas> nativeDraw) {
+        nativeDraw.accept(canvas);
+    }
+
     private void createMessageEditText() {
         if (messageEditText != null) {
             return;
@@ -5707,6 +5712,12 @@ public class ChatActivityEnterView extends FrameLayout implements
                     firstDraw = false;
                     checkSendButton(true);
                 }
+            }
+
+            @Override
+            protected void drawCursor(Canvas canvas, Rect bounds, int line, float baseline,
+                    boolean rtl, Consumer<Canvas> nativeDraw) {
+                drawComposerCursor(canvas, this, bounds, line, baseline, rtl, nativeDraw);
             }
 
             @Override

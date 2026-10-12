@@ -1,6 +1,6 @@
 package org.telegram.messenger.plugins.api;
 
-public final class ComposerTextPresentation {
+public class ComposerTextPresentation {
     public static final float MAX_BLUR_RADIUS = 12;
 
     public final float translationX;

@@ -21,6 +21,10 @@ public interface JavaPluginContext {
         throw new UnsupportedOperationException("Composer text effects require Java API 1.3");
     }
 
+    default JavaPluginUiResource registerComposerCursorEffect(ComposerCursorEffect.Factory factory) {
+        throw new UnsupportedOperationException("Composer cursor effects require Java API 1.11");
+    }
+
     boolean readBooleanSetting(String key, boolean fallback);
 
     int readIntSetting(String key, int fallback);

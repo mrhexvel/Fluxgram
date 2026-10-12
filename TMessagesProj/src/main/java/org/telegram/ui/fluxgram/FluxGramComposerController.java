@@ -3,8 +3,10 @@ package org.telegram.ui.fluxgram;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.text.Editable;
+import android.text.Layout;
 import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewTreeObserver;
@@ -14,6 +16,8 @@ import android.widget.EditText;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
+import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
+import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
@@ -52,6 +56,13 @@ public final class FluxGramComposerController implements TextWatcher,
     private PluginComposerRegistry.OverlayTextCapture pendingRemovedCapture;
     private boolean pendingLayoutChange;
     private boolean pendingLayoutCoalesced;
+    private final ComposerNativeCursorCapture cursorCapture = new ComposerNativeCursorCapture();
+    private final Rect cursorBounds = new Rect();
+    private long cursorRevision;
+    private int cursorOffset = -1;
+    private int cursorLine = -1;
+    private float cursorBaseline = Float.NaN;
+    private boolean cursorRtl;
 
     public FluxGramComposerController(EditText field, int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
@@ -128,6 +139,8 @@ public final class FluxGramComposerController implements TextWatcher,
                 || geometry.density != density || geometry.accentColor != accent || geometry.rtl != rtl) {
             geometry = new ComposerGeometry(width, height, density, accent, rtl);
             overlay.setBounds(0, 0, width, height);
+            cursorRevision++;
+            cursorCapture.release();
         }
 
         if (surface == null) {
@@ -163,6 +176,18 @@ public final class FluxGramComposerController implements TextWatcher,
                 }
 
                 @Override
+                public void invalidateCursor() {
+                    field.invalidate();
+                }
+
+                @Override
+                public void cursorOwnerChanged() {
+                    cursorRevision++;
+                    cursorCapture.release();
+                    field.invalidate();
+                }
+
+                @Override
                 public PluginComposerRegistry.TextCapture captureText(
                         ComposerTextCandidate candidate, String expectedText) {
                     if (!(field instanceof EditTextCaption)) {
@@ -170,6 +195,12 @@ public final class FluxGramComposerController implements TextWatcher,
                     }
 
                     return ComposerNativeTextCapture.capture((EditTextCaption) field, candidate, expectedText);
+                }
+
+                @Override
+                public void drawCursor(Canvas canvas, Consumer<Canvas> nativeDraw,
+                        ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation) {
+                    cursorCapture.draw(canvas, nativeDraw, snapshot, presentation);
                 }
             });
 
@@ -190,6 +221,7 @@ public final class FluxGramComposerController implements TextWatcher,
         inputChanges.reset();
         beforeText = null;
         clearPendingLayout();
+        cursorCapture.release();
     }
 
     public void drawText(EditTextCaption source, Canvas canvas, Consumer<Canvas> nativeDraw) {
@@ -198,6 +230,39 @@ public final class FluxGramComposerController implements TextWatcher,
         } else {
             nativeDraw.accept(canvas);
         }
+    }
+
+    public void drawCursor(EditTextCaption source, Canvas canvas, Rect bounds,
+            int line, float baseline, boolean rtl, Consumer<Canvas> nativeDraw) {
+        if (source != field || destroyed || surface == null || !surface.hasCursorEffect()
+                || bounds == null || bounds.isEmpty() || source.getSelectionStart() < 0
+                || source.getSelectionStart() != source.getSelectionEnd()) {
+            nativeDraw.accept(canvas);
+            return;
+        }
+
+        int offset = source.getSelectionStart();
+        Layout layout = source.getLayout();
+
+        if (layout == null || line < 0 || line >= layout.getLineCount()) {
+            nativeDraw.accept(canvas);
+            return;
+        }
+
+        if (cursorOffset != offset || cursorLine != line || cursorBaseline != baseline
+                || cursorRtl != rtl || !cursorBounds.equals(bounds)) {
+            cursorOffset = offset;
+            cursorLine = line;
+            cursorBaseline = baseline;
+            cursorRtl = rtl;
+            cursorBounds.set(bounds);
+            cursorRevision++;
+            cursorCapture.release();
+        }
+
+        surface.drawCursor(canvas, new ComposerCursorSnapshot(
+                cursorRevision, offset, line,
+                bounds.left, bounds.top, bounds.right, bounds.bottom, baseline, rtl), nativeDraw);
     }
 
     public void destroy() {

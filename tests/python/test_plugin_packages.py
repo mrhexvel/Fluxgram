@@ -157,13 +157,13 @@ class PluginPackagesTest(unittest.TestCase):
     def test_java_module_compatibility_and_strict_fields(self):
         data = self.dex_fixture()
 
-        for minor in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+        for minor in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
             fields = self.java_fields(data)
             fields["java_module"]["min_api_minor"] = minor
             self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), True)
 
         for key, value in (
-            ("api_version", 2), ("min_api_minor", 11), ("min_api_minor", -1),
+            ("api_version", 2), ("min_api_minor", 12), ("min_api_minor", -1),
             ("path", "../module.dex"), ("path", "module.jar"),
             ("entrypoint", "example.Missing"), ("entrypoint", "bad/class"),
             ("sha256", "abc"), ("unknown", "value"),

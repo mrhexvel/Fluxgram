@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Picture;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -29,6 +30,8 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
+import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -94,6 +97,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 field.setIncludeFontPadding(false);
                 field.setSingleLine(false);
                 field.setShowSoftInputOnFocus(false);
+                field.setCursorVisible(false);
                 field.setFocusableInTouchMode(true);
                 dialog = new AlertDialog.Builder(activity).setTitle("Composer text host verification")
                         .setView(field, 64).show();
@@ -107,6 +111,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 affineReplayCase();
                 tintReplayCase();
                 blurReplayCase();
+                cursorCaptureCase();
                 staleAndFallbackCase();
                 imeCase();
                 replayFailureCase();
@@ -293,6 +298,61 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         clearCapture();
         original.recycle();
         blurred.recycle();
+        cases++;
+    }
+
+    private void cursorCaptureCase() {
+        ComposerCursorSnapshot snapshot = new ComposerCursorSnapshot(
+                19, 2, 0, 20, 10, 24, 50, 44, false);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(Color.MAGENTA);
+        Consumer<Canvas> nativeDraw = canvas -> canvas.drawRect(
+                snapshot.left, snapshot.top, snapshot.right, snapshot.bottom, paint);
+        Bitmap nativeImage = Bitmap.createBitmap(80, 64, Bitmap.Config.ARGB_8888);
+        nativeDraw.accept(new Canvas(nativeImage));
+        ComposerNativeCursorCapture capture = new ComposerNativeCursorCapture();
+        Bitmap identity = Bitmap.createBitmap(80, 64, Bitmap.Config.ARGB_8888);
+        capture.draw(new Canvas(identity), nativeDraw, snapshot,
+                new ComposerCursorPresentation(0, 0, 1));
+        compare(nativeImage, identity, 0);
+        Bitmap transformed = Bitmap.createBitmap(80, 64, Bitmap.Config.ARGB_8888);
+        capture.draw(new Canvas(transformed), nativeDraw, snapshot,
+                new ComposerCursorPresentation(
+                        8, -2, 0.8f, 1.5f, 0.8f, 12, 2, 20, Color.CYAN, 0.7f, 4));
+        require(different(nativeImage, transformed) > 20,
+                "cursor transform matched native cursor");
+        Bitmap hidden = Bitmap.createBitmap(80, 64, Bitmap.Config.ARGB_8888);
+        capture.draw(new Canvas(hidden), nativeDraw, snapshot,
+                new ComposerCursorPresentation(0, 0, 0));
+        require(nonTransparent(hidden) == 0, "zero-alpha cursor was not suppressed");
+        capture.release();
+        ComposerCursorSnapshot failedSnapshot = new ComposerCursorSnapshot(
+                20, 2, 0, 20, 10, 24, 50, 44, false);
+        AtomicInteger failedNativeDraws = new AtomicInteger();
+        Consumer<Canvas> countedNativeDraw = canvas -> {
+            failedNativeDraws.incrementAndGet();
+            canvas.drawRect(failedSnapshot.left, failedSnapshot.top,
+                    failedSnapshot.right, failedSnapshot.bottom, paint);
+        };
+        Bitmap failureImage = Bitmap.createBitmap(80, 64, Bitmap.Config.ARGB_8888);
+        Canvas failureCanvas = new Canvas(failureImage) {
+            @Override
+            public void drawPicture(Picture picture) {
+                throw new IllegalStateException("Intentional cursor replay failure");
+            }
+        };
+        capture.draw(failureCanvas, countedNativeDraw, failedSnapshot,
+                new ComposerCursorPresentation(0, 0, 1));
+        capture.draw(new Canvas(failureImage), countedNativeDraw, failedSnapshot,
+                new ComposerCursorPresentation(0, 0, 1));
+        require(failedNativeDraws.get() == 3,
+                "failed cursor revision retried capture instead of native fallback");
+        capture.release();
+        nativeImage.recycle();
+        identity.recycle();
+        transformed.recycle();
+        hidden.recycle();
+        failureImage.recycle();
         cases++;
     }
 
