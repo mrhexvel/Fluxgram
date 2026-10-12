@@ -79,6 +79,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
     public void onStart() {
         Bundle result = new Bundle();
         int resultCode = Activity.RESULT_OK;
+        String hardwareStatus = "";
 
         try {
             Intent intent = new Intent(Intent.ACTION_MAIN)
@@ -123,10 +124,23 @@ public final class ComposerTextInstrumentation extends Instrumentation {
             });
 
             if (Build.VERSION.SDK_INT >= 26) {
-                hardwareCase();
+                try {
+                    hardwareCase();
+                } catch (AssertionError error) {
+                    if (!hasNoBackingSurface(error)) {
+                        throw error;
+                    }
+
+                    onUi(() -> {
+                        clearCapture();
+                        field.setTag(null);
+                    });
+                    hardwareStatus = "; hardware PixelCopy skipped: no backing surface";
+                }
             }
 
-            result.putString("stream", "Composer text host PASS: " + cases + " cases\n");
+            result.putString("stream", "Composer text host PASS: " + cases + " cases"
+                    + hardwareStatus + "\n");
         } catch (Throwable error) {
             result.putString("stream", "Composer text host FAIL: " + Log.getStackTraceString(error));
             resultCode = Activity.RESULT_CANCELED;
@@ -139,6 +153,21 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         }
 
         finish(resultCode, result);
+    }
+
+    private static boolean hasNoBackingSurface(Throwable error) {
+        Throwable current = error;
+
+        while (current != null) {
+            if (current instanceof IllegalArgumentException
+                    && "Window doesn't have a backing surface!".equals(current.getMessage())) {
+                return true;
+            }
+
+            current = current.getCause();
+        }
+
+        return false;
     }
 
     private void identityAndSuppressionCase() {
