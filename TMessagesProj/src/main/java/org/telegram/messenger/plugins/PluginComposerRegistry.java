@@ -17,6 +17,8 @@ import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerExpandedEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
+import org.telegram.messenger.plugins.api.ComposerMotionEffect;
+import org.telegram.messenger.plugins.api.ComposerMotionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
@@ -796,7 +798,8 @@ public final class PluginComposerRegistry {
         }
     }
 
-    private static final class Binding implements ComposerSurface, ComposerFrameCoordinator.Client {
+    private static final class Binding implements ComposerSurface, ComposerFrameCoordinator.Client,
+            ComposerMotionSensors.Client {
         final Registration registration;
         final int account;
         final long ownerId;
@@ -804,6 +807,7 @@ public final class PluginComposerRegistry {
         Surface surface;
         ComposerEffect effect;
         ComposerInput pendingInput;
+        ComposerMotionSnapshot pendingMotion;
         ComposerTextCandidate textCandidate;
         String textCandidateContent;
         TextCapture textCapture;
@@ -815,6 +819,8 @@ public final class PluginComposerRegistry {
         int overruns;
         boolean detached;
         boolean framing;
+        boolean motionEnabled;
+        boolean continuing;
 
         Binding(Registration registration, Surface surface) {
             this.registration = registration;
@@ -863,11 +869,49 @@ public final class PluginComposerRegistry {
         public void requestFrame() {
             requireUi();
 
-            if (!framing) {
+            if (!framing && !continuing) {
                 burstStart = 0;
             }
 
             frames().request(this);
+        }
+
+        @Override
+        public boolean setMotionUpdatesEnabled(boolean enabled) {
+            requireUi();
+
+            if (detached) {
+                return false;
+            }
+
+            if (enabled && !(effect instanceof ComposerMotionEffect)) {
+                return false;
+            }
+
+            boolean changed = motionEnabled != enabled;
+            boolean accepted = ComposerMotionSensors.setEnabled(this, enabled);
+            motionEnabled = enabled && accepted;
+
+            if (changed && !motionEnabled) {
+                pendingMotion = null;
+            }
+
+            return accepted;
+        }
+
+        @Override
+        public void onMotion(ComposerMotionSnapshot snapshot) {
+            if (!motionEnabled || snapshot == null) {
+                return;
+            }
+
+            if (!isActive()) {
+                onInactive();
+                return;
+            }
+
+            pendingMotion = snapshot;
+            requestFrame();
         }
 
         void input(ComposerInput input) {
@@ -1346,12 +1390,19 @@ public final class PluginComposerRegistry {
             try {
                 ComposerInput input = pendingInput;
                 pendingInput = null;
+                ComposerMotionSnapshot motion = pendingMotion;
+                pendingMotion = null;
 
                 if (input != null) {
                     effect.onInput(input);
                 }
 
+                if (motion != null && effect instanceof ComposerMotionEffect) {
+                    ((ComposerMotionEffect) effect).onMotion(motion);
+                }
+
                 boolean again = effect.onFrame(frameTimeNanos);
+                continuing = again;
 
                 if (isActive()) {
                     if (registration.cursor) {
@@ -1363,6 +1414,7 @@ public final class PluginComposerRegistry {
 
                 return again;
             } catch (Exception | LinkageError | AssertionError error) {
+                continuing = false;
                 registration.quarantine(error);
                 return false;
             } finally {
@@ -1436,6 +1488,10 @@ public final class PluginComposerRegistry {
             detached = true;
             frames().cancel(this);
             pendingInput = null;
+            pendingMotion = null;
+            motionEnabled = false;
+            continuing = false;
+            ComposerMotionSensors.setEnabled(this, false);
             textCandidate = null;
             textCandidateContent = null;
             clearTextCapture();

@@ -1,6 +1,7 @@
 package org.telegram.messenger.plugins;
 
 import android.graphics.Canvas;
+import android.hardware.SensorManager;
 import android.view.Choreographer;
 
 import org.telegram.messenger.plugins.api.ComposerEffect;
@@ -13,6 +14,8 @@ import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerExpandedEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
+import org.telegram.messenger.plugins.api.ComposerMotionEffect;
+import org.telegram.messenger.plugins.api.ComposerMotionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
@@ -294,6 +297,17 @@ public final class ComposerRegistryCheck {
         public ComposerContentPresentation presentContent() {
             presentations++;
             return presentation;
+        }
+    }
+
+    private static final class MotionEffect extends Effect implements ComposerMotionEffect {
+        ComposerMotionSnapshot motion;
+        int motions;
+
+        @Override
+        public void onMotion(ComposerMotionSnapshot value) {
+            motion = value;
+            motions++;
         }
     }
 
@@ -807,6 +821,123 @@ public final class ComposerRegistryCheck {
                 "invalid content presentation did not fail closed");
         surface.close();
         contentRegistration.close();
+
+        Effect nonMotion = new Effect();
+        AutoCloseable nonMotionRegistration = PluginComposerRegistry.register(
+                "test.motion.invalid", () -> true, context -> {
+                    nonMotion.context = context;
+                    return nonMotion;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        require(!nonMotion.context.setMotionUpdatesEnabled(true),
+                "non-motion effect enabled sensor updates");
+        surface.close();
+        nonMotionRegistration.close();
+
+        MotionEffect motion = new MotionEffect();
+        MotionEffect secondMotion = new MotionEffect();
+        AutoCloseable motionRegistration = PluginComposerRegistry.register(
+                "test.motion.first", () -> true, context -> {
+                    motion.context = context;
+                    return motion;
+                });
+        AutoCloseable secondMotionRegistration = PluginComposerRegistry.register(
+                "test.motion.second", () -> true, context -> {
+                    secondMotion.context = context;
+                    return secondMotion;
+                });
+        Host motionHost = new Host();
+        surface = PluginComposerRegistry.attach(motionHost);
+        SensorManager sensors = SensorManager.getInstance();
+        int registerCalls = sensors.registerCalls;
+        int unregisterCalls = sensors.unregisterCalls;
+        require(motion.context.setMotionUpdatesEnabled(true)
+                && secondMotion.context.setMotionUpdatesEnabled(true)
+                && sensors.registerCalls == registerCalls + 1,
+                "motion sensor was not registered");
+        sensors.dispatch(40, 2, 1, 2, 3);
+        sensors.dispatch(41, 3, 4, 5, 6);
+        require(motion.motions == 0, "motion callback bypassed frame coordinator");
+        tick();
+        require(motion.motions == 1 && secondMotion.motions == 1
+                && motion.motion == secondMotion.motion
+                && motion.motion.source == ComposerMotionSnapshot.SOURCE_GRAVITY
+                && motion.motion.timestampNanos == 41 && motion.motion.accuracy == 3
+                && motion.motion.x == 4 && motion.motion.y == 5 && motion.motion.z == 6,
+                "motion snapshots were not copied or coalesced");
+        require(motion.context.setMotionUpdatesEnabled(false)
+                && sensors.unregisterCalls == unregisterCalls,
+                "disabling one motion client stopped shared sensor");
+        surface.close();
+        require(sensors.unregisterCalls == unregisterCalls + 1
+                && motion.closes == 1 && secondMotion.closes == 1,
+                "motion sensor was not released with surface");
+        motionRegistration.close();
+        secondMotionRegistration.close();
+
+        sensors.gravityRegisterSuccess = false;
+        MotionEffect fallbackMotion = new MotionEffect();
+        AutoCloseable fallbackRegistration = PluginComposerRegistry.register(
+                "test.motion.fallback", () -> true, context -> {
+                    fallbackMotion.context = context;
+                    return fallbackMotion;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        registerCalls = sensors.registerCalls;
+        require(fallbackMotion.context.setMotionUpdatesEnabled(true)
+                && sensors.registerCalls == registerCalls + 2,
+                "accelerometer fallback was not registered");
+        sensors.dispatch(42, 1, 7, 8, 9);
+        tick();
+        require(fallbackMotion.motion.source == ComposerMotionSnapshot.SOURCE_ACCELEROMETER,
+                "accelerometer fallback source was not reported");
+        surface.close();
+        fallbackRegistration.close();
+        sensors.gravityRegisterSuccess = true;
+
+        MotionEffect cleanupMotion = new MotionEffect();
+        AutoCloseable cleanupRegistration = PluginComposerRegistry.register(
+                "test.motion.cleanup", () -> true, context -> {
+                    cleanupMotion.context = context;
+                    return cleanupMotion;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        require(cleanupMotion.context.setMotionUpdatesEnabled(true),
+                "cleanup sensor was not registered");
+        sensors.failUnregister = true;
+        surface.close();
+        cleanupRegistration.close();
+        MotionEffect afterCleanupMotion = new MotionEffect();
+        AutoCloseable afterCleanupRegistration = PluginComposerRegistry.register(
+                "test.motion.after_cleanup", () -> true, context -> {
+                    afterCleanupMotion.context = context;
+                    return afterCleanupMotion;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        require(afterCleanupMotion.context.setMotionUpdatesEnabled(true),
+                "sensor state remained stuck after cleanup failure");
+        surface.close();
+        afterCleanupRegistration.close();
+
+        MotionEffect endlessMotion = new MotionEffect();
+        endlessMotion.forever = true;
+        AutoCloseable motionEndlessRegistration = PluginComposerRegistry.register(
+                "test.motion.endless", () -> true, context -> {
+                    endlessMotion.context = context;
+                    return endlessMotion;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        require(endlessMotion.context.setMotionUpdatesEnabled(true),
+                "endless motion sensor was not registered");
+        long motionStart = Choreographer.getInstance().getFrameTimeNanos() + 16_666_667L;
+        sensors.dispatch(43, 1, 1, 1, 1);
+        Choreographer.getInstance().tick(motionStart);
+        sensors.dispatch(44, 1, 2, 2, 2);
+        Choreographer.getInstance().tick(motionStart + 2_100_000_000L);
+        require(endlessMotion.closes == 1,
+                "motion samples bypassed continuous animation timeout");
+        surface.close();
+        motionEndlessRegistration.close();
 
         CursorEffect cursor = new CursorEffect();
         AutoCloseable cursorRegistration = PluginComposerRegistry.registerCursor(

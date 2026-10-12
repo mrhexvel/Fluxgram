@@ -34,6 +34,7 @@ class ComposerEffectsTest(unittest.TestCase):
                 *sorted((ROOT / "tests/java/composer_stubs").rglob("*.java")),
                 *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
                 JAVA / "messenger/plugins/ComposerFrameCoordinator.java",
+                JAVA / "messenger/plugins/ComposerMotionSensors.java",
                 JAVA / "messenger/plugins/PluginComposerRegistry.java",
                 ROOT / "tests/java/ComposerRegistryCheck.java",
             ]

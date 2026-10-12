@@ -12,4 +12,8 @@ public interface ComposerSurface {
     boolean isActive();
 
     void requestFrame();
+
+    default boolean setMotionUpdatesEnabled(boolean enabled) {
+        return false;
+    }
 }
