@@ -46,12 +46,18 @@ public final class PluginComposerRegistry {
         boolean isValid();
 
         void draw(Canvas canvas, Consumer<Canvas> nativeDraw, ComposerTextPresentation presentation);
+
+        default void release() {
+        }
     }
 
     public interface OverlayTextCapture extends ComposerTextCapture {
         boolean isValid();
 
         void draw(Canvas canvas, ComposerTextPresentation presentation);
+
+        default void release() {
+        }
     }
 
     private static final LinkedHashSet<Registration> registrations = new LinkedHashSet<>();
@@ -497,9 +503,9 @@ public final class PluginComposerRegistry {
             long sequence = ++textSequence;
             textCandidate = null;
             textCandidateContent = null;
-            textCapture = null;
+            clearTextCapture();
             removedChange = null;
-            removedCapture = null;
+            clearRemovedCapture();
 
             if (!registration.text || !isActive() || effect == null || change == null) {
                 return;
@@ -542,7 +548,7 @@ public final class PluginComposerRegistry {
 
         void textLayoutChanged(ComposerTextLayoutChange change) {
             removedChange = null;
-            removedCapture = null;
+            clearRemovedCapture();
 
             if (!registration.text || !isActive() || !(effect instanceof ComposerTextLayoutEffect)
                     || change == null) {
@@ -572,7 +578,7 @@ public final class PluginComposerRegistry {
             }
 
             if (!textCapture.isValid()) {
-                textCapture = null;
+                clearTextCapture();
                 return false;
             }
 
@@ -583,14 +589,14 @@ public final class PluginComposerRegistry {
                 presentation = ((ComposerTextEffect) effect).present(textCapture);
 
                 if (presentation == null) {
-                    textCapture = null;
+                    clearTextCapture();
                     return false;
                 }
 
                 validatePresentation(presentation, textCapture);
 
             } catch (Exception | LinkageError | AssertionError error) {
-                textCapture = null;
+                clearTextCapture();
                 registration.quarantine(error);
                 return false;
             } finally {
@@ -609,7 +615,7 @@ public final class PluginComposerRegistry {
 
             if (!removedCapture.isValid()) {
                 removedChange = null;
-                removedCapture = null;
+                clearRemovedCapture();
                 return;
             }
 
@@ -622,14 +628,14 @@ public final class PluginComposerRegistry {
 
                 if (presentation == null) {
                     removedChange = null;
-                    removedCapture = null;
+                    clearRemovedCapture();
                     return;
                 }
 
                 validatePresentation(presentation, removedCapture);
             } catch (Exception | LinkageError | AssertionError error) {
                 removedChange = null;
-                removedCapture = null;
+                clearRemovedCapture();
                 registration.quarantine(error);
                 return;
             } finally {
@@ -640,7 +646,7 @@ public final class PluginComposerRegistry {
                 removedCapture.draw(canvas, presentation);
             } catch (Exception | LinkageError | AssertionError error) {
                 removedChange = null;
-                removedCapture = null;
+                clearRemovedCapture();
                 Log.e("FluxGramComposer", "Removed text replay failed", error);
             }
         }
@@ -651,6 +657,8 @@ public final class PluginComposerRegistry {
             float height = capture.getBottom() - capture.getTop();
 
             if (!Float.isFinite(presentation.translationX) || !Float.isFinite(presentation.translationY)
+                    || !Float.isFinite(width) || width <= 0 || width > 256
+                    || !Float.isFinite(height) || height <= 0 || height > 256
                     || !Float.isFinite(presentation.alpha) || presentation.alpha < 0 || presentation.alpha > 1
                     || !Float.isFinite(presentation.scaleX) || presentation.scaleX < 0 || presentation.scaleX > 4
                     || !Float.isFinite(presentation.scaleY) || presentation.scaleY < 0 || presentation.scaleY > 4
@@ -663,6 +671,8 @@ public final class PluginComposerRegistry {
                     || !Float.isFinite(presentation.tintAmount)
                     || presentation.tintAmount < 0 || presentation.tintAmount > 1
                     || (presentation.tintAmount > 0 && (presentation.tintColor >>> 24) != 0xFF)
+                    || !Float.isFinite(presentation.blurRadius) || presentation.blurRadius < 0
+                    || presentation.blurRadius > ComposerTextPresentation.MAX_BLUR_RADIUS
                     || Math.abs(presentation.translationX) > limit
                     || Math.abs(presentation.translationY) > limit
                     || !validTransformedBounds(presentation, capture, limit)) {
@@ -683,8 +693,10 @@ public final class PluginComposerRegistry {
             float maxY = Float.NEGATIVE_INFINITY;
 
             for (int corner = 0; corner < 4; corner++) {
-                float x = (corner & 1) == 0 ? 0 : width;
-                float y = (corner & 2) == 0 ? 0 : height;
+                float outset = presentation.blurRadius > 0
+                        ? (float) Math.ceil(presentation.blurRadius) + 1 : 0;
+                float x = (corner & 1) == 0 ? -outset : width + outset;
+                float y = (corner & 2) == 0 ? -outset : height + outset;
                 double scaledX = (x - presentation.pivotX) * presentation.scaleX;
                 double scaledY = (y - presentation.pivotY) * presentation.scaleY;
                 float transformedX = (float) (capture.getLeft() + presentation.translationX
@@ -705,6 +717,30 @@ public final class PluginComposerRegistry {
             return maxX - minX <= limit && maxY - minY <= limit
                     && minX >= -limit && maxX <= lastGeometry.width + limit
                     && minY >= -limit && maxY <= lastGeometry.height + limit;
+        }
+
+        private void clearTextCapture() {
+            if (textCapture != null) {
+                try {
+                    textCapture.release();
+                } catch (Exception | LinkageError | AssertionError error) {
+                    Log.e("FluxGramComposer", "Native text capture release failed", error);
+                }
+
+                textCapture = null;
+            }
+        }
+
+        private void clearRemovedCapture() {
+            if (removedCapture != null) {
+                try {
+                    removedCapture.release();
+                } catch (Exception | LinkageError | AssertionError error) {
+                    Log.e("FluxGramComposer", "Removed text capture release failed", error);
+                }
+
+                removedCapture = null;
+            }
         }
 
         @Override
@@ -800,9 +836,9 @@ public final class PluginComposerRegistry {
             pendingInput = null;
             textCandidate = null;
             textCandidateContent = null;
-            textCapture = null;
+            clearTextCapture();
             removedChange = null;
-            removedCapture = null;
+            clearRemovedCapture();
 
             if (surface != null) {
                 surface.bindings.remove(this);

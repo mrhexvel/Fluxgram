@@ -162,6 +162,17 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
             return;
         }
 
+        try {
+            if (presentation.alpha > 0) {
+                layer.prepare(picture, ink.width(), ink.height(), presentation);
+            }
+        } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
+            failed = true;
+            layer.release();
+            Log.e("FluxGramComposer", "Removed text blur preparation failed", error);
+            return;
+        }
+
         int save = canvas.save();
         Trace.beginSection("FGComposer.removedReplay");
 
@@ -169,13 +180,12 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
             canvas.translate(ink.left, ink.top);
             ComposerNativeTextCapture.applyTransform(canvas, presentation);
 
-            layer.save(canvas, ink.width(), ink.height(), presentation);
-
             if (presentation.alpha > 0) {
-                canvas.drawPicture(picture);
+                layer.draw(canvas, picture, ink.width(), ink.height(), presentation);
             }
-        } catch (Exception | LinkageError | AssertionError error) {
+        } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
             failed = true;
+            layer.release();
             Log.e("FluxGramComposer", "Removed text replay failed", error);
         } finally {
             try {
@@ -184,5 +194,10 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
                 Trace.endSection();
             }
         }
+    }
+
+    @Override
+    public void release() {
+        layer.release();
     }
 }

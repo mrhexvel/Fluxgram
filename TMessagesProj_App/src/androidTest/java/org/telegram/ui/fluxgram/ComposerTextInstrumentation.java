@@ -106,6 +106,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 identityAndSuppressionCase();
                 affineReplayCase();
                 tintReplayCase();
+                blurReplayCase();
                 staleAndFallbackCase();
                 imeCase();
                 replayFailureCase();
@@ -222,6 +223,24 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 new ComposerTextPresentation(0, 0, 1));
         require(nativeDraws.get() == 1 && !capture.isValid(), "replay fallback was not single-pass native");
         image.recycle();
+
+        setText("H");
+        capture = ComposerNativeTextCapture.capture(
+                field, new ComposerTextCandidate(17, 0, 1), "H");
+        require(capture != null, "blur failure capture rejected");
+        image = Bitmap.createBitmap(field.getWidth(), field.getHeight(), Bitmap.Config.ARGB_8888);
+        canvas = new Canvas(image) {
+            @Override
+            public void drawBitmap(Bitmap bitmap, float left, float top, android.graphics.Paint paint) {
+                throw new IllegalStateException("Intentional blur replay failure");
+            }
+        };
+        nativeDraws.set(0);
+        capture.draw(canvas, ignored -> nativeDraws.incrementAndGet(),
+                new ComposerTextPresentation(0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 6));
+        require(nativeDraws.get() == 1 && !capture.isValid(),
+                "blur replay fallback was not single-pass native");
+        image.recycle();
         cases++;
     }
 
@@ -250,6 +269,30 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         tinted.recycle();
         restored.recycle();
         tintedAgain.recycle();
+        cases++;
+    }
+
+    private void blurReplayCase() {
+        setText("HH");
+        Bitmap original = software();
+        ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
+                field, new ComposerTextCandidate(18, 1, 2), "HH");
+        require(capture != null, "blur capture rejected");
+        Rect ink = new Rect(
+                (int) capture.getLeft(), (int) capture.getTop(),
+                (int) capture.getRight(), (int) capture.getBottom());
+        field.capture = capture;
+        field.presentation = new ComposerTextPresentation(
+                0, 0, 0.8f, 1, 1, 0, 0, 0, Color.RED, 0.5f, 6);
+        Bitmap blurred = software();
+        int outside = differentOutside(original, blurred, ink, 8);
+        require(outside > 10,
+                "blur did not extend beyond captured ink: outside=" + outside
+                        + " total=" + different(original, blurred));
+        require(field.getText().toString().equals("HH"), "blur replay mutated Editable");
+        clearCapture();
+        original.recycle();
+        blurred.recycle();
         cases++;
     }
 
@@ -338,6 +381,17 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         compare(original, replay, 3);
         original.recycle();
         replay.recycle();
+
+        onUi(() -> {
+            field.presentation = new ComposerTextPresentation(
+                    0, 0, 0.8f, 1, 1, 0, 0, 0, Color.RED, 0.5f, 6);
+            field.invalidate();
+        });
+        original = hardware(false);
+        replay = hardware(true);
+        require(different(original, replay) > 20, "hardware blur matched native text");
+        original.recycle();
+        replay.recycle();
         onUi(this::clearCapture);
         cases++;
     }
@@ -422,6 +476,24 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         for (int y = 0; y < first.getHeight(); y++) {
             for (int x = 0; x < first.getWidth(); x++) {
                 if (first.getPixel(x, y) != second.getPixel(x, y)) {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static int differentOutside(Bitmap first, Bitmap second, Rect excluded, int outset) {
+        int count = 0;
+        int left = Math.max(0, excluded.left - outset);
+        int top = Math.max(0, excluded.top - outset);
+        int right = Math.min(first.getWidth(), excluded.right + outset);
+        int bottom = Math.min(first.getHeight(), excluded.bottom + outset);
+
+        for (int y = top; y < bottom; y++) {
+            for (int x = left; x < right; x++) {
+                if (!excluded.contains(x, y) && first.getPixel(x, y) != second.getPixel(x, y)) {
                     count++;
                 }
             }

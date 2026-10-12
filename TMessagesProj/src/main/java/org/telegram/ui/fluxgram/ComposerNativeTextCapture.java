@@ -252,6 +252,18 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
             return;
         }
 
+        try {
+            if (presentation.alpha > 0) {
+                layer.prepare(picture, ink.width(), ink.height(), presentation);
+            }
+        } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
+            failed = true;
+            layer.release();
+            Log.e("FluxGramComposer", "Native text blur preparation failed", error);
+            nativeDraw.accept(canvas);
+            return;
+        }
+
         int save = canvas.save();
         Trace.beginSection("FGComposer.textReplay");
         Throwable replayFailure = null;
@@ -260,12 +272,10 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
             canvas.translate(ink.left, ink.top);
             applyTransform(canvas, presentation);
 
-            layer.save(canvas, ink.width(), ink.height(), presentation);
-
             if (presentation.alpha > 0) {
-                canvas.drawPicture(picture);
+                layer.draw(canvas, picture, ink.width(), ink.height(), presentation);
             }
-        } catch (Exception | LinkageError | AssertionError error) {
+        } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
             failed = true;
             replayFailure = error;
         } finally {
@@ -277,6 +287,7 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         }
 
         if (replayFailure != null) {
+            layer.release();
             Log.e("FluxGramComposer", "Native text replay failed", replayFailure);
             nativeDraw.accept(canvas);
             return;
@@ -303,5 +314,10 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         canvas.rotate(presentation.rotationDegrees);
         canvas.scale(presentation.scaleX, presentation.scaleY);
         canvas.translate(-presentation.pivotX, -presentation.pivotY);
+    }
+
+    @Override
+    public void release() {
+        layer.release();
     }
 }

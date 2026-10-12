@@ -79,6 +79,7 @@ public final class ComposerRegistryCheck {
     private static final class Capture implements PluginComposerRegistry.TextCapture {
         final ComposerTextCandidate candidate;
         int draws;
+        int releases;
         boolean valid = true;
         ComposerTextPresentation presentation;
 
@@ -137,6 +138,11 @@ public final class ComposerRegistryCheck {
             draws++;
             this.presentation = presentation;
             nativeDraw.accept(canvas);
+        }
+
+        @Override
+        public void release() {
+            releases++;
         }
     }
 
@@ -242,6 +248,7 @@ public final class ComposerRegistryCheck {
 
     private static final class OverlayCapture implements PluginComposerRegistry.OverlayTextCapture {
         int draws;
+        int releases;
         ComposerTextPresentation presentation;
 
         @Override
@@ -293,6 +300,11 @@ public final class ComposerRegistryCheck {
         public void draw(Canvas canvas, ComposerTextPresentation presentation) {
             draws++;
             this.presentation = presentation;
+        }
+
+        @Override
+        public void release() {
+            releases++;
         }
     }
 
@@ -436,19 +448,22 @@ public final class ComposerRegistryCheck {
         require(nativeDraws[0] == 2, "native fallback missing for stale candidate");
         text.stale = false;
         text.presentation = new ComposerTextPresentation(
-                3, -2, 0.75f, 1.5f, 0.5f, 30, 5, 5, 0xFFFF8800, 0.4f);
+                3, -2, 0.75f, 1.5f, 0.5f, 30, 5, 5, 0xFFFF8800, 0.4f, 6);
         surface.textChanged(new ComposerTextChange(9, "abcd", "abcde", 4, 0, 1, 5, 5, -1, -1));
         surface.prepareText();
         surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
         require(nativeDraws[0] == 3 && text.capture instanceof Capture
                 && ((Capture) text.capture).presentation == text.presentation
-                && text.presentation.tintColor == 0xFFFF8800 && text.presentation.tintAmount == 0.4f,
+                && text.presentation.tintColor == 0xFFFF8800 && text.presentation.tintAmount == 0.4f
+                && text.presentation.blurRadius == 6,
                 "bounded transform presentation was not applied");
+        Capture transformedCapture = (Capture) text.capture;
         text.presentation = new ComposerTextPresentation(0, 0, 1, 5, 1, 0, 0, 0);
         surface.textChanged(new ComposerTextChange(10, "abcde", "abcdef", 5, 0, 1, 6, 6, -1, -1));
         surface.prepareText();
         surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
-        require(nativeDraws[0] == 4 && text.closes == 1, "invalid transform did not fail closed");
+        require(nativeDraws[0] == 4 && text.closes == 1 && transformedCapture.releases == 1,
+                "invalid transform did not fail closed or release capture");
         surface.close();
         textRegistration.close();
 
@@ -467,6 +482,22 @@ public final class ComposerRegistryCheck {
         require(invalidTint.closes == 1, "invalid tint did not fail closed");
         surface.close();
         invalidTintRegistration.close();
+
+        TextEffect invalidBlur = new TextEffect();
+        invalidBlur.presentation = new ComposerTextPresentation(
+                0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 13);
+        AutoCloseable invalidBlurRegistration = PluginComposerRegistry.registerText(
+                "test.text.invalid_blur", () -> true, context -> {
+                    invalidBlur.surface = context;
+                    return invalidBlur;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        surface.textChanged(new ComposerTextChange(14, "a", "ab", 1, 0, 1, 2, 2, -1, -1));
+        surface.prepareText();
+        surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
+        require(invalidBlur.closes == 1, "invalid blur did not fail closed");
+        surface.close();
+        invalidBlurRegistration.close();
 
         LayoutTextEffect layoutText = new LayoutTextEffect();
         AutoCloseable layoutTextRegistration = PluginComposerRegistry.registerText(
@@ -524,7 +555,7 @@ public final class ComposerRegistryCheck {
         require(surface.hasTextTransitionEffect(), "transition text effect not attached");
         OverlayCapture overlayCapture = new OverlayCapture();
         transitionText.removedPresentation = new ComposerTextPresentation(
-                2, 1, 0.5f, 0.8f, 1.2f, -20, 5, 5, 0xFF00AAFF, 0.6f);
+                2, 1, 0.5f, 0.8f, 1.2f, -20, 5, 5, 0xFF00AAFF, 0.6f, 4);
         ComposerTextLayoutChange transitionChange = new ComposerTextLayoutChange(
                 21, beforeLayout, afterLayout, 1, 1, 0, false, overlayCapture);
         surface.textLayoutChanged(transitionChange);
@@ -536,7 +567,7 @@ public final class ComposerRegistryCheck {
                 "removed text overlay was not drawn after native text");
         transitionText.removedPresentation = null;
         surface.drawText(new Canvas(), canvas -> transitionNativeDraws[0]++);
-        require(transitionNativeDraws[0] == 2 && overlayCapture.draws == 1,
+        require(transitionNativeDraws[0] == 2 && overlayCapture.draws == 1 && overlayCapture.releases == 1,
                 "finished removed text overlay was retained");
         surface.close();
         transitionRegistration.close();
