@@ -3599,7 +3599,7 @@ public class ChatActivity extends BaseFragment implements
         long boundDialog = dialog_id;
         int boundAccount = currentAccount;
         pluginComposer = new FluxGramComposerController(
-                chatActivityEnterView.getEditField(), currentAccount, dialog_id,
+                chatActivityEnterView.getEditField(), chatInputViewsContainer, currentAccount, dialog_id,
                 () -> dialog_id == boundDialog && currentAccount == boundAccount && isPluginComposerEligible(),
                 themeDelegate);
     }

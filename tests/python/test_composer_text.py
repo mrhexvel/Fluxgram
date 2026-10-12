@@ -33,7 +33,7 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 13", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 14", manifest)
         enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
@@ -95,6 +95,64 @@ class ComposerTextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             module = directory / "external/TextModule.java"
+            module.parent.mkdir()
+            module.write_text(source)
+            sources = [
+                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                module,
+            ]
+            subprocess.run(
+                ["javac", "--release", "8", "-d", str(directory / "classes"), *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+
+    def test_external_expanded_effect_compiles_against_api_1_14(self):
+        if not shutil.which("javac"):
+            self.skipTest("Requires JDK")
+
+        source = textwrap.dedent(
+            """
+            package external;
+
+            import android.graphics.Canvas;
+            import org.telegram.messenger.plugins.api.*;
+
+            public final class ExpandedModule implements JavaPluginModule {
+                public void onLoad(JavaPluginContext context) {
+                    context.registerComposerEffect(Effect::new);
+                }
+
+                public void onUnload() {}
+
+                private static final class Effect implements ComposerExpandedEffect {
+                    private final ComposerSurface surface;
+
+                    Effect(ComposerSurface surface) {
+                        this.surface = surface;
+                    }
+
+                    public void onInput(ComposerInput input) {}
+                    public boolean onFrame(long timestamp) { return false; }
+                    public void draw(Canvas canvas, ComposerGeometry geometry) {}
+
+                    public void drawExpanded(
+                            Canvas canvas, ComposerGeometry geometry, ComposerExpandedBounds bounds) {
+                        if (bounds.top < 0) {
+                            surface.requestFrame();
+                        }
+                    }
+
+                    public void close() {}
+                }
+            }
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            module = directory / "external/ExpandedModule.java"
             module.parent.mkdir()
             module.write_text(source)
             sources = [

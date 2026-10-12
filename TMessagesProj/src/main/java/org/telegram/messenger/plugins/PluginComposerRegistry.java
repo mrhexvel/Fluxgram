@@ -11,6 +11,8 @@ import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
+import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
+import org.telegram.messenger.plugins.api.ComposerExpandedEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
@@ -56,6 +58,10 @@ public final class PluginComposerRegistry {
         }
 
         default void selectionOwnerChanged() {
+            invalidate();
+        }
+
+        default void effectsChanged() {
             invalidate();
         }
 
@@ -257,6 +263,7 @@ public final class PluginComposerRegistry {
         private SelectionCapture selectionCapture;
         private long sendSequence;
         private int nextDraw;
+        private int nextExpandedDraw;
         private boolean drawingPresentedText;
 
         private Surface(Host host) {
@@ -377,12 +384,7 @@ public final class PluginComposerRegistry {
 
         public void draw(Canvas canvas) {
             requireUi();
-            long timestamp = AnimationUtils.currentAnimationTimeMillis();
-
-            if (timestamp != drawTimestamp) {
-                drawTimestamp = timestamp;
-                drawNanos = 0;
-            }
+            prepareDrawBudget();
 
             Binding[] current = snapshot;
             int count = current.length;
@@ -411,6 +413,48 @@ public final class PluginComposerRegistry {
             }
 
             nextDraw = 0;
+        }
+
+        public void drawExpanded(Canvas canvas, ComposerExpandedBounds bounds) {
+            requireUi();
+
+            if (bounds == null || bounds.left >= bounds.right || bounds.top >= bounds.bottom) {
+                return;
+            }
+
+            prepareDrawBudget();
+            Binding[] current = snapshot;
+            int count = current.length;
+            int from = count == 0 ? 0 : nextExpandedDraw % count;
+
+            for (int index = from; index < count; index++) {
+                if (drawNanos >= 2_000_000L) {
+                    skippedDraws += count - index;
+                    nextExpandedDraw = index;
+                    return;
+                }
+
+                Binding binding = current[index];
+
+                if (!(binding.effect instanceof ComposerExpandedEffect)) {
+                    continue;
+                }
+
+                long start = System.nanoTime();
+                binding.drawExpanded(canvas, bounds);
+                drawNanos += System.nanoTime() - start;
+            }
+
+            nextExpandedDraw = 0;
+        }
+
+        private void prepareDrawBudget() {
+            long timestamp = AnimationUtils.currentAnimationTimeMillis();
+
+            if (timestamp != drawTimestamp) {
+                drawTimestamp = timestamp;
+                drawNanos = 0;
+            }
         }
 
         public boolean hasEffects() {
@@ -483,6 +527,18 @@ public final class PluginComposerRegistry {
             return false;
         }
 
+        public boolean hasExpandedEffect() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.effect instanceof ComposerExpandedEffect) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public boolean isClosed() {
             requireUi();
             return host == null;
@@ -516,6 +572,10 @@ public final class PluginComposerRegistry {
                 if (host != null) {
                     host.selectionOwnerChanged();
                 }
+            }
+
+            if (host != null) {
+                host.effectsChanged();
             }
         }
 
@@ -594,6 +654,8 @@ public final class PluginComposerRegistry {
 
                 if (!binding.isActive()) {
                     binding.close();
+                } else {
+                    surface.changed();
                 }
             } catch (Exception | LinkageError | AssertionError error) {
                 quarantine(error);
@@ -1191,6 +1253,33 @@ public final class PluginComposerRegistry {
             try {
                 canvas.clipRect(0, 0, geometry.width, geometry.height);
                 effect.draw(canvas, geometry);
+            } catch (Exception | LinkageError | AssertionError error) {
+                registration.quarantine(error);
+            } finally {
+                try {
+                    canvas.restoreToCount(save);
+                } catch (Exception | LinkageError | AssertionError error) {
+                    registration.quarantine(error);
+                } finally {
+                    Trace.endSection();
+                    record(start);
+                }
+            }
+        }
+
+        void drawExpanded(Canvas canvas, ComposerExpandedBounds bounds) {
+            if (!isActive() || !(effect instanceof ComposerExpandedEffect)) {
+                return;
+            }
+
+            ComposerGeometry geometry = getGeometry();
+            int save = canvas.save();
+            long start = System.nanoTime();
+            Trace.beginSection("FGComposer.drawExpanded");
+
+            try {
+                canvas.clipRect(bounds.left, bounds.top, bounds.right, bounds.bottom);
+                ((ComposerExpandedEffect) effect).drawExpanded(canvas, geometry, bounds);
             } catch (Exception | LinkageError | AssertionError error) {
                 registration.quarantine(error);
             } finally {

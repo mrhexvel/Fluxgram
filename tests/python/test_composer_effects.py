@@ -73,10 +73,13 @@ class ComposerEffectsTest(unittest.TestCase):
             self.assertNotIn(forbidden, controller)
 
         for required in ("getOverlay().remove", "removeTextChangedListener", "removeListener(this)",
-                         "removeOnPreDrawListener", "onBecameBackground", "onViewDetachedFromWindow",
-                         "getClientUserId() == ownerId", "selectedAccount == account",
-                         "field.getParent()", "sendTransitionDeadline"):
+                          "removeOnPreDrawListener", "onBecameBackground", "onViewDetachedFromWindow",
+                          "getClientUserId() == ownerId", "selectedAccount == account",
+                          "field.getParent()", "sendTransitionDeadline", "ComposerExpandedBounds.MAX_OUTSET_DP",
+                          "expandedHost.indexOfChild", "removeExpandedLayer"):
             self.assertIn(required, controller)
+
+        self.assertIn("chatInputViewsContainer, currentAccount", chat)
 
     def test_composer_registration_uses_ui_cleanup_scope(self):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()

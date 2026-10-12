@@ -11,6 +11,7 @@ import android.text.Editable;
 import android.text.Layout;
 import android.text.TextWatcher;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.ViewTreeObserver;
 import android.view.inputmethod.BaseInputConnection;
@@ -22,6 +23,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
+import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
@@ -33,6 +35,8 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.ForegroundDetector;
 import org.telegram.ui.Components.ChatActivityEnterView;
 import org.telegram.ui.Components.EditTextCaption;
+import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.chat.ChatInputViewsContainer;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -43,11 +47,13 @@ public final class FluxGramComposerController implements TextWatcher,
     private final int account;
     private final long ownerId;
     private final long dialogId;
+    private final ChatInputViewsContainer expandedHost;
     private final BooleanSupplier eligible;
     private final Theme.ResourcesProvider colors;
     private final ForegroundDetector foreground;
     private final Drawable overlay;
     private View overlayHost;
+    private View expandedLayer;
     private PluginComposerRegistry.Surface surface;
     private ComposerGeometry geometry;
     private ViewTreeObserver observer;
@@ -75,11 +81,14 @@ public final class FluxGramComposerController implements TextWatcher,
     private final RectF sendBounds = new RectF();
     private final int[] fieldLocation = new int[2];
     private final int[] sendLocation = new int[2];
+    private final int[] expandedLocation = new int[2];
     private long sendTransitionDeadline;
 
-    public FluxGramComposerController(EditText field, int account, long dialogId,
+    public FluxGramComposerController(EditText field, ChatInputViewsContainer expandedHost,
+            int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
         this.field = field;
+        this.expandedHost = expandedHost;
         this.account = account;
         this.dialogId = dialogId;
         this.ownerId = UserConfig.getInstance(account).getClientUserId();
@@ -215,6 +224,10 @@ public final class FluxGramComposerController implements TextWatcher,
                 @Override
                 public void invalidate() {
                     overlay.invalidateSelf();
+
+                    if (expandedLayer != null) {
+                        expandedLayer.invalidate();
+                    }
                 }
 
                 @Override
@@ -233,6 +246,12 @@ public final class FluxGramComposerController implements TextWatcher,
                 public void selectionOwnerChanged() {
                     clearSelectionCapture();
                     overlay.invalidateSelf();
+                }
+
+                @Override
+                public void effectsChanged() {
+                    refreshExpandedLayer();
+                    invalidate();
                 }
 
                 @Override
@@ -256,6 +275,79 @@ public final class FluxGramComposerController implements TextWatcher,
                 overlayHost.getOverlay().add(overlay);
             }
         }
+
+        refreshExpandedLayer();
+    }
+
+    private void refreshExpandedLayer() {
+        if (surface == null || !surface.hasExpandedEffect()) {
+            removeExpandedLayer();
+            return;
+        }
+
+        if (expandedLayer != null) {
+            return;
+        }
+
+        expandedLayer = new View(field.getContext()) {
+            @Override
+            protected void onDraw(Canvas canvas) {
+                FluxGramComposerController.this.drawExpanded(canvas, this);
+            }
+        };
+        expandedLayer.setWillNotDraw(false);
+        expandedLayer.setClickable(false);
+        expandedLayer.setFocusable(false);
+        expandedLayer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        int keyboardIndex = expandedHost.indexOfChild(expandedHost.getInAppKeyboardBubbleContainer());
+        expandedHost.addView(expandedLayer, Math.max(0, keyboardIndex),
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+    }
+
+    private void drawExpanded(Canvas canvas, View layer) {
+        if (surface == null || !surface.hasExpandedEffect() || !available()
+                || !layer.isAttachedToWindow() || layer.getWindowToken() != field.getWindowToken()
+                || layer.getWidth() <= 0 || layer.getHeight() <= 0) {
+            return;
+        }
+
+        field.getLocationInWindow(fieldLocation);
+        layer.getLocationInWindow(expandedLocation);
+        int fieldLeft = fieldLocation[0] - expandedLocation[0];
+        int fieldTop = fieldLocation[1] - expandedLocation[1];
+        int outset = Math.round(ComposerExpandedBounds.MAX_OUTSET_DP
+                * field.getResources().getDisplayMetrics().density);
+        int left = Math.max(-outset, -fieldLeft);
+        int top = Math.max(-outset, -fieldTop);
+        int right = Math.min(field.getWidth() + outset, layer.getWidth() - fieldLeft);
+        int bottom = Math.min(field.getHeight() + outset, layer.getHeight() - fieldTop);
+
+        if (left >= right || top >= bottom) {
+            return;
+        }
+
+        ComposerExpandedBounds bounds = new ComposerExpandedBounds(left, top, right, bottom);
+        int save = canvas.save();
+
+        try {
+            canvas.clipRect(fieldLeft + left, fieldTop + top, fieldLeft + right, fieldTop + bottom);
+            canvas.translate(fieldLeft, fieldTop);
+            surface.drawExpanded(canvas, bounds);
+        } finally {
+            canvas.restoreToCount(save);
+        }
+    }
+
+    private void removeExpandedLayer() {
+        if (expandedLayer != null) {
+            ViewParent parent = expandedLayer.getParent();
+
+            if (parent instanceof ViewGroup) {
+                ((ViewGroup) parent).removeView(expandedLayer);
+            }
+
+            expandedLayer = null;
+        }
     }
 
     private void removeOverlay() {
@@ -274,6 +366,7 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         sendTransitionDeadline = 0;
+        removeExpandedLayer();
 
         inputChanges.reset();
         beforeText = null;

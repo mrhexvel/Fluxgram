@@ -7,6 +7,8 @@ import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
+import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
+import org.telegram.messenger.plugins.api.ComposerExpandedEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
@@ -43,6 +45,7 @@ public final class ComposerRegistryCheck {
         int cursorInvalidations;
         int cursorOwnerChanges;
         int selectionOwnerChanges;
+        int effectsChanges;
         ComposerCursorSnapshot cursorSnapshot;
         ComposerCursorPresentation cursorPresentation;
         final ComposerGeometry geometry = new ComposerGeometry(320, 50, 1, 0xFF123456, false);
@@ -90,6 +93,11 @@ public final class ComposerRegistryCheck {
         @Override
         public void selectionOwnerChanged() {
             selectionOwnerChanges++;
+        }
+
+        @Override
+        public void effectsChanged() {
+            effectsChanges++;
         }
 
         @Override
@@ -305,6 +313,24 @@ public final class ComposerRegistryCheck {
 
             if (failSend) {
                 throw new IllegalStateException("intentional send failure");
+            }
+        }
+    }
+
+    private static final class ExpandedEffect extends Effect implements ComposerExpandedEffect {
+        ComposerExpandedBounds bounds;
+        ComposerGeometry expandedGeometry;
+        int expandedDraws;
+        boolean failExpandedDraw;
+
+        @Override
+        public void drawExpanded(Canvas canvas, ComposerGeometry geometry, ComposerExpandedBounds value) {
+            bounds = value;
+            expandedGeometry = geometry;
+            expandedDraws++;
+
+            if (failExpandedDraw) {
+                throw new IllegalStateException("intentional expanded draw failure");
             }
         }
     }
@@ -842,6 +868,27 @@ public final class ComposerRegistryCheck {
         surface.close();
         firstSendRegistration.close();
         secondSendRegistration.close();
+
+        ExpandedEffect expanded = new ExpandedEffect();
+        AutoCloseable expandedRegistration = PluginComposerRegistry.register(
+                "test.expanded", () -> true, context -> expanded);
+        Host expandedHost = new Host();
+        surface = PluginComposerRegistry.attach(expandedHost);
+        require(surface.hasExpandedEffect(), "expanded effect not attached");
+        ComposerExpandedBounds expandedBounds = new ComposerExpandedBounds(-40, -60, 400, 100);
+        surface.drawExpanded(new Canvas(), expandedBounds);
+        require(expanded.expandedDraws == 1 && expanded.bounds == expandedBounds
+                && expanded.expandedGeometry == expandedHost.geometry,
+                "expanded draw did not preserve field-local geometry");
+        surface.drawExpanded(new Canvas(), new ComposerExpandedBounds(10, 10, 10, 20));
+        require(expanded.expandedDraws == 1, "empty expanded bounds were drawn");
+        expanded.failExpandedDraw = true;
+        surface.drawExpanded(new Canvas(), expandedBounds);
+        require(expanded.closes == 1 && !surface.hasExpandedEffect(),
+                "expanded draw failure did not fail closed");
+        require(expandedHost.effectsChanges > 0, "expanded lifecycle was not reported to host");
+        surface.close();
+        expandedRegistration.close();
 
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 
