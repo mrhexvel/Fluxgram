@@ -57,6 +57,23 @@ class ComposerEffectsTest(unittest.TestCase):
                             "org.telegram.messenger.plugins.ComposerFrameCoordinatorCheck"],
                            check=True, capture_output=True)
 
+    def test_text_insertion_geometry_is_bounded_and_cluster_aligned(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        with tempfile.TemporaryDirectory() as directory:
+            sources = [
+                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                JAVA / "ui/fluxgram/ComposerTextInsertions.java",
+                ROOT / "tests/java/ComposerTextInsertionsCheck.java",
+            ]
+            subprocess.run(["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                           check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory,
+                            "org.telegram.ui.fluxgram.ComposerTextInsertionsCheck"],
+                           check=True, capture_output=True)
+
     def test_composer_is_opt_in_and_does_not_modify_text(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         policy = chat.split("private boolean isPluginComposerEligible()", 1)[1].split(

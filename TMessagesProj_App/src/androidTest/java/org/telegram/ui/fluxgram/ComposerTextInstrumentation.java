@@ -33,6 +33,7 @@ import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextInsertion;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -414,12 +415,21 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         require(snapshot.getRunCount() == 2 && !snapshot.getRun(0).rtl && snapshot.getRun(1).rtl
                 && snapshot.font != null && snapshot.font.textSize == field.getTextSize(),
                 "layout snapshot runs and font");
+        ComposerTextInsertion insertion = ComposerTextInsertions.create(snapshot, 3, 0, 2, false);
+        require(insertion != null && insertion.revision == 11 && insertion.firstCluster == 2
+                && insertion.clusterCount == 2, "RTL insertion geometry rejected");
+        require(ComposerTextInsertions.create(snapshot, 2, 0, 1, false) == null,
+                "newline without cluster geometry was accepted");
         setText("A\uD83D\uDC69\u200D\uD83D\uDCBB");
         snapshot = ComposerTextLayoutSnapshots.capture(field, 12, "A\uD83D\uDC69\u200D\uD83D\uDCBB");
         require(snapshot != null && (snapshot.unsupportedClusters && snapshot.getClusterCount() == 0
                 || !snapshot.unsupportedClusters && snapshot.getClusterCount() == 2
                 && snapshot.getCluster(1).start == 1 && snapshot.getCluster(1).end == 6),
                 "emoji ZWJ boundary was split");
+        insertion = ComposerTextInsertions.create(snapshot, 1, 0, 5, false);
+        require(snapshot.unsupportedClusters && insertion == null
+                || !snapshot.unsupportedClusters && insertion != null && insertion.clusterCount == 1,
+                "emoji insertion cluster was not fail-closed");
         setText("ab\n\u05d0\u05d1");
         field.getText().setSpan(new StyleSpan(Typeface.BOLD), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         snapshot = ComposerTextLayoutSnapshots.capture(field, 13, "ab\n\u05d0\u05d1");

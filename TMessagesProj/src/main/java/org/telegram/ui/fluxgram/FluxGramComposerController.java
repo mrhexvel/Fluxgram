@@ -29,6 +29,7 @@ import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
+import org.telegram.messenger.plugins.api.ComposerTextInsertion;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.ui.ActionBar.Theme;
@@ -65,6 +66,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private int changeInserted;
     private long textRevision;
     private ComposerTextLayoutSnapshot pendingLayoutBefore;
+    private String pendingLayoutBeforeText;
     private String pendingLayoutAfterText;
     private PluginComposerRegistry.OverlayTextCapture pendingRemovedCapture;
     private boolean pendingLayoutChange;
@@ -529,12 +531,17 @@ public final class FluxGramComposerController implements TextWatcher,
 
         beforeText = null;
 
-        if (surface != null && surface.hasTextLayoutEffect() && field instanceof EditTextCaption
+        if (surface != null && (surface.hasTextLayoutEffect() || surface.hasTextInsertionEffect())
+                && field instanceof EditTextCaption
                 && text != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
             if (!pendingLayoutChange) {
                 pendingLayoutChange = true;
-                pendingLayoutBefore = ComposerTextLayoutSnapshots.capture(
-                        (EditTextCaption) field, textRevision, text.toString());
+                pendingLayoutBeforeText = text.toString();
+
+                if (surface.hasTextLayoutEffect()) {
+                    pendingLayoutBefore = ComposerTextLayoutSnapshots.capture(
+                            (EditTextCaption) field, textRevision, pendingLayoutBeforeText);
+                }
 
                 if (surface.hasTextTransitionEffect() && count > 0 && start >= 0
                         && start <= text.length() && count <= text.length() - start) {
@@ -577,8 +584,14 @@ public final class FluxGramComposerController implements TextWatcher,
                 surface.input(input);
             }
 
-            if (surface.hasTextEffect()) {
+            boolean textEffect = surface.hasTextEffect();
+            boolean insertionEffect = surface.hasTextInsertionEffect();
+
+            if (textEffect || insertionEffect) {
                 textRevision++;
+            }
+
+            if (textEffect) {
                 ComposerTextChange change = null;
 
                 if (beforeText != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
@@ -589,12 +602,12 @@ public final class FluxGramComposerController implements TextWatcher,
                 }
 
                 surface.textChanged(change);
+            }
 
-                if (pendingLayoutBefore != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
-                    pendingLayoutAfterText = text.toString();
-                } else {
-                    clearPendingLayout();
-                }
+            if (pendingLayoutBeforeText != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
+                pendingLayoutAfterText = text.toString();
+            } else {
+                clearPendingLayout();
             }
         } else {
             inputChanges.reset();
@@ -605,13 +618,19 @@ public final class FluxGramComposerController implements TextWatcher,
     }
 
     private void deliverTextLayout() {
-        if (pendingLayoutBefore == null || pendingLayoutAfterText == null
-                || !(field instanceof EditTextCaption) || surface == null
-                || !surface.hasTextLayoutEffect()) {
+        if (pendingLayoutBeforeText == null || pendingLayoutAfterText == null
+                || !(field instanceof EditTextCaption)) {
+            return;
+        }
+
+        if (surface == null
+                || !surface.hasTextLayoutEffect() && !surface.hasTextInsertionEffect()) {
+            clearPendingLayout();
             return;
         }
 
         ComposerTextLayoutSnapshot before = pendingLayoutBefore;
+        String beforeText = pendingLayoutBeforeText;
         String afterText = pendingLayoutAfterText;
         PluginComposerRegistry.OverlayTextCapture removedCapture = pendingRemovedCapture;
         boolean coalesced = pendingLayoutCoalesced;
@@ -624,18 +643,18 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         int prefix = 0;
-        int beforeLength = before.text.length();
+        int beforeLength = beforeText.length();
         int afterLength = after.text.length();
         int sharedLength = Math.min(beforeLength, afterLength);
 
-        while (prefix < sharedLength && before.text.charAt(prefix) == after.text.charAt(prefix)) {
+        while (prefix < sharedLength && beforeText.charAt(prefix) == after.text.charAt(prefix)) {
             prefix++;
         }
 
         int suffix = 0;
 
         while (suffix < beforeLength - prefix && suffix < afterLength - prefix
-                && before.text.charAt(beforeLength - suffix - 1) == after.text.charAt(afterLength - suffix - 1)) {
+                && beforeText.charAt(beforeLength - suffix - 1) == afterText.charAt(afterLength - suffix - 1)) {
             suffix++;
         }
 
@@ -646,15 +665,28 @@ public final class FluxGramComposerController implements TextWatcher,
             removedCapture = null;
         }
 
-        surface.textLayoutChanged(new ComposerTextLayoutChange(
-                after.revision,
-                before,
-                after,
-                prefix,
-                removedCount,
-                afterLength - prefix - suffix,
-                coalesced,
-                removedCapture));
+        int insertedCount = afterLength - prefix - suffix;
+
+        if (surface.hasTextLayoutEffect() && before != null) {
+            surface.textLayoutChanged(new ComposerTextLayoutChange(
+                    after.revision,
+                    before,
+                    after,
+                    prefix,
+                    removedCount,
+                    insertedCount,
+                    coalesced,
+                    removedCapture));
+        }
+
+        if (surface.hasTextInsertionEffect()) {
+            ComposerTextInsertion insertion = ComposerTextInsertions.create(
+                    after, prefix, removedCount, insertedCount, coalesced);
+
+            if (insertion != null) {
+                surface.textInserted(insertion);
+            }
+        }
     }
 
     private void prepareSelection() {
@@ -692,6 +724,7 @@ public final class FluxGramComposerController implements TextWatcher,
 
     private void clearPendingLayout() {
         pendingLayoutBefore = null;
+        pendingLayoutBeforeText = null;
         pendingLayoutAfterText = null;
         pendingRemovedCapture = null;
         pendingLayoutChange = false;

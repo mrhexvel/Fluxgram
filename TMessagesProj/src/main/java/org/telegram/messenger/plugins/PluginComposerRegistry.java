@@ -27,6 +27,8 @@ import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
+import org.telegram.messenger.plugins.api.ComposerTextInsertion;
+import org.telegram.messenger.plugins.api.ComposerTextInsertionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.messenger.plugins.api.ComposerTextTransitionEffect;
 
@@ -302,6 +304,14 @@ public final class PluginComposerRegistry {
             }
         }
 
+        public void textInserted(ComposerTextInsertion insertion) {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                binding.textInserted(insertion);
+            }
+        }
+
         public void sent(boolean hasTarget, float targetX, float targetY) {
             requireUi();
             ComposerGeometry geometry = host == null ? null : host.geometry();
@@ -491,6 +501,18 @@ public final class PluginComposerRegistry {
 
             for (Binding binding : snapshot) {
                 if (binding.registration.text && binding.effect instanceof ComposerTextTransitionEffect) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public boolean hasTextInsertionEffect() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.effect instanceof ComposerTextInsertionEffect) {
                     return true;
                 }
             }
@@ -866,6 +888,22 @@ public final class PluginComposerRegistry {
                     removedChange = change;
                     removedCapture = (OverlayTextCapture) change.removedCapture;
                 }
+            } catch (Exception | LinkageError | AssertionError error) {
+                registration.quarantine(error);
+            } finally {
+                record(start);
+            }
+        }
+
+        void textInserted(ComposerTextInsertion insertion) {
+            if (!isActive() || !(effect instanceof ComposerTextInsertionEffect) || insertion == null) {
+                return;
+            }
+
+            long start = System.nanoTime();
+
+            try {
+                ((ComposerTextInsertionEffect) effect).onTextInserted(insertion);
             } catch (Exception | LinkageError | AssertionError error) {
                 registration.quarantine(error);
             } finally {

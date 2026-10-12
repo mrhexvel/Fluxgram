@@ -23,6 +23,8 @@ import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.api.ComposerTextFontSnapshot;
+import org.telegram.messenger.plugins.api.ComposerTextInsertion;
+import org.telegram.messenger.plugins.api.ComposerTextInsertionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
@@ -331,6 +333,22 @@ public final class ComposerRegistryCheck {
 
             if (failExpandedDraw) {
                 throw new IllegalStateException("intentional expanded draw failure");
+            }
+        }
+    }
+
+    private static final class InsertionEffect extends Effect implements ComposerTextInsertionEffect {
+        ComposerTextInsertion insertion;
+        int insertions;
+        boolean failInsertion;
+
+        @Override
+        public void onTextInserted(ComposerTextInsertion value) {
+            insertion = value;
+            insertions++;
+
+            if (failInsertion) {
+                throw new IllegalStateException("intentional insertion failure");
             }
         }
     }
@@ -889,6 +907,41 @@ public final class ComposerRegistryCheck {
         require(expandedHost.effectsChanges > 0, "expanded lifecycle was not reported to host");
         surface.close();
         expandedRegistration.close();
+
+        InsertionEffect firstInsertion = new InsertionEffect();
+        InsertionEffect secondInsertion = new InsertionEffect();
+        AutoCloseable firstInsertionRegistration = PluginComposerRegistry.register(
+                "test.insertion.first", () -> true, context -> firstInsertion);
+        AutoCloseable secondInsertionRegistration = PluginComposerRegistry.register(
+                "test.insertion.second", () -> true, context -> secondInsertion);
+        TextEffect insertionTextOwner = new TextEffect();
+        AutoCloseable insertionTextRegistration = PluginComposerRegistry.registerText(
+                "test.insertion.text", () -> true, context -> {
+                    insertionTextOwner.surface = context;
+                    return insertionTextOwner;
+                });
+        Host insertionHost = new Host();
+        surface = PluginComposerRegistry.attach(insertionHost);
+        require(surface.hasTextInsertionEffect() && surface.hasTextEffect(),
+                "additive insertion effect did not coexist with text owner");
+        ComposerTextInsertion insertion = new ComposerTextInsertion(
+                afterLayout.revision, afterLayout, 0, 0, 1, false, 0, 1);
+        surface.textInserted(insertion);
+        require(firstInsertion.insertions == 1 && secondInsertion.insertions == 1
+                && firstInsertion.insertion == insertion && secondInsertion.insertion == insertion,
+                "insertion event was not delivered consistently");
+        firstInsertion.failInsertion = true;
+        surface.textInserted(insertion);
+        require(firstInsertion.closes == 1 && secondInsertion.insertions == 2
+                && insertionTextOwner.closes == 0,
+                "insertion failure broke another effect or text owner");
+        insertionHost.available = false;
+        surface.textInserted(insertion);
+        require(secondInsertion.insertions == 2, "inactive surface received insertion event");
+        surface.close();
+        firstInsertionRegistration.close();
+        secondInsertionRegistration.close();
+        insertionTextRegistration.close();
 
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 
