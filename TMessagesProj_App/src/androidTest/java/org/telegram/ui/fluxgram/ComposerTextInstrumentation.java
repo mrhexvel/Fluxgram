@@ -108,6 +108,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 imeCase();
                 replayFailureCase();
                 layoutSnapshotCase();
+                removedTextCaptureCase();
             });
 
             if (Build.VERSION.SDK_INT >= 26) {
@@ -223,6 +224,21 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         snapshot = ComposerTextLayoutSnapshots.capture(field, 13, "ab\n\u05d0\u05d1");
         require(snapshot != null && snapshot.unsupportedSpans && snapshot.unsupportedClusters
                 && snapshot.getClusterCount() == 0, "unsupported span was not reported");
+        cases++;
+    }
+
+    private void removedTextCaptureCase() {
+        setText("HH");
+        ComposerRemovedTextCapture capture = ComposerRemovedTextCapture.capture(field, 14, "HH", 1, 2);
+        require(capture != null && capture.getRevision() == 14
+                && capture.getStart() == 1 && capture.getEnd() == 2,
+                "removed text capture identity");
+        setText("H");
+        Bitmap image = Bitmap.createBitmap(field.getWidth(), field.getHeight(), Bitmap.Config.ARGB_8888);
+        capture.draw(new Canvas(image), new ComposerTextPresentation(0, 0, 1));
+        require(nonTransparent(image) > 20 && field.getText().toString().equals("H"),
+                "removed text capture was not detached from Editable");
+        image.recycle();
         cases++;
     }
 
@@ -346,6 +362,20 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         for (int y = 0; y < first.getHeight(); y++) {
             for (int x = 0; x < first.getWidth(); x++) {
                 if (first.getPixel(x, y) != second.getPixel(x, y)) {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static int nonTransparent(Bitmap image) {
+        int count = 0;
+
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if (Color.alpha(image.getPixel(x, y)) != 0) {
                     count++;
                 }
             }

@@ -154,7 +154,7 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         return new ComposerNativeTextCapture(field, layout, picture, ink, candidate, text);
     }
 
-    private static boolean plainStyle(EditTextCaption field) {
+    static boolean plainStyle(EditTextCaption field) {
         TextPaint paint = field.getPaint();
 
         if (field.getScrollX() != 0 || field.getScrollY() != 0 || field.getOffsetY() != 0

@@ -49,6 +49,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private long textRevision;
     private ComposerTextLayoutSnapshot pendingLayoutBefore;
     private String pendingLayoutAfterText;
+    private PluginComposerRegistry.OverlayTextCapture pendingRemovedCapture;
     private boolean pendingLayoutChange;
     private boolean pendingLayoutCoalesced;
 
@@ -275,8 +276,15 @@ public final class FluxGramComposerController implements TextWatcher,
                 pendingLayoutChange = true;
                 pendingLayoutBefore = ComposerTextLayoutSnapshots.capture(
                         (EditTextCaption) field, textRevision, text.toString());
+
+                if (surface.hasTextTransitionEffect() && count > 0 && start >= 0
+                        && start <= text.length() && count <= text.length() - start) {
+                    pendingRemovedCapture = ComposerRemovedTextCapture.capture(
+                            (EditTextCaption) field, textRevision, text.toString(), start, start + count);
+                }
             } else {
                 pendingLayoutCoalesced = true;
+                pendingRemovedCapture = null;
             }
         } else {
             clearPendingLayout();
@@ -346,6 +354,7 @@ public final class FluxGramComposerController implements TextWatcher,
 
         ComposerTextLayoutSnapshot before = pendingLayoutBefore;
         String afterText = pendingLayoutAfterText;
+        PluginComposerRegistry.OverlayTextCapture removedCapture = pendingRemovedCapture;
         boolean coalesced = pendingLayoutCoalesced;
         ComposerTextLayoutSnapshot after = ComposerTextLayoutSnapshots.capture(
                 (EditTextCaption) field, textRevision, afterText);
@@ -371,19 +380,28 @@ public final class FluxGramComposerController implements TextWatcher,
             suffix++;
         }
 
+        int removedCount = beforeLength - prefix - suffix;
+
+        if (coalesced || removedCapture == null || removedCapture.getStart() != prefix
+                || removedCapture.getEnd() != prefix + removedCount) {
+            removedCapture = null;
+        }
+
         surface.textLayoutChanged(new ComposerTextLayoutChange(
                 after.revision,
                 before,
                 after,
                 prefix,
-                beforeLength - prefix - suffix,
+                removedCount,
                 afterLength - prefix - suffix,
-                coalesced));
+                coalesced,
+                removedCapture));
     }
 
     private void clearPendingLayout() {
         pendingLayoutBefore = null;
         pendingLayoutAfterText = null;
+        pendingRemovedCapture = null;
         pendingLayoutChange = false;
         pendingLayoutCoalesced = false;
     }

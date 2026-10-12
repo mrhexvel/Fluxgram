@@ -17,6 +17,7 @@ import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLineSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextTransitionEffect;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -214,12 +215,78 @@ public final class ComposerRegistryCheck {
         }
     }
 
-    private static final class LayoutTextEffect extends TextEffect implements ComposerTextLayoutEffect {
+    private static class LayoutTextEffect extends TextEffect implements ComposerTextLayoutEffect {
         ComposerTextLayoutChange layoutChange;
 
         @Override
         public void onTextLayoutChanged(ComposerTextLayoutChange value) {
             layoutChange = value;
+        }
+    }
+
+    private static final class TransitionTextEffect extends LayoutTextEffect implements ComposerTextTransitionEffect {
+        ComposerTextCapture removedCapture;
+        ComposerTextPresentation removedPresentation = new ComposerTextPresentation(0, 0, 1);
+
+        @Override
+        public ComposerTextPresentation presentRemovedText(
+                ComposerTextLayoutChange change, ComposerTextCapture capture) {
+            removedCapture = capture;
+            return removedPresentation;
+        }
+    }
+
+    private static final class OverlayCapture implements PluginComposerRegistry.OverlayTextCapture {
+        int draws;
+
+        @Override
+        public long getRevision() {
+            return 20;
+        }
+
+        @Override
+        public int getStart() {
+            return 1;
+        }
+
+        @Override
+        public int getEnd() {
+            return 2;
+        }
+
+        @Override
+        public float getLeft() {
+            return 10;
+        }
+
+        @Override
+        public float getTop() {
+            return 5;
+        }
+
+        @Override
+        public float getRight() {
+            return 20;
+        }
+
+        @Override
+        public float getBottom() {
+            return 15;
+        }
+
+        @Override
+        public float getBaseline() {
+            return 14;
+        }
+
+        @Override
+        public boolean isValid() {
+            return true;
+        }
+
+        @Override
+        public void draw(Canvas canvas, ComposerTextPresentation presentation) {
+            draws++;
         }
     }
 
@@ -405,6 +472,30 @@ public final class ComposerRegistryCheck {
                 "layout change was not delivered");
         surface.close();
         layoutTextRegistration.close();
+
+        TransitionTextEffect transitionText = new TransitionTextEffect();
+        AutoCloseable transitionRegistration = PluginComposerRegistry.registerText(
+                "test.text.transition", () -> true, context -> {
+                    transitionText.surface = context;
+                    return transitionText;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        require(surface.hasTextTransitionEffect(), "transition text effect not attached");
+        OverlayCapture overlayCapture = new OverlayCapture();
+        ComposerTextLayoutChange transitionChange = new ComposerTextLayoutChange(
+                21, beforeLayout, afterLayout, 1, 1, 0, false, overlayCapture);
+        surface.textLayoutChanged(transitionChange);
+        int[] transitionNativeDraws = {0};
+        surface.drawText(new Canvas(), canvas -> transitionNativeDraws[0]++);
+        require(transitionNativeDraws[0] == 1 && overlayCapture.draws == 1
+                && transitionText.removedCapture == overlayCapture,
+                "removed text overlay was not drawn after native text");
+        transitionText.removedPresentation = null;
+        surface.drawText(new Canvas(), canvas -> transitionNativeDraws[0]++);
+        require(transitionNativeDraws[0] == 2 && overlayCapture.draws == 1,
+                "finished removed text overlay was retained");
+        surface.close();
+        transitionRegistration.close();
 
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 

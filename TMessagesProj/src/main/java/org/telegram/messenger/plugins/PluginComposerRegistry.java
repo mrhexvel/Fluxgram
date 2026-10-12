@@ -18,6 +18,7 @@ import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextTransitionEffect;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -45,6 +46,12 @@ public final class PluginComposerRegistry {
         boolean isValid();
 
         void draw(Canvas canvas, Consumer<Canvas> nativeDraw, ComposerTextPresentation presentation);
+    }
+
+    public interface OverlayTextCapture extends ComposerTextCapture {
+        boolean isValid();
+
+        void draw(Canvas canvas, ComposerTextPresentation presentation);
     }
 
     private static final LinkedHashSet<Registration> registrations = new LinkedHashSet<>();
@@ -196,14 +203,22 @@ public final class PluginComposerRegistry {
 
         public void drawText(Canvas canvas, Consumer<Canvas> nativeDraw) {
             requireUi();
+            boolean drawn = false;
 
             for (Binding binding : snapshot) {
                 if (binding.registration.text && binding.drawText(canvas, nativeDraw)) {
-                    return;
+                    drawn = true;
+                    break;
                 }
             }
 
-            nativeDraw.accept(canvas);
+            if (!drawn) {
+                nativeDraw.accept(canvas);
+            }
+
+            for (Binding binding : snapshot) {
+                binding.drawRemovedText(canvas);
+            }
         }
 
         public void draw(Canvas canvas) {
@@ -257,6 +272,18 @@ public final class PluginComposerRegistry {
 
             for (Binding binding : snapshot) {
                 if (binding.registration.text && binding.effect instanceof ComposerTextLayoutEffect) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public boolean hasTextTransitionEffect() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.registration.text && binding.effect instanceof ComposerTextTransitionEffect) {
                     return true;
                 }
             }
@@ -395,6 +422,8 @@ public final class PluginComposerRegistry {
         ComposerTextCandidate textCandidate;
         String textCandidateContent;
         TextCapture textCapture;
+        ComposerTextLayoutChange removedChange;
+        OverlayTextCapture removedCapture;
         long textSequence;
         ComposerGeometry lastGeometry;
         long burstStart;
@@ -469,6 +498,8 @@ public final class PluginComposerRegistry {
             textCandidate = null;
             textCandidateContent = null;
             textCapture = null;
+            removedChange = null;
+            removedCapture = null;
 
             if (!registration.text || !isActive() || effect == null || change == null) {
                 return;
@@ -510,6 +541,9 @@ public final class PluginComposerRegistry {
         }
 
         void textLayoutChanged(ComposerTextLayoutChange change) {
+            removedChange = null;
+            removedCapture = null;
+
             if (!registration.text || !isActive() || !(effect instanceof ComposerTextLayoutEffect)
                     || change == null) {
                 return;
@@ -519,6 +553,12 @@ public final class PluginComposerRegistry {
 
             try {
                 ((ComposerTextLayoutEffect) effect).onTextLayoutChanged(change);
+
+                if (effect instanceof ComposerTextTransitionEffect
+                        && change.removedCapture instanceof OverlayTextCapture) {
+                    removedChange = change;
+                    removedCapture = (OverlayTextCapture) change.removedCapture;
+                }
             } catch (Exception | LinkageError | AssertionError error) {
                 registration.quarantine(error);
             } finally {
@@ -547,14 +587,7 @@ public final class PluginComposerRegistry {
                     return false;
                 }
 
-                float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
-
-                if (!Float.isFinite(presentation.translationX) || !Float.isFinite(presentation.translationY)
-                        || !Float.isFinite(presentation.alpha) || presentation.alpha < 0 || presentation.alpha > 1
-                        || Math.abs(presentation.translationX) > limit
-                        || Math.abs(presentation.translationY) > limit) {
-                    throw new IllegalArgumentException("Invalid composer text presentation");
-                }
+                validatePresentation(presentation);
 
             } catch (Exception | LinkageError | AssertionError error) {
                 textCapture = null;
@@ -566,6 +599,61 @@ public final class PluginComposerRegistry {
 
             textCapture.draw(canvas, nativeDraw, presentation);
             return true;
+        }
+
+        void drawRemovedText(Canvas canvas) {
+            if (!registration.text || !isActive() || !(effect instanceof ComposerTextTransitionEffect)
+                    || removedChange == null || removedCapture == null) {
+                return;
+            }
+
+            if (!removedCapture.isValid()) {
+                removedChange = null;
+                removedCapture = null;
+                return;
+            }
+
+            long start = System.nanoTime();
+            ComposerTextPresentation presentation;
+
+            try {
+                presentation = ((ComposerTextTransitionEffect) effect)
+                        .presentRemovedText(removedChange, removedCapture);
+
+                if (presentation == null) {
+                    removedChange = null;
+                    removedCapture = null;
+                    return;
+                }
+
+                validatePresentation(presentation);
+            } catch (Exception | LinkageError | AssertionError error) {
+                removedChange = null;
+                removedCapture = null;
+                registration.quarantine(error);
+                return;
+            } finally {
+                record(start);
+            }
+
+            try {
+                removedCapture.draw(canvas, presentation);
+            } catch (Exception | LinkageError | AssertionError error) {
+                removedChange = null;
+                removedCapture = null;
+                Log.e("FluxGramComposer", "Removed text replay failed", error);
+            }
+        }
+
+        private void validatePresentation(ComposerTextPresentation presentation) {
+            float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
+
+            if (!Float.isFinite(presentation.translationX) || !Float.isFinite(presentation.translationY)
+                    || !Float.isFinite(presentation.alpha) || presentation.alpha < 0 || presentation.alpha > 1
+                    || Math.abs(presentation.translationX) > limit
+                    || Math.abs(presentation.translationY) > limit) {
+                throw new IllegalArgumentException("Invalid composer text presentation");
+            }
         }
 
         @Override
@@ -662,6 +750,8 @@ public final class PluginComposerRegistry {
             textCandidate = null;
             textCandidateContent = null;
             textCapture = null;
+            removedChange = null;
+            removedCapture = null;
 
             if (surface != null) {
                 surface.bindings.remove(this);

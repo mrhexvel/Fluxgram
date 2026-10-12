@@ -33,7 +33,7 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 5", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 6", manifest)
 
     def test_external_module_compiles_against_api_1_3(self):
         if not shutil.which("javac"):
@@ -128,6 +128,49 @@ class ComposerTextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             module = directory / "external/LayoutEffect.java"
+            module.parent.mkdir()
+            module.write_text(source)
+            sources = [
+                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                module,
+            ]
+            subprocess.run(
+                ["javac", "--release", "8", "-d", str(directory / "classes"), *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+
+    def test_external_transition_effect_compiles_against_api_1_6(self):
+        if not shutil.which("javac"):
+            self.skipTest("Requires JDK")
+
+        source = textwrap.dedent(
+            """
+            package external;
+
+            import android.graphics.Canvas;
+            import org.telegram.messenger.plugins.api.*;
+
+            public final class TransitionEffect implements ComposerTextTransitionEffect {
+                public ComposerTextCandidate selectCandidate(ComposerTextChange change) { return null; }
+                public ComposerTextPresentation present(ComposerTextCapture capture) { return null; }
+                public void onTextLayoutChanged(ComposerTextLayoutChange change) {}
+                public ComposerTextPresentation presentRemovedText(
+                        ComposerTextLayoutChange change, ComposerTextCapture capture) {
+                    return new ComposerTextPresentation(0, 0, 1);
+                }
+                public void onInput(ComposerInput input) {}
+                public boolean onFrame(long timestamp) { return false; }
+                public void draw(Canvas canvas, ComposerGeometry geometry) {}
+                public void close() {}
+            }
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            module = directory / "external/TransitionEffect.java"
             module.parent.mkdir()
             module.write_text(source)
             sources = [
