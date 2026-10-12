@@ -195,6 +195,7 @@ android {
     defaultConfig {
         minSdkVersion 24
         targetSdkVersion 36
+        testInstrumentationRunner "org.telegram.ui.fluxgram.ComposerTextInstrumentation"
         versionName APP_VERSION_NAME
         ndkVersion "27.2.12479018"
 

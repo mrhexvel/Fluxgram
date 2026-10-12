@@ -11,10 +11,16 @@ import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSurface;
+import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerTextCapture;
+import org.telegram.messenger.plugins.api.ComposerTextChange;
+import org.telegram.messenger.plugins.api.ComposerTextEffect;
+import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 public final class PluginComposerRegistry {
     public interface Host {
@@ -29,6 +35,14 @@ public final class PluginComposerRegistry {
         ComposerGeometry geometry();
 
         void invalidate();
+
+        TextCapture captureText(ComposerTextCandidate candidate, String expectedText);
+    }
+
+    public interface TextCapture extends ComposerTextCapture {
+        boolean isValid();
+
+        void draw(Canvas canvas, Consumer<Canvas> nativeDraw, ComposerTextPresentation presentation);
     }
 
     private static final LinkedHashSet<Registration> registrations = new LinkedHashSet<>();
@@ -70,7 +84,30 @@ public final class PluginComposerRegistry {
             throw new IllegalStateException("Composer effect limit reached or factory missing");
         }
 
-        Registration registration = new Registration(pluginId, active, factory);
+        Registration registration = new Registration(pluginId, active, factory, false);
+        registrations.add(registration);
+
+        for (Surface surface : new ArrayList<>(surfaces)) {
+            registration.attach(surface);
+        }
+
+        return registration;
+    }
+
+    static AutoCloseable registerText(String pluginId, BooleanSupplier active, ComposerTextEffect.Factory factory) {
+        requireUi();
+
+        if (factory == null || registrations.size() >= 8) {
+            throw new IllegalStateException("Composer effect limit reached or factory missing");
+        }
+
+        for (Registration registration : registrations) {
+            if (registration.text && !registration.closed) {
+                throw new IllegalStateException("Composer native text presentation is already owned");
+            }
+        }
+
+        Registration registration = new Registration(pluginId, active, factory::create, true);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -131,6 +168,34 @@ public final class PluginComposerRegistry {
             }
         }
 
+        public void textChanged(ComposerTextChange change) {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                binding.textChanged(change);
+            }
+        }
+
+        public void prepareText() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                binding.prepareText();
+            }
+        }
+
+        public void drawText(Canvas canvas, Consumer<Canvas> nativeDraw) {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.registration.text && binding.drawText(canvas, nativeDraw)) {
+                    return;
+                }
+            }
+
+            nativeDraw.accept(canvas);
+        }
+
         public void draw(Canvas canvas) {
             requireUi();
             long timestamp = AnimationUtils.currentAnimationTimeMillis();
@@ -165,6 +230,18 @@ public final class PluginComposerRegistry {
             return snapshot.length != 0;
         }
 
+        public boolean hasTextEffect() {
+            requireUi();
+
+            for (Binding binding : snapshot) {
+                if (binding.registration.text) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public boolean isClosed() {
             requireUi();
             return host == null;
@@ -197,14 +274,16 @@ public final class PluginComposerRegistry {
         final String pluginId;
         final BooleanSupplier active;
         final ComposerEffect.Factory factory;
+        final boolean text;
         final ArrayList<Binding> owned = new ArrayList<>();
         boolean closed;
         boolean failed;
 
-        Registration(String pluginId, BooleanSupplier active, ComposerEffect.Factory factory) {
+        Registration(String pluginId, BooleanSupplier active, ComposerEffect.Factory factory, boolean text) {
             this.pluginId = pluginId;
             this.active = active;
             this.factory = factory;
+            this.text = text;
         }
 
         void attach(Surface surface) {
@@ -291,6 +370,10 @@ public final class PluginComposerRegistry {
         Surface surface;
         ComposerEffect effect;
         ComposerInput pendingInput;
+        ComposerTextCandidate textCandidate;
+        String textCandidateContent;
+        TextCapture textCapture;
+        long textSequence;
         ComposerGeometry lastGeometry;
         long burstStart;
         int overruns;
@@ -357,6 +440,93 @@ public final class PluginComposerRegistry {
                     input.textLength, bulk, input.composing);
             burstStart = 0;
             requestFrame();
+        }
+
+        void textChanged(ComposerTextChange change) {
+            long sequence = ++textSequence;
+            textCandidate = null;
+            textCandidateContent = null;
+            textCapture = null;
+
+            if (!registration.text || !isActive() || effect == null || change == null) {
+                return;
+            }
+
+            long start = System.nanoTime();
+
+            try {
+                ComposerTextCandidate candidate = ((ComposerTextEffect) effect).selectCandidate(change);
+
+                if (candidate != null && candidate.revision == change.revision
+                        && candidate.start >= 0 && candidate.start < candidate.end
+                        && candidate.end <= change.text.length() && sequence == textSequence) {
+                    textCandidate = candidate;
+                    textCandidateContent = change.text;
+                }
+            } catch (Exception | LinkageError | AssertionError error) {
+                registration.quarantine(error);
+            } finally {
+                record(start);
+            }
+        }
+
+        void prepareText() {
+            if (!registration.text || !isActive() || textCandidate == null || textCapture != null) {
+                return;
+            }
+
+            ComposerTextCandidate candidate = textCandidate;
+            String expectedText = textCandidateContent;
+            textCandidate = null;
+            textCandidateContent = null;
+
+            try {
+                textCapture = surface.host.captureText(candidate, expectedText);
+            } catch (Exception | LinkageError | AssertionError error) {
+                Log.e("FluxGramComposer", "Native text capture failed", error);
+            }
+        }
+
+        boolean drawText(Canvas canvas, Consumer<Canvas> nativeDraw) {
+            if (!registration.text || !isActive() || effect == null || textCapture == null) {
+                return false;
+            }
+
+            if (!textCapture.isValid()) {
+                textCapture = null;
+                return false;
+            }
+
+            long start = System.nanoTime();
+            ComposerTextPresentation presentation;
+
+            try {
+                presentation = ((ComposerTextEffect) effect).present(textCapture);
+
+                if (presentation == null) {
+                    textCapture = null;
+                    return false;
+                }
+
+                float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
+
+                if (!Float.isFinite(presentation.translationX) || !Float.isFinite(presentation.translationY)
+                        || !Float.isFinite(presentation.alpha) || presentation.alpha < 0 || presentation.alpha > 1
+                        || Math.abs(presentation.translationX) > limit
+                        || Math.abs(presentation.translationY) > limit) {
+                    throw new IllegalArgumentException("Invalid composer text presentation");
+                }
+
+            } catch (Exception | LinkageError | AssertionError error) {
+                textCapture = null;
+                registration.quarantine(error);
+                return false;
+            } finally {
+                record(start);
+            }
+
+            textCapture.draw(canvas, nativeDraw, presentation);
+            return true;
         }
 
         @Override
@@ -450,6 +620,9 @@ public final class PluginComposerRegistry {
             detached = true;
             frames().cancel(this);
             pendingInput = null;
+            textCandidate = null;
+            textCandidateContent = null;
+            textCapture = null;
 
             if (surface != null) {
                 surface.bindings.remove(this);

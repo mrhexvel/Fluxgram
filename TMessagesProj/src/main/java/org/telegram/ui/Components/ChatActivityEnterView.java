@@ -219,6 +219,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.function.Consumer;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
@@ -5685,6 +5686,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         messageEditText.setWindowView(mCustomWindowView);
     }
 
+    protected void drawComposerText(Canvas canvas, EditTextCaption field, Consumer<Canvas> nativeDraw) {
+        nativeDraw.accept(canvas);
+    }
+
     private void createMessageEditText() {
         if (messageEditText != null) {
             return;
@@ -5692,10 +5697,12 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         messageEditText = new ChatActivityEditTextCaption(getContext(), resourcesProvider) {
 
+            private final Consumer<Canvas> nativeDraw = canvas -> super.onDraw(canvas);
+
             private boolean firstDraw = true;
             @Override
             protected void onDraw(Canvas canvas) {
-                super.onDraw(canvas);
+                drawComposerText(canvas, this, nativeDraw);
                 if (getLayout() != null && firstDraw) {
                     firstDraw = false;
                     checkSendButton(true);

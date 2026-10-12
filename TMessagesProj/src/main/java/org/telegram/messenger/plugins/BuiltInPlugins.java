@@ -9,6 +9,7 @@ public final class BuiltInPlugins {
                     "fluxgram_notifications",
                     R.string.FluxGramInAppNotifications,
                     R.string.FluxGramInAppNotificationsInfo,
+                    R.drawable.msg_notifications,
                     "1.0.0");
 
     private BuiltInPlugins() {}

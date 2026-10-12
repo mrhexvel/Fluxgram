@@ -16,10 +16,14 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
+import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.ForegroundDetector;
+import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 public final class FluxGramComposerController implements TextWatcher,
         View.OnAttachStateChangeListener, ViewTreeObserver.OnPreDrawListener, ForegroundDetector.Listener {
@@ -36,6 +40,11 @@ public final class FluxGramComposerController implements TextWatcher,
     private ViewTreeObserver observer;
     private boolean destroyed;
     private final ComposerInputChanges inputChanges = new ComposerInputChanges();
+    private String beforeText;
+    private int changeStart;
+    private int changeRemoved;
+    private int changeInserted;
+    private long textRevision;
 
     public FluxGramComposerController(EditText field, int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
@@ -145,6 +154,16 @@ public final class FluxGramComposerController implements TextWatcher,
                 public void invalidate() {
                     overlay.invalidateSelf();
                 }
+
+                @Override
+                public PluginComposerRegistry.TextCapture captureText(
+                        ComposerTextCandidate candidate, String expectedText) {
+                    if (!(field instanceof EditTextCaption)) {
+                        return null;
+                    }
+
+                    return ComposerNativeTextCapture.capture((EditTextCaption) field, candidate, expectedText);
+                }
             });
 
             if (surface != null) {
@@ -162,6 +181,15 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         inputChanges.reset();
+        beforeText = null;
+    }
+
+    public void drawText(EditTextCaption source, Canvas canvas, Consumer<Canvas> nativeDraw) {
+        if (source == field && !destroyed && surface != null) {
+            surface.drawText(canvas, nativeDraw);
+        } else {
+            nativeDraw.accept(canvas);
+        }
     }
 
     public void destroy() {
@@ -205,6 +233,11 @@ public final class FluxGramComposerController implements TextWatcher,
     @Override
     public boolean onPreDraw() {
         refresh();
+
+        if (surface != null) {
+            surface.prepareText();
+        }
+
         return true;
     }
 
@@ -225,6 +258,19 @@ public final class FluxGramComposerController implements TextWatcher,
         } else {
             inputChanges.reset();
         }
+
+        beforeText = null;
+
+        if (surface != null && surface.hasTextEffect() && text != null
+                && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH
+                && text.length() - count + after <= ComposerInputChanges.MAX_TEXT_LENGTH
+                && start >= 0 && count >= 0 && after >= 0 && start <= text.length()
+                && count <= text.length() - start) {
+            beforeText = text.toString();
+            changeStart = start;
+            changeRemoved = count;
+            changeInserted = after;
+        }
     }
 
     @Override
@@ -242,8 +288,24 @@ public final class FluxGramComposerController implements TextWatcher,
             if (input != null) {
                 surface.input(input);
             }
+
+            if (surface.hasTextEffect()) {
+                textRevision++;
+                ComposerTextChange change = null;
+
+                if (beforeText != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
+                    change = new ComposerTextChange(textRevision, beforeText, text.toString(), changeStart,
+                            changeRemoved, changeInserted, field.getSelectionStart(), field.getSelectionEnd(),
+                            BaseInputConnection.getComposingSpanStart(text),
+                            BaseInputConnection.getComposingSpanEnd(text));
+                }
+
+                surface.textChanged(change);
+            }
         } else {
             inputChanges.reset();
         }
+
+        beforeText = null;
     }
 }

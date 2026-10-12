@@ -124,6 +124,7 @@ import androidx.dynamicanimation.animation.SpringForce;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.ui.fluxgram.EditHistoryMenuController;
 import org.telegram.ui.fluxgram.FluxGramComposerController;
+import org.telegram.ui.Components.EditTextCaption;
 import org.telegram.ui.recyclerview.ChatListItemAnimator;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.GridLayoutManagerFixed;
@@ -347,6 +348,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.function.Consumer;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -3611,7 +3613,8 @@ public class ChatActivity extends BaseFragment implements
                 || chatActivityEnterView.isEditingCaption() || chatActivityEnterView.isInScheduleMode()
                 || chatActivityEnterView.isRichDraftActive() || chatActivityEnterView.isStories
                 || chatActivityEnterView.isRecordingAudioVideo() || chatActivityEnterView.hasAudioToSend()
-                || chatActivityEnterView.isEphemeralMessageVisible()) {
+                || chatActivityEnterView.isEphemeralMessageVisible()
+                || chatActivityEnterView.messageSendPreview != null && chatActivityEnterView.messageSendPreview.isShowing()) {
             return false;
         }
 
@@ -7974,6 +7977,15 @@ public class ChatActivity extends BaseFragment implements
         instantCameraView = null;
 
         chatActivityEnterView = new ChatActivityEnterView(getParentActivity(), contentView, this, chatMode != MODE_EDIT_BUSINESS_LINK, themeDelegate) {
+
+            @Override
+            protected void drawComposerText(Canvas canvas, EditTextCaption field, Consumer<Canvas> nativeDraw) {
+                if (pluginComposer != null) {
+                    pluginComposer.drawText(field, canvas, nativeDraw);
+                } else {
+                    nativeDraw.accept(canvas);
+                }
+            }
 
             int lastContentViewHeight;
             int messageEditTextPredrawHeigth;

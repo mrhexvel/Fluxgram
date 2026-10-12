@@ -2,6 +2,8 @@ package org.telegram.messenger.plugins;
 
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
+import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.ComposerTextEffect;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,6 +69,7 @@ public final class JavaPluginSessionCheck {
     public static final class Host implements JavaPluginSession.Host {
         long generation = 1;
         Thread worker = Thread.currentThread();
+        int textRegistrations;
 
         @Override
         public boolean isActive(long value) {
@@ -95,6 +98,27 @@ public final class JavaPluginSessionCheck {
 
         @Override
         public void log(String message) {
+        }
+
+        @Override
+        public JavaPluginUiResource registerComposerTextEffect(long value, ComposerTextEffect.Factory factory) {
+            check(value == generation && factory != null, "text registration identity");
+            textRegistrations++;
+            return new JavaPluginUiResource() {
+                @Override
+                public boolean isActive() {
+                    return true;
+                }
+
+                @Override
+                public boolean isClosed() {
+                    return false;
+                }
+
+                @Override
+                public void close() {
+                }
+            };
         }
     }
 
@@ -126,10 +150,13 @@ public final class JavaPluginSessionCheck {
         check(context.readBooleanSetting("enabled", false), "boolean setting");
         check(context.readIntSetting("count", 4) == 5, "integer setting");
         check(context.readStringSetting("name", "x").equals("x!"), "string setting");
+        context.registerComposerTextEffect(surface -> null);
+        check(host.textRegistrations == 1, "text effect registration was not delegated");
         session.settingChanged("enabled", true);
         host.generation++;
         session.settingChanged("stale", true);
         rejects(() -> context.registerResource(() -> {}));
+        rejects(() -> context.registerComposerTextEffect(surface -> null));
         rejects(() -> context.readIntSetting("count", 0));
         session.close();
         session.close();

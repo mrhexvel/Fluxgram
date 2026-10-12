@@ -9,12 +9,12 @@ import com.chaquo.python.PyObject;
 import org.json.JSONObject;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 import org.telegram.messenger.plugins.api.ComposerEffect;
+import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
 
 import java.io.File;
@@ -39,6 +39,7 @@ public final class PythonPluginAdapter implements Plugin {
     private final String moduleName;
     private final int nameResId;
     private final int descriptionResId;
+    private final int iconResId;
     private final String version;
     private String externalPath, externalName, externalDescription;
     private PluginManifest.JavaModule javaModule;
@@ -54,6 +55,7 @@ public final class PythonPluginAdapter implements Plugin {
         this(
                 installed.manifest.id,
                 installed.manifest.entrypoint.split(":")[0],
+                0,
                 0,
                 0,
                 installed.manifest.version);
@@ -82,8 +84,7 @@ public final class PythonPluginAdapter implements Plugin {
 
     @Override
     public int getIconResource() {
-        return "fluxgram.in_app_notifications".equals(id)
-                ? R.drawable.msg_notifications : 0;
+        return iconResId;
     }
 
     public boolean isExternal() {
@@ -151,11 +152,12 @@ public final class PythonPluginAdapter implements Plugin {
     }
 
     public PythonPluginAdapter(
-            String id, String moduleName, int nameResId, int descriptionResId, String version) {
+            String id, String moduleName, int nameResId, int descriptionResId, int iconResId, String version) {
         this.id = id;
         this.moduleName = moduleName;
         this.nameResId = nameResId;
         this.descriptionResId = descriptionResId;
+        this.iconResId = iconResId;
         this.version = version;
         settingsSchema = PluginSettings.readSchema(id, version);
 
@@ -480,6 +482,16 @@ public final class PythonPluginAdapter implements Plugin {
                 }
 
                 return uiResources.register(() -> PluginComposerRegistry.register(
+                        id, () -> lifecycle.isCurrent(generation), factory));
+            }
+
+            @Override
+            public JavaPluginUiResource registerComposerTextEffect(long generation, ComposerTextEffect.Factory factory) {
+                if (!lifecycle.isCurrent(generation)) {
+                    throw new IllegalStateException("Composer text generation is inactive");
+                }
+
+                return uiResources.register(() -> PluginComposerRegistry.registerText(
                         id, () -> lifecycle.isCurrent(generation), factory));
             }
         };

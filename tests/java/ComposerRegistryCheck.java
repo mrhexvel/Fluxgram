@@ -7,6 +7,11 @@ import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSurface;
+import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerTextCapture;
+import org.telegram.messenger.plugins.api.ComposerTextChange;
+import org.telegram.messenger.plugins.api.ComposerTextEffect;
+import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,6 +20,9 @@ public final class ComposerRegistryCheck {
     private static final class Host implements PluginComposerRegistry.Host {
         boolean available = true;
         int invalidations;
+        int captures;
+        ComposerTextCandidate capturedCandidate;
+        boolean failCapture;
         final ComposerGeometry geometry = new ComposerGeometry(320, 50, 1, 0xFF123456, false);
 
         @Override
@@ -46,9 +54,83 @@ public final class ComposerRegistryCheck {
         public void invalidate() {
             invalidations++;
         }
+
+        @Override
+        public PluginComposerRegistry.TextCapture captureText(ComposerTextCandidate candidate, String expectedText) {
+            if (failCapture) {
+                failCapture = false;
+                throw new IllegalStateException("intentional host capture failure");
+            }
+
+            captures++;
+            capturedCandidate = candidate;
+            return new Capture(candidate);
+        }
     }
 
-    private static final class Effect implements ComposerEffect {
+    private static final class Capture implements PluginComposerRegistry.TextCapture {
+        final ComposerTextCandidate candidate;
+        int draws;
+        boolean valid = true;
+
+        Capture(ComposerTextCandidate candidate) {
+            this.candidate = candidate;
+        }
+
+        @Override
+        public long getRevision() {
+            return candidate.revision;
+        }
+
+        @Override
+        public int getStart() {
+            return candidate.start;
+        }
+
+        @Override
+        public int getEnd() {
+            return candidate.end;
+        }
+
+        @Override
+        public float getLeft() {
+            return 10;
+        }
+
+        @Override
+        public float getTop() {
+            return 5;
+        }
+
+        @Override
+        public float getRight() {
+            return 20;
+        }
+
+        @Override
+        public float getBottom() {
+            return 15;
+        }
+
+        @Override
+        public float getBaseline() {
+            return 14;
+        }
+
+        @Override
+        public boolean isValid() {
+            return valid;
+        }
+
+        @Override
+        public void draw(Canvas canvas, java.util.function.Consumer<Canvas> nativeDraw,
+                ComposerTextPresentation presentation) {
+            draws++;
+            nativeDraw.accept(canvas);
+        }
+    }
+
+    private static class Effect implements ComposerEffect {
         ComposerSurface context;
         ComposerInput input;
         int inputs;
@@ -94,6 +176,36 @@ public final class ComposerRegistryCheck {
                 failClose = false;
                 throw new Exception("retry cleanup");
             }
+        }
+    }
+
+    private static final class TextEffect extends Effect implements ComposerTextEffect {
+        ComposerSurface surface;
+        ComposerTextChange change;
+        ComposerTextCapture capture;
+        ComposerTextPresentation presentation = new ComposerTextPresentation(0, 0, 1);
+        boolean stale;
+        boolean reenter;
+        Runnable reentrantAction;
+
+        @Override
+        public ComposerTextCandidate selectCandidate(ComposerTextChange value) {
+            change = value;
+            surface.requestFrame();
+
+            if (reenter) {
+                reenter = false;
+                reentrantAction.run();
+            }
+
+            return new ComposerTextCandidate(value.revision + (stale ? 1 : 0), value.start,
+                    value.start + value.insertedCount);
+        }
+
+        @Override
+        public ComposerTextPresentation present(ComposerTextCapture value) {
+            capture = value;
+            return presentation;
         }
     }
 
@@ -200,6 +312,49 @@ public final class ComposerRegistryCheck {
         surface.close();
         endlessRegistration.close();
 
+        TextEffect text = new TextEffect();
+        AutoCloseable textRegistration = PluginComposerRegistry.registerText("test.text", () -> true, context -> {
+            text.surface = context;
+            return text;
+        });
+        rejects(() -> PluginComposerRegistry.registerText("test.text.conflict", () -> true, context -> new TextEffect()));
+        Host textHost = new Host();
+        surface = PluginComposerRegistry.attach(textHost);
+        require(surface.hasTextEffect(), "text owner not attached");
+        ComposerTextChange change = new ComposerTextChange(7, "ab", "abc", 2, 0, 1, 3, 3, -1, -1);
+        surface.textChanged(change);
+        surface.prepareText();
+        require(text.change == change && textHost.captures == 1, "text candidate was not captured");
+        int[] nativeDraws = {0};
+        surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
+        require(text.capture.getRevision() == 7 && nativeDraws[0] == 1, "text presentation was not applied");
+        PluginComposerRegistry.Surface textSurface = surface;
+        text.reentrantAction = () -> textSurface.textChanged(new ComposerTextChange(
+                11, "abcdef", "abcdefx", 6, 0, 1, 7, 7, -1, -1));
+        text.reenter = true;
+        surface.textChanged(new ComposerTextChange(10, "abcde", "abcdef", 5, 0, 1, 6, 6, -1, -1));
+        surface.prepareText();
+        require(textHost.capturedCandidate.revision == 11, "reentrant text change restored a stale candidate");
+        textHost.failCapture = true;
+        surface.textChanged(new ComposerTextChange(12, "abcdefx", "abcdefxy", 7, 0, 1, 8, 8, -1, -1));
+        surface.prepareText();
+        require(surface.hasTextEffect(), "host capture failure quarantined plugin");
+        int capturesBeforeStaleCandidate = textHost.captures;
+        text.stale = true;
+        surface.textChanged(new ComposerTextChange(8, "abc", "abcd", 3, 0, 1, 4, 4, -1, -1));
+        surface.prepareText();
+        require(textHost.captures == capturesBeforeStaleCandidate, "stale candidate reached host capture");
+        surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
+        require(nativeDraws[0] == 2, "native fallback missing for stale candidate");
+        text.stale = false;
+        text.presentation = new ComposerTextPresentation(Float.NaN, 0, 1);
+        surface.textChanged(new ComposerTextChange(9, "abcd", "abcde", 4, 0, 1, 5, 5, -1, -1));
+        surface.prepareText();
+        surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
+        require(nativeDraws[0] == 3 && text.closes == 1, "invalid presentation did not fail closed");
+        surface.close();
+        textRegistration.close();
+
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 
         for (int i = 0; i < 8; i++) {
@@ -236,6 +391,16 @@ public final class ComposerRegistryCheck {
         for (int i = 0; i < 10 && !Choreographer.getInstance().pending.isEmpty(); i++) {
             Choreographer.getInstance().tick(Choreographer.getInstance().getFrameTimeNanos() + 16_666_667L);
         }
+    }
+
+    private static void rejects(AutoCloseable action) throws Exception {
+        try {
+            action.close();
+        } catch (IllegalStateException expected) {
+            return;
+        }
+
+        throw new AssertionError("Expected rejection");
     }
 
     private static void require(boolean condition, String message) {
