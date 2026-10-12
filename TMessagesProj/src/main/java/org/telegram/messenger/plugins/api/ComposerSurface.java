@@ -7,6 +7,10 @@ public interface ComposerSurface {
 
     long getDialogId();
 
+    default boolean isPreview() {
+        return false;
+    }
+
     ComposerGeometry getGeometry();
 
     boolean isActive();

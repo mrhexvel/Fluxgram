@@ -573,6 +573,54 @@ public final class ComposerRegistryCheck {
         require(effect.closes == 1 && !effect.context.isActive(), "cleanup was not idempotent");
         require(Choreographer.getInstance().pending.isEmpty(), "detached frame demand");
 
+        ArrayList<Effect> previewAlphaEffects = new ArrayList<>();
+        ArrayList<Effect> previewBetaEffects = new ArrayList<>();
+        ArrayList<Effect> previewLateEffects = new ArrayList<>();
+        AutoCloseable previewAlphaRegistration = PluginComposerRegistry.register(
+                "test.preview.alpha", () -> true, context -> {
+                    Effect value = new Effect();
+                    value.context = context;
+                    previewAlphaEffects.add(value);
+                    return value;
+                });
+        AutoCloseable previewBetaRegistration = PluginComposerRegistry.register(
+                "test.preview.beta", () -> true, context -> {
+                    Effect value = new Effect();
+                    value.context = context;
+                    previewBetaEffects.add(value);
+                    return value;
+                });
+        PluginComposerRegistry.Surface ordinarySurface = PluginComposerRegistry.attach(new Host());
+        PluginComposerRegistry.Surface previewSurface = PluginComposerRegistry.attachPreview(
+                new Host(), "test.preview.alpha");
+        require(previewAlphaEffects.size() == 2 && previewBetaEffects.size() == 1,
+                "preview surface did not filter registrations");
+        require(!previewAlphaEffects.get(0).context.isPreview()
+                        && previewAlphaEffects.get(1).context.isPreview(),
+                "preview surface marker was not isolated");
+        AutoCloseable previewLateRegistration = PluginComposerRegistry.register(
+                "test.preview.late", () -> true, context -> {
+                    Effect value = new Effect();
+                    value.context = context;
+                    previewLateEffects.add(value);
+                    return value;
+                });
+        require(previewLateEffects.size() == 1 && !previewLateEffects.get(0).context.isPreview(),
+                "late foreign registration attached to preview");
+        PluginComposerRegistry.refreshPreview("test.preview.alpha");
+        require(previewAlphaEffects.size() == 3
+                        && previewAlphaEffects.get(0).closes == 0
+                        && previewAlphaEffects.get(1).closes == 1
+                        && previewAlphaEffects.get(2).context.isPreview()
+                        && previewBetaEffects.get(0).closes == 0
+                        && previewLateEffects.get(0).closes == 0,
+                "preview refresh affected ordinary or foreign bindings");
+        previewSurface.close();
+        ordinarySurface.close();
+        previewLateRegistration.close();
+        previewBetaRegistration.close();
+        previewAlphaRegistration.close();
+
         Effect hidden = new Effect();
         AutoCloseable hiddenRegistration = PluginComposerRegistry.register("test.hidden", () -> true, context -> hidden);
         Host hiddenHost = new Host();

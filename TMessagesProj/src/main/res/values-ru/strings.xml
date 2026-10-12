@@ -312,6 +312,8 @@
     <string name="FluxGramDeletePluginConfirm">Удалить плагин %1$s?</string>
     <string name="FluxGramPluginSettingsEmpty">У плагина пока нет доступных настроек. Если он ещё не запускался, включите систему плагинов и сам плагин, чтобы загрузить их.</string>
     <string name="FluxGramPluginSettingsUnavailable">Плагин больше недоступен.</string>
+    <string name="FluxGramPluginPreview">Предпросмотр эффекта</string>
+    <string name="FluxGramPluginPreviewHint">Введите текст для предпросмотра</string>
     <string name="FluxGramGhostMode">Режим призрака</string>
     <string name="FluxGramGhostModeDescription">Онлайн, печатает, прочтения и истории</string>
     <string name="FluxGramGhostModeDisabledInfo">Выбранные настройки действуют при включённом режиме.</string>

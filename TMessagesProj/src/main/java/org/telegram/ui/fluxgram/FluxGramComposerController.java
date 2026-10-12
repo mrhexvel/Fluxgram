@@ -51,7 +51,8 @@ public final class FluxGramComposerController implements TextWatcher,
     private final int account;
     private final long ownerId;
     private final long dialogId;
-    private final ChatInputViewsContainer expandedHost;
+    private final ViewGroup expandedHost;
+    private final String previewPluginId;
     private final BooleanSupplier eligible;
     private final Theme.ResourcesProvider colors;
     private final ForegroundDetector foreground;
@@ -92,10 +93,17 @@ public final class FluxGramComposerController implements TextWatcher,
     public FluxGramComposerController(EditText field, ChatInputViewsContainer expandedHost,
             int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
+        this(field, expandedHost, account, dialogId, null, eligible, colors);
+    }
+
+    public FluxGramComposerController(EditText field, ViewGroup expandedHost,
+            int account, long dialogId, String previewPluginId,
+            BooleanSupplier eligible, Theme.ResourcesProvider colors) {
         this.field = field;
         this.expandedHost = expandedHost;
         this.account = account;
         this.dialogId = dialogId;
+        this.previewPluginId = previewPluginId;
         this.ownerId = UserConfig.getInstance(account).getClientUserId();
         this.eligible = eligible;
         this.colors = colors;
@@ -200,7 +208,7 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         if (surface == null) {
-            surface = PluginComposerRegistry.attach(new PluginComposerRegistry.Host() {
+            PluginComposerRegistry.Host host = new PluginComposerRegistry.Host() {
                 @Override
                 public int account() {
                     return account;
@@ -295,7 +303,10 @@ public final class FluxGramComposerController implements TextWatcher,
                         ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation) {
                     cursorCapture.draw(canvas, nativeDraw, snapshot, presentation);
                 }
-            });
+            };
+            surface = previewPluginId == null
+                    ? PluginComposerRegistry.attach(host)
+                    : PluginComposerRegistry.attachPreview(host, previewPluginId);
 
             if (surface != null) {
                 overlayHost.getOverlay().add(overlay);
@@ -306,7 +317,7 @@ public final class FluxGramComposerController implements TextWatcher,
     }
 
     private void refreshExpandedLayer() {
-        if (surface == null || !surface.hasExpandedEffect()) {
+        if (surface == null || !surface.hasExpandedEffect() || expandedHost == null) {
             removeExpandedLayer();
             return;
         }
@@ -325,8 +336,14 @@ public final class FluxGramComposerController implements TextWatcher,
         expandedLayer.setClickable(false);
         expandedLayer.setFocusable(false);
         expandedLayer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        int keyboardIndex = expandedHost.indexOfChild(expandedHost.getInAppKeyboardBubbleContainer());
-        expandedHost.addView(expandedLayer, Math.max(0, keyboardIndex),
+        int layerIndex = expandedHost.getChildCount();
+
+        if (expandedHost instanceof ChatInputViewsContainer) {
+            ChatInputViewsContainer chatHost = (ChatInputViewsContainer) expandedHost;
+            layerIndex = Math.max(0, chatHost.indexOfChild(chatHost.getInAppKeyboardBubbleContainer()));
+        }
+
+        expandedHost.addView(expandedLayer, layerIndex,
                 LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
     }
 

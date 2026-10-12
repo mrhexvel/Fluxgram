@@ -92,12 +92,39 @@ class ComposerEffectsTest(unittest.TestCase):
 
         for required in ("getOverlay().remove", "removeTextChangedListener", "removeListener(this)",
                           "removeOnPreDrawListener", "onBecameBackground", "onViewDetachedFromWindow",
-                          "getClientUserId() == ownerId", "selectedAccount == account",
-                          "field.getParent()", "sendTransitionDeadline", "ComposerExpandedBounds.MAX_OUTSET_DP",
-                          "expandedHost.indexOfChild", "removeExpandedLayer"):
+                           "getClientUserId() == ownerId", "selectedAccount == account",
+                           "field.getParent()", "sendTransitionDeadline", "ComposerExpandedBounds.MAX_OUTSET_DP",
+                           "chatHost.indexOfChild", "removeExpandedLayer"):
             self.assertIn(required, controller)
 
         self.assertIn("chatInputViewsContainer, currentAccount", chat)
+
+    def test_settings_preview_is_filtered_and_lifecycle_scoped(self):
+        registry = (JAVA / "messenger/plugins/PluginComposerRegistry.java").read_text()
+        controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
+        preview = (JAVA / "ui/fluxgram/PluginComposerPreviewView.java").read_text()
+        activity = (JAVA / "ui/PluginSettingsActivity.java").read_text()
+        adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
+
+        self.assertIn("registration.pluginId.equals(pluginId)", registry)
+        self.assertIn("PluginComposerRegistry.attachPreview(host, previewPluginId)", controller)
+        self.assertIn("controller.destroy()", preview)
+        self.assertNotIn("ChatActivityEnterView", preview)
+        self.assertLess(preview.index("addView(inputContainer"), preview.index("new FluxGramComposerController"))
+        self.assertIn("field.clearFocus()", preview)
+        self.assertIn("preview.setActive(false)", activity)
+        self.assertIn("preview.destroy()", activity)
+
+        create_view = activity.split("public View createView(Context context)", 1)[1].split(
+            "private void fillItems", 1
+        )[0]
+        self.assertLess(create_view.index("preview.destroy()"), create_view.index("new PluginComposerPreviewView"))
+
+        drain = adapter.split("private void drainSettings()", 1)[1].split(
+            "public synchronized boolean isStoppingForRemoval()", 1
+        )[0]
+        self.assertLess(drain.index("javaLoader.settingChanged"), drain.index("dispatch_setting_changed"))
+        self.assertLess(drain.index("dispatch_setting_changed"), drain.index("refreshPreview"))
 
     def test_composer_registration_uses_ui_cleanup_scope(self):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()

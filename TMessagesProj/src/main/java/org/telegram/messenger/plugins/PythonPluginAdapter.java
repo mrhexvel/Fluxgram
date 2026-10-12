@@ -102,6 +102,10 @@ public final class PythonPluginAdapter implements Plugin {
         return lifecycle.getState().name();
     }
 
+    public boolean hasJavaModule() {
+        return javaModule != null;
+    }
+
     void setPreflightError(Throwable error) {
         loadError = error.toString();
     }
@@ -597,6 +601,10 @@ public final class PythonPluginAdapter implements Plugin {
     }
 
     private void drainSettings() {
+        long previewGeneration = -1;
+        int previewAccount = -1;
+        long previewOwnerId = 0;
+
         while (true) {
             String key;
             PendingSetting pending;
@@ -607,8 +615,7 @@ public final class PythonPluginAdapter implements Plugin {
 
                 if (!iterator.hasNext()) {
                     settingsDrainQueued = false;
-
-                    return;
+                    break;
                 }
 
                 Map.Entry<String, PendingSetting> entry = iterator.next();
@@ -651,6 +658,25 @@ public final class PythonPluginAdapter implements Plugin {
             } catch (Exception | LinkageError error) {
                 Log.e(TAG, "[" + id + "] Setting callback failed", error);
             }
+
+            if (lifecycle.isCurrent(pending.generation)
+                    && UserConfig.getInstance(pending.account).getClientUserId() == pending.ownerId) {
+                previewGeneration = pending.generation;
+                previewAccount = pending.account;
+                previewOwnerId = pending.ownerId;
+            }
+        }
+
+        if (previewGeneration >= 0) {
+            long generation = previewGeneration;
+            int account = previewAccount;
+            long ownerId = previewOwnerId;
+            UI_HANDLER.post(() -> {
+                if (lifecycle.isCurrent(generation)
+                        && UserConfig.getInstance(account).getClientUserId() == ownerId) {
+                    PluginComposerRegistry.refreshPreview(id);
+                }
+            });
         }
     }
 
