@@ -379,7 +379,7 @@ public final class FluxGramComposerController implements TextWatcher,
 
     public void drawText(EditTextCaption source, Canvas canvas, Consumer<Canvas> nativeDraw) {
         if (source == field && !destroyed && surface != null) {
-            surface.drawText(canvas, nativeDraw);
+            surface.drawContent(canvas, contentCanvas -> surface.drawText(contentCanvas, nativeDraw));
         } else {
             nativeDraw.accept(canvas);
         }

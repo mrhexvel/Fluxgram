@@ -4,6 +4,8 @@ import android.graphics.Canvas;
 import android.view.Choreographer;
 
 import org.telegram.messenger.plugins.api.ComposerEffect;
+import org.telegram.messenger.plugins.api.ComposerContentEffect;
+import org.telegram.messenger.plugins.api.ComposerContentPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
@@ -280,6 +282,17 @@ public final class ComposerRegistryCheck {
         @Override
         public ComposerCursorPresentation presentCursor(ComposerCursorSnapshot value) {
             snapshot = value;
+            return presentation;
+        }
+    }
+
+    private static final class ContentEffect extends Effect implements ComposerContentEffect {
+        ComposerContentPresentation presentation = new ComposerContentPresentation(4, -3);
+        int presentations;
+
+        @Override
+        public ComposerContentPresentation presentContent() {
+            presentations++;
             return presentation;
         }
     }
@@ -762,6 +775,38 @@ public final class ComposerRegistryCheck {
                 "finished removed text overlay was retained");
         surface.close();
         transitionRegistration.close();
+
+        ContentEffect content = new ContentEffect();
+        AutoCloseable contentRegistration = PluginComposerRegistry.registerContent(
+                "test.content", () -> true, context -> {
+                    content.context = context;
+                    return content;
+                });
+        rejects(() -> PluginComposerRegistry.registerContent(
+                "test.content.conflict", () -> true, context -> new ContentEffect()));
+        Host contentHost = new Host();
+        surface = PluginComposerRegistry.attach(contentHost);
+        require(surface.hasContentEffect(), "content owner not attached");
+        Canvas contentCanvas = new Canvas();
+        int[] contentNativeDraws = {0};
+        surface.drawContent(contentCanvas, canvas -> {
+            contentNativeDraws[0]++;
+            require(canvas.getTranslationX() == 4 && canvas.getTranslationY() == -3,
+                    "content translation was not applied around native draw");
+        });
+        require(content.presentations == 1 && contentNativeDraws[0] == 1
+                && contentCanvas.getTranslationX() == 0 && contentCanvas.getTranslationY() == 0,
+                "content transform was not restored");
+        content.presentation = null;
+        surface.drawContent(contentCanvas, canvas -> contentNativeDraws[0]++);
+        require(contentNativeDraws[0] == 2 && content.closes == 0,
+                "null content presentation did not use native fallback");
+        content.presentation = new ComposerContentPresentation(25, 0);
+        surface.drawContent(contentCanvas, canvas -> contentNativeDraws[0]++);
+        require(contentNativeDraws[0] == 3 && content.closes == 1 && !surface.hasContentEffect(),
+                "invalid content presentation did not fail closed");
+        surface.close();
+        contentRegistration.close();
 
         CursorEffect cursor = new CursorEffect();
         AutoCloseable cursorRegistration = PluginComposerRegistry.registerCursor(

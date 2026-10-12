@@ -29,6 +29,10 @@ public interface JavaPluginContext {
         throw new UnsupportedOperationException("Composer selection effects require Java API 1.12");
     }
 
+    default JavaPluginUiResource registerComposerContentEffect(ComposerContentEffect.Factory factory) {
+        throw new UnsupportedOperationException("Composer content effects require Java API 1.16");
+    }
+
     boolean readBooleanSetting(String key, boolean fallback);
 
     int readIntSetting(String key, int fallback);

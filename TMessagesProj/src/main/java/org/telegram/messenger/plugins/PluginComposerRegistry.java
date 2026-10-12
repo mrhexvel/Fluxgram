@@ -8,6 +8,8 @@ import android.view.Choreographer;
 import android.view.animation.AnimationUtils;
 
 import org.telegram.messenger.plugins.api.ComposerEffect;
+import org.telegram.messenger.plugins.api.ComposerContentEffect;
+import org.telegram.messenger.plugins.api.ComposerContentPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
@@ -141,7 +143,7 @@ public final class PluginComposerRegistry {
             throw new IllegalStateException("Composer effect limit reached or factory missing");
         }
 
-        Registration registration = new Registration(pluginId, active, factory, false, false, false);
+        Registration registration = new Registration(pluginId, active, factory, false, false, false, false);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -164,7 +166,7 @@ public final class PluginComposerRegistry {
             }
         }
 
-        Registration registration = new Registration(pluginId, active, factory::create, true, false, false);
+        Registration registration = new Registration(pluginId, active, factory::create, true, false, false, false);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -188,7 +190,7 @@ public final class PluginComposerRegistry {
             }
         }
 
-        Registration registration = new Registration(pluginId, active, factory::create, false, true, false);
+        Registration registration = new Registration(pluginId, active, factory::create, false, true, false, false);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -212,7 +214,32 @@ public final class PluginComposerRegistry {
             }
         }
 
-        Registration registration = new Registration(pluginId, active, factory::create, false, false, true);
+        Registration registration = new Registration(pluginId, active, factory::create, false, false, true, false);
+        registrations.add(registration);
+
+        for (Surface surface : new ArrayList<>(surfaces)) {
+            registration.attach(surface);
+        }
+
+        return registration;
+    }
+
+    static AutoCloseable registerContent(
+            String pluginId, BooleanSupplier active, ComposerContentEffect.Factory factory) {
+        requireUi();
+
+        if (factory == null || registrations.size() >= 8) {
+            throw new IllegalStateException("Composer effect limit reached or factory missing");
+        }
+
+        for (Registration registration : registrations) {
+            if (registration.content && !registration.closed) {
+                throw new IllegalStateException("Composer native content presentation is already owned");
+            }
+        }
+
+        Registration registration = new Registration(
+                pluginId, active, factory::create, false, false, false, true);
         registrations.add(registration);
 
         for (Surface surface : new ArrayList<>(surfaces)) {
@@ -261,6 +288,7 @@ public final class PluginComposerRegistry {
         private Binding[] snapshot = new Binding[0];
         private Binding cursorOwner;
         private Binding selectionOwner;
+        private Binding contentOwner;
         private ComposerSelectionSnapshot selectionSnapshot;
         private SelectionCapture selectionCapture;
         private long sendSequence;
@@ -354,6 +382,26 @@ public final class PluginComposerRegistry {
 
             for (Binding binding : snapshot) {
                 binding.drawRemovedText(canvas);
+            }
+        }
+
+        public void drawContent(Canvas canvas, Consumer<Canvas> nativeDraw) {
+            requireUi();
+            ComposerContentPresentation presentation = contentOwner == null
+                    ? null : contentOwner.presentContent();
+
+            if (presentation == null) {
+                nativeDraw.accept(canvas);
+                return;
+            }
+
+            int save = canvas.save();
+
+            try {
+                canvas.translate(presentation.translationX, presentation.translationY);
+                nativeDraw.accept(canvas);
+            } finally {
+                canvas.restoreToCount(save);
             }
         }
 
@@ -537,6 +585,11 @@ public final class PluginComposerRegistry {
             return selectionOwner != null;
         }
 
+        public boolean hasContentEffect() {
+            requireUi();
+            return contentOwner != null;
+        }
+
         public boolean hasSendEffect() {
             requireUi();
 
@@ -570,12 +623,17 @@ public final class PluginComposerRegistry {
             snapshot = bindings.toArray(new Binding[0]);
             Binding nextCursorOwner = null;
             Binding nextSelectionOwner = null;
+            Binding nextContentOwner = null;
 
             for (Binding binding : snapshot) {
                 if (binding.registration.cursor) {
                     nextCursorOwner = binding;
                 } else if (binding.registration.selection) {
                     nextSelectionOwner = binding;
+                }
+
+                if (binding.registration.content) {
+                    nextContentOwner = binding;
                 }
             }
 
@@ -595,6 +653,8 @@ public final class PluginComposerRegistry {
                     host.selectionOwnerChanged();
                 }
             }
+
+            contentOwner = nextContentOwner;
 
             if (host != null) {
                 host.effectsChanged();
@@ -642,18 +702,20 @@ public final class PluginComposerRegistry {
         final boolean text;
         final boolean cursor;
         final boolean selection;
+        final boolean content;
         final ArrayList<Binding> owned = new ArrayList<>();
         boolean closed;
         boolean failed;
 
         Registration(String pluginId, BooleanSupplier active, ComposerEffect.Factory factory,
-                boolean text, boolean cursor, boolean selection) {
+                boolean text, boolean cursor, boolean selection, boolean content) {
             this.pluginId = pluginId;
             this.active = active;
             this.factory = factory;
             this.text = text;
             this.cursor = cursor;
             this.selection = selection;
+            this.content = content;
         }
 
         void attach(Surface surface) {
@@ -922,6 +984,38 @@ public final class PluginComposerRegistry {
                 ((ComposerSendEffect) effect).onSend(event);
             } catch (Exception | LinkageError | AssertionError error) {
                 registration.quarantine(error);
+            } finally {
+                record(start);
+            }
+        }
+
+        ComposerContentPresentation presentContent() {
+            if (!registration.content || !isActive() || !(effect instanceof ComposerContentEffect)) {
+                return null;
+            }
+
+            long start = System.nanoTime();
+
+            try {
+                ComposerContentPresentation presentation =
+                        ((ComposerContentEffect) effect).presentContent();
+
+                if (presentation != null) {
+                    float limit = ComposerContentPresentation.MAX_TRANSLATION_DP
+                            * getGeometry().density;
+
+                    if (!Float.isFinite(presentation.translationX)
+                            || !Float.isFinite(presentation.translationY)
+                            || Math.abs(presentation.translationX) > limit
+                            || Math.abs(presentation.translationY) > limit) {
+                        throw new IllegalArgumentException("Invalid composer content presentation");
+                    }
+                }
+
+                return presentation;
+            } catch (Exception | LinkageError | AssertionError error) {
+                registration.quarantine(error);
+                return null;
             } finally {
                 record(start);
             }

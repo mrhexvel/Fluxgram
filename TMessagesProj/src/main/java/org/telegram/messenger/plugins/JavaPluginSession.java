@@ -3,6 +3,7 @@ package org.telegram.messenger.plugins;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.ComposerContentEffect;
 import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
@@ -46,6 +47,11 @@ final class JavaPluginSession implements AutoCloseable {
         default JavaPluginUiResource registerComposerSelectionEffect(
                 long generation, ComposerSelectionEffect.Factory factory) {
             throw new UnsupportedOperationException("Composer selection effects are unavailable");
+        }
+
+        default JavaPluginUiResource registerComposerContentEffect(
+                long generation, ComposerContentEffect.Factory factory) {
+            throw new UnsupportedOperationException("Composer content effects are unavailable");
         }
     }
 
@@ -227,6 +233,12 @@ final class JavaPluginSession implements AutoCloseable {
         public JavaPluginUiResource registerComposerSelectionEffect(ComposerSelectionEffect.Factory factory) {
             requireActive();
             return host.registerComposerSelectionEffect(generation, factory);
+        }
+
+        @Override
+        public JavaPluginUiResource registerComposerContentEffect(ComposerContentEffect.Factory factory) {
+            requireActive();
+            return host.registerComposerContentEffect(generation, factory);
         }
 
         @Override
