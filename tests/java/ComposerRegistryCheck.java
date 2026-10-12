@@ -10,6 +10,7 @@ import org.telegram.messenger.plugins.api.ComposerSurface;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
@@ -386,11 +387,17 @@ public final class ComposerRegistryCheck {
         sourceLines[0] = null;
         require(beforeLayout.getLineCount() == 1 && beforeLayout.getLine(0) != null,
                 "layout snapshot retained mutable line array");
+        ComposerTextClusterSnapshot[] sourceClusters = {
+                new ComposerTextClusterSnapshot(2, 3, 0, false, 20, 28, 20, 28, 8)
+        };
         ComposerTextLayoutSnapshot afterLayout = new ComposerTextLayoutSnapshot(
                 21, "abc", 3, 3, -1, -1, 100, 40, 4, 3, 0, 0,
-                false, false, new ComposerTextLineSnapshot[] {
+                false, false, false, new ComposerTextLineSnapshot[] {
                         new ComposerTextLineSnapshot(0, 3, 3, 4, 28, 3, 18, 15, false)
-                });
+                }, sourceClusters);
+        sourceClusters[0] = null;
+        require(afterLayout.getClusterCount() == 1 && afterLayout.getCluster(0) != null,
+                "layout snapshot retained mutable cluster array");
         ComposerTextLayoutChange layoutChange = new ComposerTextLayoutChange(
                 21, beforeLayout, afterLayout, 2, 0, 1, false);
         surface.textLayoutChanged(layoutChange);

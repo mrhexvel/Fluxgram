@@ -1,5 +1,7 @@
 package org.telegram.ui.fluxgram;
 
+import android.graphics.Paint;
+import android.os.Build;
 import android.text.Editable;
 import android.text.Layout;
 import android.text.Spanned;
@@ -10,6 +12,7 @@ import android.text.style.SuggestionSpan;
 import android.text.style.UnderlineSpan;
 import android.view.inputmethod.BaseInputConnection;
 
+import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextLineSnapshot;
 import org.telegram.ui.Components.EditTextCaption;
@@ -19,6 +22,7 @@ import java.util.ArrayList;
 public final class ComposerTextLayoutSnapshots {
     private static final int MAX_TEXT_LENGTH = 4096;
     private static final int MAX_VISIBLE_LINES = 16;
+    private static final int MAX_CLUSTERS = 256;
 
     private ComposerTextLayoutSnapshots() {
     }
@@ -71,6 +75,69 @@ public final class ComposerTextLayoutSnapshots {
                     layout.getParagraphDirection(line) == Layout.DIR_RIGHT_TO_LEFT));
         }
 
+        boolean unsupportedSpans = hasUnsupportedSpans(content);
+        boolean unsupportedClusters = unsupportedSpans;
+        boolean truncated = firstLine > 0 || endLine < layout.getLineCount() - 1;
+        ArrayList<ComposerTextClusterSnapshot> clusters = new ArrayList<>();
+
+        if (!unsupportedSpans) {
+            clusterLines:
+            for (int line = firstLine; line <= endLine; line++) {
+                int clusterLineStart = clusters.size();
+                int runStart = layout.getLineStart(line);
+                int lineEnd = layout.getLineVisibleEnd(line);
+
+                while (runStart < lineEnd) {
+                    boolean rtl = layout.isRtlCharAt(runStart);
+                    int runEnd = runStart + 1;
+
+                    while (runEnd < lineEnd && layout.isRtlCharAt(runEnd) == rtl) {
+                        runEnd++;
+                    }
+
+                    int offset = runStart;
+
+                    while (offset < runEnd) {
+                        if (clusters.size() >= MAX_CLUSTERS) {
+                            truncated = true;
+                            break clusterLines;
+                        }
+
+                        int next = 0;
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            next = field.getPaint().getTextRunCursor(
+                                    content, runStart, runEnd, rtl, offset, Paint.CURSOR_AFTER);
+                        }
+
+                        if (next <= offset || next > runEnd || unsafeBoundary(content, next, runStart, runEnd)) {
+                            unsupportedClusters = true;
+
+                            while (clusters.size() > clusterLineStart) {
+                                clusters.remove(clusters.size() - 1);
+                            }
+
+                            continue clusterLines;
+                        }
+
+                        clusters.add(new ComposerTextClusterSnapshot(
+                                offset,
+                                next,
+                                line - firstLine,
+                                rtl,
+                                originX + layout.getPrimaryHorizontal(offset),
+                                originX + layout.getPrimaryHorizontal(next),
+                                originX + layout.getSecondaryHorizontal(offset),
+                                originX + layout.getSecondaryHorizontal(next),
+                                Math.abs(field.getPaint().getRunAdvance(
+                                        content, offset, next, runStart, runEnd, rtl, next))));
+                        offset = next;
+                    }
+
+                    runStart = runEnd;
+                }
+            }
+        }
+
         return new ComposerTextLayoutSnapshot(
                 revision,
                 expectedText,
@@ -84,9 +151,11 @@ public final class ComposerTextLayoutSnapshots {
                 originY,
                 field.getScrollX(),
                 field.getScrollY(),
-                firstLine > 0 || endLine < layout.getLineCount() - 1,
-                hasUnsupportedSpans(content),
-                lines.toArray(new ComposerTextLineSnapshot[0]));
+                truncated,
+                unsupportedSpans,
+                unsupportedClusters,
+                lines.toArray(new ComposerTextLineSnapshot[0]),
+                clusters.toArray(new ComposerTextClusterSnapshot[0]));
     }
 
     private static boolean hasUnsupportedSpans(CharSequence content) {
@@ -107,5 +176,58 @@ public final class ComposerTextLayoutSnapshots {
         }
 
         return false;
+    }
+
+    private static boolean unsafeBoundary(CharSequence text, int offset, int start, int end) {
+        if (offset <= start || offset >= end) {
+            return false;
+        }
+
+        if (Character.isHighSurrogate(text.charAt(offset - 1))
+                && Character.isLowSurrogate(text.charAt(offset))) {
+            return true;
+        }
+
+        int before = Character.codePointBefore(text, offset);
+        int after = Character.codePointAt(text, offset);
+
+        if (before == 0x200D || after == 0x200D || before == '\r' && after == '\n'
+                || isClusterExtension(after)) {
+            return true;
+        }
+
+        if (!isRegionalIndicator(before) || !isRegionalIndicator(after)) {
+            return false;
+        }
+
+        int regionalCount = 0;
+        int index = offset;
+
+        while (index > start) {
+            int codePoint = Character.codePointBefore(text, index);
+
+            if (!isRegionalIndicator(codePoint)) {
+                break;
+            }
+
+            regionalCount++;
+            index -= Character.charCount(codePoint);
+        }
+
+        return regionalCount % 2 != 0;
+    }
+
+    private static boolean isClusterExtension(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.NON_SPACING_MARK || type == Character.COMBINING_SPACING_MARK
+                || type == Character.ENCLOSING_MARK
+                || codePoint >= 0xFE00 && codePoint <= 0xFE0F
+                || codePoint >= 0xE0100 && codePoint <= 0xE01EF
+                || codePoint >= 0x1F3FB && codePoint <= 0x1F3FF
+                || codePoint >= 0xE0020 && codePoint <= 0xE007F;
+    }
+
+    private static boolean isRegionalIndicator(int codePoint) {
+        return codePoint >= 0x1F1E6 && codePoint <= 0x1F1FF;
     }
 }
