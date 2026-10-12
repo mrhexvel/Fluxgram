@@ -13,6 +13,7 @@ import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerExpandedEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
+import org.telegram.messenger.plugins.api.ComposerHapticFeedback;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerMotionEffect;
 import org.telegram.messenger.plugins.api.ComposerMotionSnapshot;
@@ -53,6 +54,10 @@ public final class ComposerRegistryCheck {
         int cursorOwnerChanges;
         int selectionOwnerChanges;
         int effectsChanges;
+        int haptics;
+        int lastHaptic;
+        boolean hapticResult = true;
+        boolean failHaptic;
         ComposerCursorSnapshot cursorSnapshot;
         ComposerCursorPresentation cursorPresentation;
         final ComposerGeometry geometry = new ComposerGeometry(320, 50, 1, 0xFF123456, false);
@@ -105,6 +110,18 @@ public final class ComposerRegistryCheck {
         @Override
         public void effectsChanged() {
             effectsChanges++;
+        }
+
+        @Override
+        public boolean performHapticFeedback(int feedback) {
+            if (failHaptic) {
+                failHaptic = false;
+                throw new IllegalStateException("intentional haptic failure");
+            }
+
+            haptics++;
+            lastHaptic = feedback;
+            return hapticResult;
         }
 
         @Override
@@ -938,6 +955,88 @@ public final class ComposerRegistryCheck {
                 "motion samples bypassed continuous animation timeout");
         surface.close();
         motionEndlessRegistration.close();
+
+        Effect firstHaptic = new Effect();
+        Effect secondHaptic = new Effect();
+        AutoCloseable firstHapticRegistration = PluginComposerRegistry.register(
+                "test.haptic.first", () -> true, context -> {
+                    firstHaptic.context = context;
+                    return firstHaptic;
+                });
+        AutoCloseable secondHapticRegistration = PluginComposerRegistry.register(
+                "test.haptic.second", () -> true, context -> {
+                    secondHaptic.context = context;
+                    return secondHaptic;
+                });
+        Host hapticHost = new Host();
+        surface = PluginComposerRegistry.attach(hapticHost);
+        require(!firstHaptic.context.performHapticFeedback(99),
+                "invalid haptic feedback was accepted");
+        require(firstHaptic.context.performHapticFeedback(ComposerHapticFeedback.TICK)
+                && hapticHost.haptics == 1
+                && hapticHost.lastHaptic == ComposerHapticFeedback.TICK,
+                "valid haptic feedback was not delivered");
+        require(!secondHaptic.context.performHapticFeedback(ComposerHapticFeedback.IMPACT),
+                "surface haptic interval was not enforced");
+
+        long hapticTime = Choreographer.getInstance().getFrameTimeNanos();
+
+        for (int i = 1; i < 8; i++) {
+            hapticTime += 40_000_000L;
+            Choreographer.getInstance().tick(hapticTime);
+            require((i % 2 == 0 ? firstHaptic.context : secondHaptic.context)
+                            .performHapticFeedback(ComposerHapticFeedback.IMPACT),
+                    "bounded haptic feedback was rejected early");
+        }
+
+        hapticTime += 40_000_000L;
+        Choreographer.getInstance().tick(hapticTime);
+        require(!firstHaptic.context.performHapticFeedback(ComposerHapticFeedback.CONFIRM)
+                        && hapticHost.haptics == 8,
+                "surface haptic rate limit was not enforced");
+        hapticTime += 1_000_000_000L;
+        Choreographer.getInstance().tick(hapticTime);
+        hapticHost.failHaptic = true;
+        require(!firstHaptic.context.performHapticFeedback(ComposerHapticFeedback.REJECT),
+                "host haptic failure was reported as success");
+        hapticTime += 40_000_000L;
+        Choreographer.getInstance().tick(hapticTime);
+        require(secondHaptic.context.performHapticFeedback(ComposerHapticFeedback.CONFIRM),
+                "host haptic failure suspended the effect");
+        surface.close();
+        require(!firstHaptic.context.performHapticFeedback(ComposerHapticFeedback.TICK),
+                "detached surface performed haptic feedback");
+        firstHapticRegistration.close();
+        secondHapticRegistration.close();
+
+        Effect boundaryHaptic = new Effect();
+        AutoCloseable boundaryHapticRegistration = PluginComposerRegistry.register(
+                "test.haptic.boundary", () -> true, context -> {
+                    boundaryHaptic.context = context;
+                    return boundaryHaptic;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        long boundaryStart = hapticTime + 1_000_000_000L;
+        Choreographer.getInstance().tick(boundaryStart);
+        require(boundaryHaptic.context.performHapticFeedback(ComposerHapticFeedback.TICK),
+                "boundary haptic did not start");
+        hapticTime = boundaryStart + 720_000_000L;
+
+        for (int i = 0; i < 7; i++) {
+            Choreographer.getInstance().tick(hapticTime);
+            require(boundaryHaptic.context.performHapticFeedback(ComposerHapticFeedback.TICK),
+                    "boundary haptic was rejected early");
+            hapticTime += 40_000_000L;
+        }
+
+        Choreographer.getInstance().tick(boundaryStart + 1_000_000_000L);
+        require(boundaryHaptic.context.performHapticFeedback(ComposerHapticFeedback.TICK),
+                "expired haptic slot was not released");
+        Choreographer.getInstance().tick(boundaryStart + 1_040_000_000L);
+        require(!boundaryHaptic.context.performHapticFeedback(ComposerHapticFeedback.TICK),
+                "haptic fixed-window boundary admitted a burst");
+        surface.close();
+        boundaryHapticRegistration.close();
 
         CursorEffect cursor = new CursorEffect();
         AutoCloseable cursorRegistration = PluginComposerRegistry.registerCursor(

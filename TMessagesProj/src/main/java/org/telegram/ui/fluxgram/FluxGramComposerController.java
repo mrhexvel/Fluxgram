@@ -6,10 +6,12 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.SystemClock;
 import android.text.Editable;
 import android.text.Layout;
 import android.text.TextWatcher;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -25,6 +27,7 @@ import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
+import org.telegram.messenger.plugins.api.ComposerHapticFeedback;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
@@ -254,6 +257,27 @@ public final class FluxGramComposerController implements TextWatcher,
                 public void effectsChanged() {
                     refreshExpandedLayer();
                     invalidate();
+                }
+
+                @Override
+                public boolean performHapticFeedback(int feedback) {
+                    int platformFeedback;
+
+                    if (feedback == ComposerHapticFeedback.TICK) {
+                        platformFeedback = HapticFeedbackConstants.CLOCK_TICK;
+                    } else if (feedback == ComposerHapticFeedback.IMPACT) {
+                        platformFeedback = HapticFeedbackConstants.KEYBOARD_TAP;
+                    } else if (feedback == ComposerHapticFeedback.CONFIRM) {
+                        platformFeedback = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                                ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.VIRTUAL_KEY;
+                    } else if (feedback == ComposerHapticFeedback.REJECT) {
+                        platformFeedback = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                                ? HapticFeedbackConstants.REJECT : HapticFeedbackConstants.LONG_PRESS;
+                    } else {
+                        return false;
+                    }
+
+                    return field.performHapticFeedback(platformFeedback);
                 }
 
                 @Override

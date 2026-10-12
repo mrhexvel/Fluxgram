@@ -16,6 +16,7 @@ import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerExpandedEffect;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
+import org.telegram.messenger.plugins.api.ComposerHapticFeedback;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerMotionEffect;
 import org.telegram.messenger.plugins.api.ComposerMotionSnapshot;
@@ -69,6 +70,10 @@ public final class PluginComposerRegistry {
 
         default void effectsChanged() {
             invalidate();
+        }
+
+        default boolean performHapticFeedback(int feedback) {
+            return false;
         }
 
         TextCapture captureText(ComposerTextCandidate candidate, String expectedText);
@@ -294,6 +299,10 @@ public final class PluginComposerRegistry {
         private ComposerSelectionSnapshot selectionSnapshot;
         private SelectionCapture selectionCapture;
         private long sendSequence;
+        private final long[] hapticTimes = new long[8];
+        private long lastHapticAt = Long.MIN_VALUE;
+        private int firstHaptic;
+        private int hapticCount;
         private int nextDraw;
         private int nextExpandedDraw;
         private boolean drawingPresentedText;
@@ -356,6 +365,43 @@ public final class PluginComposerRegistry {
 
             for (Binding binding : snapshot) {
                 binding.sent(event);
+            }
+        }
+
+        private boolean performHapticFeedback(int feedback) {
+            if (host == null || !host.isAvailable()) {
+                return false;
+            }
+
+            if (feedback != ComposerHapticFeedback.TICK
+                    && feedback != ComposerHapticFeedback.IMPACT
+                    && feedback != ComposerHapticFeedback.CONFIRM
+                    && feedback != ComposerHapticFeedback.REJECT) {
+                return false;
+            }
+
+            long now = AnimationUtils.currentAnimationTimeMillis();
+
+            while (hapticCount > 0 && (now < hapticTimes[firstHaptic]
+                    || now - hapticTimes[firstHaptic] >= 1000)) {
+                firstHaptic = (firstHaptic + 1) % hapticTimes.length;
+                hapticCount--;
+            }
+
+            if (hapticCount >= hapticTimes.length || lastHapticAt != Long.MIN_VALUE
+                    && now >= lastHapticAt && now - lastHapticAt < 40) {
+                return false;
+            }
+
+            hapticTimes[(firstHaptic + hapticCount) % hapticTimes.length] = now;
+            hapticCount++;
+            lastHapticAt = now;
+
+            try {
+                return host.performHapticFeedback(feedback);
+            } catch (Exception | LinkageError | AssertionError error) {
+                Log.e("FluxGramComposer", "Haptic feedback failed", error);
+                return false;
             }
         }
 
@@ -874,6 +920,17 @@ public final class PluginComposerRegistry {
             }
 
             frames().request(this);
+        }
+
+        @Override
+        public boolean performHapticFeedback(int feedback) {
+            requireUi();
+
+            if (effect == null || !isActive()) {
+                return false;
+            }
+
+            return surface.performHapticFeedback(feedback);
         }
 
         @Override

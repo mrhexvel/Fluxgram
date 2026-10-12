@@ -13,6 +13,10 @@ public interface ComposerSurface {
 
     void requestFrame();
 
+    default boolean performHapticFeedback(int feedback) {
+        return false;
+    }
+
     default boolean setMotionUpdatesEnabled(boolean enabled) {
         return false;
     }
