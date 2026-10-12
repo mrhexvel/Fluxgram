@@ -587,7 +587,7 @@ public final class PluginComposerRegistry {
                     return false;
                 }
 
-                validatePresentation(presentation);
+                validatePresentation(presentation, textCapture);
 
             } catch (Exception | LinkageError | AssertionError error) {
                 textCapture = null;
@@ -626,7 +626,7 @@ public final class PluginComposerRegistry {
                     return;
                 }
 
-                validatePresentation(presentation);
+                validatePresentation(presentation, removedCapture);
             } catch (Exception | LinkageError | AssertionError error) {
                 removedChange = null;
                 removedCapture = null;
@@ -645,15 +645,63 @@ public final class PluginComposerRegistry {
             }
         }
 
-        private void validatePresentation(ComposerTextPresentation presentation) {
+        private void validatePresentation(ComposerTextPresentation presentation, ComposerTextCapture capture) {
             float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
+            float width = capture.getRight() - capture.getLeft();
+            float height = capture.getBottom() - capture.getTop();
 
             if (!Float.isFinite(presentation.translationX) || !Float.isFinite(presentation.translationY)
                     || !Float.isFinite(presentation.alpha) || presentation.alpha < 0 || presentation.alpha > 1
+                    || !Float.isFinite(presentation.scaleX) || presentation.scaleX < 0 || presentation.scaleX > 4
+                    || !Float.isFinite(presentation.scaleY) || presentation.scaleY < 0 || presentation.scaleY > 4
+                    || !Float.isFinite(presentation.rotationDegrees)
+                    || Math.abs(presentation.rotationDegrees) > 360
+                    || !Float.isFinite(presentation.pivotX) || presentation.pivotX < 0
+                    || presentation.pivotX > width
+                    || !Float.isFinite(presentation.pivotY) || presentation.pivotY < 0
+                    || presentation.pivotY > height
                     || Math.abs(presentation.translationX) > limit
-                    || Math.abs(presentation.translationY) > limit) {
+                    || Math.abs(presentation.translationY) > limit
+                    || !validTransformedBounds(presentation, capture, limit)) {
                 throw new IllegalArgumentException("Invalid composer text presentation");
             }
+        }
+
+        private boolean validTransformedBounds(
+                ComposerTextPresentation presentation, ComposerTextCapture capture, float limit) {
+            double radians = Math.toRadians(presentation.rotationDegrees);
+            double cosine = Math.cos(radians);
+            double sine = Math.sin(radians);
+            float width = capture.getRight() - capture.getLeft();
+            float height = capture.getBottom() - capture.getTop();
+            float minX = Float.POSITIVE_INFINITY;
+            float minY = Float.POSITIVE_INFINITY;
+            float maxX = Float.NEGATIVE_INFINITY;
+            float maxY = Float.NEGATIVE_INFINITY;
+
+            for (int corner = 0; corner < 4; corner++) {
+                float x = (corner & 1) == 0 ? 0 : width;
+                float y = (corner & 2) == 0 ? 0 : height;
+                double scaledX = (x - presentation.pivotX) * presentation.scaleX;
+                double scaledY = (y - presentation.pivotY) * presentation.scaleY;
+                float transformedX = (float) (capture.getLeft() + presentation.translationX
+                        + presentation.pivotX + scaledX * cosine - scaledY * sine);
+                float transformedY = (float) (capture.getTop() + presentation.translationY
+                        + presentation.pivotY + scaledX * sine + scaledY * cosine);
+
+                if (!Float.isFinite(transformedX) || !Float.isFinite(transformedY)) {
+                    return false;
+                }
+
+                minX = Math.min(minX, transformedX);
+                minY = Math.min(minY, transformedY);
+                maxX = Math.max(maxX, transformedX);
+                maxY = Math.max(maxY, transformedY);
+            }
+
+            return maxX - minX <= limit && maxY - minY <= limit
+                    && minX >= -limit && maxX <= lastGeometry.width + limit
+                    && minY >= -limit && maxY <= lastGeometry.height + limit;
         }
 
         @Override

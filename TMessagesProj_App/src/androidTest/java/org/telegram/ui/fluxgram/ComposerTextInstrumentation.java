@@ -104,6 +104,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
 
             onUi(() -> {
                 identityAndSuppressionCase();
+                affineReplayCase();
                 staleAndFallbackCase();
                 imeCase();
                 replayFailureCase();
@@ -183,6 +184,26 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         cases++;
     }
 
+    private void affineReplayCase() {
+        setText("HH");
+        Bitmap original = software();
+        ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
+                field, new ComposerTextCandidate(15, 1, 2), "HH");
+        require(capture != null, "affine capture rejected");
+        float pivotX = (capture.getRight() - capture.getLeft()) / 2;
+        float pivotY = (capture.getBottom() - capture.getTop()) / 2;
+        field.capture = capture;
+        field.presentation = new ComposerTextPresentation(
+                -4, 2, 0.75f, 0.7f, 1.2f, 18, pivotX, pivotY);
+        Bitmap transformed = software();
+        require(different(original, transformed) > 20, "affine replay matched native text");
+        require(field.getText().toString().equals("HH"), "affine replay mutated Editable");
+        clearCapture();
+        original.recycle();
+        transformed.recycle();
+        cases++;
+    }
+
     private void replayFailureCase() {
         setText("H");
         ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
@@ -242,6 +263,12 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         capture.draw(new Canvas(image), new ComposerTextPresentation(0, 0, 1));
         require(nonTransparent(image) > 20 && field.getText().toString().equals("H"),
                 "removed text capture was not detached from Editable");
+        image.eraseColor(Color.TRANSPARENT);
+        float pivotX = (capture.getRight() - capture.getLeft()) / 2;
+        float pivotY = (capture.getBottom() - capture.getTop()) / 2;
+        capture.draw(new Canvas(image), new ComposerTextPresentation(
+                2, -1, 0.8f, 0.75f, 1.1f, -12, pivotX, pivotY));
+        require(nonTransparent(image) > 10, "removed affine replay was empty");
         image.recycle();
         cases++;
     }

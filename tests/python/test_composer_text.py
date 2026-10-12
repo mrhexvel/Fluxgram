@@ -33,7 +33,7 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 7", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 8", manifest)
 
     def test_external_module_compiles_against_api_1_3(self):
         if not shutil.which("javac"):
@@ -67,7 +67,7 @@ class ComposerTextTest(unittest.TestCase):
                     }
 
                     public ComposerTextPresentation present(ComposerTextCapture capture) {
-                        return new ComposerTextPresentation(0, 0, 1);
+                        return new ComposerTextPresentation(0, 0, 1, 1.2f, 0.8f, 15, 4, 6);
                     }
 
                     public void onInput(ComposerInput input) {}

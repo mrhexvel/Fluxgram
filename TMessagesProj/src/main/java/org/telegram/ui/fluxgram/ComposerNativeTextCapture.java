@@ -256,7 +256,8 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         Throwable replayFailure = null;
 
         try {
-            canvas.translate(ink.left + presentation.translationX, ink.top + presentation.translationY);
+            canvas.translate(ink.left, ink.top);
+            applyTransform(canvas, presentation);
 
             if (presentation.alpha < 1) {
                 canvas.saveLayerAlpha(0, 0, ink.width(), ink.height(), Math.round(255 * presentation.alpha));
@@ -295,5 +296,13 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         } finally {
             canvas.restoreToCount(save);
         }
+    }
+
+    static void applyTransform(Canvas canvas, ComposerTextPresentation presentation) {
+        canvas.translate(presentation.translationX, presentation.translationY);
+        canvas.translate(presentation.pivotX, presentation.pivotY);
+        canvas.rotate(presentation.rotationDegrees);
+        canvas.scale(presentation.scaleX, presentation.scaleY);
+        canvas.translate(-presentation.pivotX, -presentation.pivotY);
     }
 }

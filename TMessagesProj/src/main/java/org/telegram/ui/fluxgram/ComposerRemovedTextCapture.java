@@ -165,7 +165,8 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
         Trace.beginSection("FGComposer.removedReplay");
 
         try {
-            canvas.translate(ink.left + presentation.translationX, ink.top + presentation.translationY);
+            canvas.translate(ink.left, ink.top);
+            ComposerNativeTextCapture.applyTransform(canvas, presentation);
 
             if (presentation.alpha < 1) {
                 canvas.saveLayerAlpha(0, 0, ink.width(), ink.height(), Math.round(255 * presentation.alpha));

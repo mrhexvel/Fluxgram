@@ -80,6 +80,7 @@ public final class ComposerRegistryCheck {
         final ComposerTextCandidate candidate;
         int draws;
         boolean valid = true;
+        ComposerTextPresentation presentation;
 
         Capture(ComposerTextCandidate candidate) {
             this.candidate = candidate;
@@ -134,6 +135,7 @@ public final class ComposerRegistryCheck {
         public void draw(Canvas canvas, java.util.function.Consumer<Canvas> nativeDraw,
                 ComposerTextPresentation presentation) {
             draws++;
+            this.presentation = presentation;
             nativeDraw.accept(canvas);
         }
     }
@@ -240,6 +242,7 @@ public final class ComposerRegistryCheck {
 
     private static final class OverlayCapture implements PluginComposerRegistry.OverlayTextCapture {
         int draws;
+        ComposerTextPresentation presentation;
 
         @Override
         public long getRevision() {
@@ -289,6 +292,7 @@ public final class ComposerRegistryCheck {
         @Override
         public void draw(Canvas canvas, ComposerTextPresentation presentation) {
             draws++;
+            this.presentation = presentation;
         }
     }
 
@@ -431,11 +435,18 @@ public final class ComposerRegistryCheck {
         surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
         require(nativeDraws[0] == 2, "native fallback missing for stale candidate");
         text.stale = false;
-        text.presentation = new ComposerTextPresentation(Float.NaN, 0, 1);
+        text.presentation = new ComposerTextPresentation(3, -2, 0.75f, 1.5f, 0.5f, 30, 5, 5);
         surface.textChanged(new ComposerTextChange(9, "abcd", "abcde", 4, 0, 1, 5, 5, -1, -1));
         surface.prepareText();
         surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
-        require(nativeDraws[0] == 3 && text.closes == 1, "invalid presentation did not fail closed");
+        require(nativeDraws[0] == 3 && text.capture instanceof Capture
+                && ((Capture) text.capture).presentation == text.presentation,
+                "bounded transform presentation was not applied");
+        text.presentation = new ComposerTextPresentation(0, 0, 1, 5, 1, 0, 0, 0);
+        surface.textChanged(new ComposerTextChange(10, "abcde", "abcdef", 5, 0, 1, 6, 6, -1, -1));
+        surface.prepareText();
+        surface.drawText(new Canvas(), canvas -> nativeDraws[0]++);
+        require(nativeDraws[0] == 4 && text.closes == 1, "invalid transform did not fail closed");
         surface.close();
         textRegistration.close();
 
@@ -494,13 +505,16 @@ public final class ComposerRegistryCheck {
         surface = PluginComposerRegistry.attach(new Host());
         require(surface.hasTextTransitionEffect(), "transition text effect not attached");
         OverlayCapture overlayCapture = new OverlayCapture();
+        transitionText.removedPresentation = new ComposerTextPresentation(
+                2, 1, 0.5f, 0.8f, 1.2f, -20, 5, 5);
         ComposerTextLayoutChange transitionChange = new ComposerTextLayoutChange(
                 21, beforeLayout, afterLayout, 1, 1, 0, false, overlayCapture);
         surface.textLayoutChanged(transitionChange);
         int[] transitionNativeDraws = {0};
         surface.drawText(new Canvas(), canvas -> transitionNativeDraws[0]++);
         require(transitionNativeDraws[0] == 1 && overlayCapture.draws == 1
-                && transitionText.removedCapture == overlayCapture,
+                && transitionText.removedCapture == overlayCapture
+                && overlayCapture.presentation == transitionText.removedPresentation,
                 "removed text overlay was not drawn after native text");
         transitionText.removedPresentation = null;
         surface.drawText(new Canvas(), canvas -> transitionNativeDraws[0]++);
