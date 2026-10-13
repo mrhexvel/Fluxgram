@@ -26,6 +26,10 @@ import org.telegram.messenger.plugins.api.ComposerSurface;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
+import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
+import org.telegram.messenger.plugins.api.ComposerTextClusterEffect;
+import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
 import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.api.ComposerTextFontSnapshot;
@@ -48,6 +52,9 @@ public final class ComposerRegistryCheck {
         int invalidations;
         int captures;
         ComposerTextCandidate capturedCandidate;
+        ComposerTextClusterSelection capturedClusterSelection;
+        ClusterCapture clusterCapture;
+        int clusterCaptures;
         boolean failCapture;
         int cursorDraws;
         int cursorInvalidations;
@@ -134,6 +141,15 @@ public final class ComposerRegistryCheck {
             captures++;
             capturedCandidate = candidate;
             return new Capture(candidate);
+        }
+
+        @Override
+        public PluginComposerRegistry.TextClusterCapture captureTextClusters(
+                ComposerTextClusterSelection selection, String expectedText) {
+            clusterCaptures++;
+            capturedClusterSelection = selection;
+            clusterCapture = new ClusterCapture(selection);
+            return clusterCapture;
         }
 
         @Override
@@ -261,6 +277,61 @@ public final class ComposerRegistryCheck {
             if (failClose) {
                 failClose = false;
                 throw new Exception("retry cleanup");
+            }
+        }
+    }
+
+    private static final class ClusterCapture implements PluginComposerRegistry.TextClusterCapture {
+        final long revision;
+        final Capture[] captures;
+        int draws;
+        int releases;
+        ComposerTextClusterPresentation presentation;
+        boolean valid = true;
+
+        ClusterCapture(ComposerTextClusterSelection selection) {
+            revision = selection.revision;
+            captures = new Capture[selection.getCount()];
+
+            for (int index = 0; index < captures.length; index++) {
+                captures[index] = new Capture(selection.getCandidate(index));
+            }
+        }
+
+        @Override
+        public long getRevision() {
+            return revision;
+        }
+
+        @Override
+        public int getCount() {
+            return captures.length;
+        }
+
+        @Override
+        public ComposerTextCapture getCapture(int index) {
+            return captures[index];
+        }
+
+        @Override
+        public boolean isValid() {
+            return valid;
+        }
+
+        @Override
+        public void draw(Canvas canvas, java.util.function.Consumer<Canvas> nativeDraw,
+                ComposerTextClusterPresentation value) {
+            draws++;
+            presentation = value;
+            nativeDraw.accept(canvas);
+        }
+
+        @Override
+        public void release() {
+            releases++;
+
+            for (Capture capture : captures) {
+                capture.release();
             }
         }
     }
@@ -466,6 +537,23 @@ public final class ComposerRegistryCheck {
         @Override
         public void onTextLayoutChanged(ComposerTextLayoutChange value) {
             layoutChange = value;
+        }
+    }
+
+    private static final class ClusterTextEffect extends Effect implements ComposerTextClusterEffect {
+        ComposerTextClusterSelection selection;
+        ComposerTextClusterCapture capture;
+        ComposerTextClusterPresentation presentation;
+
+        @Override
+        public ComposerTextClusterSelection selectClusters(ComposerTextLayoutChange change) {
+            return selection;
+        }
+
+        @Override
+        public ComposerTextClusterPresentation presentClusters(ComposerTextClusterCapture value) {
+            capture = value;
+            return presentation;
         }
     }
 
@@ -827,6 +915,63 @@ public final class ComposerRegistryCheck {
                 "layout change was not delivered");
         surface.close();
         layoutTextRegistration.close();
+
+        ClusterTextEffect clusterText = new ClusterTextEffect();
+        AutoCloseable clusterTextRegistration = PluginComposerRegistry.registerText(
+                "test.text.clusters", () -> true, context -> {
+                    clusterText.context = context;
+                    return clusterText;
+                });
+        Host clusterHost = new Host();
+        surface = PluginComposerRegistry.attach(clusterHost);
+        ComposerTextCandidate[] selectedCandidates = {
+                new ComposerTextCandidate(22, 1, 2),
+                new ComposerTextCandidate(22, 2, 3)
+        };
+        clusterText.selection = new ComposerTextClusterSelection(22, selectedCandidates);
+        selectedCandidates[0] = null;
+        ComposerTextPresentation firstCluster = new ComposerTextPresentation(1, -2, 0.5f);
+        ComposerTextPresentation[] clusterPresentations = {firstCluster, null};
+        clusterText.presentation = new ComposerTextClusterPresentation(22, clusterPresentations);
+        clusterPresentations[0] = null;
+        ComposerTextLayoutSnapshot clusterLayout = new ComposerTextLayoutSnapshot(
+                22, "abc", 3, 3, -1, -1, 100, 40, 4, 3, 0, 0,
+                false, false, false,
+                new ComposerTextLineSnapshot[] {
+                        new ComposerTextLineSnapshot(0, 3, 3, 4, 28, 3, 18, 15, false)
+                },
+                new ComposerTextClusterSnapshot[] {
+                        new ComposerTextClusterSnapshot(0, 1, 0, false, 0, 8, 0, 8, 8),
+                        new ComposerTextClusterSnapshot(1, 2, 0, false, 8, 16, 8, 16, 8),
+                        new ComposerTextClusterSnapshot(2, 3, 0, false, 16, 24, 16, 24, 8)
+                });
+        ComposerTextLayoutChange clusterChange = new ComposerTextLayoutChange(
+                22, afterLayout, clusterLayout, 2, 0, 1, false);
+        surface.textChanged(new ComposerTextChange(22, "ab", "abc", 2, 0, 1, 3, 3, -1, -1));
+        surface.textLayoutChanged(clusterChange);
+        surface.prepareText();
+        int[] clusterNativeDraws = {0};
+        surface.drawText(new Canvas(), canvas -> clusterNativeDraws[0]++);
+        require(clusterHost.clusterCaptures == 1 && clusterHost.capturedClusterSelection.getCount() == 2
+                && clusterHost.capturedClusterSelection.getCandidate(0) != null
+                && clusterText.capture == clusterHost.clusterCapture
+                && clusterHost.clusterCapture.draws == 1 && clusterNativeDraws[0] == 1
+                && clusterHost.clusterCapture.presentation.getPresentation(0) == firstCluster
+                && clusterHost.clusterCapture.presentation.getPresentation(1) == null,
+                "cluster captures were not immutable or independently presented");
+        ClusterCapture previousClusterCapture = clusterHost.clusterCapture;
+        surface.textChanged(new ComposerTextChange(23, "abc", "abcd", 3, 0, 1, 4, 4, -1, -1));
+        require(previousClusterCapture.releases == 1 && previousClusterCapture.captures[0].releases == 1,
+                "cluster captures were not released on new input");
+        clusterText.selection = new ComposerTextClusterSelection(23, new ComposerTextCandidate[] {
+                new ComposerTextCandidate(23, 1, 3)
+        });
+        surface.textLayoutChanged(new ComposerTextLayoutChange(
+                23, clusterLayout, clusterLayout, 3, 0, 1, false));
+        require(clusterText.closes == 1 && !surface.hasTextEffect(),
+                "non-cluster-aligned range did not fail closed");
+        surface.close();
+        clusterTextRegistration.close();
 
         TransitionTextEffect transitionText = new TransitionTextEffect();
         AutoCloseable transitionRegistration = PluginComposerRegistry.registerText(

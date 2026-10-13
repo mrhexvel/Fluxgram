@@ -25,11 +25,14 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.PixelCopy;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
@@ -53,6 +56,8 @@ public final class ComposerTextInstrumentation extends Instrumentation {
     private static final class ProbeField extends EditTextCaption {
         ComposerNativeTextCapture capture;
         ComposerTextPresentation presentation;
+        ComposerNativeTextClusterCapture clusterCapture;
+        ComposerTextClusterPresentation clusterPresentation;
         private final Consumer<Canvas> nativeDraw = canvas -> super.onDraw(canvas);
 
         ProbeField(Activity activity) {
@@ -61,7 +66,9 @@ public final class ComposerTextInstrumentation extends Instrumentation {
 
         @Override
         protected void onDraw(Canvas canvas) {
-            if (capture != null && presentation != null) {
+            if (clusterCapture != null && clusterPresentation != null) {
+                clusterCapture.draw(canvas, nativeDraw, clusterPresentation);
+            } else if (capture != null && presentation != null) {
                 capture.draw(canvas, nativeDraw, presentation);
             } else {
                 super.onDraw(canvas);
@@ -88,20 +95,7 @@ public final class ComposerTextInstrumentation extends Instrumentation {
             Activity activity = startActivitySync(intent);
             onUi(() -> {
                 field = new ProbeField(activity);
-                field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                        | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-                field.setTextSize(TypedValue.COMPLEX_UNIT_PX, 48);
-                field.setTextColor(Color.WHITE);
-                field.setBackgroundColor(Color.BLACK);
-                field.setCursorColor(Color.MAGENTA);
-                field.setLineColors(0, 0, 0);
-                field.setPadding(12, 12, 12, 12);
-                field.setGravity(Gravity.BOTTOM | Gravity.LEFT);
-                field.setIncludeFontPadding(false);
-                field.setSingleLine(false);
-                field.setShowSoftInputOnFocus(false);
-                field.setCursorVisible(false);
-                field.setFocusableInTouchMode(true);
+                configureField();
                 dialog = new AlertDialog.Builder(activity).setTitle("Composer text host verification")
                         .setView(field, 64).show();
                 field.requestFocus();
@@ -111,17 +105,21 @@ public final class ComposerTextInstrumentation extends Instrumentation {
 
             onUi(() -> {
                 identityAndSuppressionCase();
+                clusterCaptureCase();
                 affineReplayCase();
                 tintReplayCase();
                 blurReplayCase();
                 cursorCaptureCase();
                 selectionCaptureCase();
                 staleAndFallbackCase();
-                imeCase();
                 replayFailureCase();
                 layoutSnapshotCase();
                 removedTextCaptureCase();
             });
+
+            onUi(() -> replaceField(activity));
+            waitForIdleSync();
+            Thread.sleep(200);
 
             if (Build.VERSION.SDK_INT >= 26) {
                 try {
@@ -138,6 +136,12 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                     hardwareStatus = "; hardware PixelCopy skipped: no backing surface";
                 }
             }
+
+            onUi(() -> {
+                field.setFocusableInTouchMode(true);
+                field.requestFocus();
+                imeCase();
+            });
 
             result.putString("stream", "Composer text host PASS: " + cases + " cases"
                     + hardwareStatus + "\n");
@@ -196,6 +200,64 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         original.recycle();
         restored.recycle();
         suppressed.recycle();
+        cases++;
+    }
+
+    private void clusterCaptureCase() {
+        setText("HHH");
+        Editable editable = field.getText();
+        Bitmap original = software();
+        ComposerTextClusterSelection selection = new ComposerTextClusterSelection(
+                14, new ComposerTextCandidate[] {
+                        new ComposerTextCandidate(14, 0, 1),
+                        new ComposerTextCandidate(14, 2, 3)
+                });
+        ComposerNativeTextClusterCapture capture = ComposerNativeTextClusterCapture.capture(
+                field, selection, "HHH");
+        require(capture != null && capture.getRevision() == 14 && capture.getCount() == 2,
+                "cluster capture rejected cursor boundary");
+        field.clusterCapture = capture;
+        field.clusterPresentation = new ComposerTextClusterPresentation(
+                14, new ComposerTextPresentation[] {
+                        new ComposerTextPresentation(0, 0, 1),
+                        new ComposerTextPresentation(0, 0, 1)
+                });
+        Bitmap restored = software();
+        compare(original, restored, 0);
+        field.clusterPresentation = new ComposerTextClusterPresentation(
+                14, new ComposerTextPresentation[] {
+                        new ComposerTextPresentation(0, 0, 0),
+                        new ComposerTextPresentation(0, 0, 1)
+                });
+        Bitmap independent = software();
+        require(different(original, independent) > 20, "cluster presentation was not independent");
+        require(field.getText() == editable && editable.toString().equals("HHH"),
+                "cluster replay mutated Editable");
+        Bitmap failedImage = Bitmap.createBitmap(
+                field.getWidth(), field.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas failedCanvas = new Canvas(failedImage) {
+            @Override
+            public void drawPicture(Picture picture) {
+                throw new IllegalStateException("Intentional cluster replay failure");
+            }
+        };
+        AtomicInteger nativeDraws = new AtomicInteger();
+        capture.draw(failedCanvas, ignored -> nativeDraws.incrementAndGet(), field.clusterPresentation);
+        require(nativeDraws.get() == 1 && !capture.isValid(),
+                "cluster replay fallback was not single-pass native");
+        clearCapture();
+        capture.release();
+        setText("HHH");
+        field.setSelection(1);
+        layoutField();
+        require(ComposerNativeTextClusterCapture.capture(field,
+                new ComposerTextClusterSelection(15, new ComposerTextCandidate[] {
+                        new ComposerTextCandidate(15, 1, 2)
+                }), "HHH") == null, "cluster capture obscured cursor at its left boundary");
+        original.recycle();
+        restored.recycle();
+        independent.recycle();
+        failedImage.recycle();
         cases++;
     }
 
@@ -515,15 +577,19 @@ public final class ComposerTextInstrumentation extends Instrumentation {
     private void hardwareCase() throws Exception {
         onUi(() -> {
             setText("HH");
+            field.invalidate();
+        });
+        Bitmap original = hardware();
+        onUi(() -> {
             field.capture = ComposerNativeTextCapture.capture(field, new ComposerTextCandidate(9, 1, 2), "HH");
             require(field.capture != null, "hardware capture rejected");
             field.presentation = new ComposerTextPresentation(0, 0, 1);
             field.invalidate();
         });
-        Bitmap original = hardware(false);
-        Bitmap replay = hardware(true);
+        Bitmap replay = hardware();
         compare(original, replay, 3);
-        original.recycle();
+        onUi(() -> require(field.capture != null && field.capture.isValid(),
+                "hardware identity invalidated capture"));
         replay.recycle();
 
         onUi(() -> {
@@ -531,13 +597,38 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                     0, 0, 0.8f, 1, 1, 0, 0, 0, Color.RED, 0.5f, 6);
             field.invalidate();
         });
-        original = hardware(false);
-        replay = hardware(true);
-        require(different(original, replay) > 20, "hardware blur matched native text");
+        Bitmap blurred = hardware();
+        require(different(original, blurred) > 20, "hardware blur matched native text");
         original.recycle();
-        replay.recycle();
+        blurred.recycle();
         onUi(this::clearCapture);
         cases++;
+    }
+
+    private void replaceField(Activity activity) {
+        dialog.dismiss();
+        field = new ProbeField(activity);
+        configureField();
+        dialog = new AlertDialog.Builder(activity).setTitle("Composer text host verification")
+                .setView(field, 64).show();
+        field.setFocusable(false);
+    }
+
+    private void configureField() {
+        field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        field.setTextSize(TypedValue.COMPLEX_UNIT_PX, 48);
+        field.setTextColor(Color.WHITE);
+        field.setBackgroundColor(Color.BLACK);
+        field.setCursorColor(Color.MAGENTA);
+        field.setLineColors(0, 0, 0);
+        field.setPadding(12, 12, 12, 12);
+        field.setGravity(Gravity.BOTTOM | Gravity.LEFT);
+        field.setIncludeFontPadding(false);
+        field.setSingleLine(false);
+        field.setShowSoftInputOnFocus(false);
+        field.setCursorVisible(false);
+        field.setFocusableInTouchMode(true);
     }
 
     private void setText(String text) {
@@ -556,6 +647,8 @@ public final class ComposerTextInstrumentation extends Instrumentation {
     private void clearCapture() {
         field.capture = null;
         field.presentation = null;
+        field.clusterCapture = null;
+        field.clusterPresentation = null;
     }
 
     private Bitmap software() {
@@ -564,24 +657,23 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         return image;
     }
 
-    private Bitmap hardware(boolean replay) throws Exception {
+    private Bitmap hardware() throws Exception {
+        CountDownLatch drawn = new CountDownLatch(1);
+        AtomicReference<ViewTreeObserver.OnDrawListener> drawListener = new AtomicReference<>();
         onUi(() -> {
-            if (!replay) {
-                ComposerNativeTextCapture capture = field.capture;
-                ComposerTextPresentation presentation = field.presentation;
-                clearCapture();
-                field.setTag(new Object[]{capture, presentation});
-            } else {
-                Object[] state = (Object[]) field.getTag();
-                field.capture = (ComposerNativeTextCapture) state[0];
-                field.presentation = (ComposerTextPresentation) state[1];
-                field.setTag(null);
-            }
-
+            ViewTreeObserver.OnDrawListener listener = drawn::countDown;
+            drawListener.set(listener);
+            field.getViewTreeObserver().addOnDrawListener(listener);
             field.invalidate();
         });
-        waitForIdleSync();
-        Thread.sleep(70);
+        require(drawn.await(5, TimeUnit.SECONDS), "field draw timed out");
+        onUi(() -> {
+            ViewTreeObserver observer = field.getViewTreeObserver();
+
+            if (observer.isAlive()) {
+                observer.removeOnDrawListener(drawListener.get());
+            }
+        });
         CountDownLatch done = new CountDownLatch(1);
         AtomicInteger status = new AtomicInteger(-1);
         Bitmap image = Bitmap.createBitmap(field.getWidth(), field.getHeight(), Bitmap.Config.ARGB_8888);
@@ -688,7 +780,8 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 require(Math.abs(Color.red(a) - Color.red(b)) <= tolerance
                         && Math.abs(Color.green(a) - Color.green(b)) <= tolerance
                         && Math.abs(Color.blue(a) - Color.blue(b)) <= tolerance,
-                        "pixel mismatch at " + x + "," + y);
+                        "pixel mismatch at " + x + "," + y + ": "
+                                + Integer.toHexString(a) + " != " + Integer.toHexString(b));
             }
         }
     }

@@ -32,6 +32,7 @@ import org.telegram.messenger.plugins.api.ComposerHapticFeedback;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextInsertion;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
@@ -297,6 +298,17 @@ public final class FluxGramComposerController implements TextWatcher,
                     }
 
                     return ComposerNativeTextCapture.capture((EditTextCaption) field, candidate, expectedText);
+                }
+
+                @Override
+                public PluginComposerRegistry.TextClusterCapture captureTextClusters(
+                        ComposerTextClusterSelection selection, String expectedText) {
+                    if (!(field instanceof EditTextCaption)) {
+                        return null;
+                    }
+
+                    return ComposerNativeTextClusterCapture.capture(
+                            (EditTextCaption) field, selection, expectedText);
                 }
 
                 @Override

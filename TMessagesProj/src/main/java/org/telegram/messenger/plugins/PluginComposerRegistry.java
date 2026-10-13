@@ -29,6 +29,11 @@ import org.telegram.messenger.plugins.api.ComposerSurface;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
+import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
+import org.telegram.messenger.plugins.api.ComposerTextClusterEffect;
+import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
@@ -78,6 +83,11 @@ public final class PluginComposerRegistry {
 
         TextCapture captureText(ComposerTextCandidate candidate, String expectedText);
 
+        default TextClusterCapture captureTextClusters(
+                ComposerTextClusterSelection selection, String expectedText) {
+            return null;
+        }
+
         default void drawCursor(Canvas canvas, Consumer<Canvas> nativeDraw,
                 ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation) {
             nativeDraw.accept(canvas);
@@ -88,6 +98,16 @@ public final class PluginComposerRegistry {
         boolean isValid();
 
         void draw(Canvas canvas, Consumer<Canvas> nativeDraw, ComposerTextPresentation presentation);
+
+        default void release() {
+        }
+    }
+
+    public interface TextClusterCapture extends ComposerTextClusterCapture {
+        boolean isValid();
+
+        void draw(Canvas canvas, Consumer<Canvas> nativeDraw,
+                ComposerTextClusterPresentation presentation);
 
         default void release() {
         }
@@ -910,6 +930,9 @@ public final class PluginComposerRegistry {
         ComposerTextCandidate textCandidate;
         String textCandidateContent;
         TextCapture textCapture;
+        ComposerTextClusterSelection textClusterSelection;
+        String textClusterContent;
+        TextClusterCapture textClusterCapture;
         ComposerTextLayoutChange removedChange;
         OverlayTextCapture removedCapture;
         long textSequence;
@@ -1048,6 +1071,9 @@ public final class PluginComposerRegistry {
             textCandidate = null;
             textCandidateContent = null;
             clearTextCapture();
+            textClusterSelection = null;
+            textClusterContent = null;
+            clearTextClusterCapture();
             removedChange = null;
             clearRemovedCapture();
 
@@ -1074,7 +1100,24 @@ public final class PluginComposerRegistry {
         }
 
         void prepareText() {
-            if (!registration.text || !isActive() || textCandidate == null || textCapture != null) {
+            if (!registration.text || !isActive()
+                    || textCandidate == null && textClusterSelection == null
+                    || textCapture != null || textClusterCapture != null) {
+                return;
+            }
+
+            if (textClusterSelection != null) {
+                ComposerTextClusterSelection selection = textClusterSelection;
+                String expectedText = textClusterContent;
+                textClusterSelection = null;
+                textClusterContent = null;
+
+                try {
+                    textClusterCapture = surface.host.captureTextClusters(selection, expectedText);
+                } catch (Exception | LinkageError | AssertionError error) {
+                    Log.e("FluxGramComposer", "Native text cluster capture failed", error);
+                }
+
                 return;
             }
 
@@ -1091,6 +1134,9 @@ public final class PluginComposerRegistry {
         }
 
         void textLayoutChanged(ComposerTextLayoutChange change) {
+            textClusterSelection = null;
+            textClusterContent = null;
+            clearTextClusterCapture();
             removedChange = null;
             clearRemovedCapture();
 
@@ -1100,9 +1146,24 @@ public final class PluginComposerRegistry {
             }
 
             long start = System.nanoTime();
+            long sequence = textSequence;
 
             try {
                 ((ComposerTextLayoutEffect) effect).onTextLayoutChanged(change);
+
+                if (effect instanceof ComposerTextClusterEffect && sequence == textSequence) {
+                    ComposerTextClusterSelection selection = ((ComposerTextClusterEffect) effect)
+                            .selectClusters(change);
+
+                    if (selection != null) {
+                        validateClusterSelection(selection, change);
+
+                        if (selection.getCount() > 0 && sequence == textSequence) {
+                            textClusterSelection = selection;
+                            textClusterContent = change.after.text;
+                        }
+                    }
+                }
 
                 if (effect instanceof ComposerTextTransitionEffect
                         && change.removedCapture instanceof OverlayTextCapture) {
@@ -1181,8 +1242,13 @@ public final class PluginComposerRegistry {
         }
 
         boolean drawText(Canvas canvas, Consumer<Canvas> nativeDraw) {
-            if (!registration.text || !isActive() || effect == null || textCapture == null) {
+            if (!registration.text || !isActive() || effect == null
+                    || textCapture == null && textClusterCapture == null) {
                 return false;
+            }
+
+            if (textClusterCapture != null) {
+                return drawTextClusters(canvas, nativeDraw);
             }
 
             if (!textCapture.isValid()) {
@@ -1212,6 +1278,48 @@ public final class PluginComposerRegistry {
             }
 
             textCapture.draw(canvas, nativeDraw, presentation);
+            return true;
+        }
+
+        private boolean drawTextClusters(Canvas canvas, Consumer<Canvas> nativeDraw) {
+            if (!(effect instanceof ComposerTextClusterEffect) || !textClusterCapture.isValid()) {
+                clearTextClusterCapture();
+                return false;
+            }
+
+            long start = System.nanoTime();
+            ComposerTextClusterPresentation presentation;
+
+            try {
+                presentation = ((ComposerTextClusterEffect) effect)
+                        .presentClusters(textClusterCapture);
+
+                if (presentation == null) {
+                    clearTextClusterCapture();
+                    return false;
+                }
+
+                if (presentation.revision != textClusterCapture.getRevision()
+                        || presentation.getCount() != textClusterCapture.getCount()) {
+                    throw new IllegalArgumentException("Invalid composer text cluster presentation");
+                }
+
+                for (int index = 0; index < presentation.getCount(); index++) {
+                    ComposerTextPresentation item = presentation.getPresentation(index);
+
+                    if (item != null) {
+                        validatePresentation(item, textClusterCapture.getCapture(index));
+                    }
+                }
+            } catch (Exception | LinkageError | AssertionError error) {
+                clearTextClusterCapture();
+                registration.quarantine(error);
+                return false;
+            } finally {
+                record(start);
+            }
+
+            textClusterCapture.draw(canvas, nativeDraw, presentation);
             return true;
         }
 
@@ -1346,6 +1454,47 @@ public final class PluginComposerRegistry {
             validatePresentation(presentation, capture.getLeft(), capture.getTop(), width, height, limit);
         }
 
+        private void validateClusterSelection(
+                ComposerTextClusterSelection selection, ComposerTextLayoutChange change) {
+            if (change.after == null || selection.revision != change.revision
+                    || selection.revision != change.after.revision
+                    || selection.getCount() > ComposerTextClusterSelection.MAX_CLUSTERS) {
+                throw new IllegalArgumentException("Invalid composer text cluster selection");
+            }
+
+            int clusterIndex = 0;
+            int previousEnd = -1;
+
+            for (int index = 0; index < selection.getCount(); index++) {
+                ComposerTextCandidate candidate = selection.getCandidate(index);
+
+                if (candidate == null || candidate.revision != selection.revision
+                        || candidate.start < 0 || candidate.start >= candidate.end
+                        || candidate.end > change.after.text.length()
+                        || candidate.start < previousEnd) {
+                    throw new IllegalArgumentException("Invalid composer text cluster range");
+                }
+
+                while (clusterIndex < change.after.getClusterCount()
+                        && change.after.getCluster(clusterIndex).end <= candidate.start) {
+                    clusterIndex++;
+                }
+
+                if (clusterIndex >= change.after.getClusterCount()) {
+                    throw new IllegalArgumentException("Composer text cluster range is unavailable");
+                }
+
+                ComposerTextClusterSnapshot cluster = change.after.getCluster(clusterIndex);
+
+                if (cluster.start != candidate.start || cluster.end != candidate.end) {
+                    throw new IllegalArgumentException("Composer text range does not match a cluster");
+                }
+
+                previousEnd = candidate.end;
+                clusterIndex++;
+            }
+        }
+
         private void validateCursorPresentation(
                 ComposerCursorPresentation presentation, ComposerCursorSnapshot cursor) {
             float limit = Math.max(lastGeometry.width, lastGeometry.height) * 2f;
@@ -1456,6 +1605,18 @@ public final class PluginComposerRegistry {
                 }
 
                 textCapture = null;
+            }
+        }
+
+        private void clearTextClusterCapture() {
+            if (textClusterCapture != null) {
+                try {
+                    textClusterCapture.release();
+                } catch (Exception | LinkageError | AssertionError error) {
+                    Log.e("FluxGramComposer", "Native text cluster capture release failed", error);
+                }
+
+                textClusterCapture = null;
             }
         }
 
@@ -1610,6 +1771,9 @@ public final class PluginComposerRegistry {
             textCandidate = null;
             textCandidateContent = null;
             clearTextCapture();
+            textClusterSelection = null;
+            textClusterContent = null;
+            clearTextClusterCapture();
             removedChange = null;
             clearRemovedCapture();
 

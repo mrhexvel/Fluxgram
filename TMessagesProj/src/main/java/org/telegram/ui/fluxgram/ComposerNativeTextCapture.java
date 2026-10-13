@@ -78,6 +78,12 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
 
     public static ComposerNativeTextCapture capture(
             EditTextCaption field, ComposerTextCandidate candidate, String expectedText) {
+        return capture(field, candidate, expectedText, false);
+    }
+
+    static ComposerNativeTextCapture capture(
+            EditTextCaption field, ComposerTextCandidate candidate, String expectedText,
+            boolean allowCursorAtBoundary) {
         Layout layout = field.getLayout();
         CharSequence content = field.getText();
 
@@ -127,7 +133,11 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         if (selectionStart == selectionEnd && selectionStart >= 0) {
             float cursor = leftPadding + layout.getPrimaryHorizontal(selectionStart);
 
-            if (cursor >= ink.left - 1 && cursor <= ink.right + 1) {
+            boolean overlaps = allowCursorAtBoundary
+                    ? selectionStart == candidate.start || cursor > ink.left && cursor < ink.right
+                    : cursor >= ink.left - 1 && cursor <= ink.right + 1;
+
+            if (overlaps) {
                 return null;
             }
         }
@@ -245,6 +255,24 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
                 && layout.getLineCount() == 1 && plainStyle(field);
     }
 
+    boolean hasSameStateAs(ComposerNativeTextCapture other) {
+        return !failed && other != null && field == other.field && layout == other.layout
+                && revision == other.revision && text.equals(other.text)
+                && width == other.width && height == other.height && color == other.color
+                && baseline == other.baseline && leftPadding == other.leftPadding
+                && textSize == other.textSize && typeface == other.typeface
+                && selectionStart == other.selectionStart && selectionEnd == other.selectionEnd
+                && composingStart == other.composingStart && composingEnd == other.composingEnd;
+    }
+
+    int fieldWidth() {
+        return width;
+    }
+
+    int fieldHeight() {
+        return height;
+    }
+
     @Override
     public void draw(Canvas canvas, Consumer<Canvas> nativeDraw, ComposerTextPresentation presentation) {
         if (!isValid()) {
@@ -252,18 +280,35 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
             return;
         }
 
-        try {
-            if (presentation.alpha > 0) {
-                layer.prepare(picture, ink.width(), ink.height(), presentation);
-            }
-        } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
-            failed = true;
-            layer.release();
-            Log.e("FluxGramComposer", "Native text blur preparation failed", error);
+        if (!prepare(presentation) || !replay(canvas, presentation)) {
             nativeDraw.accept(canvas);
             return;
         }
 
+        int save = canvas.save();
+
+        try {
+            clipNative(canvas);
+            nativeDraw.accept(canvas);
+        } finally {
+            canvas.restoreToCount(save);
+        }
+    }
+
+    boolean prepare(ComposerTextPresentation presentation) {
+        try {
+            if (presentation.alpha > 0) {
+                layer.prepare(picture, ink.width(), ink.height(), presentation);
+            }
+
+            return true;
+        } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
+            fail("Native text blur preparation failed", error);
+            return false;
+        }
+    }
+
+    boolean replay(Canvas canvas, ComposerTextPresentation presentation) {
         int save = canvas.save();
         Trace.beginSection("FGComposer.textReplay");
         Throwable replayFailure = null;
@@ -287,25 +332,34 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         }
 
         if (replayFailure != null) {
-            layer.release();
-            Log.e("FluxGramComposer", "Native text replay failed", replayFailure);
-            nativeDraw.accept(canvas);
-            return;
+            fail("Native text replay failed", replayFailure);
+            return false;
         }
 
-        save = canvas.save();
+        return true;
+    }
 
-        try {
-            if (Build.VERSION.SDK_INT >= 26) {
-                canvas.clipOutRect(ink);
-            } else {
-                canvas.clipRect(ink, Region.Op.DIFFERENCE);
-            }
-
-            nativeDraw.accept(canvas);
-        } finally {
-            canvas.restoreToCount(save);
+    void clipNative(Canvas canvas) {
+        if (Build.VERSION.SDK_INT >= 26) {
+            canvas.clipOutRect(ink);
+        } else {
+            canvas.clipRect(ink, Region.Op.DIFFERENCE);
         }
+    }
+
+    int area() {
+        return ink.width() * ink.height();
+    }
+
+    int paddedArea() {
+        int padding = (int) ComposerTextPresentation.MAX_BLUR_RADIUS + 1;
+        return (ink.width() + padding * 2) * (ink.height() + padding * 2);
+    }
+
+    private void fail(String message, Throwable error) {
+        failed = true;
+        layer.release();
+        Log.e("FluxGramComposer", message, error);
     }
 
     static void applyTransform(Canvas canvas, ComposerTextPresentation presentation) {

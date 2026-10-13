@@ -33,7 +33,7 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 19", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 20", manifest)
         enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
@@ -100,6 +100,74 @@ class ComposerTextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             module = directory / "external/TextModule.java"
+            module.parent.mkdir()
+            module.write_text(source)
+            sources = [
+                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                module,
+            ]
+            subprocess.run(
+                ["javac", "--release", "8", "-d", str(directory / "classes"), *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+
+    def test_external_cluster_effect_compiles_against_api_1_20(self):
+        if not shutil.which("javac"):
+            self.skipTest("Requires JDK")
+
+        source = textwrap.dedent(
+            """
+            package external;
+
+            import android.graphics.Canvas;
+            import org.telegram.messenger.plugins.api.*;
+
+            public final class ClusterModule implements JavaPluginModule {
+                public void onLoad(JavaPluginContext context) {
+                    context.registerComposerTextEffect(Effect::new);
+                }
+
+                public void onUnload() {}
+
+                private static final class Effect implements ComposerTextClusterEffect {
+                    private final ComposerSurface surface;
+
+                    Effect(ComposerSurface surface) {
+                        this.surface = surface;
+                    }
+
+                    public ComposerTextClusterSelection selectClusters(ComposerTextLayoutChange change) {
+                        ComposerTextClusterSnapshot cluster = change.after.getCluster(0);
+                        surface.requestFrame();
+                        return new ComposerTextClusterSelection(change.revision,
+                                new ComposerTextCandidate[] {new ComposerTextCandidate(
+                                        change.revision, cluster.start, cluster.end)});
+                    }
+
+                    public ComposerTextClusterPresentation presentClusters(
+                            ComposerTextClusterCapture capture) {
+                        ComposerTextCapture item = capture.getCapture(0);
+                        float pivotX = (item.getRight() - item.getLeft()) / 2;
+                        float pivotY = (item.getBottom() - item.getTop()) / 2;
+                        return new ComposerTextClusterPresentation(capture.getRevision(),
+                                new ComposerTextPresentation[] {new ComposerTextPresentation(
+                                        0, -4, 1, 1, 1, 0, pivotX, pivotY)});
+                    }
+
+                    public void onInput(ComposerInput input) {}
+                    public boolean onFrame(long timestamp) { return false; }
+                    public void draw(Canvas canvas, ComposerGeometry geometry) {}
+                    public void close() {}
+                }
+            }
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            module = directory / "external/ClusterModule.java"
             module.parent.mkdir()
             module.write_text(source)
             sources = [
