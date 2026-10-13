@@ -69,6 +69,10 @@ class PluginStorageTest(unittest.TestCase):
             adapter.index('callAttr("migrate_external_plugin"'),
             adapter.index('"create_external_plugin"'),
         )
+        migrate = adapter.split("public static void migrateStorage", 1)[1].split(
+            "private static void migrateExternalStorage", 1
+        )[0]
+        self.assertLess(migrate.index("!installed.manifest.hasPythonModule()"), migrate.index("return;"))
         self.assertLess(
             external.index("PythonPluginAdapter.migrateStorage(installed)"),
             external.index("manager.register(adapter, false);"),

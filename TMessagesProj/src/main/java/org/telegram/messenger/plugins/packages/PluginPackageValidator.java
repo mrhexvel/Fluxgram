@@ -198,9 +198,11 @@ public final class PluginPackageValidator {
                 require(manifest.isCompatible(), manifest.compatibilityError());
             }
 
-            require(
-                    Boolean.FALSE.equals(paths.get(manifest.entryFile())),
-                    "Missing Python entrypoint file");
+            if (manifest.hasPythonModule()) {
+                require(
+                        Boolean.FALSE.equals(paths.get(manifest.entryFile())),
+                        "Missing Python entrypoint file");
+            }
 
             if (manifest.javaModule != null) {
                 require(Boolean.FALSE.equals(paths.get(manifest.javaModule.path)), "Missing Java module");

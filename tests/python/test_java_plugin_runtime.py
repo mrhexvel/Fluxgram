@@ -104,6 +104,29 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         self.assertIn("PluginDexValidator.read(in, module)", loader)
         self.assertLess(loader.index("dex.setReadOnly()"), loader.index("out.write(data)"))
 
+    def test_java_only_runtime_does_not_require_python(self):
+        source = (SOURCE / "PythonPluginAdapter.java").read_text()
+        constructor = source.split("public PythonPluginAdapter(\n            PluginPackageStore.Installed", 1)[1].split(
+            "@Override\n    public File getIconFile", 1
+        )[0]
+        migration = source.split("public static void migrateStorage", 1)[1].split(
+            "private static void migrateExternalStorage", 1
+        )[0]
+        load = source.split("private void load(long request)", 1)[1].split(
+            "private void handleFailure", 1
+        )[0]
+        before_send = source.split("public synchronized void beforeSend", 1)[1].split(
+            "public synchronized void messageReceived", 1
+        )[0]
+
+        self.assertIn("installed.manifest.hasPythonModule()", constructor)
+        self.assertLess(migration.index("hasPythonModule()"), migration.index("return;"))
+        self.assertIn("if (moduleName != null)", load)
+        self.assertLess(load.index("if (moduleName != null)"), load.index("PythonRuntime.prepare()"))
+        self.assertIn("if (instance != null)", load)
+        self.assertIn("javaLoader.start()", load)
+        self.assertIn("moduleName == null || !lifecycle.isEnabled()", before_send)
+
     def test_release_keeps_java_api(self):
         rules = (ROOT / "TMessagesProj/proguard-rules.pro").read_text()
         self.assertIn("-keep class org.telegram.messenger.plugins.** { *; }", rules)

@@ -76,7 +76,7 @@ class PluginPackagesTest(unittest.TestCase):
         self.cache = self.root / "cache"
         self.cache.mkdir()
 
-    def archive(self, fields=None, entries=None, raw_manifest=None):
+    def archive(self, fields=None, entries=None, raw_manifest=None, include_python=True):
         data = io.BytesIO()
         manifest = MANIFEST.copy()
         if fields:
@@ -88,10 +88,11 @@ class PluginPackagesTest(unittest.TestCase):
                     "manifest.json",
                     raw_manifest if raw_manifest is not None else json.dumps(manifest),
                 )
-                z.writestr(
-                    "main.py",
-                    'raise RuntimeError("Validation must not execute this")\n',
-                )
+                if include_python:
+                    z.writestr(
+                        "main.py",
+                        'raise RuntimeError("Validation must not execute this")\n',
+                    )
                 for name, content in entries or []:
                     z.writestr(name, content)
         return data.getvalue()
@@ -153,6 +154,41 @@ class PluginPackagesTest(unittest.TestCase):
         self.validate(self.archive(fields={"schema_version": 3}), False)
         fields["schema_version"] = 2
         self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
+
+    def test_schema_four_module_compositions(self):
+        data = self.dex_fixture()
+        java = self.java_fields(data)["java_module"]
+        self.validate(self.archive(fields={"schema_version": 4}), True)
+        self.validate(self.archive(
+            fields={"schema_version": 4, "java_module": java},
+            entries=[("java/module.dex", data)],
+        ), True)
+
+        java_only = {
+            key: value
+            for key, value in MANIFEST.items()
+            if key not in {"sdk_version", "min_sdk_minor", "entrypoint"}
+        }
+        java_only.update({"schema_version": 4, "java_module": java})
+        self.validate(self.archive(
+            raw_manifest=json.dumps(java_only),
+            entries=[("java/module.dex", data)],
+            include_python=False,
+        ), True)
+
+        no_modules = java_only.copy()
+        del no_modules["java_module"]
+        self.validate(self.archive(
+            raw_manifest=json.dumps(no_modules), include_python=False), False)
+
+        for field in ("sdk_version", "min_sdk_minor", "entrypoint"):
+            partial = java_only.copy()
+            partial[field] = MANIFEST[field]
+            self.validate(self.archive(
+                raw_manifest=json.dumps(partial),
+                entries=[("java/module.dex", data)],
+                include_python=False,
+            ), False)
 
     def test_java_module_compatibility_and_strict_fields(self):
         data = self.dex_fixture()
@@ -425,6 +461,39 @@ class PluginStoreTest(unittest.TestCase):
     setUpClass = classmethod(PluginPackagesTest.setUpClass.__func__)
     setUp = PluginPackagesTest.setUp
     archive = PluginPackagesTest.archive
+
+    def test_java_only_install_export_and_update(self):
+        data = PluginPackagesTest.dex_fixture()
+        java_only = {
+            key: value
+            for key, value in MANIFEST.items()
+            if key not in {"sdk_version", "min_sdk_minor", "entrypoint"}
+        }
+        java_only.update({
+            "schema_version": 4,
+            "java_module": PluginPackagesTest.java_fields(data)["java_module"],
+        })
+        package = self.archive(
+            raw_manifest=json.dumps(java_only),
+            entries=[("java/module.dex", data)],
+            include_python=False,
+        )
+        self.store("install", package)
+        self.assertEqual(self.store("listcompat"), [f'{MANIFEST["id"]}:true:-1:-1'])
+        exported = self.store("export", extra=(MANIFEST["id"], str(self.root / "shares")))
+        self.assertEqual(Path(exported[0]).read_bytes(), package)
+
+        java_only["version"] = "2.0.0"
+        update = self.archive(
+            raw_manifest=json.dumps(java_only),
+            entries=[("java/module.dex", data)],
+            include_python=False,
+        )
+        self.store("update", update, extra=(MANIFEST["id"], "1.0.0", "true", "true"))
+        self.store("apply")
+        installed = self.root / "installed" / MANIFEST["id"]
+        self.assertEqual(json.loads((installed / "manifest.json").read_text())["version"], "2.0.0")
+        self.assertFalse((installed / "main.py").exists())
 
     def test_java_module_restart_update_and_rollback(self):
         data = PluginPackagesTest.dex_fixture()

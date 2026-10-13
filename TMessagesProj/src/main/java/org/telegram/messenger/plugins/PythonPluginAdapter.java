@@ -59,7 +59,9 @@ public final class PythonPluginAdapter implements Plugin {
             PluginPackageStore.Installed installed) {
         this(
                 installed.manifest.id,
-                installed.manifest.entrypoint.split(":")[0],
+                installed.manifest.hasPythonModule()
+                        ? installed.manifest.entrypoint.split(":")[0]
+                        : null,
                 0,
                 0,
                 0,
@@ -114,6 +116,10 @@ public final class PythonPluginAdapter implements Plugin {
 
     public static void migrateStorage(
             PluginPackageStore.Installed installed) {
+        if (!installed.manifest.hasPythonModule()) {
+            return;
+        }
+
         migrateExternalStorage(
                 installed.directory.getAbsolutePath(),
                 installed.manifest.entrypoint.split(":")[0],
@@ -168,7 +174,9 @@ public final class PythonPluginAdapter implements Plugin {
         this.descriptionResId = descriptionResId;
         this.iconResId = iconResId;
         this.version = version;
-        settingsSchema = PluginSettings.readSchema(id, version);
+        settingsSchema = moduleName == null
+                ? java.util.Collections.emptyList()
+                : PluginSettings.readSchema(id, version);
 
         executor =
                 new ThreadPoolExecutor(
@@ -313,27 +321,31 @@ public final class PythonPluginAdapter implements Plugin {
         }
 
         try {
-            PyObject nextBridge = PythonRuntime.prepare().getModule("fluxgram_runtime._bridge");
+            PyObject nextBridge = null;
 
-            if (!lifecycle.isCurrent(request)) {
-                return;
-            }
+            if (moduleName != null) {
+                nextBridge = PythonRuntime.prepare().getModule("fluxgram_runtime._bridge");
 
-            if (isExternal()) {
-                nextBridge.callAttr(
-                        "migrate_external_plugin",
-                        externalPath,
-                        moduleName,
-                        id
-                );
-            } else {
-                nextBridge.callAttr("migrate_plugin", moduleName, id);
-            }
+                if (!lifecycle.isCurrent(request)) {
+                    return;
+                }
 
-            loadError = null;
+                if (isExternal()) {
+                    nextBridge.callAttr(
+                            "migrate_external_plugin",
+                            externalPath,
+                            moduleName,
+                            id
+                    );
+                } else {
+                    nextBridge.callAttr("migrate_plugin", moduleName, id);
+                }
 
-            if (!lifecycle.isCurrent(request)) {
-                return;
+                loadError = null;
+
+                if (!lifecycle.isCurrent(request)) {
+                    return;
+                }
             }
 
             pluginSession = new PluginSession(
@@ -372,37 +384,39 @@ public final class PythonPluginAdapter implements Plugin {
                 }
             }
 
-            PyObject nextInstance =
-                    isExternal()
-                            ? nextBridge.callAttr(
-                                    "create_external_plugin",
-                                    externalPath,
-                                    moduleName,
-                                    id,
-                                    this,
-                                    request)
-                            : nextBridge.callAttr("create_plugin", moduleName, id, this, request);
+            if (nextBridge != null) {
+                PyObject nextInstance =
+                        isExternal()
+                                ? nextBridge.callAttr(
+                                        "create_external_plugin",
+                                        externalPath,
+                                        moduleName,
+                                        id,
+                                        this,
+                                        request)
+                                : nextBridge.callAttr("create_plugin", moduleName, id, this, request);
 
-            bridge = nextBridge;
-            instance = nextInstance;
+                bridge = nextBridge;
+                instance = nextInstance;
 
-            if (!lifecycle.isCurrent(request)) {
-                return;
-            }
+                if (!lifecycle.isCurrent(request)) {
+                    return;
+                }
 
-            String schema = bridge.callAttr("describe_settings", instance).toString();
-            java.util.List<PluginSettings.Setting> parsed = PluginSettings.parse(schema);
+                String schema = bridge.callAttr("describe_settings", instance).toString();
+                java.util.List<PluginSettings.Setting> parsed = PluginSettings.parse(schema);
 
-            if (!lifecycle.isCurrent(request)) {
-                return;
-            }
+                if (!lifecycle.isCurrent(request)) {
+                    return;
+                }
 
-            settingsSchema = parsed;
-            PluginSettings.saveSchema(id, version, schema);
-            ExternalPlugins.changed();
+                settingsSchema = parsed;
+                PluginSettings.saveSchema(id, version, schema);
+                ExternalPlugins.changed();
 
-            if (!lifecycle.isCurrent(request)) {
-                return;
+                if (!lifecycle.isCurrent(request)) {
+                    return;
+                }
             }
 
             if (javaLoader != null) {
@@ -413,7 +427,9 @@ public final class PythonPluginAdapter implements Plugin {
                 }
             }
 
-            instance.callAttr("on_load");
+            if (instance != null) {
+                instance.callAttr("on_load");
+            }
 
             if (!lifecycle.isCurrent(request)) {
                 return;
@@ -642,7 +658,8 @@ public final class PythonPluginAdapter implements Plugin {
                 iterator.remove();
             }
 
-            if (!lifecycle.isCurrent(pending.generation) || instance == null) {
+            if (!lifecycle.isCurrent(pending.generation)
+                    || instance == null && javaLoader == null) {
                 continue;
             }
 
@@ -663,18 +680,20 @@ public final class PythonPluginAdapter implements Plugin {
                 continue;
             }
 
-            try {
-                bridge.callAttr(
-                        "dispatch_setting_changed",
-                        instance,
-                        key,
-                        pending.value,
-                        pending.account,
-                        pending.ownerId,
-                        pending.generation
-                );
-            } catch (Exception | LinkageError error) {
-                Log.e(TAG, "[" + id + "] Setting callback failed", error);
+            if (instance != null) {
+                try {
+                    bridge.callAttr(
+                            "dispatch_setting_changed",
+                            instance,
+                            key,
+                            pending.value,
+                            pending.account,
+                            pending.ownerId,
+                            pending.generation
+                    );
+                } catch (Exception | LinkageError error) {
+                    Log.e(TAG, "[" + id + "] Setting callback failed", error);
+                }
             }
 
             if (lifecycle.isCurrent(pending.generation)
@@ -895,7 +914,7 @@ public final class PythonPluginAdapter implements Plugin {
 
     @Override
     public synchronized void beforeSend(BeforeSendEvent event) {
-        if (!lifecycle.isEnabled()) {
+        if (moduleName == null || !lifecycle.isEnabled()) {
             return;
         }
 

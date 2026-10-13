@@ -279,7 +279,17 @@ public final class PluginPackageStore {
         PluginManifest manifest =
                 PluginManifest.parse(new String(data.toByteArray(), StandardCharsets.UTF_8));
 
-        if (!manifest.id.equals(expectedId) || !new File(folder, manifest.entryFile()).isFile()) {
+        boolean valid = manifest.id.equals(expectedId);
+
+        if (manifest.hasPythonModule()) {
+            valid &= new File(folder, manifest.entryFile()).isFile();
+        }
+
+        if (manifest.hasJavaModule()) {
+            valid &= new File(folder, manifest.javaModule.path).isFile();
+        }
+
+        if (!valid) {
             throw new IOException("Invalid installed plugin " + expectedId);
         }
 

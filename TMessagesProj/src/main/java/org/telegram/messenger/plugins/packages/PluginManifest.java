@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 public final class PluginManifest {
-    public static final int SCHEMA_VERSION = 3;
+    public static final int SCHEMA_VERSION = 4;
     public static final int SDK_VERSION = 2;
     public static final int SDK_MINOR_VERSION = 9;
     public static final int JAVA_API_VERSION = 1;
@@ -155,13 +155,11 @@ public final class PluginManifest {
         for (String field :
                 new String[] {
                     "schema_version",
-                    "sdk_version",
                     "id",
                     "name",
                     "version",
                     "description",
                     "author",
-                    "entrypoint",
                     "access",
                     "declared_capabilities"
                 }) {
@@ -172,16 +170,32 @@ public final class PluginManifest {
                 schemaVersion >= 1 && schemaVersion <= SCHEMA_VERSION,
                 "Unsupported schema_version");
 
+        boolean anyPythonField = fields.contains("sdk_version")
+                || fields.contains("min_sdk_minor")
+                || fields.contains("entrypoint");
+        boolean allPythonFields = fields.contains("sdk_version")
+                && fields.contains("entrypoint")
+                && (schemaVersion == 1 || fields.contains("min_sdk_minor"));
+
+        if (schemaVersion <= 3) {
+            require(allPythonFields, "Missing Python module field");
+        } else {
+            require(!anyPythonField || allPythonFields, "Incomplete Python module");
+            require(allPythonFields || javaModule != null, "Manifest must declare a module");
+        }
+
         if (schemaVersion == 1) {
             require(sdkVersion == 1, "Unsupported sdk_version for schema_version 1");
             require(!fields.contains("min_sdk_minor"), "Unknown manifest field: min_sdk_minor");
             minSdkMinor = 0;
-        } else {
+        } else if (allPythonFields) {
             require(fields.contains("min_sdk_minor"), "Missing manifest field: min_sdk_minor");
         }
 
-        require((schemaVersion == 3) == (javaModule != null),
-                "java_module is required only in schema_version 3");
+        require(schemaVersion >= 3 || javaModule == null,
+                "java_module requires schema_version 3 or newer");
+        require(schemaVersion != 3 || javaModule != null,
+                "java_module is required in schema_version 3");
 
         require(id.matches("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+"), "Invalid plugin id");
 
@@ -193,13 +207,15 @@ public final class PluginManifest {
                 version.matches("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)"),
                 "Version must have the form major.minor.patch");
 
-        require(
-                entrypoint.matches("[a-zA-Z_][a-zA-Z0-9_]*:PluginEntry"),
-                "Entrypoint must be a root Python module followed by :PluginEntry");
+        if (allPythonFields) {
+            require(
+                    entrypoint.matches("[a-zA-Z_][a-zA-Z0-9_]*:PluginEntry"),
+                    "Entrypoint must be a root Python module followed by :PluginEntry");
 
-        require(
-                !entrypoint.equals("fluxgram:PluginEntry"),
-                "The SDK module cannot be an entrypoint");
+            require(
+                    !entrypoint.equals("fluxgram:PluginEntry"),
+                    "The SDK module cannot be an entrypoint");
+        }
 
         return new PluginManifest(
                 schemaVersion,
@@ -260,18 +276,30 @@ public final class PluginManifest {
     }
 
     public String entryFile() {
+        if (!hasPythonModule()) {
+            return null;
+        }
+
         return entrypoint.substring(0, entrypoint.indexOf(':')) + ".py";
     }
 
+    public boolean hasPythonModule() {
+        return entrypoint != null;
+    }
+
+    public boolean hasJavaModule() {
+        return javaModule != null;
+    }
+
     public boolean isCompatible() {
-        return (schemaVersion == 2 || schemaVersion == SCHEMA_VERSION)
-                && sdkVersion == SDK_VERSION
-                && minSdkMinor <= SDK_MINOR_VERSION
+        return (schemaVersion == 2 || schemaVersion == 3 || schemaVersion == SCHEMA_VERSION)
+                && (!hasPythonModule()
+                        || sdkVersion == SDK_VERSION && minSdkMinor <= SDK_MINOR_VERSION)
                 && (javaModule == null || javaModule.isCompatible());
     }
 
     public String compatibilityError() {
-        if (schemaVersion != 2 && schemaVersion != SCHEMA_VERSION) {
+        if (schemaVersion != 2 && schemaVersion != 3 && schemaVersion != SCHEMA_VERSION) {
             return "Plugin manifest schema " + schemaVersion
                     + " is incompatible with schema " + SCHEMA_VERSION;
         }
@@ -281,8 +309,12 @@ public final class PluginManifest {
                     + ", but FluxGram provides Java API " + JAVA_API_VERSION + "." + JAVA_API_MINOR_VERSION;
         }
 
-        return "Plugin requires SDK " + sdkVersion + "." + minSdkMinor
-                + ", but FluxGram provides SDK " + SDK_VERSION + "." + SDK_MINOR_VERSION;
+        if (hasPythonModule()) {
+            return "Plugin requires SDK " + sdkVersion + "." + minSdkMinor
+                    + ", but FluxGram provides SDK " + SDK_VERSION + "." + SDK_MINOR_VERSION;
+        }
+
+        return "Plugin manifest is incompatible";
     }
 
     private static String string(JsonReader reader, int limit) throws IOException {
