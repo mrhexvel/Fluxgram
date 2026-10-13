@@ -4,7 +4,6 @@ import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 final class JavaPluginUiResources {
@@ -16,7 +15,7 @@ final class JavaPluginUiResources {
     }
 
     private final Dispatcher dispatcher;
-    private final BooleanSupplier active;
+    private final PluginScope scope;
     private final Consumer<Throwable> report;
     private final ArrayList<Resource> resources = new ArrayList<>();
     private boolean drainPosted;
@@ -24,14 +23,14 @@ final class JavaPluginUiResources {
     private boolean published;
     private Consumer<Exception> completion;
 
-    JavaPluginUiResources(Dispatcher dispatcher, BooleanSupplier active, Consumer<Throwable> report) {
+    JavaPluginUiResources(Dispatcher dispatcher, PluginScope scope, Consumer<Throwable> report) {
         this.dispatcher = dispatcher;
-        this.active = active;
+        this.scope = scope;
         this.report = report;
     }
 
     synchronized JavaPluginUiResource register(JavaPluginUiResource.Factory factory) {
-        if (closing || !active.getAsBoolean()) {
+        if (closing || !scope.isActive()) {
             throw new IllegalStateException("Java UI scope is inactive");
         }
 
@@ -52,7 +51,7 @@ final class JavaPluginUiResources {
     }
 
     synchronized void activate() {
-        if (closing || !active.getAsBoolean()) {
+        if (closing || !scope.isActive()) {
             return;
         }
 
@@ -69,6 +68,7 @@ final class JavaPluginUiResources {
         }
 
         closing = true;
+        scope.beginClose();
         completion = onComplete;
 
         for (Resource resource : resources) {
@@ -101,7 +101,7 @@ final class JavaPluginUiResources {
             snapshot = new ArrayList<>();
 
             for (Resource resource : resources) {
-                boolean cancel = closing || resource.closeRequested || !active.getAsBoolean();
+                boolean cancel = closing || resource.closeRequested || !scope.isActive();
 
                 if (!resource.closed && (cancel ? !resource.closeAttempted : published && resource.factory != null)) {
                     snapshot.add(resource);
@@ -145,6 +145,14 @@ final class JavaPluginUiResources {
                 } else {
                     callback = completion;
                     completion = null;
+
+                    if (failure == null) {
+                        try {
+                            scope.finishExternalClose();
+                        } catch (Exception | LinkageError | AssertionError error) {
+                            failure = new Exception("Java UI scope cleanup failed", error);
+                        }
+                    }
                 }
             }
         }
@@ -162,7 +170,7 @@ final class JavaPluginUiResources {
                 return;
             }
 
-            boolean cancel = closing || resource.closeRequested || !active.getAsBoolean();
+            boolean cancel = closing || resource.closeRequested || !scope.isActive();
 
             if (!published && !cancel) {
                 return;
@@ -202,7 +210,7 @@ final class JavaPluginUiResources {
         AutoCloseable delegate;
 
         synchronized (this) {
-            if (!(closing || resource.closeRequested || !active.getAsBoolean()) || resource.closeAttempted) {
+            if (!(closing || resource.closeRequested || !scope.isActive()) || resource.closeAttempted) {
                 return;
             }
 
@@ -252,7 +260,7 @@ final class JavaPluginUiResources {
         @Override
         public boolean isActive() {
             synchronized (JavaPluginUiResources.this) {
-                return delegate != null && !closing && !closeRequested && !closed && active.getAsBoolean();
+                return delegate != null && !closing && !closeRequested && !closed && scope.isActive();
             }
         }
 

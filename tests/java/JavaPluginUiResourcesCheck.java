@@ -10,6 +10,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 public final class JavaPluginUiResourcesCheck {
     private static final class Queue implements JavaPluginUiResources.Dispatcher {
@@ -47,7 +49,7 @@ public final class JavaPluginUiResourcesCheck {
         AtomicBoolean active = new AtomicBoolean(true);
         List<Throwable> errors = new ArrayList<>();
         List<String> calls = new ArrayList<>();
-        JavaPluginUiResources registry = new JavaPluginUiResources(queue, active::get, errors::add);
+        JavaPluginUiResources registry = createRegistry(queue, active::get, errors::add);
         JavaPluginUiResource first = registry.register(() -> {
             require(queue.ui, "factory thread");
             calls.add("create1");
@@ -80,7 +82,7 @@ public final class JavaPluginUiResourcesCheck {
 
         active.set(true);
         calls.clear();
-        JavaPluginUiResources failed = new JavaPluginUiResources(queue, active::get, errors::add);
+        JavaPluginUiResources failed = createRegistry(queue, active::get, errors::add);
         failed.register(() -> () -> calls.add("ok"));
         AtomicBoolean failOnce = new AtomicBoolean(true);
         JavaPluginUiResource retry = failed.register(() -> () -> {
@@ -101,7 +103,7 @@ public final class JavaPluginUiResourcesCheck {
         require(calls.equals(Arrays.asList("retry", "ok", "retry")), "successful step repeated");
         require(retry.isClosed(), "retry did not close");
 
-        JavaPluginUiResources cancelled = new JavaPluginUiResources(queue, active::get, errors::add);
+        JavaPluginUiResources cancelled = createRegistry(queue, active::get, errors::add);
         JavaPluginUiResource cancelHandle = cancelled.register(() -> {
             throw new AssertionError("cancelled factory ran");
         });
@@ -120,7 +122,7 @@ public final class JavaPluginUiResourcesCheck {
         sibling.close();
         queue.drain();
 
-        JavaPluginUiResources late = new JavaPluginUiResources(queue, active::get, errors::add);
+        JavaPluginUiResources late = createRegistry(queue, active::get, errors::add);
         calls.clear();
         JavaPluginUiResource lateHandle = late.register(() -> {
             active.set(false);
@@ -131,7 +133,7 @@ public final class JavaPluginUiResourcesCheck {
         require(lateHandle.isClosed() && calls.size() == 1, "late factory published or leaked");
 
         active.set(true);
-        JavaPluginUiResources broken = new JavaPluginUiResources(queue, active::get, errors::add);
+        JavaPluginUiResources broken = createRegistry(queue, active::get, errors::add);
         int beforeErrors = errors.size();
         JavaPluginUiResource brokenHandle = broken.register(() -> {
             throw new IllegalStateException("factory failure");
@@ -142,7 +144,7 @@ public final class JavaPluginUiResourcesCheck {
         require(brokenHandle.isClosed() && nullHandle.isClosed(), "failed factory left pending handle");
         require(errors.size() == beforeErrors + 2, "factory errors missing");
 
-        JavaPluginUiResources bounded = new JavaPluginUiResources(queue, active::get, errors::add);
+        JavaPluginUiResources bounded = createRegistry(queue, active::get, errors::add);
 
         for (int i = 0; i < 128; i++) {
             bounded.register(() -> () -> {});
@@ -160,7 +162,7 @@ public final class JavaPluginUiResourcesCheck {
     private static void checkBatchedDispatch(Queue queue) {
         List<Integer> created = new ArrayList<>();
         List<Integer> closed = new ArrayList<>();
-        JavaPluginUiResources registry = new JavaPluginUiResources(queue, () -> true, error -> {});
+        JavaPluginUiResources registry = createRegistry(queue, () -> true, error -> {});
 
         for (int i = 0; i < 20; i++) {
             int index = i;
@@ -192,7 +194,7 @@ public final class JavaPluginUiResourcesCheck {
     }
 
     private static void checkStopGate(Queue queue) throws Exception {
-        JavaPluginUiResources registry = new JavaPluginUiResources(queue, () -> true, error -> {});
+        JavaPluginUiResources registry = createRegistry(queue, () -> true, error -> {});
         ArrayDeque<Runnable> worker = new ArrayDeque<>();
         JavaPluginUiStop stop = new JavaPluginUiStop(registry, worker::add);
         List<String> resumed = new ArrayList<>();
@@ -213,7 +215,7 @@ public final class JavaPluginUiResourcesCheck {
         require(stop.prepare(2, () -> {}), "acknowledged request not ready");
         stop.requireSuccess();
 
-        JavaPluginUiResources failures = new JavaPluginUiResources(queue, () -> true, error -> {});
+        JavaPluginUiResources failures = createRegistry(queue, () -> true, error -> {});
         AtomicBoolean failOnce = new AtomicBoolean(true);
         failures.register(() -> () -> {
             if (failOnce.getAndSet(false)) {
@@ -244,7 +246,7 @@ public final class JavaPluginUiResourcesCheck {
         CountDownLatch resume = new CountDownLatch(1);
         AtomicBoolean active = new AtomicBoolean(true);
         AtomicBoolean closed = new AtomicBoolean();
-        JavaPluginUiResources registry = new JavaPluginUiResources(new JavaPluginUiResources.Dispatcher() {
+        JavaPluginUiResources registry = createRegistry(new JavaPluginUiResources.Dispatcher() {
             @Override
             public void post(Runnable action) {
                 synchronized (actions) {
@@ -285,6 +287,14 @@ public final class JavaPluginUiResourcesCheck {
         resume.countDown();
         thread.join(6000);
         require(!thread.isAlive() && failure.get() == null && closed.get(), "late factory cleanup race");
+    }
+
+    private static JavaPluginUiResources createRegistry(
+            JavaPluginUiResources.Dispatcher dispatcher,
+            BooleanSupplier active,
+            Consumer<Throwable> report) {
+        PluginSession session = new PluginSession("test.ui", 1, active, () -> {});
+        return new JavaPluginUiResources(dispatcher, session.openExternalScope("ui"), report);
     }
 
     private static void rejects(AutoCloseable action) throws Exception {

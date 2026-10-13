@@ -10,6 +10,29 @@ SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins"
 
 
 class JavaPluginRuntimeTest(unittest.TestCase):
+    def test_shared_scope_lifecycle_retry_and_generation(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        sources = [
+            SOURCE / "PluginResourceRegistry.java",
+            SOURCE / "PluginScope.java",
+            SOURCE / "PluginSession.java",
+            ROOT / "tests/java/PluginScopeCheck.java",
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(
+                ["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["java", "-cp", directory, "org.telegram.messenger.plugins.PluginScopeCheck"],
+                check=True,
+                capture_output=True,
+            )
+
     def test_ui_resource_lifecycle_and_nonblocking_stop(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")
@@ -17,6 +40,9 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         sources = [
             *sorted((SOURCE / "api").glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+            SOURCE / "PluginResourceRegistry.java",
+            SOURCE / "PluginScope.java",
+            SOURCE / "PluginSession.java",
             SOURCE / "JavaPluginUiResources.java",
             SOURCE / "JavaPluginUiStop.java",
             ROOT / "tests/java/JavaPluginUiResourcesCheck.java",
@@ -41,6 +67,9 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         sources = [
             *sorted((SOURCE / "api").glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+            SOURCE / "PluginResourceRegistry.java",
+            SOURCE / "PluginScope.java",
+            SOURCE / "PluginSession.java",
             SOURCE / "JavaPluginSession.java",
             ROOT / "tests/java/JavaPluginSessionCheck.java",
         ]
@@ -85,6 +114,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         self.assertLess(reconcile.index("javaUiStop.prepare"), reconcile.index("if (!unload("))
         teardown = source.split("private void unloadStrict()", 1)[1].split("public synchronized void beforeSend", 1)[0]
         self.assertLess(teardown.index("javaUiStop.requireSuccess()"), teardown.index("javaLoader.close()"))
+        self.assertLess(teardown.index('bridge.callAttr("unload_plugin", instance)'), teardown.index("pluginSession.close()"))
         self.assertIn("javaLoader != null && javaUiStop == null", teardown)
         self.assertIn('bridge.callAttr("unload_plugin", instance)', teardown)
         self.assertIn("scheduleRemoval(removal)", source)

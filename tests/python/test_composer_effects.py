@@ -106,26 +106,17 @@ class ComposerEffectsTest(unittest.TestCase):
 
         self.assertIn("chatInputViewsContainer, currentAccount", chat)
 
-    def test_settings_preview_is_filtered_and_lifecycle_scoped(self):
+    def test_settings_do_not_add_default_composer_preview(self):
         registry = (JAVA / "messenger/plugins/PluginComposerRegistry.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
-        preview = (JAVA / "ui/fluxgram/PluginComposerPreviewView.java").read_text()
         activity = (JAVA / "ui/PluginSettingsActivity.java").read_text()
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
 
         self.assertIn("registration.pluginId.equals(pluginId)", registry)
         self.assertIn("PluginComposerRegistry.attachPreview(host, previewPluginId)", controller)
-        self.assertIn("controller.destroy()", preview)
-        self.assertNotIn("ChatActivityEnterView", preview)
-        self.assertLess(preview.index("addView(inputContainer"), preview.index("new FluxGramComposerController"))
-        self.assertIn("field.clearFocus()", preview)
-        self.assertIn("preview.setActive(false)", activity)
-        self.assertIn("preview.destroy()", activity)
-
-        create_view = activity.split("public View createView(Context context)", 1)[1].split(
-            "private void fillItems", 1
-        )[0]
-        self.assertLess(create_view.index("preview.destroy()"), create_view.index("new PluginComposerPreviewView"))
+        self.assertFalse((JAVA / "ui/fluxgram/PluginComposerPreviewView.java").exists())
+        self.assertNotIn("PluginComposerPreviewView", activity)
+        self.assertNotIn("FluxGramPluginPreview", activity)
 
         drain = adapter.split("private void drainSettings()", 1)[1].split(
             "public synchronized boolean isStoppingForRemoval()", 1

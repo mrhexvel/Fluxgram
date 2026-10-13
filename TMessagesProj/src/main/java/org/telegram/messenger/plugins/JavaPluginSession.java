@@ -11,7 +11,6 @@ import org.telegram.messenger.plugins.api.ComposerTextEffect;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 
 final class JavaPluginSession implements AutoCloseable {
     interface Host {
@@ -56,6 +55,8 @@ final class JavaPluginSession implements AutoCloseable {
     }
 
     private final Constructor<? extends JavaPluginModule> constructor;
+    private final PluginSession pluginSession;
+    private final boolean ownsPluginSession;
     private final Context context;
     private JavaPluginModule module;
     private boolean started;
@@ -63,6 +64,16 @@ final class JavaPluginSession implements AutoCloseable {
 
     JavaPluginSession(Class<?> type, String pluginId, long generation, Host host)
             throws ReflectiveOperationException {
+        this(type, createPluginSession(pluginId, generation, host), host, true);
+    }
+
+    JavaPluginSession(Class<?> type, PluginSession pluginSession, Host host)
+            throws ReflectiveOperationException {
+        this(type, pluginSession, host, false);
+    }
+
+    private JavaPluginSession(Class<?> type, PluginSession pluginSession, Host host,
+            boolean ownsPluginSession) throws ReflectiveOperationException {
         if (!JavaPluginModule.class.isAssignableFrom(type)
                 || !Modifier.isPublic(type.getModifiers())
                 || Modifier.isAbstract(type.getModifiers())) {
@@ -70,7 +81,9 @@ final class JavaPluginSession implements AutoCloseable {
         }
 
         constructor = type.asSubclass(JavaPluginModule.class).getConstructor();
-        context = new Context(pluginId, generation, host);
+        this.pluginSession = pluginSession;
+        this.ownsPluginSession = ownsPluginSession;
+        context = new Context(pluginSession, host);
     }
 
     void start() throws Exception {
@@ -105,15 +118,14 @@ final class JavaPluginSession implements AutoCloseable {
     @Override
     public void close() throws Exception {
         context.requireThread();
-        context.closed = true;
         Exception failure = null;
+        boolean scopeClosed = false;
 
-        for (Resource resource : new ArrayList<>(context.resources)) {
-            try {
-                resource.close();
-            } catch (Exception | LinkageError | AssertionError error) {
-                failure = collect(failure, error);
-            }
+        try {
+            context.scope.close();
+            scopeClosed = true;
+        } catch (Exception | LinkageError | AssertionError error) {
+            failure = collect(failure, error);
         }
 
         if (module != null && !unloaded) {
@@ -126,9 +138,30 @@ final class JavaPluginSession implements AutoCloseable {
             }
         }
 
+        if (ownsPluginSession && scopeClosed && module == null) {
+            try {
+                pluginSession.close();
+            } catch (Exception | LinkageError | AssertionError error) {
+                failure = collect(failure, error);
+            }
+        }
+
         if (failure != null) {
             throw failure;
         }
+    }
+
+    private static PluginSession createPluginSession(
+            String pluginId, long generation, Host host) {
+        return new PluginSession(
+                pluginId,
+                generation,
+                () -> host.isActive(generation),
+                () -> {
+                    if (!host.isWorkerThread()) {
+                        throw new IllegalStateException("Java module API requires the plugin worker");
+                    }
+                });
     }
 
     private static Exception collect(Exception failure, Throwable error) {
@@ -141,16 +174,16 @@ final class JavaPluginSession implements AutoCloseable {
     }
 
     private static final class Context implements JavaPluginContext {
-        private final String pluginId;
-        private final long generation;
-        private final Host host;
-        private final ArrayList<Resource> resources = new ArrayList<>();
-        private volatile boolean closed;
+        private static final int RESOURCE_LIMIT = 128;
 
-        Context(String pluginId, long generation, Host host) {
-            this.pluginId = pluginId;
-            this.generation = generation;
+        private final PluginSession session;
+        private final Host host;
+        private final PluginScope scope;
+
+        Context(PluginSession session, Host host) {
+            this.session = session;
             this.host = host;
+            scope = session.openScope("java", this::requireThread, RESOURCE_LIMIT);
         }
 
         void requireThread() {
@@ -169,76 +202,59 @@ final class JavaPluginSession implements AutoCloseable {
 
         @Override
         public String getPluginId() {
-            return pluginId;
+            return session.getPluginId();
         }
 
         @Override
         public long getGeneration() {
-            return generation;
+            return session.getGeneration();
         }
 
         @Override
         public boolean isActive() {
-            return !closed && host.isActive(generation);
+            return scope.isActive();
         }
 
         @Override
         public AutoCloseable registerResource(AutoCloseable resource) {
             requireActive();
-
-            if (resource == null) {
-                throw new IllegalArgumentException("Resource is required");
-            }
-
-            for (Resource existing : resources) {
-                if (existing.delegate == resource) {
-                    return existing;
-                }
-            }
-
-            if (resources.size() >= 128) {
-                throw new IllegalStateException("Java module resource limit reached");
-            }
-
-            Resource handle = new Resource(this, resource);
-            resources.add(0, handle);
-            return handle;
+            return scope.registerResource(resource);
         }
 
         @Override
         public JavaPluginUiResource registerUiResource(JavaPluginUiResource.Factory factory) {
             requireActive();
-            return host.registerUiResource(generation, factory);
+            return host.registerUiResource(session.getGeneration(), factory);
         }
 
         @Override
         public JavaPluginUiResource registerComposerEffect(ComposerEffect.Factory factory) {
             requireActive();
-            return host.registerComposerEffect(generation, factory);
+            return host.registerComposerEffect(session.getGeneration(), factory);
         }
 
         @Override
         public JavaPluginUiResource registerComposerTextEffect(ComposerTextEffect.Factory factory) {
             requireActive();
-            return host.registerComposerTextEffect(generation, factory);
+            return host.registerComposerTextEffect(session.getGeneration(), factory);
         }
 
         @Override
         public JavaPluginUiResource registerComposerCursorEffect(ComposerCursorEffect.Factory factory) {
             requireActive();
-            return host.registerComposerCursorEffect(generation, factory);
+            return host.registerComposerCursorEffect(session.getGeneration(), factory);
         }
 
         @Override
         public JavaPluginUiResource registerComposerSelectionEffect(ComposerSelectionEffect.Factory factory) {
             requireActive();
-            return host.registerComposerSelectionEffect(generation, factory);
+            return host.registerComposerSelectionEffect(session.getGeneration(), factory);
         }
 
         @Override
         public JavaPluginUiResource registerComposerContentEffect(ComposerContentEffect.Factory factory) {
             requireActive();
-            return host.registerComposerContentEffect(generation, factory);
+            return host.registerComposerContentEffect(session.getGeneration(), factory);
         }
 
         @Override
@@ -262,36 +278,6 @@ final class JavaPluginSession implements AutoCloseable {
         @Override
         public void log(String message) {
             host.log(message);
-        }
-    }
-
-    private static final class Resource implements AutoCloseable {
-        private final Context context;
-        private AutoCloseable delegate;
-        private boolean closing;
-
-        Resource(Context context, AutoCloseable delegate) {
-            this.context = context;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void close() throws Exception {
-            context.requireThread();
-
-            if (delegate == null || closing) {
-                return;
-            }
-
-            closing = true;
-
-            try {
-                delegate.close();
-                delegate = null;
-                context.resources.remove(this);
-            } finally {
-                closing = false;
-            }
         }
     }
 }

@@ -49,6 +49,7 @@ public final class PythonPluginAdapter implements Plugin {
     private PluginManifest.JavaModule javaModule;
     private JavaPluginLoader javaLoader;
     private JavaPluginUiStop javaUiStop;
+    private PluginSession pluginSession;
     private volatile Thread workerThread;
     private volatile String loadError;
     private File iconFile;
@@ -268,7 +269,7 @@ public final class PythonPluginAdapter implements Plugin {
                 return;
             }
 
-            if (instance != null || javaLoader != null || javaUiStop != null) {
+            if (instance != null || javaLoader != null || javaUiStop != null || pluginSession != null) {
                 lifecycle.setState(request.generation, PythonPluginLifecycle.State.STOPPING);
 
                 if (javaUiStop != null && !javaUiStop.prepare(request.generation, this::reconcile)) {
@@ -293,7 +294,7 @@ public final class PythonPluginAdapter implements Plugin {
             } else {
                 load(request.generation);
 
-                if ((instance != null || javaLoader != null || javaUiStop != null)
+                if ((instance != null || javaLoader != null || javaUiStop != null || pluginSession != null)
                         && !lifecycle.isCurrent(request.generation)
                         && !lifecycle.isRemovalPending()) {
                     continue;
@@ -335,7 +336,18 @@ public final class PythonPluginAdapter implements Plugin {
                 return;
             }
 
+            pluginSession = new PluginSession(
+                    id,
+                    request,
+                    () -> lifecycle.isCurrent(request),
+                    () -> {
+                        if (Thread.currentThread() != workerThread) {
+                            throw new IllegalStateException("Plugin session requires the plugin worker");
+                        }
+                    });
+
             if (javaModule != null) {
+                PluginScope uiScope = pluginSession.openExternalScope("ui");
                 JavaPluginUiResources uiResources = new JavaPluginUiResources(
                         new JavaPluginUiResources.Dispatcher() {
                             @Override
@@ -348,12 +360,12 @@ public final class PythonPluginAdapter implements Plugin {
                                 return Looper.myLooper() == Looper.getMainLooper();
                             }
                         },
-                        () -> lifecycle.isCurrent(request),
+                        uiScope,
                         error -> Log.e(TAG, "[" + id + "] Java UI resource failed", error));
                 javaUiStop = new JavaPluginUiStop(uiResources, this::executeControl);
                 javaLoader = JavaPluginLoader.prepare(
-                        ApplicationLoader.applicationContext,
-                        new File(externalPath), javaModule, id, request, javaHost(uiResources));
+                        ApplicationLoader.applicationContext, new File(externalPath), javaModule,
+                        pluginSession, javaHost(uiResources));
 
                 if (!lifecycle.isCurrent(request)) {
                     return;
@@ -857,6 +869,19 @@ public final class PythonPluginAdapter implements Plugin {
             } catch (Exception | LinkageError error) {
                 if (failure == null) {
                     failure = new Exception("Python cleanup failed", error);
+                } else {
+                    failure.addSuppressed(error);
+                }
+            }
+        }
+
+        if (pluginSession != null && javaUiStop == null && javaLoader == null && instance == null) {
+            try {
+                pluginSession.close();
+                pluginSession = null;
+            } catch (Exception | LinkageError error) {
+                if (failure == null) {
+                    failure = new Exception("Plugin session cleanup failed", error);
                 } else {
                     failure.addSuppressed(error);
                 }

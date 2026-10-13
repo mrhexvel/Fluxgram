@@ -11292,8 +11292,6 @@
     <string name="FluxGramDeletePluginConfirm">Delete plugin %1$s?</string>
     <string name="FluxGramPluginSettingsEmpty">This plugin has no available settings yet. Enable it once with the plugin system enabled to load its settings.</string>
     <string name="FluxGramPluginSettingsUnavailable">Plugin is no longer available.</string>
-    <string name="FluxGramPluginPreview">Effect preview</string>
-    <string name="FluxGramPluginPreviewHint">Type to preview the effect</string>
     <string name="FluxGramGhostMode">Ghost Mode</string>
     <string name="FluxGramGhostModeDescription">Online, typing, reads and stories</string>
     <string name="FluxGramGhostModeDisabledInfo">Selected options apply when Ghost Mode is on.</string>

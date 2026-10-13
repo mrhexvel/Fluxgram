@@ -30,24 +30,17 @@ import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
-import org.telegram.ui.fluxgram.PluginComposerPreviewView;
 
 import java.util.ArrayList;
 
 public final class PluginSettingsActivity extends BaseFragment {
     private final String pluginId;
     private UniversalRecyclerView listView;
-    private PluginComposerPreviewView preview;
-    private PythonPluginAdapter previewAdapter;
     private boolean destroyed;
 
     private final Runnable refresh = () -> {
         if (!destroyed && listView != null) {
             listView.adapter.update(false);
-
-            if (preview != null) {
-                preview.refresh();
-            }
         }
     };
 
@@ -66,23 +59,11 @@ public final class PluginSettingsActivity extends BaseFragment {
         destroyed = true;
         ExternalPlugins.removeListener(refresh);
 
-        if (preview != null) {
-            preview.destroy();
-            preview = null;
-            previewAdapter = null;
-        }
-
         super.onFragmentDestroy();
     }
 
     @Override
     public View createView(Context context) {
-        if (preview != null) {
-            preview.destroy();
-            preview = null;
-            previewAdapter = null;
-        }
-
         Plugin plugin = PluginManager.getInstance().getPlugin(pluginId);
         actionBar.setTitle(plugin == null ? LocaleController.getString(R.string.Settings) : plugin.getName());
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
@@ -98,14 +79,6 @@ public final class PluginSettingsActivity extends BaseFragment {
         FrameLayout content = new FrameLayout(context);
         content.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
         fragmentView = content;
-
-        if (plugin instanceof PythonPluginAdapter
-                && ((PythonPluginAdapter) plugin).hasJavaModule()) {
-            previewAdapter = (PythonPluginAdapter) plugin;
-            preview = new PluginComposerPreviewView(
-                    context, currentAccount, pluginId,
-                    () -> canPreview(previewAdapter), getResourceProvider());
-        }
 
         listView = new UniversalRecyclerView(this, (items, adapter) -> fillItems(items), null, null);
         listView.setItemAnimator(null);
@@ -127,11 +100,6 @@ public final class PluginSettingsActivity extends BaseFragment {
         }
 
         PythonPluginAdapter adapter = (PythonPluginAdapter) plugin;
-
-        if (preview != null && adapter == previewAdapter) {
-            items.add(UItem.asHeader(LocaleController.getString(R.string.FluxGramPluginPreview)));
-            items.add(UItem.asCustomShadow(preview, 112));
-        }
 
         if (adapter.getSettingsSchema().isEmpty()) {
             items.add(UItem.asShadow(LocaleController.getString(R.string.FluxGramPluginSettingsEmpty)));
@@ -169,11 +137,6 @@ public final class PluginSettingsActivity extends BaseFragment {
     private boolean canEdit(PythonPluginAdapter adapter) {
         return PluginManager.getInstance().getPlugin(pluginId) == adapter
                 && !adapter.isStoppingForRemoval() && ExternalPlugins.getPending(pluginId) == null;
-    }
-
-    private boolean canPreview(PythonPluginAdapter adapter) {
-        PluginManager manager = PluginManager.getInstance();
-        return canEdit(adapter) && manager.isSystemEnabled() && manager.isEnabled(pluginId);
     }
 
     private View createValueCell(PythonPluginAdapter adapter, PluginSettings.Setting setting) {
@@ -354,19 +317,6 @@ public final class PluginSettingsActivity extends BaseFragment {
     public void onResume() {
         super.onResume();
 
-        if (preview != null) {
-            preview.setActive(true);
-        }
-
         refresh.run();
-    }
-
-    @Override
-    public void onPause() {
-        if (preview != null) {
-            preview.setActive(false);
-        }
-
-        super.onPause();
     }
 }

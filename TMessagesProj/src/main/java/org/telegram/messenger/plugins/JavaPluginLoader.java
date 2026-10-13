@@ -26,7 +26,7 @@ final class JavaPluginLoader implements AutoCloseable {
     }
 
     static JavaPluginLoader prepare(Context context, File directory, PluginManifest.JavaModule module,
-            String pluginId, long generation, JavaPluginSession.Host host) throws Exception {
+            PluginSession pluginSession, JavaPluginSession.Host host) throws Exception {
         requireWorker();
 
         if (!module.isCompatible()) {
@@ -76,7 +76,7 @@ final class JavaPluginLoader implements AutoCloseable {
                 throw new IOException("Java entrypoint resolved outside its module");
             }
 
-            result.session = new JavaPluginSession(type, pluginId, generation, host);
+            result.session = new JavaPluginSession(type, pluginSession, host);
             return result;
         } catch (Exception | LinkageError error) {
             try {
