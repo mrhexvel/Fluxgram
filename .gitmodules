@@ -45,4 +45,4 @@
 	url = https://github.com/wasm-micro-runtime/wasm-micro-runtime.git
 [submodule "sdk/python"]
 	path = sdk/python
-	url = https://github.com/mrhexvel/fluxgram-sdk.git
+	url = https://github.com/mrhexvel/fluxgram-plugin.git

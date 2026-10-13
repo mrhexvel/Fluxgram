@@ -150,7 +150,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
 
     def test_package_metadata_and_chaquopy_source_set(self):
         metadata = tomllib.loads((SDK / "pyproject.toml").read_text())
-        self.assertEqual(metadata["project"]["name"], "fluxgram-sdk")
+        self.assertEqual(metadata["project"]["name"], "fluxgram-plugin")
         self.assertEqual(metadata["project"]["version"], "2.10.0")
         self.assertEqual(metadata["project"]["requires-python"], ">=3.11")
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
@@ -164,7 +164,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
         self.assertIn('[submodule "sdk/python"]', modules)
         self.assertIn("path = sdk/python", modules)
         self.assertIn(
-            "url = https://github.com/mrhexvel/fluxgram-sdk.git",
+            "url = https://github.com/mrhexvel/fluxgram-plugin.git",
             modules,
         )
 

@@ -24,12 +24,19 @@ which are explicitly outside its supported scope.
 ## Plugin SDK
 
 The public Python SDK is maintained in
-[mrhexvel/fluxgram-sdk](https://github.com/mrhexvel/fluxgram-sdk) and is included
+[mrhexvel/fluxgram-plugin](https://github.com/mrhexvel/fluxgram-plugin) and is included
 here as the `sdk/python` Git submodule. Plugin code imports the public `fluxgram`
 package. Android and Chaquopy integration remains internal to this repository.
 
 Plugins are fully trusted code. FluxGram does not sandbox installed Python
 plugins. Install plugins only when you trust their source and publisher.
+SDK lifecycle checks, quotas, immutable models, and managed services improve
+compatibility and reliability; they do not restrict what trusted plugin code
+can do through Java or other in-process APIs.
+
+Installing a plugin already imports its entrypoint to run storage migration
+checks, even when "enable after installation" is off. Trust the code before
+installing it, not only before enabling its regular runtime.
 
 ## Building
 
