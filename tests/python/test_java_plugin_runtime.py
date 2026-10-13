@@ -10,6 +10,31 @@ SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins"
 
 
 class JavaPluginRuntimeTest(unittest.TestCase):
+    def test_host_extension_registry_ordering_quarantine_and_cleanup(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        sources = [
+            SOURCE / "PluginResourceRegistry.java",
+            SOURCE / "PluginScope.java",
+            SOURCE / "PluginSession.java",
+            SOURCE / "HostExtensionDescriptor.java",
+            SOURCE / "HostExtensionRegistry.java",
+            ROOT / "tests/java/HostExtensionRegistryCheck.java",
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(
+                ["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["java", "-cp", directory, "org.telegram.messenger.plugins.HostExtensionRegistryCheck"],
+                check=True,
+                capture_output=True,
+            )
+
     def test_shared_scope_lifecycle_retry_and_generation(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")

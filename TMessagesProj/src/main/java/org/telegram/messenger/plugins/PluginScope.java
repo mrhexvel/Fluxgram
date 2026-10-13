@@ -29,6 +29,14 @@ final class PluginScope implements AutoCloseable {
                 && (parent == null || parent.isActive());
     }
 
+    String getPluginId() {
+        return session.getPluginId();
+    }
+
+    long getGeneration() {
+        return session.getGeneration();
+    }
+
     synchronized PluginScope openChild(String childName,
             PluginResourceRegistry.ThreadGuard threadGuard, int resourceLimit) {
         requireOpen();
