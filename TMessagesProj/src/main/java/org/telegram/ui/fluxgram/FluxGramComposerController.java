@@ -77,6 +77,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private PluginComposerRegistry.OverlayTextCapture pendingRemovedCapture;
     private boolean pendingLayoutChange;
     private boolean pendingLayoutCoalesced;
+    private long pendingLayoutDeadline;
     private final ComposerNativeCursorCapture cursorCapture = new ComposerNativeCursorCapture();
     private final Rect cursorBounds = new Rect();
     private long cursorRevision;
@@ -243,6 +244,12 @@ public final class FluxGramComposerController implements TextWatcher,
                     if (expandedLayer != null) {
                         expandedLayer.invalidate();
                     }
+                }
+
+                @Override
+                public void invalidateText() {
+                    field.invalidate();
+                    invalidate();
                 }
 
                 @Override
@@ -593,6 +600,8 @@ public final class FluxGramComposerController implements TextWatcher,
         if (surface != null && (surface.hasTextLayoutEffect() || surface.hasTextInsertionEffect())
                 && field instanceof EditTextCaption
                 && text != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
+            pendingLayoutDeadline = SystemClock.uptimeMillis() + 500;
+
             if (!pendingLayoutChange) {
                 pendingLayoutChange = true;
                 pendingLayoutBeforeText = text.toString();
@@ -695,9 +704,14 @@ public final class FluxGramComposerController implements TextWatcher,
         boolean coalesced = pendingLayoutCoalesced;
         ComposerTextLayoutSnapshot after = ComposerTextLayoutSnapshots.capture(
                 (EditTextCaption) field, textRevision, afterText);
-        clearPendingLayout();
 
         if (after == null) {
+            if (SystemClock.uptimeMillis() < pendingLayoutDeadline) {
+                field.postInvalidateOnAnimation();
+            } else {
+                clearPendingLayout();
+            }
+
             return;
         }
 
@@ -725,6 +739,15 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         int insertedCount = afterLength - prefix - suffix;
+
+        if (insertedCount > 0 && after.truncated
+                && !ComposerTextLayoutSnapshots.containsVisibleRange(after, prefix, insertedCount)
+                && SystemClock.uptimeMillis() < pendingLayoutDeadline) {
+            field.postInvalidateOnAnimation();
+            return;
+        }
+
+        clearPendingLayout();
 
         if (surface.hasTextLayoutEffect() && before != null) {
             surface.textLayoutChanged(new ComposerTextLayoutChange(
@@ -788,5 +811,6 @@ public final class FluxGramComposerController implements TextWatcher,
         pendingRemovedCapture = null;
         pendingLayoutChange = false;
         pendingLayoutCoalesced = false;
+        pendingLayoutDeadline = 0;
     }
 }

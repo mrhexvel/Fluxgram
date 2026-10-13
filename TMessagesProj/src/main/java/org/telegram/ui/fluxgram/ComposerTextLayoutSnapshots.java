@@ -191,6 +191,36 @@ public final class ComposerTextLayoutSnapshots {
                 runs.toArray(new ComposerTextRunSnapshot[0]));
     }
 
+    static boolean containsVisibleRange(ComposerTextLayoutSnapshot snapshot, int start, int count) {
+        if (snapshot == null || start < 0 || count < 0 || start > snapshot.text.length()
+                || count > snapshot.text.length() - start) {
+            return false;
+        }
+
+        int end = start + count;
+        int covered = start;
+
+        for (int index = 0; index < snapshot.getLineCount(); index++) {
+            ComposerTextLineSnapshot line = snapshot.getLine(index);
+
+            if (line.end <= covered) {
+                continue;
+            }
+
+            if (line.start > covered) {
+                return false;
+            }
+
+            covered = Math.min(end, line.end);
+
+            if (covered >= end) {
+                return true;
+            }
+        }
+
+        return covered >= end;
+    }
+
     private static int spanFlags(CharSequence content) {
         if (!(content instanceof Spanned)) {
             return 0;

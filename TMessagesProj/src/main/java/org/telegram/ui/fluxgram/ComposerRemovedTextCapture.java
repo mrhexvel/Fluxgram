@@ -11,6 +11,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import org.telegram.messenger.plugins.PluginComposerRegistry;
+import org.telegram.messenger.plugins.api.ComposerTextLayers;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.ui.Components.EditTextCaption;
 
@@ -24,7 +25,9 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
     private final int start;
     private final int end;
     private final float baseline;
-    private final ComposerTextLayer layer = new ComposerTextLayer();
+    private final ComposerTextLayer[] layers = {
+            new ComposerTextLayer(), new ComposerTextLayer()
+    };
     private boolean failed;
 
     private ComposerRemovedTextCapture(
@@ -158,17 +161,26 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
 
     @Override
     public void draw(Canvas canvas, ComposerTextPresentation presentation) {
+        draw(canvas, new ComposerTextLayers(new ComposerTextPresentation[] {presentation}));
+    }
+
+    @Override
+    public void draw(Canvas canvas, ComposerTextLayers presentations) {
         if (!isValid()) {
             return;
         }
 
         try {
-            if (presentation.alpha > 0) {
-                layer.prepare(picture, ink.width(), ink.height(), presentation);
+            for (int index = 0; index < presentations.getCount(); index++) {
+                ComposerTextPresentation presentation = presentations.getPresentation(index);
+
+                if (presentation != null && presentation.alpha > 0) {
+                    layers[index].prepare(picture, ink.width(), ink.height(), presentation);
+                }
             }
         } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
             failed = true;
-            layer.release();
+            releaseLayers();
             Log.e("FluxGramComposer", "Removed text blur preparation failed", error);
             return;
         }
@@ -178,14 +190,26 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
 
         try {
             canvas.translate(ink.left, ink.top);
-            ComposerNativeTextCapture.applyTransform(canvas, presentation);
 
-            if (presentation.alpha > 0) {
-                layer.draw(canvas, picture, ink.width(), ink.height(), presentation);
+            for (int index = 0; index < presentations.getCount(); index++) {
+                ComposerTextPresentation presentation = presentations.getPresentation(index);
+
+                if (presentation == null || presentation.alpha <= 0) {
+                    continue;
+                }
+
+                int layerSave = canvas.save();
+
+                try {
+                    ComposerNativeTextCapture.applyTransform(canvas, presentation);
+                    layers[index].draw(canvas, picture, ink.width(), ink.height(), presentation);
+                } finally {
+                    canvas.restoreToCount(layerSave);
+                }
             }
         } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
             failed = true;
-            layer.release();
+            releaseLayers();
             Log.e("FluxGramComposer", "Removed text replay failed", error);
         } finally {
             try {
@@ -198,6 +222,12 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
 
     @Override
     public void release() {
-        layer.release();
+        releaseLayers();
+    }
+
+    private void releaseLayers() {
+        for (ComposerTextLayer layer : layers) {
+            layer.release();
+        }
     }
 }

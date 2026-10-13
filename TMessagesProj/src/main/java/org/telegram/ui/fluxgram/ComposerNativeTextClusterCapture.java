@@ -9,6 +9,7 @@ import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
 import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
 import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
+import org.telegram.messenger.plugins.api.ComposerTextLayers;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.ui.Components.EditTextCaption;
 
@@ -111,15 +112,13 @@ public final class ComposerNativeTextClusterCapture implements PluginComposerReg
         boolean active = false;
 
         for (int index = 0; index < captures.length; index++) {
-            ComposerTextPresentation item = presentation.getPresentation(index);
+            ComposerTextLayers layers = presentation.getLayers(index);
 
-            if (item != null) {
-                active = true;
-
-                if (!captures[index].prepare(item)) {
-                    failed = true;
-                    nativeDraw.accept(canvas);
-                    return;
+            if (layers != null) {
+                for (int layerIndex = 0; layerIndex < layers.getCount(); layerIndex++) {
+                    if (layers.getPresentation(layerIndex) != null) {
+                        active = true;
+                    }
                 }
             }
         }
@@ -137,12 +136,21 @@ public final class ComposerNativeTextClusterCapture implements PluginComposerReg
             recordingOpen = true;
 
             for (int index = 0; index < captures.length; index++) {
-                ComposerTextPresentation item = presentation.getPresentation(index);
+                ComposerTextLayers layers = presentation.getLayers(index);
 
-                if (item != null && !captures[index].replay(recording, item)) {
-                    failed = true;
-                    nativeDraw.accept(canvas);
-                    return;
+                if (layers == null) {
+                    continue;
+                }
+
+                for (int layerIndex = 0; layerIndex < layers.getCount(); layerIndex++) {
+                    ComposerTextPresentation item = layers.getPresentation(layerIndex);
+
+                    if (item != null && (!captures[index].prepare(item)
+                            || !captures[index].replay(recording, item))) {
+                        failed = true;
+                        nativeDraw.accept(canvas);
+                        return;
+                    }
                 }
             }
 
@@ -169,8 +177,17 @@ public final class ComposerNativeTextClusterCapture implements PluginComposerReg
 
         try {
             for (int index = 0; index < captures.length; index++) {
-                if (presentation.getPresentation(index) != null) {
-                    captures[index].clipNative(canvas);
+                ComposerTextLayers layers = presentation.getLayers(index);
+
+                if (layers == null) {
+                    continue;
+                }
+
+                for (int layerIndex = 0; layerIndex < layers.getCount(); layerIndex++) {
+                    if (layers.getPresentation(layerIndex) != null) {
+                        captures[index].clipNative(canvas);
+                        break;
+                    }
                 }
             }
 

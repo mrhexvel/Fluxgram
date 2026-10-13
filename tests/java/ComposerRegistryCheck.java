@@ -35,6 +35,8 @@ import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import org.telegram.messenger.plugins.api.ComposerTextFontSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextInsertion;
 import org.telegram.messenger.plugins.api.ComposerTextInsertionEffect;
+import org.telegram.messenger.plugins.api.ComposerTextLayers;
+import org.telegram.messenger.plugins.api.ComposerTextLayerTransitionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
@@ -50,6 +52,7 @@ public final class ComposerRegistryCheck {
     private static final class Host implements PluginComposerRegistry.Host {
         boolean available = true;
         int invalidations;
+        int textInvalidations;
         int captures;
         ComposerTextCandidate capturedCandidate;
         ComposerTextClusterSelection capturedClusterSelection;
@@ -97,6 +100,11 @@ public final class ComposerRegistryCheck {
         @Override
         public void invalidate() {
             invalidations++;
+        }
+
+        @Override
+        public void invalidateText() {
+            textInvalidations++;
         }
 
         @Override
@@ -569,6 +577,19 @@ public final class ComposerRegistryCheck {
         }
     }
 
+    private static final class LayerTransitionTextEffect extends LayoutTextEffect
+            implements ComposerTextLayerTransitionEffect {
+        ComposerTextCapture removedCapture;
+        ComposerTextLayers removedLayers;
+
+        @Override
+        public ComposerTextLayers presentRemovedTextLayers(
+                ComposerTextLayoutChange change, ComposerTextCapture capture) {
+            removedCapture = capture;
+            return removedLayers;
+        }
+    }
+
     private static final class OverlayCapture implements PluginComposerRegistry.OverlayTextCapture {
         int draws;
         int releases;
@@ -792,6 +813,10 @@ public final class ComposerRegistryCheck {
         surface = PluginComposerRegistry.attach(textHost);
         require(surface.hasTextEffect(), "text owner not attached");
         require(!surface.hasTextLayoutEffect(), "legacy text effect became layout-aware");
+        text.surface.requestFrame();
+        tick();
+        require(textHost.textInvalidations == 1 && textHost.invalidations == 0,
+                "text frame did not invalidate the input field");
         ComposerTextChange change = new ComposerTextChange(7, "ab", "abc", 2, 0, 1, 3, 3, -1, -1);
         surface.textChanged(change);
         surface.prepareText();
@@ -931,9 +956,14 @@ public final class ComposerRegistryCheck {
         clusterText.selection = new ComposerTextClusterSelection(22, selectedCandidates);
         selectedCandidates[0] = null;
         ComposerTextPresentation firstCluster = new ComposerTextPresentation(1, -2, 0.5f);
-        ComposerTextPresentation[] clusterPresentations = {firstCluster, null};
-        clusterText.presentation = new ComposerTextClusterPresentation(22, clusterPresentations);
-        clusterPresentations[0] = null;
+        ComposerTextPresentation secondLayer = new ComposerTextPresentation(0, 0, 0.25f);
+        ComposerTextPresentation[] firstClusterLayers = {firstCluster, secondLayer};
+        ComposerTextLayers[] clusterLayers = {
+                new ComposerTextLayers(firstClusterLayers), null
+        };
+        clusterText.presentation = ComposerTextClusterPresentation.layered(22, clusterLayers);
+        firstClusterLayers[0] = null;
+        clusterLayers[0] = null;
         ComposerTextLayoutSnapshot clusterLayout = new ComposerTextLayoutSnapshot(
                 22, "abc", 3, 3, -1, -1, 100, 40, 4, 3, 0, 0,
                 false, false, false,
@@ -957,8 +987,10 @@ public final class ComposerRegistryCheck {
                 && clusterText.capture == clusterHost.clusterCapture
                 && clusterHost.clusterCapture.draws == 1 && clusterNativeDraws[0] == 1
                 && clusterHost.clusterCapture.presentation.getPresentation(0) == firstCluster
+                && clusterHost.clusterCapture.presentation.getLayers(0).getCount() == 2
+                && clusterHost.clusterCapture.presentation.getLayers(0).getPresentation(1) == secondLayer
                 && clusterHost.clusterCapture.presentation.getPresentation(1) == null,
-                "cluster captures were not immutable or independently presented");
+                "cluster captures or layered presentations were not immutable");
         ClusterCapture previousClusterCapture = clusterHost.clusterCapture;
         surface.textChanged(new ComposerTextChange(23, "abc", "abcd", 3, 0, 1, 4, 4, -1, -1));
         require(previousClusterCapture.releases == 1 && previousClusterCapture.captures[0].releases == 1,
@@ -999,6 +1031,34 @@ public final class ComposerRegistryCheck {
                 "finished removed text overlay was retained");
         surface.close();
         transitionRegistration.close();
+
+        LayerTransitionTextEffect layerTransitionText = new LayerTransitionTextEffect();
+        AutoCloseable layerTransitionRegistration = PluginComposerRegistry.registerText(
+                "test.text.layer_transition", () -> true, context -> {
+                    layerTransitionText.surface = context;
+                    return layerTransitionText;
+                });
+        surface = PluginComposerRegistry.attach(new Host());
+        OverlayCapture layeredOverlayCapture = new OverlayCapture();
+        ComposerTextPresentation removedBlur = new ComposerTextPresentation(
+                0, 0, 0.4f, 1, 1, 0, 5, 5, 0, 0, 6);
+        ComposerTextPresentation removedSharp = new ComposerTextPresentation(0, 0, 0.6f);
+        layerTransitionText.removedLayers = new ComposerTextLayers(
+                new ComposerTextPresentation[] {removedBlur, removedSharp});
+        surface.textLayoutChanged(new ComposerTextLayoutChange(
+                21, beforeLayout, afterLayout, 1, 1, 0, false, layeredOverlayCapture));
+        surface.drawText(new Canvas(), canvas -> transitionNativeDraws[0]++);
+        require(layerTransitionText.removedCapture == layeredOverlayCapture
+                        && layeredOverlayCapture.draws == 2
+                        && layeredOverlayCapture.presentation == removedSharp,
+                "layered removed text presentation was not applied");
+        layerTransitionText.removedLayers = new ComposerTextLayers(
+                new ComposerTextPresentation[] {removedBlur, removedSharp, removedBlur});
+        surface.drawText(new Canvas(), canvas -> transitionNativeDraws[0]++);
+        require(layerTransitionText.closes == 1 && layeredOverlayCapture.releases == 1,
+                "unbounded removed text layers did not fail closed");
+        surface.close();
+        layerTransitionRegistration.close();
 
         ContentEffect content = new ContentEffect();
         AutoCloseable contentRegistration = PluginComposerRegistry.registerContent(

@@ -33,7 +33,7 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 20", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 21", manifest)
         enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
@@ -113,7 +113,7 @@ class ComposerTextTest(unittest.TestCase):
                 capture_output=True,
             )
 
-    def test_external_cluster_effect_compiles_against_api_1_20(self):
+    def test_external_layered_cluster_effect_compiles_against_api_1_21(self):
         if not shutil.which("javac"):
             self.skipTest("Requires JDK")
 
@@ -131,7 +131,8 @@ class ComposerTextTest(unittest.TestCase):
 
                 public void onUnload() {}
 
-                private static final class Effect implements ComposerTextClusterEffect {
+                private static final class Effect implements ComposerTextClusterEffect,
+                        ComposerTextLayerTransitionEffect {
                     private final ComposerSurface surface;
 
                     Effect(ComposerSurface surface) {
@@ -151,9 +152,21 @@ class ComposerTextTest(unittest.TestCase):
                         ComposerTextCapture item = capture.getCapture(0);
                         float pivotX = (item.getRight() - item.getLeft()) / 2;
                         float pivotY = (item.getBottom() - item.getTop()) / 2;
-                        return new ComposerTextClusterPresentation(capture.getRevision(),
-                                new ComposerTextPresentation[] {new ComposerTextPresentation(
-                                        0, -4, 1, 1, 1, 0, pivotX, pivotY)});
+                        ComposerTextPresentation blur = new ComposerTextPresentation(
+                                0, -4, 0.4f, 1, 1, 0, pivotX, pivotY, 0, 0, 6);
+                        ComposerTextPresentation sharp = new ComposerTextPresentation(
+                                0, -4, 0.6f, 1, 1, 0, pivotX, pivotY);
+                        return ComposerTextClusterPresentation.layered(capture.getRevision(),
+                                new ComposerTextLayers[] {new ComposerTextLayers(
+                                        new ComposerTextPresentation[] {blur, sharp})});
+                    }
+
+                    public ComposerTextLayers presentRemovedTextLayers(
+                            ComposerTextLayoutChange change, ComposerTextCapture capture) {
+                        return new ComposerTextLayers(new ComposerTextPresentation[] {
+                                new ComposerTextPresentation(0, 0, 0.5f),
+                                new ComposerTextPresentation(0, 0, 0.5f)
+                        });
                     }
 
                     public void onInput(ComposerInput input) {}

@@ -39,6 +39,8 @@ import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutEffect;
 import org.telegram.messenger.plugins.api.ComposerTextInsertion;
 import org.telegram.messenger.plugins.api.ComposerTextInsertionEffect;
+import org.telegram.messenger.plugins.api.ComposerTextLayers;
+import org.telegram.messenger.plugins.api.ComposerTextLayerTransitionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextPresentation;
 import org.telegram.messenger.plugins.api.ComposerTextTransitionEffect;
 
@@ -60,6 +62,10 @@ public final class PluginComposerRegistry {
         ComposerGeometry geometry();
 
         void invalidate();
+
+        default void invalidateText() {
+            invalidate();
+        }
 
         default void invalidateCursor() {
             invalidate();
@@ -117,6 +123,16 @@ public final class PluginComposerRegistry {
         boolean isValid();
 
         void draw(Canvas canvas, ComposerTextPresentation presentation);
+
+        default void draw(Canvas canvas, ComposerTextLayers layers) {
+            for (int index = 0; index < layers.getCount(); index++) {
+                ComposerTextPresentation presentation = layers.getPresentation(index);
+
+                if (presentation != null) {
+                    draw(canvas, presentation);
+                }
+            }
+        }
 
         default void release() {
         }
@@ -1305,10 +1321,20 @@ public final class PluginComposerRegistry {
                 }
 
                 for (int index = 0; index < presentation.getCount(); index++) {
-                    ComposerTextPresentation item = presentation.getPresentation(index);
+                    ComposerTextLayers layers = presentation.getLayers(index);
 
-                    if (item != null) {
-                        validatePresentation(item, textClusterCapture.getCapture(index));
+                    if (layers == null) {
+                        continue;
+                    }
+
+                    validateTextLayers(layers);
+
+                    for (int layerIndex = 0; layerIndex < layers.getCount(); layerIndex++) {
+                        ComposerTextPresentation item = layers.getPresentation(layerIndex);
+
+                        if (item != null) {
+                            validatePresentation(item, textClusterCapture.getCapture(index));
+                        }
                     }
                 }
             } catch (Exception | LinkageError | AssertionError error) {
@@ -1336,19 +1362,34 @@ public final class PluginComposerRegistry {
             }
 
             long start = System.nanoTime();
-            ComposerTextPresentation presentation;
+            ComposerTextLayers layers;
 
             try {
-                presentation = ((ComposerTextTransitionEffect) effect)
-                        .presentRemovedText(removedChange, removedCapture);
+                if (effect instanceof ComposerTextLayerTransitionEffect) {
+                    layers = ((ComposerTextLayerTransitionEffect) effect)
+                            .presentRemovedTextLayers(removedChange, removedCapture);
+                } else {
+                    ComposerTextPresentation presentation = ((ComposerTextTransitionEffect) effect)
+                            .presentRemovedText(removedChange, removedCapture);
+                    layers = presentation == null ? null : new ComposerTextLayers(
+                            new ComposerTextPresentation[] {presentation});
+                }
 
-                if (presentation == null) {
+                if (layers == null) {
                     removedChange = null;
                     clearRemovedCapture();
                     return;
                 }
 
-                validatePresentation(presentation, removedCapture);
+                validateTextLayers(layers);
+
+                for (int index = 0; index < layers.getCount(); index++) {
+                    ComposerTextPresentation presentation = layers.getPresentation(index);
+
+                    if (presentation != null) {
+                        validatePresentation(presentation, removedCapture);
+                    }
+                }
             } catch (Exception | LinkageError | AssertionError error) {
                 removedChange = null;
                 clearRemovedCapture();
@@ -1359,7 +1400,7 @@ public final class PluginComposerRegistry {
             }
 
             try {
-                removedCapture.draw(canvas, presentation);
+                removedCapture.draw(canvas, layers);
             } catch (Exception | LinkageError | AssertionError error) {
                 removedChange = null;
                 clearRemovedCapture();
@@ -1452,6 +1493,12 @@ public final class PluginComposerRegistry {
             float height = capture.getBottom() - capture.getTop();
 
             validatePresentation(presentation, capture.getLeft(), capture.getTop(), width, height, limit);
+        }
+
+        private void validateTextLayers(ComposerTextLayers layers) {
+            if (layers.getCount() < 1 || layers.getCount() > ComposerTextLayers.MAX_LAYERS) {
+                throw new IllegalArgumentException("Invalid composer text layer count");
+            }
         }
 
         private void validateClusterSelection(
@@ -1681,7 +1728,9 @@ public final class PluginComposerRegistry {
                 continuing = again;
 
                 if (isActive()) {
-                    if (registration.cursor) {
+                    if (registration.text) {
+                        surface.host.invalidateText();
+                    } else if (registration.cursor) {
                         surface.host.invalidateCursor();
                     } else {
                         surface.host.invalidate();

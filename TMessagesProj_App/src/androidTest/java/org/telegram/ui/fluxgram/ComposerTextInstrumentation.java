@@ -33,6 +33,7 @@ import android.view.inputmethod.InputConnection;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
 import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
+import org.telegram.messenger.plugins.api.ComposerTextLayers;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
@@ -106,6 +107,9 @@ public final class ComposerTextInstrumentation extends Instrumentation {
             onUi(() -> {
                 identityAndSuppressionCase();
                 clusterCaptureCase();
+                glyphOvershootCaptureCase();
+                wrappedLineClusterCaptureCase();
+                animatedBoundsOffsetCase();
                 affineReplayCase();
                 tintReplayCase();
                 blurReplayCase();
@@ -217,17 +221,27 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         require(capture != null && capture.getRevision() == 14 && capture.getCount() == 2,
                 "cluster capture rejected cursor boundary");
         field.clusterCapture = capture;
-        field.clusterPresentation = new ComposerTextClusterPresentation(
-                14, new ComposerTextPresentation[] {
-                        new ComposerTextPresentation(0, 0, 1),
-                        new ComposerTextPresentation(0, 0, 1)
+        field.clusterPresentation = ComposerTextClusterPresentation.layered(
+                14, new ComposerTextLayers[] {
+                        new ComposerTextLayers(new ComposerTextPresentation[] {
+                                new ComposerTextPresentation(0, 0, 0),
+                                new ComposerTextPresentation(0, 0, 1)
+                        }),
+                        new ComposerTextLayers(new ComposerTextPresentation[] {
+                                new ComposerTextPresentation(0, 0, 1)
+                        })
                 });
         Bitmap restored = software();
         compare(original, restored, 0);
-        field.clusterPresentation = new ComposerTextClusterPresentation(
-                14, new ComposerTextPresentation[] {
-                        new ComposerTextPresentation(0, 0, 0),
-                        new ComposerTextPresentation(0, 0, 1)
+        field.clusterPresentation = ComposerTextClusterPresentation.layered(
+                14, new ComposerTextLayers[] {
+                        new ComposerTextLayers(new ComposerTextPresentation[] {
+                                new ComposerTextPresentation(0, 0, 0),
+                                new ComposerTextPresentation(0, 0, 0)
+                        }),
+                        new ComposerTextLayers(new ComposerTextPresentation[] {
+                                new ComposerTextPresentation(0, 0, 1)
+                        })
                 });
         Bitmap independent = software();
         require(different(original, independent) > 20, "cluster presentation was not independent");
@@ -258,6 +272,107 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         restored.recycle();
         independent.recycle();
         failedImage.recycle();
+        cases++;
+    }
+
+    private void glyphOvershootCaptureCase() {
+        for (String text : new String[] {"О", "у"}) {
+            setText(text);
+            ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
+                    field, new ComposerTextCandidate(15, 0, text.length()), text, true);
+            require(capture != null, "cluster capture rejected glyph overshoot: " + text);
+            capture.release();
+        }
+
+        cases++;
+    }
+
+    private void wrappedLineClusterCaptureCase() {
+        StringBuilder value = new StringBuilder();
+        String boundaryText = null;
+
+        while (value.length() < 80) {
+            value.append('О');
+            setText(value.toString());
+
+            if (field.getLayout().getLineCount() > 1
+                    && field.getLayout().getLineStart(1) == value.length() - 1) {
+                boundaryText = value.toString();
+                break;
+            }
+        }
+
+        require(boundaryText != null, "test text did not reach wrapped line boundary");
+        ComposerNativeTextCapture boundary = ComposerNativeTextCapture.capture(
+                field,
+                new ComposerTextCandidate(16, boundaryText.length() - 1, boundaryText.length()),
+                boundaryText,
+                true);
+        require(boundary != null, "cluster capture rejected first glyph on wrapped line");
+        boundary.release();
+
+        ComposerTextLayoutSnapshot boundarySnapshot = ComposerTextLayoutSnapshots.capture(
+                field, 16, boundaryText);
+        require(boundarySnapshot != null && ComposerTextLayoutSnapshots.containsVisibleRange(
+                        boundarySnapshot, boundaryText.length() - 1, 1),
+                "wrapped line snapshot did not cover first glyph");
+
+        while (value.length() < 80) {
+            value.append('О');
+        }
+
+        String text = value.toString();
+        setText(text);
+        int secondLine = field.getLayout().getLineStart(1);
+        ComposerNativeTextClusterCapture capture = ComposerNativeTextClusterCapture.capture(
+                field,
+                new ComposerTextClusterSelection(16, new ComposerTextCandidate[] {
+                        new ComposerTextCandidate(16, 0, 1),
+                        new ComposerTextCandidate(16, secondLine, secondLine + 1)
+                }),
+                text);
+        require(capture != null && capture.getCount() == 2,
+                "cluster capture rejected wrapped line");
+        capture.release();
+        cases++;
+    }
+
+    private void animatedBoundsOffsetCase() {
+        setText("HH");
+        ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
+                field, new ComposerTextCandidate(17, 1, 2), "HH", true);
+        require(capture != null, "bounds animation capture rejected");
+        field.setOffsetY(-12);
+        require(capture.isValid(), "bounds animation invalidated text capture");
+        Bitmap original = software();
+        require(field.getOffsetY() == -12, "bounds animation offset changed before replay");
+        field.capture = capture;
+        field.presentation = new ComposerTextPresentation(0, 0, 1);
+        Bitmap restored = software();
+        Bitmap replayOnly = Bitmap.createBitmap(
+                field.getWidth(), field.getHeight(), Bitmap.Config.ARGB_8888);
+        capture.draw(new Canvas(replayOnly), ignored -> {
+        }, field.presentation);
+        Rect originalInk = brightBounds(original);
+        Rect restoredInk = brightBounds(restored);
+        Rect replayInk = brightBounds(replayOnly);
+        require(Math.abs(originalInk.left - restoredInk.left) <= 1
+                        && Math.abs(originalInk.top - restoredInk.top) <= 1
+                        && Math.abs(originalInk.right - restoredInk.right) <= 1
+                        && Math.abs(originalInk.bottom - restoredInk.bottom) <= 1,
+                "bounds animation moved replay away from native text: "
+                        + originalInk + " != " + restoredInk + ", replay=" + replayInk);
+        field.presentation = new ComposerTextPresentation(0, 0, 0);
+        Bitmap suppressed = software();
+        require(different(original, suppressed) > 20,
+                "bounds animation did not move native suppression with text");
+        clearCapture();
+        capture.release();
+        field.setOffsetY(0);
+        original.recycle();
+        restored.recycle();
+        replayOnly.recycle();
+        suppressed.recycle();
         cases++;
     }
 
@@ -542,6 +657,12 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         require(nonTransparent(image) > 20 && field.getText().toString().equals("H"),
                 "removed text capture was not detached from Editable");
         image.eraseColor(Color.TRANSPARENT);
+        capture.draw(new Canvas(image), new ComposerTextLayers(new ComposerTextPresentation[] {
+                new ComposerTextPresentation(0, 0, 0),
+                new ComposerTextPresentation(0, 0, 1)
+        }));
+        require(nonTransparent(image) > 20, "removed layered replay ignored its second layer");
+        image.eraseColor(Color.TRANSPARENT);
         float pivotX = (capture.getRight() - capture.getLeft()) / 2;
         float pivotY = (capture.getBottom() - capture.getTop()) / 2;
         capture.draw(new Canvas(image), new ComposerTextPresentation(
@@ -768,6 +889,25 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         }
 
         return count;
+    }
+
+    private static Rect brightBounds(Bitmap image) {
+        Rect bounds = new Rect(image.getWidth(), image.getHeight(), 0, 0);
+
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int color = image.getPixel(x, y);
+
+                if (Color.red(color) > 128 || Color.green(color) > 128 || Color.blue(color) > 128) {
+                    bounds.left = Math.min(bounds.left, x);
+                    bounds.top = Math.min(bounds.top, y);
+                    bounds.right = Math.max(bounds.right, x + 1);
+                    bounds.bottom = Math.max(bounds.bottom, y + 1);
+                }
+            }
+        }
+
+        return bounds;
     }
 
     private static void compare(Bitmap first, Bitmap second, int tolerance) {

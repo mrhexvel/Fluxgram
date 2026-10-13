@@ -43,6 +43,8 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
     private final int height;
     private final int color;
     private final int baseline;
+    private final int fieldBaseline;
+    private final int line;
     private final int leftPadding;
     private final float textSize;
     private final Typeface typeface;
@@ -54,7 +56,7 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
     private boolean failed;
 
     private ComposerNativeTextCapture(EditTextCaption field, Layout layout, Picture picture, Rect ink,
-            ComposerTextCandidate candidate, String text) {
+            ComposerTextCandidate candidate, String text, int line, int baseline) {
         this.field = field;
         this.layout = layout;
         this.picture = picture;
@@ -66,7 +68,9 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         width = field.getWidth();
         height = field.getHeight();
         color = field.getCurrentTextColor();
-        baseline = field.getBaseline();
+        this.baseline = baseline;
+        fieldBaseline = field.getBaseline();
+        this.line = line;
         leftPadding = field.getCompoundPaddingLeft();
         textSize = field.getTextSize();
         typeface = field.getTypeface();
@@ -90,9 +94,15 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         if (layout == null || candidate == null || content == null || expectedText == null
                 || !TextUtils.equals(content, expectedText) || content.length() > MAX_TEXT_LENGTH
                 || candidate.start < 0 || candidate.start >= candidate.end || candidate.end > content.length()
-                || !plainStyle(field) || layout.getLineCount() != 1
-                || layout.getParagraphDirection(0) != Layout.DIR_LEFT_TO_RIGHT
-                || layout.getEllipsisCount(0) != 0 || layout.getLineEnd(0) != content.length()) {
+                || !plainStyle(field)) {
+            return null;
+        }
+
+        int line = layout.getLineForOffset(candidate.start);
+
+        if (layout.getLineForOffset(candidate.end - 1) != line
+                || layout.getParagraphDirection(line) != Layout.DIR_LEFT_TO_RIGHT
+                || layout.getEllipsisCount(line) != 0) {
             return null;
         }
 
@@ -107,8 +117,10 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         TextPaint paint = field.getPaint();
         float rangeStart = layout.getPrimaryHorizontal(candidate.start);
         float rangeEnd = layout.getPrimaryHorizontal(candidate.end);
-        float advance = paint.getRunAdvance(text, candidate.start, candidate.end, 0, text.length(), false,
-                candidate.end);
+        int contextStart = layout.getLineStart(line);
+        int contextEnd = layout.getLineEnd(line);
+        float advance = paint.getRunAdvance(text, candidate.start, candidate.end,
+                contextStart, contextEnd, false, candidate.end);
 
         if (rangeEnd <= rangeStart || Math.abs(rangeEnd - rangeStart - advance) > 0.25f
                 || Math.abs(advance - paint.measureText(text, candidate.start, candidate.end)) > 0.25f) {
@@ -118,16 +130,18 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         Rect bounds = new Rect();
         paint.getTextBounds(text, candidate.start, candidate.end, bounds);
 
-        if (bounds.isEmpty() || bounds.left < 0 || bounds.right > Math.ceil(advance) || bounds.bottom > 0) {
+        if (bounds.isEmpty() || bounds.left < 0 || bounds.right > Math.ceil(advance)) {
             return null;
         }
 
         int leftPadding = field.getCompoundPaddingLeft();
-        int baseline = field.getBaseline();
+        float originX = leftPadding - field.getScrollX();
+        float originY = field.getBaseline() - layout.getLineBaseline(0) - field.getScrollY();
+        int baseline = Math.round(originY + layout.getLineBaseline(line));
         Rect ink = new Rect(
-                (int) Math.floor(leftPadding + rangeStart + bounds.left),
+                (int) Math.floor(originX + rangeStart + bounds.left),
                 baseline + bounds.top,
-                (int) Math.ceil(leftPadding + rangeStart + bounds.right),
+                (int) Math.ceil(originX + rangeStart + bounds.right),
                 baseline + bounds.bottom);
 
         if (selectionStart == selectionEnd && selectionStart >= 0) {
@@ -155,20 +169,20 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         try {
             paint.setColor(field.getCurrentTextColor());
             recording.clipRect(0, 0, ink.width(), ink.height());
-            recording.translate(leftPadding - ink.left, baseline - layout.getLineBaseline(0) - ink.top);
+            recording.translate(originX - ink.left, originY - ink.top);
             layout.draw(recording);
         } finally {
             paint.set(originalPaint);
             picture.endRecording();
         }
 
-        return new ComposerNativeTextCapture(field, layout, picture, ink, candidate, text);
+        return new ComposerNativeTextCapture(field, layout, picture, ink, candidate, text, line, baseline);
     }
 
     static boolean plainStyle(EditTextCaption field) {
         TextPaint paint = field.getPaint();
 
-        if (field.getScrollX() != 0 || field.getScrollY() != 0 || field.getOffsetY() != 0
+        if (field.getScrollX() != 0 || field.getScrollY() != 0
                 || field.getTransformationMethod() != null
                 || field.getLayoutDirection() != View.LAYOUT_DIRECTION_LTR
                 || !TextUtils.isEmpty(field.getCaption()) || paint.getShader() != null
@@ -224,7 +238,7 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
 
     @Override
     public float getTop() {
-        return ink.top;
+        return ink.top + field.getOffsetY();
     }
 
     @Override
@@ -234,32 +248,33 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
 
     @Override
     public float getBottom() {
-        return ink.bottom;
+        return ink.bottom + field.getOffsetY();
     }
 
     @Override
     public float getBaseline() {
-        return baseline;
+        return baseline + field.getOffsetY();
     }
 
     @Override
     public boolean isValid() {
         return !failed && field.getLayout() == layout && field.getText().toString().equals(text)
                 && field.getWidth() == width && field.getHeight() == height
-                && field.getCurrentTextColor() == color && field.getBaseline() == baseline
+                && field.getCurrentTextColor() == color && field.getBaseline() == fieldBaseline
                 && field.getCompoundPaddingLeft() == leftPadding
                 && field.getTextSize() == textSize && field.getTypeface() == typeface
                 && field.getSelectionStart() == selectionStart && field.getSelectionEnd() == selectionEnd
                 && BaseInputConnection.getComposingSpanStart(field.getText()) == composingStart
                 && BaseInputConnection.getComposingSpanEnd(field.getText()) == composingEnd
-                && layout.getLineCount() == 1 && plainStyle(field);
+                && layout.getLineForOffset(start) == line
+                && layout.getLineForOffset(end - 1) == line && plainStyle(field);
     }
 
     boolean hasSameStateAs(ComposerNativeTextCapture other) {
         return !failed && other != null && field == other.field && layout == other.layout
                 && revision == other.revision && text.equals(other.text)
                 && width == other.width && height == other.height && color == other.color
-                && baseline == other.baseline && leftPadding == other.leftPadding
+                && fieldBaseline == other.fieldBaseline && leftPadding == other.leftPadding
                 && textSize == other.textSize && typeface == other.typeface
                 && selectionStart == other.selectionStart && selectionEnd == other.selectionEnd
                 && composingStart == other.composingStart && composingEnd == other.composingEnd;
@@ -314,7 +329,7 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         Throwable replayFailure = null;
 
         try {
-            canvas.translate(ink.left, ink.top);
+            canvas.translate(ink.left, ink.top + field.getOffsetY());
             applyTransform(canvas, presentation);
 
             if (presentation.alpha > 0) {
@@ -340,10 +355,13 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
     }
 
     void clipNative(Canvas canvas) {
+        float offsetY = field.getOffsetY();
+
         if (Build.VERSION.SDK_INT >= 26) {
-            canvas.clipOutRect(ink);
+            canvas.clipOutRect(ink.left, ink.top + offsetY, ink.right, ink.bottom + offsetY);
         } else {
-            canvas.clipRect(ink, Region.Op.DIFFERENCE);
+            canvas.clipRect(ink.left, ink.top + offsetY, ink.right, ink.bottom + offsetY,
+                    Region.Op.DIFFERENCE);
         }
     }
 
