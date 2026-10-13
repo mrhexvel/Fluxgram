@@ -50,6 +50,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
         this(HOME);
     }
 
+    public static FluxGramSettingsActivity plugins() {
+        return new FluxGramSettingsActivity(PLUGINS);
+    }
+
     private FluxGramSettingsActivity(int section) {
         this.section = section;
     }
@@ -143,11 +147,21 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
         PluginManager manager = PluginManager.getInstance();
         boolean systemEnabled = manager.isSystemEnabled();
+        int systemDescription;
+
+        if (manager.isRecoveryLatched()) {
+            systemDescription = R.string.FluxGramPluginsRecoveryDisabled;
+        } else if (manager.isRecoveryRestartRequired()) {
+            systemDescription = R.string.FluxGramPluginsRecoveryRestart;
+        } else {
+            systemDescription = systemEnabled
+                    ? R.string.FluxGramPluginsEnabled : R.string.FluxGramPluginsDisabled;
+        }
+
         FluxGramPluginCard systemCard = new FluxGramPluginCard(
                 getParentActivity(), getResourceProvider(), null,
                 LocaleController.getString(R.string.FluxGramPluginSystem),
-                LocaleController.getString(systemEnabled
-                        ? R.string.FluxGramPluginsEnabled : R.string.FluxGramPluginsDisabled),
+                LocaleController.getString(systemDescription),
                 null, systemEnabled, true,
                 () -> {
                     manager.setSystemEnabled(!manager.isSystemEnabled());
@@ -198,6 +212,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 if (plugin instanceof PythonPluginAdapter
                         && ((PythonPluginAdapter) plugin).getLoadError() != null) {
                     description += "\n\n" + LocaleController.getString(R.string.FluxGramPluginLoadFailed);
+                }
+
+                if (manager.isRecoveryPlugin(plugin.getId())) {
+                    description += "\n\n" + LocaleController.getString(
+                            R.string.FluxGramPluginCausedCrash);
                 }
 
                 if (incompatible) {

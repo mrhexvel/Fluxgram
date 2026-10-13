@@ -70,7 +70,7 @@ class PluginStorageTest(unittest.TestCase):
             adapter.index('"create_external_plugin"'),
         )
         self.assertLess(
-            external.index("PythonPluginAdapter.migrateStorage(installed);"),
+            external.index("PythonPluginAdapter.migrateStorage(installed)"),
             external.index("manager.register(adapter, false);"),
         )
         self.assertLess(

@@ -31,11 +31,15 @@ public interface SharedPreferences {
 
     boolean getBoolean(String key, boolean fallback);
 
+    String getString(String key, String fallback);
+
     Editor edit();
 
     interface Editor {
 
         Editor putBoolean(String key, boolean value);
+
+        Editor putString(String key, String value);
 
         Editor remove(String key);
 
@@ -98,10 +102,18 @@ public class RegistryCheck {
 
     static class Prefs implements SharedPreferences, SharedPreferences.Editor {
 
-        Map<String, Boolean> values = new HashMap<>();
+        Map<String, Object> values = new HashMap<>();
 
         public boolean getBoolean(String key, boolean fallback) {
-            return values.getOrDefault(key, fallback);
+            Object value = values.get(key);
+
+            return value instanceof Boolean ? (Boolean) value : fallback;
+        }
+
+        public String getString(String key, String fallback) {
+            Object value = values.get(key);
+
+            return value instanceof String ? (String) value : fallback;
         }
 
         public Editor edit() {
@@ -109,6 +121,12 @@ public class RegistryCheck {
         }
 
         public Editor putBoolean(String key, boolean value) {
+            values.put(key, value);
+
+            return this;
+        }
+
+        public Editor putString(String key, String value) {
             values.put(key, value);
 
             return this;
@@ -172,6 +190,14 @@ public class RegistryCheck {
 
     public static void main(String[] args) {
         Prefs prefs = new Prefs();
+
+        if (args[0].equals("recovery")) {
+            prefs.values.put("system.enabled", true);
+            prefs.values.put("enabled.example.test", true);
+            prefs.values.put("recovery.pending", true);
+            prefs.values.put("recovery.pending_plugin_id", "example.test");
+        }
+
         PluginManager manager = PluginManager.getInstance();
         manager.initialize(
                 new Context() {
@@ -240,6 +266,26 @@ public class RegistryCheck {
             check(!prefs.values.containsKey("enabled." + external.id));
             check(prefs.getBoolean("enabled." + other.id, false));
             check(prefs.getBoolean("system.enabled", false));
+        } else if (args[0].equals("recovery")) {
+            check(manager.isRecoveryLatched());
+            check(!manager.isSystemEnabled());
+            check(manager.isEnabled(external.id));
+            check(!external.active);
+            check(prefs.getBoolean("recovery.latched", false));
+            check(!prefs.getBoolean("recovery.pending", false));
+            check(manager.isRecoveryPlugin(external.id));
+            check(manager.hasRecoveryNotice());
+            check(manager.claimRecoveryNotice());
+            check(!manager.hasRecoveryNotice());
+
+            manager.setSystemEnabled(true);
+            check(manager.isSystemEnabled());
+            check(!manager.isRecoveryLatched());
+            check(manager.isRecoveryRestartRequired());
+            check(manager.isRecoveryPlugin(external.id));
+            check(!external.active);
+            manager.beforeSend(null);
+            check(external.calls == 0);
         }
     }
 }
@@ -254,7 +300,12 @@ public class RegistryCheck {
         folder = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins"
         files += [
             str(folder / name)
-            for name in ("Plugin.java", "PluginManager.java", "BeforeSendEvent.java")
+            for name in (
+                "Plugin.java",
+                "PluginCrashRecovery.java",
+                "PluginManager.java",
+                "BeforeSendEvent.java",
+            )
         ]
         subprocess.run(
             ["javac", "-d", str(root)] + files, check=True, capture_output=True
@@ -283,3 +334,6 @@ public class RegistryCheck {
 
     def test_clear_persisted_state_preserves_other_plugins_and_global_switch(self):
         self.run_case("clear_state")
+
+    def test_recovery_disables_master_and_requires_restart_before_callbacks(self):
+        self.run_case("recovery")

@@ -11269,6 +11269,14 @@
     <string name="FluxGramGeneralEmpty">There are no general settings yet.</string>
     <string name="FluxGramPluginsEnabled">Plugin system is enabled</string>
     <string name="FluxGramPluginsDisabled">Plugin system is disabled</string>
+    <string name="FluxGramPluginsRecoveryDisabled">Plugins were disabled after a plugin crash</string>
+    <string name="FluxGramPluginsRecoveryRestart">Restart FluxGram to load plugins</string>
+    <string name="FluxGramPluginRecoveryTitle">Plugins were disabled</string>
+    <string name="FluxGramPluginRecoveryMessage">%1$s caused the previous app crash. Plugins remain unloaded so you can safely review them.</string>
+    <string name="FluxGramPluginRecoveryReview">Review plugins</string>
+    <string name="FluxGramPluginRecoveryKeepDisabled">Keep plugins disabled</string>
+    <string name="FluxGramPluginRecoveryUnknown">An external plugin</string>
+    <string name="FluxGramPluginCausedCrash">Caused the previous app crash</string>
     <string name="FluxGramYourSettings">SETTINGS</string>
     <string name="FluxGramMakeItYours">Make FluxGram your own</string>
     <string name="FluxGramGeneralDescription">Client preferences</string>

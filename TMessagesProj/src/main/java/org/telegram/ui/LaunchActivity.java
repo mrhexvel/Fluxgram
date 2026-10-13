@@ -1485,6 +1485,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             } catch (Exception e) {
                 FileLog.e(e);
             }
+            FluxGramPluginRecoverySheet.maybeShow();
         };
         passcodeDialog.passcodeView.setDelegate(delegate);
         for (PasscodeView overlay : overlayPasscodeViews) {
@@ -6998,6 +6999,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     layersActionBarLayout.onResume();
                 }
             }
+            FluxGramPluginRecoverySheet.maybeShow();
         } else {
             actionBarLayout.dismissDialogs();
             if (AndroidUtilities.isTablet()) {

@@ -44,7 +44,8 @@ public final class PythonPluginAdapter implements Plugin {
     private final int descriptionResId;
     private final int iconResId;
     private final String version;
-    private String externalPath, externalName, externalDescription;
+    private volatile String externalPath;
+    private String externalName, externalDescription;
     private PluginManifest.JavaModule javaModule;
     private JavaPluginLoader javaLoader;
     private JavaPluginUiStop javaUiStop;
@@ -177,7 +178,12 @@ public final class PythonPluginAdapter implements Plugin {
                         new PythonPluginTaskQueue(MAILBOX_CAPACITY),
                         runnable -> new Thread(() -> {
                             workerThread = Thread.currentThread();
-                            runnable.run();
+
+                            if (isExternal()) {
+                                PluginCrashRecovery.runExternalWorker(id, runnable);
+                            } else {
+                                runnable.run();
+                            }
                         }, "FluxGramPlugin-" + id));
 
         executor.allowCoreThreadTimeOut(true);

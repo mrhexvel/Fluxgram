@@ -297,6 +297,14 @@
     <string name="FluxGramGeneralEmpty">В этом разделе пока нет настроек.</string>
     <string name="FluxGramPluginsEnabled">Система плагинов включена</string>
     <string name="FluxGramPluginsDisabled">Система плагинов выключена</string>
+    <string name="FluxGramPluginsRecoveryDisabled">Плагины отключены после сбоя плагина</string>
+    <string name="FluxGramPluginsRecoveryRestart">Перезапустите FluxGram для загрузки плагинов</string>
+    <string name="FluxGramPluginRecoveryTitle">Плагины отключены</string>
+    <string name="FluxGramPluginRecoveryMessage">%1$s вызвал предыдущий сбой приложения. Плагины не загружены, чтобы вы могли безопасно проверить их.</string>
+    <string name="FluxGramPluginRecoveryReview">Проверить плагины</string>
+    <string name="FluxGramPluginRecoveryKeepDisabled">Оставить плагины выключенными</string>
+    <string name="FluxGramPluginRecoveryUnknown">Внешний плагин</string>
+    <string name="FluxGramPluginCausedCrash">Вызвал предыдущий сбой приложения</string>
     <string name="FluxGramYourSettings">НАСТРОЙКИ</string>
     <string name="FluxGramMakeItYours">Настройте FluxGram под себя</string>
     <string name="FluxGramGeneralDescription">Параметры работы клиента</string>

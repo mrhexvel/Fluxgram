@@ -140,6 +140,14 @@ public final class ExternalPlugins {
                         Map<String, PluginPackageStore.Pending> operations = store.pending();
                         PluginManager manager = PluginManager.getInstance();
 
+                        if (manager.isRecoveryBlockingImports()) {
+                            pending = Collections.unmodifiableMap(operations);
+                            loadMetadataOnly(manager);
+                            changed();
+
+                            return;
+                        }
+
                         for (PluginPackageStore.Pending operation : operations.values()) {
                             if (operation.delete) {
                                 PluginStorage.clearPlugin(operation.id);
@@ -182,8 +190,11 @@ public final class ExternalPlugins {
                                     store.activatePendingUpdate(operation.id);
 
                             try {
-                                PythonPluginAdapter.migrateStorage(update);
+                                PluginCrashRecovery.runExternal(
+                                        operation.id,
+                                        () -> PythonPluginAdapter.migrateStorage(update));
                             } catch (Exception | LinkageError error) {
+                                PluginCrashRecovery.handled(error);
                                 FileLog.e(error);
                                 store.rollbackPending(operation.id);
 
@@ -217,8 +228,11 @@ public final class ExternalPlugins {
                                 PythonPluginAdapter adapter = new PythonPluginAdapter(installed);
 
                                 try {
-                                    PythonPluginAdapter.migrateStorage(installed);
+                                    PluginCrashRecovery.runExternal(
+                                            installed.manifest.id,
+                                            () -> PythonPluginAdapter.migrateStorage(installed));
                                 } catch (Exception | LinkageError error) {
+                                    PluginCrashRecovery.handled(error);
                                     FileLog.e(error);
                                     disableAfterMigrationFailure(
                                             manager,
@@ -340,6 +354,11 @@ public final class ExternalPlugins {
 
                         PluginManager manager = PluginManager.getInstance();
 
+                        if (manager.isRecoveryBlockingImports()) {
+                            throw new IOException(
+                                    "Restart FluxGram before installing or updating plugins");
+                        }
+
                         if (expectedVersion != null) {
                             boolean enabledBefore = manager.isEnabled(id);
                             store.scheduleUpdate(
@@ -362,8 +381,11 @@ public final class ExternalPlugins {
                             boolean migrated = true;
 
                             try {
-                                PythonPluginAdapter.migrateStorage(installed);
+                                PluginCrashRecovery.runExternal(
+                                        installed.manifest.id,
+                                        () -> PythonPluginAdapter.migrateStorage(installed));
                             } catch (Exception | LinkageError error) {
+                                PluginCrashRecovery.handled(error);
                                 migrated = false;
                                 disableAfterMigrationFailure(manager, id);
                                 adapter.setPreflightError(error);
@@ -421,6 +443,20 @@ public final class ExternalPlugins {
 
     private static void disableAfterMigrationFailure(PluginManager manager, String id) {
         manager.clearPersistedEnabledState(id);
+    }
+
+    private static void loadMetadataOnly(PluginManager manager) throws IOException {
+        LinkedHashMap<String, IncompatiblePlugin> unavailable = new LinkedHashMap<>();
+
+        for (PluginPackageStore.Installed installed : store.list()) {
+            if (installed.manifest.isCompatible()) {
+                manager.register(new PythonPluginAdapter(installed), false);
+            } else {
+                unavailable.put(installed.manifest.id, new IncompatiblePlugin(installed));
+            }
+        }
+
+        incompatible = Collections.unmodifiableMap(unavailable);
     }
 
     public static boolean isRemoving(String id) {

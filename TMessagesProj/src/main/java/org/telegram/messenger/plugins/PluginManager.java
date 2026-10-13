@@ -13,6 +13,8 @@ public final class PluginManager {
     private final LinkedHashMap<String, Entry> plugins = new LinkedHashMap<>();
     private SharedPreferences preferences;
     private volatile boolean systemEnabled;
+    private volatile boolean recoveryLatched;
+    private volatile boolean recoveryRestartRequired;
 
     private static final class Entry {
         final String id;
@@ -38,7 +40,8 @@ public final class PluginManager {
         }
 
         preferences = context.getSharedPreferences("fluxgram_plugins", Context.MODE_PRIVATE);
-        systemEnabled = preferences.getBoolean("system.enabled", false);
+        recoveryLatched = PluginCrashRecovery.consumePending(preferences);
+        systemEnabled = !recoveryLatched && preferences.getBoolean("system.enabled", false);
         PluginMessageEvents.initialize();
         PluginApplicationLifecycle.initialize();
     }
@@ -48,6 +51,23 @@ public final class PluginManager {
     }
 
     public synchronized void setSystemEnabled(boolean enabled) {
+        if (enabled && recoveryLatched) {
+            boolean saved = preferences.edit()
+                    .putBoolean("system.enabled", true)
+                    .remove(PluginCrashRecovery.LATCHED_KEY)
+                    .commit();
+
+            if (!saved) {
+                return;
+            }
+
+            systemEnabled = true;
+            recoveryLatched = false;
+            recoveryRestartRequired = true;
+
+            return;
+        }
+
         if (systemEnabled == enabled) {
             return;
         }
@@ -66,10 +86,50 @@ public final class PluginManager {
 
     private void notifyEnabledChanged(Entry entry) {
         try {
-            entry.plugin.onEnabledChanged(systemEnabled && entry.enabled);
+            entry.plugin.onEnabledChanged(isRuntimeEnabled() && entry.enabled);
         } catch (Exception e) {
             FileLog.e("FluxGram plugin state change failed: " + entry.id, e);
         }
+    }
+
+    public boolean isRecoveryLatched() {
+        return recoveryLatched;
+    }
+
+    public boolean isRecoveryRestartRequired() {
+        return recoveryRestartRequired;
+    }
+
+    public boolean isRecoveryBlockingImports() {
+        return recoveryLatched || recoveryRestartRequired;
+    }
+
+    public String getRecoveryPluginId() {
+        return isRecoveryBlockingImports()
+                ? preferences.getString(PluginCrashRecovery.PLUGIN_KEY, null) : null;
+    }
+
+    public boolean isRecoveryPlugin(String id) {
+        String recoveryPluginId = getRecoveryPluginId();
+
+        return recoveryPluginId != null && recoveryPluginId.equals(id);
+    }
+
+    public boolean hasRecoveryNotice() {
+        return recoveryLatched
+                && preferences.getBoolean(PluginCrashRecovery.NOTICE_KEY, false);
+    }
+
+    public synchronized boolean claimRecoveryNotice() {
+        if (!hasRecoveryNotice()) {
+            return false;
+        }
+
+        return preferences.edit().remove(PluginCrashRecovery.NOTICE_KEY).commit();
+    }
+
+    private boolean isRuntimeEnabled() {
+        return systemEnabled && !isRecoveryBlockingImports();
     }
 
     public synchronized void register(Plugin plugin) {
@@ -188,7 +248,7 @@ public final class PluginManager {
     }
 
     synchronized boolean hasMessageReceivedPlugins() {
-        if (!systemEnabled) {
+        if (!isRuntimeEnabled()) {
             return false;
         }
 
@@ -209,7 +269,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled
+            if (!isRuntimeEnabled()
                     || !entry.enabled
                     || !entry.plugin.hasMessageReceivedSubscribers()) {
                 continue;
@@ -224,7 +284,7 @@ public final class PluginManager {
     }
 
     synchronized boolean hasMessageEditedPlugins() {
-        if (!systemEnabled) {
+        if (!isRuntimeEnabled()) {
             return false;
         }
 
@@ -245,7 +305,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled
+            if (!isRuntimeEnabled()
                     || !entry.enabled
                     || !entry.plugin.hasMessageEditedSubscribers()) {
                 continue;
@@ -260,7 +320,7 @@ public final class PluginManager {
     }
 
     synchronized boolean hasMessageDeletedPlugins() {
-        if (!systemEnabled) {
+        if (!isRuntimeEnabled()) {
             return false;
         }
 
@@ -281,7 +341,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled
+            if (!isRuntimeEnabled()
                     || !entry.enabled
                     || !entry.plugin.hasMessageDeletedSubscribers()) {
                 continue;
@@ -296,7 +356,7 @@ public final class PluginManager {
     }
 
     synchronized boolean hasChatOpenedPlugins() {
-        if (!systemEnabled) {
+        if (!isRuntimeEnabled()) {
             return false;
         }
 
@@ -321,7 +381,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled
+            if (!isRuntimeEnabled()
                     || !entry.enabled
                     || !entry.plugin.hasChatOpenedSubscribers()) {
                 continue;
@@ -336,7 +396,7 @@ public final class PluginManager {
     }
 
     synchronized boolean hasChatClosedPlugins() {
-        if (!systemEnabled) {
+        if (!isRuntimeEnabled()) {
             return false;
         }
 
@@ -361,7 +421,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled
+            if (!isRuntimeEnabled()
                     || !entry.enabled
                     || !entry.plugin.hasChatClosedSubscribers()) {
                 continue;
@@ -376,7 +436,7 @@ public final class PluginManager {
     }
 
     synchronized boolean hasApplicationForegroundedPlugins() {
-        if (!systemEnabled) {
+        if (!isRuntimeEnabled()) {
             return false;
         }
 
@@ -401,7 +461,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled
+            if (!isRuntimeEnabled()
                     || !entry.enabled
                     || !entry.plugin.hasApplicationForegroundedSubscribers()) {
                 continue;
@@ -416,7 +476,7 @@ public final class PluginManager {
     }
 
     synchronized boolean hasApplicationBackgroundedPlugins() {
-        if (!systemEnabled) {
+        if (!isRuntimeEnabled()) {
             return false;
         }
 
@@ -441,7 +501,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled
+            if (!isRuntimeEnabled()
                     || !entry.enabled
                     || !entry.plugin.hasApplicationBackgroundedSubscribers()) {
                 continue;
@@ -463,7 +523,7 @@ public final class PluginManager {
         }
 
         for (Entry entry : snapshot) {
-            if (!systemEnabled || !entry.enabled) {
+            if (!isRuntimeEnabled() || !entry.enabled) {
                 continue;
             }
 
