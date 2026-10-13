@@ -94,8 +94,15 @@ class ComposerEffectsTest(unittest.TestCase):
                           "removeOnPreDrawListener", "onBecameBackground", "onViewDetachedFromWindow",
                            "getClientUserId() == ownerId", "selectedAccount == account",
                            "field.getParent()", "sendTransitionDeadline", "ComposerExpandedBounds.MAX_OUTSET_DP",
-                           "chatHost.indexOfChild", "removeExpandedLayer"):
+                           "chatHost.indexOfChild", "removeExpandedLayer", "View layer = expandedLayer",
+                           "AndroidUtilities.runOnUIThread", "((ViewGroup) parent).removeView(layer)"):
             self.assertIn(required, controller)
+
+        remove_expanded = controller.split("private void removeExpandedLayer()", 1)[1].split(
+            "private void removeOverlay()", 1
+        )[0]
+        self.assertLess(remove_expanded.index("expandedLayer = null"),
+                        remove_expanded.index("AndroidUtilities.runOnUIThread"))
 
         self.assertIn("chatInputViewsContainer, currentAccount", chat)
 

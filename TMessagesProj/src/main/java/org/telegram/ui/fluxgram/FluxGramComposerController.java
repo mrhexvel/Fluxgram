@@ -19,6 +19,7 @@ import android.view.ViewTreeObserver;
 import android.view.inputmethod.BaseInputConnection;
 import android.widget.EditText;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.UserConfig;
@@ -382,15 +383,20 @@ public final class FluxGramComposerController implements TextWatcher,
     }
 
     private void removeExpandedLayer() {
-        if (expandedLayer != null) {
-            ViewParent parent = expandedLayer.getParent();
+        View layer = expandedLayer;
+        expandedLayer = null;
+
+        if (layer == null) {
+            return;
+        }
+
+        AndroidUtilities.runOnUIThread(() -> {
+            ViewParent parent = layer.getParent();
 
             if (parent instanceof ViewGroup) {
-                ((ViewGroup) parent).removeView(expandedLayer);
+                ((ViewGroup) parent).removeView(layer);
             }
-
-            expandedLayer = null;
-        }
+        });
     }
 
     private void removeOverlay() {
