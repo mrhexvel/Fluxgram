@@ -155,6 +155,19 @@ class ComposerEffectsTest(unittest.TestCase):
         self.assertLess(drain.index("javaLoader.settingChanged"), drain.index("dispatch_setting_changed"))
         self.assertNotIn("refreshPreview", drain)
 
+    def test_composer_cluster_capture_reuses_host_adapter(self):
+        controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
+        capture = (JAVA / "ui/fluxgram/ComposerNativeTextClusterCapture.java").read_text()
+
+        self.assertIn("PluginComposerRegistry.TextClusterCapture,", capture)
+        self.assertIn("ComposerInputRendererHostSurface.TextClusterCapture", capture)
+        self.assertIn("this::captureTextClusters", controller)
+        self.assertNotIn("captureRendererTextClusters", controller)
+        self.assertNotIn("new ComposerInputRendererHostSurface.TextClusterCapture", controller)
+        self.assertNotIn("pendingLayoutChange", controller)
+        self.assertIn("rendererSurface.draw(canvas, legacyDraw)", controller)
+        self.assertIn("PluginComposerRegistry.attach(host)", controller)
+
     def test_composer_registration_uses_ui_cleanup_scope(self):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         for method in ("register(", "registerText(", "registerCursor(",

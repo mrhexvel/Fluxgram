@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.Picture;
 import android.util.Log;
 
+import org.telegram.messenger.plugins.ComposerInputRendererHostSurface;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
 import org.telegram.messenger.plugins.api.ComposerTextCapture;
@@ -15,7 +16,8 @@ import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.function.Consumer;
 
-public final class ComposerNativeTextClusterCapture implements PluginComposerRegistry.TextClusterCapture {
+public final class ComposerNativeTextClusterCapture implements PluginComposerRegistry.TextClusterCapture,
+        ComposerInputRendererHostSurface.TextClusterCapture {
     private static final int MAX_SOURCE_AREA = 256 * 256;
     private static final int MAX_PADDED_AREA = 256 * 1024;
 

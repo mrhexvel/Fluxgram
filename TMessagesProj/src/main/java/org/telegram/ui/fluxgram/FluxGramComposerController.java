@@ -35,8 +35,6 @@ import org.telegram.messenger.plugins.api.ComposerHapticFeedback;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
-import org.telegram.messenger.plugins.api.ComposerTextCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
 import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextInsertion;
@@ -85,7 +83,6 @@ public final class FluxGramComposerController implements TextWatcher,
     private String pendingLayoutAfterText;
     private PluginComposerRegistry.OverlayTextCapture pendingRemovedCapture;
     private ComposerRemovedTextClusterCapture pendingRendererRemovedCapture;
-    private boolean pendingLayoutChange;
     private boolean pendingLayoutCoalesced;
     private long pendingLayoutDeadline;
     private final ComposerNativeCursorCapture cursorCapture = new ComposerNativeCursorCapture();
@@ -360,12 +357,7 @@ public final class FluxGramComposerController implements TextWatcher,
                 @Override
                 public PluginComposerRegistry.TextClusterCapture captureTextClusters(
                         ComposerTextClusterSelection selection, String expectedText) {
-                    if (!(field instanceof EditTextCaption)) {
-                        return null;
-                    }
-
-                    return ComposerNativeTextClusterCapture.capture(
-                            (EditTextCaption) field, selection, expectedText);
+                    return FluxGramComposerController.this.captureTextClusters(selection, expectedText);
                 }
 
                 @Override
@@ -395,7 +387,7 @@ public final class FluxGramComposerController implements TextWatcher,
                                 if (expandedLayer != null) {
                                     expandedLayer.invalidate();
                                 }
-                            }, this::captureRendererTextClusters);
+                            }, this::captureTextClusters);
                 }
 
                 nextSurface = PluginComposerRegistry.attach(host);
@@ -917,8 +909,7 @@ public final class FluxGramComposerController implements TextWatcher,
                 && text != null && text.length() <= ComposerInputChanges.MAX_TEXT_LENGTH) {
             pendingLayoutDeadline = SystemClock.uptimeMillis() + 500;
 
-            if (!pendingLayoutChange) {
-                pendingLayoutChange = true;
+            if (pendingLayoutBeforeText == null) {
                 pendingLayoutBeforeText = text.toString();
 
                 if (rendererLayout || surface != null && surface.hasTextLayoutEffect()) {
@@ -1181,51 +1172,14 @@ public final class FluxGramComposerController implements TextWatcher,
         selectionCapture = null;
     }
 
-    private ComposerInputRendererHostSurface.TextClusterCapture captureRendererTextClusters(
+    private ComposerNativeTextClusterCapture captureTextClusters(
             ComposerTextClusterSelection selection, String expectedText) {
         if (!(field instanceof EditTextCaption)) {
             return null;
         }
 
-        PluginComposerRegistry.TextClusterCapture capture = ComposerNativeTextClusterCapture.capture(
+        return ComposerNativeTextClusterCapture.capture(
                 (EditTextCaption) field, selection, expectedText);
-
-        if (capture == null) {
-            return null;
-        }
-
-        return new ComposerInputRendererHostSurface.TextClusterCapture() {
-            @Override
-            public long getRevision() {
-                return capture.getRevision();
-            }
-
-            @Override
-            public int getCount() {
-                return capture.getCount();
-            }
-
-            @Override
-            public ComposerTextCapture getCapture(int index) {
-                return capture.getCapture(index);
-            }
-
-            @Override
-            public boolean isValid() {
-                return capture.isValid();
-            }
-
-            @Override
-            public void draw(Canvas canvas, Consumer<Canvas> nativeDraw,
-                    ComposerTextClusterPresentation presentation) {
-                capture.draw(canvas, nativeDraw, presentation);
-            }
-
-            @Override
-            public void release() {
-                capture.release();
-            }
-        };
     }
 
     private void clearPendingLayout() {
@@ -1239,7 +1193,6 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         pendingRendererRemovedCapture = null;
-        pendingLayoutChange = false;
         pendingLayoutCoalesced = false;
         pendingLayoutDeadline = 0;
     }
