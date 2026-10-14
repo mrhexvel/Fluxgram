@@ -64,6 +64,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         sources = [
             *sorted((SOURCE / "api").glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+            ROOT / "tests/java/composer_stubs/android/os/Looper.java",
             ROOT / "tests/java/e5_stubs/android/graphics/Picture.java",
             ROOT / "tests/java/e5_stubs/android/view/View.java",
             ROOT / "tests/java/e5_stubs/org/telegram/messenger/FileLog.java",

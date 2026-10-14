@@ -1,9 +1,13 @@
 package org.telegram.messenger.plugins;
 
 import android.graphics.Canvas;
-import android.view.View;
 
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
+import org.telegram.messenger.plugins.api.ComposerGeometry;
+import org.telegram.messenger.plugins.api.ComposerInput;
+import org.telegram.messenger.plugins.api.ComposerSendEvent;
+import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 
@@ -12,10 +16,24 @@ import java.util.function.BooleanSupplier;
 
 public final class ComposerInputRendererExtensions {
     public static final String EXTENSION_ID = "ui.chat.composer.input.native_draw";
+    public static final int CAPABILITY_INPUT = 1;
+    public static final int CAPABILITY_TEXT_LAYOUT = 1 << 1;
+    public static final int CAPABILITY_SEND = 1 << 2;
+    public static final int CAPABILITY_EXPANDED_DRAW = 1 << 3;
 
-    private static final HostExtensionDescriptor<Frame, Void> DESCRIPTOR =
+    static final int INVOCATION_INITIALIZE = 0;
+    static final int INVOCATION_INPUT = 1;
+    static final int INVOCATION_TEXT_LAYOUT = 2;
+    static final int INVOCATION_SEND = 3;
+    static final int INVOCATION_FRAME = 4;
+    static final int INVOCATION_DRAW = 5;
+    static final int INVOCATION_EXPANDED_DRAW = 6;
+
+    private static final int ALL_CAPABILITIES = CAPABILITY_INPUT | CAPABILITY_TEXT_LAYOUT
+            | CAPABILITY_SEND | CAPABILITY_EXPANDED_DRAW;
+    private static final HostExtensionDescriptor<Object, Void> DESCRIPTOR =
             new HostExtensionDescriptor<>(
-                    EXTENSION_ID, 1, HostExtensionDescriptor.Mode.REPLACEMENT,
+                    EXTENSION_ID, 2, HostExtensionDescriptor.Mode.REPLACEMENT,
                     2_000_000L, 3, 0);
     private static final HostExtensionRegistry REGISTRY =
             HostExtensionAttribution.create(FileLog::e);
@@ -42,37 +60,78 @@ public final class ComposerInputRendererExtensions {
         AutoCloseable registration = REGISTRY.registerReplacement(
                 pluginId, generation, active, DESCRIPTOR,
                 new HostExtensionRegistrationSpec(pluginId + ".composer_input_renderer", 0),
-                () -> {
-                    Renderer renderer = factory.create();
+                () -> new HostExtensionReplacement<Object>() {
+                    private Renderer renderer;
 
-                    if (renderer == null) {
-                        throw new IllegalStateException("Composer input renderer factory returned null");
+                    @Override
+                    public boolean replace(Object input) throws Exception {
+                        ComposerInputRendererHostSurface.Invocation invocation =
+                                (ComposerInputRendererHostSurface.Invocation) input;
+
+                        if (renderer == null) {
+                            renderer = factory.create(invocation.surface);
+
+                            if (renderer == null) {
+                                throw new IllegalStateException(
+                                        "Composer input renderer factory returned null");
+                            }
+
+                            int capabilities = renderer.getCapabilities();
+
+                            if ((capabilities & ~ALL_CAPABILITIES) != 0) {
+                                throw new IllegalArgumentException(
+                                        "Unknown composer input renderer capability");
+                            }
+
+                            invocation.surface.setCapabilities(capabilities);
+                        }
+
+                        switch (invocation.type) {
+                            case INVOCATION_INITIALIZE:
+                                return false;
+                            case INVOCATION_INPUT:
+                                renderer.onInput((ComposerInput) invocation.value);
+                                return false;
+                            case INVOCATION_TEXT_LAYOUT:
+                                renderer.onTextLayoutChanged(
+                                        (ComposerTextLayoutChange) invocation.value);
+                                return false;
+                            case INVOCATION_SEND:
+                                renderer.onSend((ComposerSendEvent) invocation.value);
+                                return false;
+                            case INVOCATION_FRAME:
+                                return renderer.onFrame(invocation.frameTimeNanos);
+                            case INVOCATION_DRAW:
+                                return renderer.draw((Frame) invocation) == Result.COMMIT;
+                            case INVOCATION_EXPANDED_DRAW:
+                                renderer.drawExpanded((ExpandedFrame) invocation);
+                                return false;
+                            default:
+                                throw new IllegalArgumentException(
+                                        "Unknown composer input renderer invocation");
+                        }
                     }
 
-                    return new HostExtensionReplacement<Frame>() {
-                        @Override
-                        public boolean replace(Frame input) throws Exception {
-                            return renderer.draw(input) == Result.COMMIT;
-                        }
-
-                        @Override
-                        public void close() throws Exception {
+                    @Override
+                    public void close() throws Exception {
+                        if (renderer != null) {
                             renderer.close();
+                            renderer = null;
                         }
-                    };
+                    }
                 });
-        invalidateSurfaces();
+        refreshSurfaces();
 
         return () -> {
             try {
                 registration.close();
             } finally {
-                invalidateSurfaces();
+                refreshSurfaces();
             }
         };
     }
 
-    static HostExtensionRegistry.Endpoint<Frame, Void> openEndpoint() {
+    static HostExtensionRegistry.Endpoint<Object, Void> openEndpoint() {
         return REGISTRY.openEndpoint(DESCRIPTOR);
     }
 
@@ -88,7 +147,7 @@ public final class ComposerInputRendererExtensions {
         FileLog.e(error);
     }
 
-    private static void invalidateSurfaces() {
+    private static void refreshSurfaces() {
         ArrayList<ComposerInputRendererHostSurface> snapshot;
 
         synchronized (ComposerInputRendererExtensions.class) {
@@ -96,7 +155,7 @@ public final class ComposerInputRendererExtensions {
         }
 
         for (ComposerInputRendererHostSurface surface : snapshot) {
-            surface.invalidate();
+            surface.refreshRegistration();
         }
     }
 
@@ -106,11 +165,45 @@ public final class ComposerInputRendererExtensions {
     }
 
     public interface Factory {
-        Renderer create() throws Exception;
+        Renderer create(Surface surface) throws Exception;
+    }
+
+    public interface Surface {
+        int getAccount();
+
+        long getOwnerId();
+
+        long getDialogId();
+
+        ComposerGeometry getGeometry();
+
+        boolean isActive();
+
+        void requestFrame();
     }
 
     public interface Renderer extends AutoCloseable {
+        default int getCapabilities() {
+            return 0;
+        }
+
+        default void onInput(ComposerInput input) throws Exception {
+        }
+
+        default void onTextLayoutChanged(ComposerTextLayoutChange change) throws Exception {
+        }
+
+        default void onSend(ComposerSendEvent event) throws Exception {
+        }
+
+        default boolean onFrame(long frameTimeNanos) throws Exception {
+            return false;
+        }
+
         Result draw(Frame frame) throws Exception;
+
+        default void drawExpanded(ExpandedFrame frame) throws Exception {
+        }
 
         @Override
         default void close() throws Exception {
@@ -118,14 +211,22 @@ public final class ComposerInputRendererExtensions {
     }
 
     public interface Frame {
-        View getView();
-
         Canvas getCanvas();
+
+        ComposerGeometry getGeometry();
 
         int getWidth();
 
         int getHeight();
 
         void drawNative();
+    }
+
+    public interface ExpandedFrame {
+        Canvas getCanvas();
+
+        ComposerGeometry getGeometry();
+
+        ComposerExpandedBounds getBounds();
     }
 }

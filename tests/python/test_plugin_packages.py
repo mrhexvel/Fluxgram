@@ -195,7 +195,7 @@ class PluginPackagesTest(unittest.TestCase):
         fields = self.java_fields(data)
         fields["schema_version"] = 5
         fields["java_module"]["host_fingerprint"] = (
-            "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d"
+            "e00a486e8d50a882bf33ad91e62b558eb47e9b0b529ae2b504843fad7f863cb6"
         )
         self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), True)
 
