@@ -369,7 +369,6 @@ public final class PluginComposerRegistry {
         private int hapticCount;
         private int nextDraw;
         private int nextExpandedDraw;
-        private boolean drawingPresentedText;
 
         private Surface(Host host, String pluginId, boolean preview) {
             this.host = host;
@@ -500,15 +499,9 @@ public final class PluginComposerRegistry {
 
             for (Binding binding : snapshot) {
                 if (binding.registration.text) {
-                    drawingPresentedText = true;
-
-                    try {
-                        if (binding.drawText(canvas, nativeDraw)) {
-                            drawn = true;
-                            break;
-                        }
-                    } finally {
-                        drawingPresentedText = false;
+                    if (binding.drawText(canvas, nativeDraw)) {
+                        drawn = true;
+                        break;
                     }
                 }
             }
@@ -544,11 +537,6 @@ public final class PluginComposerRegistry {
 
         public void drawCursor(Canvas canvas, ComposerCursorSnapshot cursor, Consumer<Canvas> nativeDraw) {
             requireUi();
-
-            if (drawingPresentedText) {
-                nativeDraw.accept(canvas);
-                return;
-            }
 
             for (Binding binding : snapshot) {
                 if (binding.registration.cursor && binding.drawCursor(canvas, cursor, nativeDraw)) {

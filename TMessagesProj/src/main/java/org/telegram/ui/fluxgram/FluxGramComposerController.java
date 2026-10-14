@@ -23,6 +23,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.plugins.PluginManagedUi;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
@@ -59,6 +60,10 @@ public final class FluxGramComposerController implements TextWatcher,
     private final Theme.ResourcesProvider colors;
     private final ForegroundDetector foreground;
     private final Drawable overlay;
+    private final PluginManagedUi.Scope activityScope;
+    private final PluginManagedUi.Scope fragmentScope;
+    private PluginManagedUi.Scope viewScope;
+    private PluginManagedUi.Scope surfaceScope;
     private View overlayHost;
     private View expandedLayer;
     private PluginComposerRegistry.Surface surface;
@@ -84,6 +89,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private int cursorOffset = -1;
     private int cursorLine = -1;
     private float cursorBaseline = Float.NaN;
+    private float cursorContentOffsetY = Float.NaN;
     private boolean cursorRtl;
     private ComposerSelectionCapture selectionCapture;
     private long selectionRevision;
@@ -92,6 +98,11 @@ public final class FluxGramComposerController implements TextWatcher,
     private final int[] sendLocation = new int[2];
     private final int[] expandedLocation = new int[2];
     private long sendTransitionDeadline;
+    private boolean destroyCleanupScheduled;
+    private boolean destroyCleanupComplete;
+    private long destroyCleanupDelay = 16;
+    private boolean surfaceCleanupScheduled;
+    private long surfaceCleanupDelay = 16;
 
     public FluxGramComposerController(EditText field, ChatInputViewsContainer expandedHost,
             int account, long dialogId,
@@ -111,6 +122,10 @@ public final class FluxGramComposerController implements TextWatcher,
         this.eligible = eligible;
         this.colors = colors;
         foreground = ForegroundDetector.getInstance();
+        activityScope = PluginManagedUi.openActivity(
+                account, ownerId, PluginManagedUi.nextIdentity(), this::identityAvailable);
+        fragmentScope = activityScope.openFragment(
+                PluginManagedUi.nextIdentity(), () -> !destroyed);
         overlay = new Drawable() {
             @Override
             public void draw(Canvas canvas) {
@@ -140,22 +155,44 @@ public final class FluxGramComposerController implements TextWatcher,
                 return PixelFormat.TRANSLUCENT;
             }
         };
-        field.addOnAttachStateChangeListener(this);
-        field.addTextChangedListener(this);
+        boolean initialized = false;
 
-        if (foreground != null) {
-            foreground.addListener(this);
-        }
+        try {
+            fragmentScope.register(() -> field.removeOnAttachStateChangeListener(this));
+            field.addOnAttachStateChangeListener(this);
+            fragmentScope.register(() -> field.removeTextChangedListener(this));
+            field.addTextChangedListener(this);
 
-        if (field.isAttachedToWindow()) {
-            onViewAttachedToWindow(field);
+            if (foreground != null) {
+                activityScope.register(() -> foreground.removeListener(this));
+                foreground.addListener(this);
+            }
+
+            if (field.isAttachedToWindow()) {
+                onViewAttachedToWindow(field);
+            }
+
+            initialized = true;
+        } finally {
+            if (!initialized) {
+                try {
+                    activityScope.close();
+                } catch (Exception | LinkageError | AssertionError error) {
+                    FileLog.e(error);
+                    new ScopeCleanupRetry(activityScope).schedule();
+                }
+            }
         }
     }
 
+    private boolean identityAvailable() {
+        return !destroyed && ownerId > 0
+                && UserConfig.getInstance(account).getClientUserId() == ownerId;
+    }
+
     private boolean available() {
-        return !destroyed && eligible.getAsBoolean()
-                && ownerId > 0 && UserConfig.selectedAccount == account
-                && UserConfig.getInstance(account).getClientUserId() == ownerId
+        return identityAvailable() && eligible.getAsBoolean()
+                && UserConfig.selectedAccount == account
                 && field.isAttachedToWindow() && field.isShown() && field.isEnabled()
                 && field.hasFocus() && field.hasWindowFocus()
                 && (field.getAlpha() > 0 || SystemClock.uptimeMillis() <= sendTransitionDeadline)
@@ -167,8 +204,8 @@ public final class FluxGramComposerController implements TextWatcher,
 
     public void refresh() {
         if (surface != null && surface.isClosed()) {
-            removeOverlay();
             surface = null;
+            closeSurfaceScope();
         }
 
         if (!available()) {
@@ -211,6 +248,19 @@ public final class FluxGramComposerController implements TextWatcher,
         }
 
         if (surface == null) {
+            if (surfaceScope != null) {
+                closeSurfaceScope();
+
+                if (surfaceScope != null) {
+                    return;
+                }
+            }
+
+            if (viewScope == null || !viewScope.isActive()) {
+                hide();
+                return;
+            }
+
             PluginComposerRegistry.Host host = new PluginComposerRegistry.Host() {
                 @Override
                 public int account() {
@@ -255,6 +305,7 @@ public final class FluxGramComposerController implements TextWatcher,
                 @Override
                 public void invalidateCursor() {
                     field.invalidate();
+                    invalidate();
                 }
 
                 @Override
@@ -321,19 +372,70 @@ public final class FluxGramComposerController implements TextWatcher,
                 @Override
                 public void drawCursor(Canvas canvas, Consumer<Canvas> nativeDraw,
                         ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation) {
-                    cursorCapture.draw(canvas, nativeDraw, snapshot, presentation);
+                    cursorCapture.draw(canvas, nativeDraw, snapshot, presentation, cursorContentOffsetY);
                 }
             };
-            surface = previewPluginId == null
-                    ? PluginComposerRegistry.attach(host)
-                    : PluginComposerRegistry.attachPreview(host, previewPluginId);
+            PluginManagedUi.Scope nextScope = null;
+            PluginComposerRegistry.Surface nextSurface = null;
+            boolean surfaceManaged = false;
 
-            if (surface != null) {
+            try {
+                nextScope = viewScope.openSurface(
+                        PluginManagedUi.nextIdentity(), this::available);
+                nextSurface = previewPluginId == null
+                        ? PluginComposerRegistry.attach(host)
+                        : PluginComposerRegistry.attachPreview(host, previewPluginId);
+
+                if (nextSurface == null) {
+                    try {
+                        nextScope.close();
+                    } catch (Exception | LinkageError | AssertionError cleanupError) {
+                        surfaceScope = nextScope;
+                        scheduleSurfaceCleanup();
+                        FileLog.e(cleanupError);
+                    }
+
+                    return;
+                }
+
+                nextScope.register(nextSurface);
+                surfaceManaged = true;
+                nextScope.register(this::removeOverlay);
+                nextScope.register(this::removeExpandedLayer);
+                surfaceScope = nextScope;
+                surface = nextSurface;
                 overlayHost.getOverlay().add(overlay);
+            } catch (RuntimeException | LinkageError | AssertionError error) {
+                surface = null;
+                surfaceScope = null;
+
+                if (nextScope != null) {
+                    try {
+                        nextScope.close();
+                    } catch (Exception | LinkageError | AssertionError cleanupError) {
+                        error.addSuppressed(cleanupError);
+                        surfaceScope = nextScope;
+                        scheduleSurfaceCleanup();
+                    }
+                }
+
+                if (nextSurface != null && !surfaceManaged && !nextSurface.isClosed()) {
+                    nextSurface.close();
+                }
+
+                removeOverlay();
+                removeExpandedLayer();
+                FileLog.e(error);
+                return;
             }
         }
 
-        refreshExpandedLayer();
+        try {
+            refreshExpandedLayer();
+        } catch (RuntimeException | LinkageError | AssertionError error) {
+            hide();
+            FileLog.e(error);
+        }
     }
 
     private void refreshExpandedLayer() {
@@ -426,14 +528,16 @@ public final class FluxGramComposerController implements TextWatcher,
     }
 
     private void hide() {
-        if (surface != null) {
-            PluginComposerRegistry.Surface previous = surface;
-            surface = null;
-            removeOverlay();
+        PluginComposerRegistry.Surface previous = surface;
+        surface = null;
+        closeSurfaceScope();
+
+        if (previous != null && surfaceScope == null && !previous.isClosed()) {
             previous.close();
         }
 
         sendTransitionDeadline = 0;
+        removeOverlay();
         removeExpandedLayer();
 
         inputChanges.reset();
@@ -468,11 +572,15 @@ public final class FluxGramComposerController implements TextWatcher,
             return;
         }
 
+        float contentOffsetY = source.getOffsetY() - source.getScrollY();
+
         if (cursorOffset != offset || cursorLine != line || cursorBaseline != baseline
+                || cursorContentOffsetY != contentOffsetY
                 || cursorRtl != rtl || !cursorBounds.equals(bounds)) {
             cursorOffset = offset;
             cursorLine = line;
             cursorBaseline = baseline;
+            cursorContentOffsetY = contentOffsetY;
             cursorRtl = rtl;
             cursorBounds.set(bounds);
             cursorRevision++;
@@ -481,7 +589,9 @@ public final class FluxGramComposerController implements TextWatcher,
 
         surface.drawCursor(canvas, new ComposerCursorSnapshot(
                 cursorRevision, offset, line,
-                bounds.left, bounds.top, bounds.right, bounds.bottom, baseline, rtl), nativeDraw);
+                bounds.left, bounds.top + contentOffsetY,
+                bounds.right, bounds.bottom + contentOffsetY,
+                baseline + contentOffsetY, rtl), nativeDraw);
     }
 
     public void selectionChanged(EditTextCaption source, int start, int end) {
@@ -528,14 +638,44 @@ public final class FluxGramComposerController implements TextWatcher,
 
     public void destroy() {
         destroyed = true;
-        hide();
-        removeObserver();
-        field.removeTextChangedListener(this);
-        field.removeOnAttachStateChangeListener(this);
+        surface = null;
+        finishDestroyCleanup();
+    }
 
-        if (foreground != null) {
-            foreground.removeListener(this);
+    private void finishDestroyCleanup() {
+        if (destroyCleanupComplete) {
+            return;
         }
+
+        try {
+            activityScope.close();
+        } catch (Exception | LinkageError | AssertionError error) {
+            FileLog.e(error);
+
+            if (!destroyCleanupScheduled) {
+                destroyCleanupScheduled = true;
+                long delay = destroyCleanupDelay;
+                destroyCleanupDelay = Math.min(30_000, destroyCleanupDelay * 2);
+                AndroidUtilities.runOnUIThread(() -> {
+                    destroyCleanupScheduled = false;
+                    finishDestroyCleanup();
+                }, delay);
+            }
+
+            return;
+        }
+
+        destroyCleanupComplete = true;
+        viewScope = null;
+        surfaceScope = null;
+
+        removeOverlay();
+        removeExpandedLayer();
+        inputChanges.reset();
+        beforeText = null;
+        clearPendingLayout();
+        cursorCapture.release();
+        clearSelectionCapture();
     }
 
     private void removeObserver() {
@@ -546,14 +686,87 @@ public final class FluxGramComposerController implements TextWatcher,
         observer = null;
     }
 
-    @Override
-    public void onViewAttachedToWindow(View view) {
-        if (destroyed) {
+    private void closeSurfaceScope() {
+        if (surfaceCleanupScheduled) {
             return;
         }
 
-        removeObserver();
+        PluginManagedUi.Scope previous = surfaceScope;
+        surfaceScope = null;
+
+        if (previous == null) {
+            return;
+        }
+
+        try {
+            previous.close();
+            surfaceCleanupDelay = 16;
+        } catch (Exception | LinkageError | AssertionError error) {
+            surfaceScope = previous;
+            FileLog.e(error);
+            scheduleSurfaceCleanup();
+        }
+    }
+
+    private void scheduleSurfaceCleanup() {
+        if (surfaceCleanupScheduled) {
+            return;
+        }
+
+        surfaceCleanupScheduled = true;
+        long delay = surfaceCleanupDelay;
+        surfaceCleanupDelay = Math.min(30_000, surfaceCleanupDelay * 2);
+        AndroidUtilities.runOnUIThread(() -> {
+            surfaceCleanupScheduled = false;
+            closeSurfaceScope();
+        }, delay);
+    }
+
+    private void closeViewScope() {
+        PluginManagedUi.Scope previous = viewScope;
+        viewScope = null;
+
+        if (previous == null) {
+            removeObserver();
+            return;
+        }
+
+        try {
+            previous.close();
+        } catch (Exception | LinkageError | AssertionError error) {
+            viewScope = previous;
+            FileLog.e(error);
+        }
+    }
+
+    @Override
+    public void onViewAttachedToWindow(View view) {
+        if (destroyed || !activityScope.isActive() || !fragmentScope.isActive()) {
+            return;
+        }
+
+        hide();
+        closeViewScope();
+
+        if (viewScope != null) {
+            return;
+        }
+
+        viewScope = fragmentScope.openView(
+                PluginManagedUi.nextIdentity(), () -> identityAvailable()
+                        && field.isAttachedToWindow()
+                        && foreground != null && foreground.isForeground());
         observer = field.getViewTreeObserver();
+        ViewTreeObserver attachedObserver = observer;
+        viewScope.register(() -> {
+            if (attachedObserver.isAlive()) {
+                attachedObserver.removeOnPreDrawListener(this);
+            }
+
+            if (observer == attachedObserver) {
+                observer = null;
+            }
+        });
         observer.addOnPreDrawListener(this);
         refresh();
     }
@@ -561,7 +774,7 @@ public final class FluxGramComposerController implements TextWatcher,
     @Override
     public void onViewDetachedFromWindow(View view) {
         hide();
-        removeObserver();
+        closeViewScope();
     }
 
     @Override
@@ -585,6 +798,30 @@ public final class FluxGramComposerController implements TextWatcher,
     @Override
     public void onBecameBackground() {
         hide();
+    }
+
+    private static final class ScopeCleanupRetry implements Runnable {
+        private final PluginManagedUi.Scope scope;
+        private long delay = 16;
+
+        ScopeCleanupRetry(PluginManagedUi.Scope scope) {
+            this.scope = scope;
+        }
+
+        void schedule() {
+            AndroidUtilities.runOnUIThread(this, delay);
+            delay = Math.min(30_000, delay * 2);
+        }
+
+        @Override
+        public void run() {
+            try {
+                scope.close();
+            } catch (Exception | LinkageError | AssertionError error) {
+                FileLog.e(error);
+                schedule();
+            }
+        }
     }
 
     @Override

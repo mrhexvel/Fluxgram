@@ -95,7 +95,10 @@ class ComposerEffectsTest(unittest.TestCase):
                            "getClientUserId() == ownerId", "selectedAccount == account",
                            "field.getParent()", "sendTransitionDeadline", "ComposerExpandedBounds.MAX_OUTSET_DP",
                            "chatHost.indexOfChild", "removeExpandedLayer", "View layer = expandedLayer",
-                           "AndroidUtilities.runOnUIThread", "((ViewGroup) parent).removeView(layer)"):
+                           "AndroidUtilities.runOnUIThread", "((ViewGroup) parent).removeView(layer)",
+                           "PluginManagedUi.openActivity", "activityScope.openFragment",
+                           "fragmentScope.openView", "viewScope.openSurface",
+                           "nextScope.register", "scheduleSurfaceCleanup"):
             self.assertIn(required, controller)
 
         remove_expanded = controller.split("private void removeExpandedLayer()", 1)[1].split(
@@ -103,6 +106,18 @@ class ComposerEffectsTest(unittest.TestCase):
         )[0]
         self.assertLess(remove_expanded.index("expandedLayer = null"),
                         remove_expanded.index("AndroidUtilities.runOnUIThread"))
+
+        invalidate_cursor = controller.split("public void invalidateCursor()", 1)[1].split(
+            "public void cursorOwnerChanged()", 1
+        )[0]
+        self.assertIn("field.invalidate()", invalidate_cursor)
+        self.assertIn("invalidate()", invalidate_cursor)
+
+        draw_cursor = controller.split("public void drawCursor(EditTextCaption source", 1)[1].split(
+            "public void selectionChanged", 1
+        )[0]
+        self.assertIn("source.getOffsetY() - source.getScrollY()", draw_cursor)
+        self.assertIn("bounds.top + contentOffsetY", draw_cursor)
 
         self.assertIn("chatInputViewsContainer, currentAccount", chat)
 

@@ -863,6 +863,33 @@ public final class ComposerRegistryCheck {
         surface.close();
         textRegistration.close();
 
+        TextEffect concurrentText = new TextEffect();
+        CursorEffect concurrentCursor = new CursorEffect();
+        AutoCloseable concurrentTextRegistration = PluginComposerRegistry.registerText(
+                "test.text.concurrent_cursor", () -> true, context -> {
+                    concurrentText.surface = context;
+                    return concurrentText;
+                });
+        AutoCloseable concurrentCursorRegistration = PluginComposerRegistry.registerCursor(
+                "test.cursor.concurrent_text", () -> true, context -> concurrentCursor);
+        Host concurrentHost = new Host();
+        surface = PluginComposerRegistry.attach(concurrentHost);
+        surface.textChanged(new ComposerTextChange(
+                13, "a", "ab", 1, 0, 1, 2, 2, -1, -1));
+        surface.prepareText();
+        ComposerCursorSnapshot concurrentSnapshot = new ComposerCursorSnapshot(
+                31, 2, 0, 24, 5, 26, 29, 25, false);
+        int[] concurrentNativeDraws = {0};
+        PluginComposerRegistry.Surface concurrentSurface = surface;
+        surface.drawText(new Canvas(), canvas -> concurrentSurface.drawCursor(
+                canvas, concurrentSnapshot, cursorCanvas -> concurrentNativeDraws[0]++));
+        require(concurrentCursor.snapshot == concurrentSnapshot
+                        && concurrentHost.cursorDraws == 1 && concurrentNativeDraws[0] == 1,
+                "text presentation bypassed concurrent cursor effect");
+        surface.close();
+        concurrentCursorRegistration.close();
+        concurrentTextRegistration.close();
+
         TextEffect invalidTint = new TextEffect();
         invalidTint.presentation = new ComposerTextPresentation(
                 0, 0, 1, 1, 1, 0, 0, 0, 0xFFFF0000, 2);

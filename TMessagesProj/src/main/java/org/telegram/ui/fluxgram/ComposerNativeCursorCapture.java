@@ -17,6 +17,12 @@ final class ComposerNativeCursorCapture {
 
     void draw(Canvas canvas, Consumer<Canvas> nativeDraw,
             ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation) {
+        draw(canvas, nativeDraw, snapshot, presentation, 0);
+    }
+
+    void draw(Canvas canvas, Consumer<Canvas> nativeDraw,
+            ComposerCursorSnapshot snapshot, ComposerCursorPresentation presentation,
+            float contentOffsetY) {
         if (presentation.alpha <= 0) {
             return;
         }
@@ -27,7 +33,7 @@ final class ComposerNativeCursorCapture {
         }
 
         try {
-            prepare(nativeDraw, snapshot, presentation);
+            prepare(nativeDraw, snapshot, presentation, contentOffsetY);
         } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
             fail(snapshot.revision);
             FileLog.e(error);
@@ -68,7 +74,7 @@ final class ComposerNativeCursorCapture {
     }
 
     private void prepare(Consumer<Canvas> nativeDraw, ComposerCursorSnapshot snapshot,
-            ComposerCursorPresentation presentation) {
+            ComposerCursorPresentation presentation, float contentOffsetY) {
         int width = width(snapshot);
         int height = height(snapshot);
 
@@ -78,7 +84,7 @@ final class ComposerNativeCursorCapture {
             Canvas recording = next.beginRecording(width, height);
 
             try {
-                recording.translate(-snapshot.left, -snapshot.top);
+                recording.translate(-snapshot.left, -snapshot.top + contentOffsetY);
                 nativeDraw.accept(recording);
             } finally {
                 next.endRecording();
