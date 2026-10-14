@@ -225,6 +225,15 @@ public final class ComposerRemovedTextCapture implements PluginComposerRegistry.
         releaseLayers();
     }
 
+    int area() {
+        return ink.width() * ink.height();
+    }
+
+    int paddedArea() {
+        int padding = (int) ComposerTextPresentation.MAX_BLUR_RADIUS + 1;
+        return (ink.width() + padding * 2) * (ink.height() + padding * 2);
+    }
+
     private void releaseLayers() {
         for (ComposerTextLayer layer : layers) {
             layer.release();

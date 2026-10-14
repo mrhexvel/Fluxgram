@@ -7,6 +7,9 @@ import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSendEvent;
+import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
+import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
@@ -20,6 +23,7 @@ public final class ComposerInputRendererExtensions {
     public static final int CAPABILITY_TEXT_LAYOUT = 1 << 1;
     public static final int CAPABILITY_SEND = 1 << 2;
     public static final int CAPABILITY_EXPANDED_DRAW = 1 << 3;
+    public static final int CAPABILITY_TEXT_CAPTURE = 1 << 4;
 
     static final int INVOCATION_INITIALIZE = 0;
     static final int INVOCATION_INPUT = 1;
@@ -30,10 +34,10 @@ public final class ComposerInputRendererExtensions {
     static final int INVOCATION_EXPANDED_DRAW = 6;
 
     private static final int ALL_CAPABILITIES = CAPABILITY_INPUT | CAPABILITY_TEXT_LAYOUT
-            | CAPABILITY_SEND | CAPABILITY_EXPANDED_DRAW;
+            | CAPABILITY_SEND | CAPABILITY_EXPANDED_DRAW | CAPABILITY_TEXT_CAPTURE;
     private static final HostExtensionDescriptor<Object, Void> DESCRIPTOR =
             new HostExtensionDescriptor<>(
-                    EXTENSION_ID, 2, HostExtensionDescriptor.Mode.REPLACEMENT,
+                    EXTENSION_ID, 3, HostExtensionDescriptor.Mode.REPLACEMENT,
                     2_000_000L, 3, 0);
     private static final HostExtensionRegistry REGISTRY =
             HostExtensionAttribution.create(FileLog::e);
@@ -81,6 +85,12 @@ public final class ComposerInputRendererExtensions {
                             if ((capabilities & ~ALL_CAPABILITIES) != 0) {
                                 throw new IllegalArgumentException(
                                         "Unknown composer input renderer capability");
+                            }
+
+                            if ((capabilities & CAPABILITY_TEXT_CAPTURE) != 0
+                                    && (capabilities & CAPABILITY_TEXT_LAYOUT) == 0) {
+                                throw new IllegalArgumentException(
+                                        "Composer text capture requires text layout events");
                             }
 
                             invocation.surface.setCapabilities(capabilities);
@@ -180,6 +190,8 @@ public final class ComposerInputRendererExtensions {
         boolean isActive();
 
         void requestFrame();
+
+        void selectTextClusters(ComposerTextClusterSelection selection);
     }
 
     public interface Renderer extends AutoCloseable {
@@ -219,7 +231,14 @@ public final class ComposerInputRendererExtensions {
 
         int getHeight();
 
+        ComposerTextClusterCapture getTextClusterCapture();
+
+        ComposerTextClusterCapture getRemovedTextClusterCapture();
+
         void drawNative();
+
+        void drawNative(ComposerTextClusterPresentation current,
+                ComposerTextClusterPresentation removed);
     }
 
     public interface ExpandedFrame {

@@ -16,7 +16,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.Layout;
 import android.text.Spanned;
+import android.text.TextPaint;
 import android.text.style.StyleSpan;
 import android.text.style.UnderlineSpan;
 import android.graphics.Typeface;
@@ -108,8 +110,10 @@ public final class ComposerTextInstrumentation extends Instrumentation {
                 identityAndSuppressionCase();
                 clusterCaptureCase();
                 glyphOvershootCaptureCase();
+                contextualAdvanceCaptureCase();
                 wrappedLineClusterCaptureCase();
                 animatedBoundsOffsetCase();
+                rapidBoundsCaptureCase();
                 affineReplayCase();
                 tintReplayCase();
                 blurReplayCase();
@@ -287,6 +291,54 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         cases++;
     }
 
+    private void contextualAdvanceCaptureCase() {
+        String text = "AVATAR ToWaYoLT Привет";
+        setText("");
+        InputConnection input = field.onCreateInputConnection(new EditorInfo());
+        require(input != null && input.setComposingText(text, 1),
+                "contextual advance IME connection");
+        layoutField();
+        Layout layout = field.getLayout();
+        TextPaint paint = field.getPaint();
+        boolean contextual = false;
+        boolean captured = false;
+
+        for (int start = 0; start < text.length() - 1; start++) {
+            int end = start + 1;
+
+            if (Character.isWhitespace(text.charAt(start))) {
+                continue;
+            }
+
+            int line = layout.getLineForOffset(start);
+            float range = layout.getPrimaryHorizontal(end) - layout.getPrimaryHorizontal(start);
+            float advance = paint.getRunAdvance(text, start, end,
+                    layout.getLineStart(line), layout.getLineEnd(line), false, end);
+            float isolated = paint.measureText(text, start, end);
+
+            if (range <= 0 || Math.abs(range - advance) <= 0.25f
+                    && Math.abs(advance - isolated) <= 0.25f) {
+                continue;
+            }
+
+            contextual = true;
+            ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
+                    field, new ComposerTextCandidate(19, start, end), text, true);
+
+            if (capture != null) {
+                capture.release();
+                captured = true;
+                break;
+            }
+        }
+
+        require(input.finishComposingText(), "contextual advance IME cleanup");
+
+        require(contextual, "test font did not expose contextual advance");
+        require(captured, "cluster capture rejected contextual advance");
+        cases++;
+    }
+
     private void wrappedLineClusterCaptureCase() {
         StringBuilder value = new StringBuilder();
         String boundaryText = null;
@@ -373,6 +425,55 @@ public final class ComposerTextInstrumentation extends Instrumentation {
         restored.recycle();
         replayOnly.recycle();
         suppressed.recycle();
+        cases++;
+    }
+
+    private void rapidBoundsCaptureCase() {
+        field.setGravity(Gravity.TOP | Gravity.LEFT);
+        int visibleHeight = field.getHeight() - field.getTotalPaddingTop() - field.getPaddingBottom();
+        int lineCount = visibleHeight / Math.max(1, field.getLineHeight()) + 2;
+        StringBuilder value = new StringBuilder(lineCount * 2);
+
+        for (int i = 0; i < lineCount; i++) {
+            if (i > 0) {
+                value.append('\n');
+            }
+
+            value.append('H');
+        }
+
+        String text = value.toString();
+        setText(text);
+        field.setSelection(0);
+        field.scrollTo(0, 0);
+        layoutField();
+        int line = field.getLayout().getLineCount() - 1;
+        int start = field.getLayout().getLineStart(line);
+        Rect bounds = new Rect();
+        field.getPaint().getTextBounds(text, start, start + 1, bounds);
+        float originY = field.getBaseline() - field.getLayout().getLineBaseline(0) - field.getScrollY();
+        int baseline = Math.round(originY + field.getLayout().getLineBaseline(line));
+        int inkTop = baseline + bounds.top;
+        int inkBottom = baseline + bounds.bottom;
+        int bottom = field.getHeight() - field.getPaddingBottom();
+        float offset = bottom - inkBottom;
+
+        require(inkBottom > bottom,
+                "rapid bounds fixture stayed inside static field");
+        require(inkTop + offset >= field.getTotalPaddingTop()
+                        && inkBottom + offset <= bottom,
+                "rapid bounds fixture offset did not expose glyph");
+        field.setOffsetY(offset);
+        ComposerNativeTextCapture capture = ComposerNativeTextCapture.capture(
+                field, new ComposerTextCandidate(18, start, start + 1), text, true);
+        require(capture != null && capture.isValid(),
+                "rapid bounds animation rejected visible wrapped glyph");
+        field.setOffsetY(offset + field.getLineHeight());
+        require(!capture.isValid(),
+                "rapid bounds animation retained a clipped wrapped glyph");
+        capture.release();
+        field.setOffsetY(0);
+        field.setGravity(Gravity.BOTTOM | Gravity.LEFT);
         cases++;
     }
 

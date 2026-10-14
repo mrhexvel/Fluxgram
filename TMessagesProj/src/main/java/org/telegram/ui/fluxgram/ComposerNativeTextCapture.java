@@ -122,8 +122,9 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
         float advance = paint.getRunAdvance(text, candidate.start, candidate.end,
                 contextStart, contextEnd, false, candidate.end);
 
-        if (rangeEnd <= rangeStart || Math.abs(rangeEnd - rangeStart - advance) > 0.25f
-                || Math.abs(advance - paint.measureText(text, candidate.start, candidate.end)) > 0.25f) {
+        if (rangeEnd <= rangeStart || !allowCursorAtBoundary
+                && (Math.abs(rangeEnd - rangeStart - advance) > 0.25f
+                || Math.abs(advance - paint.measureText(text, candidate.start, candidate.end)) > 0.25f)) {
             return null;
         }
 
@@ -156,8 +157,11 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
             }
         }
 
+        float offsetY = field.getOffsetY();
+
         if (ink.left < leftPadding || ink.right > field.getWidth() - field.getCompoundPaddingRight()
-                || ink.top < field.getTotalPaddingTop() || ink.bottom > field.getHeight() - field.getPaddingBottom()
+                || ink.top + offsetY < field.getTotalPaddingTop()
+                || ink.bottom + offsetY > field.getHeight() - field.getPaddingBottom()
                 || ink.width() > MAX_CAPTURE_SIZE || ink.height() > MAX_CAPTURE_SIZE) {
             return null;
         }
@@ -258,10 +262,13 @@ public final class ComposerNativeTextCapture implements PluginComposerRegistry.T
 
     @Override
     public boolean isValid() {
+        float offsetY = field.getOffsetY();
+
         return !failed && field.getLayout() == layout && field.getText().toString().equals(text)
                 && field.getWidth() == width && field.getHeight() == height
                 && field.getCurrentTextColor() == color && field.getBaseline() == fieldBaseline
                 && field.getCompoundPaddingLeft() == leftPadding
+                && ink.bottom + offsetY <= field.getHeight() - field.getPaddingBottom()
                 && field.getTextSize() == textSize && field.getTypeface() == typeface
                 && field.getSelectionStart() == selectionStart && field.getSelectionEnd() == selectionEnd
                 && BaseInputConnection.getComposingSpanStart(field.getText()) == composingStart

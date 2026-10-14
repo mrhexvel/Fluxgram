@@ -35,6 +35,8 @@ import org.telegram.messenger.plugins.api.ComposerHapticFeedback;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
 import org.telegram.messenger.plugins.api.ComposerTextCandidate;
+import org.telegram.messenger.plugins.api.ComposerTextCapture;
+import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
 import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
 import org.telegram.messenger.plugins.api.ComposerTextChange;
 import org.telegram.messenger.plugins.api.ComposerTextInsertion;
@@ -83,6 +85,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private String pendingLayoutBeforeText;
     private String pendingLayoutAfterText;
     private PluginComposerRegistry.OverlayTextCapture pendingRemovedCapture;
+    private ComposerRemovedTextClusterCapture pendingRendererRemovedCapture;
     private boolean pendingLayoutChange;
     private boolean pendingLayoutCoalesced;
     private long pendingLayoutDeadline;
@@ -402,7 +405,7 @@ public final class FluxGramComposerController implements TextWatcher,
                                     if (expandedLayer != null) {
                                         expandedLayer.invalidate();
                                     }
-                                });
+                                }, this::captureRendererTextClusters);
                     }
                 }
 
@@ -910,6 +913,8 @@ public final class FluxGramComposerController implements TextWatcher,
                 ComposerInputRendererExtensions.CAPABILITY_INPUT);
         boolean rendererLayout = rendererSurface != null && rendererSurface.hasCapability(
                 ComposerInputRendererExtensions.CAPABILITY_TEXT_LAYOUT);
+        boolean rendererCapture = rendererSurface != null && rendererSurface.hasCapability(
+                ComposerInputRendererExtensions.CAPABILITY_TEXT_CAPTURE);
 
         if (legacyEffects || rendererInput) {
             inputChanges.beforeChange(text, start, count, after);
@@ -940,9 +945,23 @@ public final class FluxGramComposerController implements TextWatcher,
                     pendingRemovedCapture = ComposerRemovedTextCapture.capture(
                             (EditTextCaption) field, textRevision, text.toString(), start, start + count);
                 }
+
+                if (rendererCapture && count > 0 && start >= 0
+                        && start <= text.length() && count <= text.length() - start
+                        && pendingLayoutBefore != null) {
+                    pendingRendererRemovedCapture = ComposerRemovedTextClusterCapture.capture(
+                            (EditTextCaption) field, pendingLayoutBefore, textRevision + 1,
+                            start, start + count);
+                }
             } else {
                 pendingLayoutCoalesced = true;
                 pendingRemovedCapture = null;
+
+                if (pendingRendererRemovedCapture != null) {
+                    pendingRendererRemovedCapture.release();
+                }
+
+                pendingRendererRemovedCapture = null;
             }
         } else {
             clearPendingLayout();
@@ -1041,6 +1060,8 @@ public final class FluxGramComposerController implements TextWatcher,
         String beforeText = pendingLayoutBeforeText;
         String afterText = pendingLayoutAfterText;
         PluginComposerRegistry.OverlayTextCapture removedCapture = pendingRemovedCapture;
+        ComposerRemovedTextClusterCapture rendererRemovedCapture =
+                pendingRendererRemovedCapture;
         boolean coalesced = pendingLayoutCoalesced;
         ComposerTextLayoutSnapshot after = ComposerTextLayoutSnapshots.capture(
                 (EditTextCaption) field, textRevision, afterText);
@@ -1078,6 +1099,18 @@ public final class FluxGramComposerController implements TextWatcher,
             removedCapture = null;
         }
 
+        if (coalesced || rendererRemovedCapture == null
+                || rendererRemovedCapture.getCapture(0).getStart() != prefix
+                || rendererRemovedCapture.getCapture(
+                        rendererRemovedCapture.getCount() - 1).getEnd()
+                        != prefix + removedCount) {
+            if (rendererRemovedCapture != null) {
+                rendererRemovedCapture.release();
+            }
+
+            rendererRemovedCapture = null;
+        }
+
         int insertedCount = afterLength - prefix - suffix;
 
         if (insertedCount > 0 && after.truncated
@@ -1087,6 +1120,7 @@ public final class FluxGramComposerController implements TextWatcher,
             return;
         }
 
+        pendingRendererRemovedCapture = null;
         clearPendingLayout();
 
         if ((legacyLayout || rendererLayout) && before != null) {
@@ -1113,7 +1147,7 @@ public final class FluxGramComposerController implements TextWatcher,
                         change.removedCount,
                         change.insertedCount,
                         change.coalesced,
-                        null));
+                        null), rendererRemovedCapture);
             }
         }
 
@@ -1160,11 +1194,64 @@ public final class FluxGramComposerController implements TextWatcher,
         selectionCapture = null;
     }
 
+    private ComposerInputRendererHostSurface.TextClusterCapture captureRendererTextClusters(
+            ComposerTextClusterSelection selection, String expectedText) {
+        if (!(field instanceof EditTextCaption)) {
+            return null;
+        }
+
+        PluginComposerRegistry.TextClusterCapture capture = ComposerNativeTextClusterCapture.capture(
+                (EditTextCaption) field, selection, expectedText);
+
+        if (capture == null) {
+            return null;
+        }
+
+        return new ComposerInputRendererHostSurface.TextClusterCapture() {
+            @Override
+            public long getRevision() {
+                return capture.getRevision();
+            }
+
+            @Override
+            public int getCount() {
+                return capture.getCount();
+            }
+
+            @Override
+            public ComposerTextCapture getCapture(int index) {
+                return capture.getCapture(index);
+            }
+
+            @Override
+            public boolean isValid() {
+                return capture.isValid();
+            }
+
+            @Override
+            public void draw(Canvas canvas, Consumer<Canvas> nativeDraw,
+                    ComposerTextClusterPresentation presentation) {
+                capture.draw(canvas, nativeDraw, presentation);
+            }
+
+            @Override
+            public void release() {
+                capture.release();
+            }
+        };
+    }
+
     private void clearPendingLayout() {
         pendingLayoutBefore = null;
         pendingLayoutBeforeText = null;
         pendingLayoutAfterText = null;
         pendingRemovedCapture = null;
+
+        if (pendingRendererRemovedCapture != null) {
+            pendingRendererRemovedCapture.release();
+        }
+
+        pendingRendererRemovedCapture = null;
         pendingLayoutChange = false;
         pendingLayoutCoalesced = false;
         pendingLayoutDeadline = 0;
