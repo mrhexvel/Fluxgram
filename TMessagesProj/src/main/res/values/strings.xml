@@ -11267,6 +11267,12 @@
     <string name="FluxGramPluginAlreadyInstalled">This version is already installed.</string>
     <string name="FluxGramGeneral">General</string>
     <string name="FluxGramGeneralEmpty">There are no general settings yet.</string>
+    <string name="FluxGramAppearance">Appearance</string>
+    <string name="FluxGramChats">Chats</string>
+    <string name="FluxGramCategories">Categories</string>
+    <string name="FluxGramLinks">Links</string>
+    <string name="FluxGramChannel">Channel</string>
+    <string name="FluxGramSectionComingSoon">This section will be available later.</string>
     <string name="FluxGramPluginsEnabled">Plugin system is enabled</string>
     <string name="FluxGramPluginsDisabled">Plugin system is disabled</string>
     <string name="FluxGramPluginsRecoveryDisabled">Plugins were disabled after a plugin crash</string>

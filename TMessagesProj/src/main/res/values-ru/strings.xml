@@ -295,6 +295,12 @@
     <string name="FluxGramPluginAlreadyInstalled">Эта версия плагина уже установлена.</string>
     <string name="FluxGramGeneral">Основные</string>
     <string name="FluxGramGeneralEmpty">В этом разделе пока нет настроек.</string>
+    <string name="FluxGramAppearance">Внешний вид</string>
+    <string name="FluxGramChats">Чаты</string>
+    <string name="FluxGramCategories">Категории</string>
+    <string name="FluxGramLinks">Ссылки</string>
+    <string name="FluxGramChannel">Канал</string>
+    <string name="FluxGramSectionComingSoon">Этот раздел появится позже.</string>
     <string name="FluxGramPluginsEnabled">Система плагинов включена</string>
     <string name="FluxGramPluginsDisabled">Система плагинов выключена</string>
     <string name="FluxGramPluginsRecoveryDisabled">Плагины отключены после сбоя плагина</string>

@@ -813,14 +813,31 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("int serverUnreadCount = dialog.unread_count;", controller)
         self.assertIn("update.still_unread_count = serverUnreadCount;", controller)
 
-    def test_settings_home_has_separate_ghost_and_storage_routes(self):
+    def test_settings_home_has_categories_links_and_feature_routes(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
-        home = (JAVA / "ui/Components/FluxGramSettingsHomeView.java").read_text()
 
         self.assertIn("new FluxGramGhostModeActivity()", activity)
         self.assertIn("new FluxGramStealthActivity()", activity)
-        self.assertIn("R.string.FluxGramGhostMode", home)
-        self.assertIn("R.string.FluxGramStealth", home)
+        self.assertIn("R.string.FluxGramGhostMode", activity)
+        self.assertIn("R.string.FluxGramStealth", activity)
+        self.assertIn("R.string.FluxGramCategories", activity)
+        self.assertIn("R.string.FluxGramAppearance", activity)
+        self.assertIn("R.string.FluxGramChats", activity)
+        self.assertIn("R.string.FluxGramLinks", activity)
+        self.assertIn('"@fluxBeta"', activity)
+        self.assertIn('"@fluxBeta_chat"', activity)
+        self.assertIn('"https://t.me/fluxBeta"', activity)
+        self.assertIn('"https://t.me/fluxBeta_chat"', activity)
+        self.assertIn("UItem.asButton(", activity)
+        self.assertIn("private static final int BUILT_IN_PLUGINS", activity)
+        self.assertIn("R.string.FluxGramBuiltInPlugins", activity)
+        self.assertIn("new FluxGramSettingsActivity(BUILT_IN_PLUGINS)", activity)
+        self.assertIn("addPluginItems(items, manager, false, false)", activity)
+        self.assertIn("addPluginItems(items, manager, true, true)", activity)
+        self.assertIn("HeaderCell label = new HeaderCell", activity)
+        self.assertIn("UItem.asCustomShadow(label", activity)
+        self.assertNotIn("R.string.FluxGramPluginsEnabled", activity)
+        self.assertNotIn("FluxGramSettingsHomeView", activity)
 
     def test_english_and_russian_strings_are_complete(self):
         required = {
@@ -844,6 +861,12 @@ class GhostModeSettingsTest(unittest.TestCase):
             "FluxGramGhostModeSuggestForStories",
             "FluxGramGhostModeSuggestForStoriesInfo",
             "FluxGramGhostModePreviewInfo",
+            "FluxGramAppearance",
+            "FluxGramChats",
+            "FluxGramCategories",
+            "FluxGramLinks",
+            "FluxGramChannel",
+            "FluxGramSectionComingSoon",
         }
 
         for path in (RES / "values/strings.xml", RES / "values-ru/strings.xml"):
