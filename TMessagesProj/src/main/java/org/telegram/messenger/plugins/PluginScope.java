@@ -3,6 +3,11 @@ package org.telegram.messenger.plugins;
 import java.util.ArrayList;
 
 final class PluginScope implements AutoCloseable {
+    static final class Diagnostics {
+        int scopes;
+        int externalScopes;
+        int resources;
+    }
     private final PluginSession session;
     private final PluginScope parent;
     private final String name;
@@ -160,6 +165,36 @@ final class PluginScope implements AutoCloseable {
 
     private synchronized void removeChild(PluginScope child) {
         children.remove(child);
+    }
+
+    Diagnostics diagnostics() {
+        Diagnostics result = new Diagnostics();
+        collectDiagnostics(result);
+        return result;
+    }
+
+    private void collectDiagnostics(Diagnostics result) {
+        ArrayList<PluginScope> snapshot;
+        boolean currentClosed;
+
+        synchronized (this) {
+            currentClosed = closed;
+            snapshot = new ArrayList<>(children);
+        }
+
+        if (!currentClosed) {
+            result.scopes++;
+
+            if (externallyManaged) {
+                result.externalScopes++;
+            } else {
+                result.resources += resources.size();
+            }
+        }
+
+        for (PluginScope child : snapshot) {
+            child.collectDiagnostics(result);
+        }
     }
 
     private static Exception collect(Exception failure, Throwable error) {

@@ -27,6 +27,29 @@ public final class PythonPluginRuntimeCheck {
                 "current state transition");
         require(!lifecycle.finishReconcile(disabled.generation), "reconcile must finish");
 
+        require(lifecycle.requestEnabled(true), "settled wait reconcile");
+        PythonPluginLifecycle.Request waiting = lifecycle.currentRequest();
+        Thread settle = new Thread(() -> {
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException error) {
+                throw new RuntimeException(error);
+            }
+
+            lifecycle.setState(waiting.generation, PythonPluginLifecycle.State.RUNNING);
+            lifecycle.finishReconcile(waiting.generation);
+        });
+        settle.start();
+
+        try {
+            require(
+                    lifecycle.awaitSettled(1_000) == PythonPluginLifecycle.State.RUNNING,
+                    "settled wait result");
+            settle.join();
+        } catch (InterruptedException error) {
+            throw new RuntimeException(error);
+        }
+
         require(lifecycle.requestEnabled(true), "restart reconcile");
         PythonPluginLifecycle.Request failing = lifecycle.currentRequest();
         require(lifecycle.fail(failing.generation), "current failure");

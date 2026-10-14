@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <provider
+            android:name="org.telegram.messenger.plugins.PluginDebugProvider"
+            android:authorities="${applicationId}.fluxgram.debug.plugins"
+            android:exported="true"
+            android:grantUriPermissions="false"
+            android:permission="android.permission.DUMP" />
+    </application>
+
+</manifest>

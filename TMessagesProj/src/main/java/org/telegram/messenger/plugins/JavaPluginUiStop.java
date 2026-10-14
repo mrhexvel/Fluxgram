@@ -54,4 +54,8 @@ final class JavaPluginUiStop {
             throw failure;
         }
     }
+
+    int activeCount() {
+        return resources.activeCount();
+    }
 }

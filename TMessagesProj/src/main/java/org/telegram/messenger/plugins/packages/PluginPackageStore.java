@@ -60,7 +60,8 @@ public final class PluginPackageStore {
     public synchronized Installed install(
             File reviewedArchive, String expectedHash, Runnable beforePublish)
             throws IOException {
-        return prepare(reviewedArchive, expectedHash, null, null, false, false, beforePublish);
+        return prepare(reviewedArchive, expectedHash, null, null,
+                false, false, false, beforePublish);
     }
 
     public synchronized void scheduleUpdate(
@@ -77,7 +78,19 @@ public final class PluginPackageStore {
             boolean enable,
             boolean enabledBefore)
             throws IOException {
-        prepare(archive, hash, expectedId, expectedVersion, enable, enabledBefore, null);
+        prepare(archive, hash, expectedId, expectedVersion,
+                enable, enabledBefore, false, null);
+    }
+
+    public synchronized void scheduleDebugReload(
+            File archive,
+            String hash,
+            String expectedId,
+            String expectedVersion,
+            boolean enabledBefore)
+            throws IOException {
+        prepare(archive, hash, expectedId, expectedVersion,
+                enabledBefore, enabledBefore, true, null);
     }
 
     private Installed prepare(
@@ -87,6 +100,7 @@ public final class PluginPackageStore {
             String expectedVersion,
             boolean enable,
             boolean enabledBefore,
+            boolean exactVersion,
             Runnable beforePublish)
             throws IOException {
         File frozen = File.createTempFile("fgplugin-install-", ".zip", cache);
@@ -122,9 +136,14 @@ public final class PluginPackageStore {
                     throw new IOException("Installed version changed after review");
                 }
 
-                if (compareVersions(checked.manifest.version, previous.manifest.version) <= 0) {
+                int versionComparison = compareVersions(
+                        checked.manifest.version, previous.manifest.version);
+
+                if (exactVersion ? versionComparison != 0 : versionComparison <= 0) {
                     throw new IOException(
-                            "Update must have a newer version than " + previous.manifest.version);
+                            exactVersion
+                                    ? "Debug reload must keep version " + previous.manifest.version
+                                    : "Update must have a newer version than " + previous.manifest.version);
                 }
 
                 destination = new File(root, ".pending-" + id);
@@ -267,6 +286,11 @@ public final class PluginPackageStore {
         }
 
         return result;
+    }
+
+    public synchronized Installed get(String id) throws IOException {
+        validateId(id);
+        return readInstalled(new File(root, id), id);
     }
 
     private Installed readInstalled(File folder, String expectedId) throws IOException {
@@ -491,6 +515,19 @@ public final class PluginPackageStore {
         }
 
         deleteTree(failed);
+    }
+
+    public synchronized void cancelPendingUpdate(String id) throws IOException {
+        Pending operation = requirePendingUpdate(id);
+        File journal = new File(root, ".pending-" + id);
+        File backup = new File(root, ".backup-" + id);
+
+        if (operation.rollback || operation.migrated
+                || !new File(journal, "package").isDirectory() || backup.exists()) {
+            throw new IOException("Plugin update has already been activated");
+        }
+
+        finishJournal(id);
     }
 
     public synchronized void finishPendingRollback(String id) throws IOException {

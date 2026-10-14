@@ -58,12 +58,44 @@ class PluginDevkitContractTest(unittest.TestCase):
         self.assertIn("org/telegram/messenger/plugins/api/ComposerSurface.class", classes)
 
     def test_template_does_not_bundle_host_sdks(self):
-        template = ROOT / "sdk/python/devkit/src/fluxgram_devkit/templates/python-java"
+        template = ROOT / "sdk/python/devkit/src/fluxgram_devkit/templates/hybrid"
         project = (template / "fluxgram-plugin.toml").read_text()
         self.assertIn('files = ["main.py"]', project)
         self.assertNotIn("fluxgram-java-api", project)
         self.assertFalse((template / "plugin/fluxgram").exists())
         self.assertFalse((template / "plugin/fluxgram.py").exists())
+
+    def test_host_stubs_artifact_matches_manifest_fingerprint(self):
+        metadata = json.loads((ARTIFACTS / "host-stubs.json").read_text())
+        manifest = MANIFEST_SOURCE.read_text()
+        fingerprint = re.search(r'HOST_FINGERPRINT\s*=\s*\n\s*"([a-f0-9]{64})"', manifest)
+        self.assertIsNotNone(fingerprint)
+        self.assertEqual(metadata["host_fingerprint"], fingerprint.group(1))
+
+        artifact = ARTIFACTS / "fluxgram-host-stubs.jar"
+        self.assertEqual(metadata["jar_sha256"], hashlib.sha256(artifact.read_bytes()).hexdigest())
+
+        with zipfile.ZipFile(artifact) as archive:
+            classes = [name for name in archive.namelist() if name.endswith(".class")]
+
+        self.assertTrue(classes)
+        self.assertNotIn("org/telegram/messenger/plugins/PluginManager.class", classes)
+
+    def test_device_bridge_is_debug_source_only(self):
+        debug_manifest = ROOT / "TMessagesProj/src/debug/AndroidManifest.xml"
+        debug_provider = (
+            ROOT
+            / "TMessagesProj/src/debug/java/org/telegram/messenger/plugins/PluginDebugProvider.java"
+        )
+        self.assertTrue(debug_provider.is_file())
+        self.assertIn("PluginDebugProvider", debug_manifest.read_text())
+
+        for manifest in (
+                ROOT / "TMessagesProj/config/debug/AndroidManifest.xml",
+                ROOT / "TMessagesProj/config/debug/AndroidManifest_SDK23.xml",
+                ROOT / "TMessagesProj/config/release/AndroidManifest.xml",
+                ROOT / "TMessagesProj/config/release/AndroidManifest_SDK23.xml"):
+            self.assertNotIn("PluginDebugProvider", manifest.read_text())
 
 
 if __name__ == "__main__":

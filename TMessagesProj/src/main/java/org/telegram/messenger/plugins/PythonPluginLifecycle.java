@@ -36,6 +36,7 @@ final class PythonPluginLifecycle {
 
         enabled = value;
         generation++;
+        notifyAll();
 
         if (reconcileQueued) {
             return false;
@@ -56,12 +57,14 @@ final class PythonPluginLifecycle {
         }
 
         reconcileQueued = false;
+        notifyAll();
 
         return false;
     }
 
     synchronized void cancelReconcile() {
         reconcileQueued = false;
+        notifyAll();
     }
 
     synchronized boolean isCurrent(long request) {
@@ -75,6 +78,7 @@ final class PythonPluginLifecycle {
 
         enabled = false;
         state = State.FAILED;
+        notifyAll();
 
         return true;
     }
@@ -85,6 +89,7 @@ final class PythonPluginLifecycle {
         }
 
         state = value;
+        notifyAll();
 
         return true;
     }
@@ -97,10 +102,12 @@ final class PythonPluginLifecycle {
         }
 
         state = State.REMOVAL_PENDING;
+        notifyAll();
     }
 
     synchronized void failRemoval() {
         state = State.FAILED;
+        notifyAll();
     }
 
     synchronized void terminate() {
@@ -108,6 +115,7 @@ final class PythonPluginLifecycle {
         removal = true;
         reconcileQueued = false;
         state = State.TERMINATED;
+        notifyAll();
     }
 
     synchronized boolean isRemovalPending() {
@@ -123,6 +131,22 @@ final class PythonPluginLifecycle {
     }
 
     synchronized State getState() {
+        return state;
+    }
+
+    synchronized State awaitSettled(long timeoutMs) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+
+        while (reconcileQueued || state == State.STARTING || state == State.STOPPING) {
+            long remaining = deadline - System.currentTimeMillis();
+
+            if (remaining <= 0) {
+                return null;
+            }
+
+            wait(remaining);
+        }
+
         return state;
     }
 }

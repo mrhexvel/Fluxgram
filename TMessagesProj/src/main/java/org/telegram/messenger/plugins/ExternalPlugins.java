@@ -4,7 +4,11 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.net.Uri;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
@@ -42,6 +46,61 @@ public final class ExternalPlugins {
 
     public interface Callback<T> {
         void complete(T value, Exception error);
+    }
+
+    public static final class DebugResult {
+        public final String operation;
+        public final String pluginId;
+        public final String version;
+        public final String runtimeState;
+        public final long generation;
+        public final PluginUnloadReport unloadReport;
+
+        DebugResult(String operation, String pluginId, String version,
+                String runtimeState, long generation, PluginUnloadReport unloadReport) {
+            this.operation = operation;
+            this.pluginId = pluginId;
+            this.version = version;
+            this.runtimeState = runtimeState;
+            this.generation = generation;
+            this.unloadReport = unloadReport;
+        }
+
+        public String toJson(Exception error) {
+            try {
+                JSONObject result = new JSONObject();
+                result.put("success", error == null);
+                result.put("operation", operation);
+                result.put("plugin_id", pluginId == null ? JSONObject.NULL : pluginId);
+                result.put("version", version == null ? JSONObject.NULL : version);
+                result.put("runtime_state",
+                        runtimeState == null ? JSONObject.NULL : runtimeState);
+                result.put("generation", generation);
+
+                if (unloadReport != null) {
+                    result.put("unload_report", new JSONObject(unloadReport.toJson()));
+                }
+
+                if (error != null) {
+                    result.put("error", error.getClass().getSimpleName());
+                    result.put("message", boundedMessage(error));
+                }
+
+                return result.toString();
+            } catch (JSONException jsonError) {
+                throw new IllegalStateException("Cannot encode plugin debug result", jsonError);
+            }
+        }
+
+        private static String boundedMessage(Exception error) {
+            String message = error.getMessage();
+
+            if (message == null || message.isEmpty()) {
+                message = error.getClass().getSimpleName();
+            }
+
+            return message.length() <= 240 ? message : message.substring(0, 240);
+        }
     }
 
     public static final class IncompatiblePlugin implements Plugin {
@@ -188,6 +247,19 @@ public final class ExternalPlugins {
 
                             PluginPackageStore.Installed update =
                                     store.activatePendingUpdate(operation.id);
+
+                            if (!update.manifest.isCompatible()) {
+                                store.rollbackPending(operation.id);
+
+                                if (!manager.setPersistedEnabledState(
+                                        operation.id,
+                                        operation.enabledBeforeUpdate)) {
+                                    throw new IOException("Cannot restore plugin enabled state");
+                                }
+
+                                store.finishPendingRollback(operation.id);
+                                continue;
+                            }
 
                             try {
                                 PluginCrashRecovery.runExternal(
@@ -412,6 +484,193 @@ public final class ExternalPlugins {
                                 callback.complete(value, error);
                             });
                 });
+    }
+
+    public static void debugInstallOrReload(File archive, String expectedHash,
+            boolean reload, boolean enable, Callback<DebugResult> callback) {
+        if (!BuildConfig.DEBUG) {
+            callback.complete(null, new IOException("Plugin debug bridge is unavailable"));
+            return;
+        }
+
+        worker.execute(() -> {
+            DebugResult result = null;
+            Exception failure = null;
+            String id = null;
+            String version = null;
+            PluginUnloadReport unloadReport = null;
+
+            try {
+                if (store == null || startupError != null) {
+                    throw new IOException("Plugin storage unavailable: " + startupError);
+                }
+
+                PluginManager manager = PluginManager.getInstance();
+
+                if (manager.isRecoveryBlockingImports()) {
+                    throw new IOException("Restart FluxGram before using plugin debug reload");
+                }
+
+                PluginPackageValidator.Result checked =
+                        PluginPackageValidator.inspect(archive, archive.getParentFile());
+
+                if (!checked.sha256.equals(expectedHash)) {
+                    throw new IOException("Uploaded plugin hash does not match the request");
+                }
+
+                id = checked.manifest.id;
+                version = checked.manifest.version;
+
+                if (!reload) {
+                    PluginPackageStore.Installed installed = store.install(archive, expectedHash);
+                    PythonPluginAdapter adapter = new PythonPluginAdapter(installed);
+                    Exception migrationFailure = migrateForDebug(installed);
+
+                    if (migrationFailure != null) {
+                        disableAfterMigrationFailure(manager, id);
+                        adapter.setPreflightError(migrationFailure);
+                    }
+
+                    manager.register(adapter, false);
+
+                    if (enable && migrationFailure == null) {
+                        manager.setEnabled(id, true);
+                    }
+
+                    String runtimeState = adapter.awaitDebugRuntime(10_000);
+
+                    if (migrationFailure != null) {
+                        throw migrationFailure;
+                    }
+
+                    result = new DebugResult(
+                            "install", id, version, runtimeState,
+                            adapter.getGeneration(), null);
+                } else {
+                    Plugin plugin = manager.getPlugin(id);
+
+                    if (!(plugin instanceof PythonPluginAdapter)
+                            || !((PythonPluginAdapter) plugin).isExternal()) {
+                        throw new IOException("Debug reload requires an installed external plugin");
+                    }
+
+                    PythonPluginAdapter previous = (PythonPluginAdapter) plugin;
+                    boolean enabledBefore = manager.isEnabled(id);
+                    store.scheduleDebugReload(
+                            archive, expectedHash, id, previous.getVersion(), enable);
+                    pending = Collections.unmodifiableMap(store.pending());
+
+                    try {
+                        previous.stopForRemoval();
+                        unloadReport = previous.getLastUnloadReport();
+
+                        if (unloadReport == null || !unloadReport.successful) {
+                            throw new IOException("Plugin cleanup report is incomplete");
+                        }
+                    } catch (Exception cleanupError) {
+                        try {
+                            store.cancelPendingUpdate(id);
+                            pending = Collections.unmodifiableMap(store.pending());
+                        } catch (Exception cancelError) {
+                            cleanupError.addSuppressed(cancelError);
+                        }
+
+                        throw cleanupError;
+                    }
+
+                    if (!manager.unregisterStopped(id, previous)) {
+                        throw new IOException("Stopped plugin registration changed during reload");
+                    }
+
+                    PluginPackageStore.Installed replacement = store.activatePendingUpdate(id);
+
+                    Exception migrationError = migrateForDebug(replacement);
+
+                    if (migrationError != null) {
+                        store.rollbackPending(id);
+
+                        if (!manager.setPersistedEnabledState(id, enabledBefore)) {
+                            throw new IOException(
+                                    "Cannot restore plugin enabled state", migrationError);
+                        }
+
+                        store.finishPendingRollback(id);
+                        pending = Collections.unmodifiableMap(store.pending());
+                        PythonPluginAdapter restored = new PythonPluginAdapter(store.get(id));
+                        manager.register(restored, false);
+                        restored.awaitDebugRuntime(10_000);
+                        throw new IOException("Debug reload migration failed", migrationError);
+                    }
+
+                    store.markPendingMigrated(id);
+
+                    if (!manager.setPersistedEnabledState(id, enable)) {
+                        throw new IOException("Cannot save plugin enabled state");
+                    }
+
+                    store.finishPendingUpdate(id);
+                    pending = Collections.unmodifiableMap(store.pending());
+                    PythonPluginAdapter adapter = new PythonPluginAdapter(store.get(id));
+                    manager.register(adapter, false);
+                    String runtimeState = adapter.awaitDebugRuntime(10_000);
+                    result = new DebugResult(
+                            "reload", id, version, runtimeState,
+                            adapter.getGeneration(), unloadReport);
+                }
+            } catch (Exception | LinkageError error) {
+                if (id != null) {
+                    restoreDebugRegistration(id, error);
+                }
+
+                failure = error instanceof Exception
+                        ? (Exception) error : new IOException("Plugin debug operation failed", error);
+            } finally {
+                archive.delete();
+            }
+
+            if (result == null) {
+                result = new DebugResult(
+                        reload ? "reload" : "install", id, version,
+                        null, -1, unloadReport);
+            }
+
+            DebugResult value = result;
+            Exception error = failure;
+            AndroidUtilities.runOnUIThread(() -> {
+                changed();
+                callback.complete(value, error);
+            });
+        });
+    }
+
+    private static Exception migrateForDebug(PluginPackageStore.Installed installed) {
+        try {
+            PluginCrashRecovery.runExternal(
+                    installed.manifest.id,
+                    () -> PythonPluginAdapter.migrateStorage(installed));
+            return null;
+        } catch (Exception | Error error) {
+            PluginCrashRecovery.handled(error);
+            return error instanceof Exception
+                    ? (Exception) error : new IOException("Plugin migration failed", error);
+        }
+    }
+
+    private static void restoreDebugRegistration(String id, Throwable failure) {
+        PluginManager manager = PluginManager.getInstance();
+
+        if (manager.getPlugin(id) != null || store == null) {
+            return;
+        }
+
+        try {
+            PluginPackageStore.Installed installed = store.get(id);
+            PythonPluginAdapter adapter = new PythonPluginAdapter(installed);
+            manager.register(adapter, false);
+            adapter.awaitDebugRuntime(10_000);
+        } catch (Exception | LinkageError restoreError) {
+            failure.addSuppressed(restoreError);
+        }
     }
 
     public static void export(Context context, String id, Callback<File> callback) {

@@ -22,6 +22,19 @@ public final class PluginStoreCheck {
                         args.length > 8 && Boolean.parseBoolean(args[8]));
             }
 
+            if (args[0].equals("debugreload")) {
+                store.scheduleDebugReload(
+                        new File(args[3]),
+                        args[4],
+                        args[5],
+                        args[6],
+                        Boolean.parseBoolean(args[7]));
+            }
+
+            if (args[0].equals("cancel")) {
+                store.cancelPendingUpdate(args[3]);
+            }
+
             if (args[0].equals("remove")) {
                 store.remove(args[3]);
             }

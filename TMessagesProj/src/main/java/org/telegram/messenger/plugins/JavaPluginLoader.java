@@ -13,6 +13,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.lang.ref.WeakReference;
 
 import dalvik.system.DexClassLoader;
 import dalvik.system.InMemoryDexClassLoader;
@@ -20,6 +21,8 @@ import dalvik.system.InMemoryDexClassLoader;
 final class JavaPluginLoader implements AutoCloseable {
     private final File cacheDirectory;
     private JavaPluginSession session;
+    private WeakReference<ClassLoader> classLoader;
+    private boolean hostReferencesReleased;
 
     private JavaPluginLoader(File cacheDirectory) {
         this.cacheDirectory = cacheDirectory;
@@ -77,6 +80,7 @@ final class JavaPluginLoader implements AutoCloseable {
             }
 
             result.session = new JavaPluginSession(type, pluginSession, host);
+            result.classLoader = new WeakReference<>(loader);
             return result;
         } catch (Exception | LinkageError error) {
             try {
@@ -111,6 +115,20 @@ final class JavaPluginLoader implements AutoCloseable {
         if (cacheDirectory != null) {
             deleteCache(cacheDirectory);
         }
+
+        hostReferencesReleased = true;
+    }
+
+    boolean areHostReferencesReleased() {
+        return hostReferencesReleased;
+    }
+
+    String classLoaderState() {
+        if (classLoader == null) {
+            return "not_applicable";
+        }
+
+        return classLoader.get() == null ? "cleared" : "release_eligible";
     }
 
     private static File createCacheDirectory(Context context) throws IOException {

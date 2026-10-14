@@ -40,6 +40,10 @@ final class PluginSession implements AutoCloseable {
         return root.openExternalChild(name);
     }
 
+    PluginScope.Diagnostics diagnostics() {
+        return root.diagnostics();
+    }
+
     @Override
     public void close() throws Exception {
         root.close();

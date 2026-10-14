@@ -190,6 +190,24 @@ class PluginPackagesTest(unittest.TestCase):
                 include_python=False,
             ), False)
 
+    def test_schema_five_requires_matching_host_fingerprint(self):
+        data = self.dex_fixture()
+        fields = self.java_fields(data)
+        fields["schema_version"] = 5
+        fields["java_module"]["host_fingerprint"] = (
+            "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d"
+        )
+        self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), True)
+
+        del fields["java_module"]["host_fingerprint"]
+        self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
+
+        fields["java_module"]["host_fingerprint"] = "0" * 64
+        self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
+
+        fields["schema_version"] = 4
+        self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
+
     def test_java_module_compatibility_and_strict_fields(self):
         data = self.dex_fixture()
 
@@ -824,6 +842,26 @@ class PluginStoreTest(unittest.TestCase):
         self.update(version="0.9.0", accepted=False)
         self.assertEqual(self.store("pending"), [])
         self.assertEqual(self.installed_version(), MANIFEST["version"])
+
+    def test_debug_reload_allows_same_version_and_can_be_cancelled(self):
+        original = self.archive()
+        replacement = self.archive(entries=[("revision.txt", "debug reload")])
+        self.store("install", original)
+        self.store(
+            "debugreload",
+            replacement,
+            extra=(MANIFEST["id"], MANIFEST["version"], "true"),
+        )
+        self.assertEqual(
+            self.store("pendingfull"),
+            [MANIFEST["id"] + ":true:true:false"],
+        )
+        self.store("cancel", extra=(MANIFEST["id"],))
+        self.assertEqual(self.store("pending"), [])
+        self.assertEqual(self.installed_version(), MANIFEST["version"])
+        self.assertFalse(
+            (self.root / "installed" / MANIFEST["id"] / "revision.txt").exists()
+        )
 
     def test_update_versions_compared_numerically(self):
         self.store("install", self.archive(fields={"version": "1.9.0"}))

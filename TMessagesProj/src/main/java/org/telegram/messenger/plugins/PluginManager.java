@@ -225,6 +225,17 @@ public final class PluginManager {
         return true;
     }
 
+    synchronized boolean unregisterStopped(String id, Plugin plugin) {
+        Entry entry = plugins.get(id);
+
+        if (entry == null || entry.plugin != plugin) {
+            return false;
+        }
+
+        plugins.remove(id);
+        return true;
+    }
+
     public synchronized void clearPersistedEnabledState(String id) {
         preferences.edit().remove(enabledKey(id)).apply();
     }

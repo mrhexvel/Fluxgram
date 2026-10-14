@@ -13,11 +13,13 @@ import java.util.List;
 import java.util.Set;
 
 public final class PluginManifest {
-    public static final int SCHEMA_VERSION = 4;
+    public static final int SCHEMA_VERSION = 5;
     public static final int SDK_VERSION = 2;
     public static final int SDK_MINOR_VERSION = 9;
     public static final int JAVA_API_VERSION = 1;
     public static final int JAVA_API_MINOR_VERSION = 21;
+    public static final String HOST_FINGERPRINT =
+            "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d";
     public final int schemaVersion, sdkVersion, minSdkMinor;
     public final String access = "full";
     public final String id, name, version, description, author, entrypoint, icon;
@@ -25,19 +27,26 @@ public final class PluginManifest {
     public final JavaModule javaModule;
 
     public static final class JavaModule {
-        public final String path, entrypoint, sha256;
+        public final String path, entrypoint, sha256, hostFingerprint;
         public final int apiVersion, minApiMinor;
 
-        private JavaModule(String path, String entrypoint, String sha256, int apiVersion, int minApiMinor) {
+        private JavaModule(String path, String entrypoint, String sha256,
+                int apiVersion, int minApiMinor, String hostFingerprint) {
             this.path = path;
             this.entrypoint = entrypoint;
             this.sha256 = sha256;
             this.apiVersion = apiVersion;
             this.minApiMinor = minApiMinor;
+            this.hostFingerprint = hostFingerprint;
         }
 
         public boolean isCompatible() {
-            return apiVersion == JAVA_API_VERSION && minApiMinor <= JAVA_API_MINOR_VERSION;
+            return apiVersion == JAVA_API_VERSION && minApiMinor <= JAVA_API_MINOR_VERSION
+                    && (hostFingerprint == null || HOST_FINGERPRINT.equals(hostFingerprint));
+        }
+
+        public boolean supportsLowLevelHost() {
+            return HOST_FINGERPRINT.equals(hostFingerprint);
         }
     }
 
@@ -196,6 +205,12 @@ public final class PluginManifest {
                 "java_module requires schema_version 3 or newer");
         require(schemaVersion != 3 || javaModule != null,
                 "java_module is required in schema_version 3");
+        require(schemaVersion != 5 || javaModule != null,
+                "java_module is required in schema_version 5");
+        require(javaModule == null || javaModule.hostFingerprint == null || schemaVersion == 5,
+                "host_fingerprint requires schema_version 5");
+        require(schemaVersion != 5 || javaModule.hostFingerprint != null,
+                "host_fingerprint is required in schema_version 5");
 
         require(id.matches("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+"), "Invalid plugin id");
 
@@ -233,7 +248,7 @@ public final class PluginManifest {
     }
 
     private static JavaModule javaModule(JsonReader reader) throws IOException {
-        String path = null, entrypoint = null, sha256 = null;
+        String path = null, entrypoint = null, sha256 = null, hostFingerprint = null;
         int apiVersion = -1, minApiMinor = -1;
         Set<String> fields = new HashSet<>();
         reader.beginObject();
@@ -263,6 +278,11 @@ public final class PluginManifest {
                 case "min_api_minor":
                     minApiMinor = version(reader, field);
                     break;
+                case "host_fingerprint":
+                    hostFingerprint = string(reader, 64);
+                    require(hostFingerprint.matches("[a-f0-9]{64}"),
+                            "Invalid host fingerprint");
+                    break;
                 default:
                     throw new IOException("Unknown Java module field: " + field);
             }
@@ -272,7 +292,8 @@ public final class PluginManifest {
         require(path != null && entrypoint != null && sha256 != null
                 && apiVersion >= 0 && minApiMinor >= 0, "Incomplete java_module");
 
-        return new JavaModule(path, entrypoint, sha256, apiVersion, minApiMinor);
+        return new JavaModule(
+                path, entrypoint, sha256, apiVersion, minApiMinor, hostFingerprint);
     }
 
     public String entryFile() {
@@ -292,16 +313,21 @@ public final class PluginManifest {
     }
 
     public boolean isCompatible() {
-        return (schemaVersion == 2 || schemaVersion == 3 || schemaVersion == SCHEMA_VERSION)
+        return schemaVersion >= 2 && schemaVersion <= SCHEMA_VERSION
                 && (!hasPythonModule()
                         || sdkVersion == SDK_VERSION && minSdkMinor <= SDK_MINOR_VERSION)
                 && (javaModule == null || javaModule.isCompatible());
     }
 
     public String compatibilityError() {
-        if (schemaVersion != 2 && schemaVersion != 3 && schemaVersion != SCHEMA_VERSION) {
+        if (schemaVersion < 2 || schemaVersion > SCHEMA_VERSION) {
             return "Plugin manifest schema " + schemaVersion
                     + " is incompatible with schema " + SCHEMA_VERSION;
+        }
+
+        if (javaModule != null && javaModule.hostFingerprint != null
+                && !HOST_FINGERPRINT.equals(javaModule.hostFingerprint)) {
+            return "Plugin requires a different low-level host contract";
         }
 
         if (javaModule != null && !javaModule.isCompatible()) {

@@ -82,6 +82,10 @@ final class JavaPluginUiResources {
         schedule();
     }
 
+    synchronized int activeCount() {
+        return resources.size();
+    }
+
     private void schedule() {
         if (!drainPosted) {
             drainPosted = true;

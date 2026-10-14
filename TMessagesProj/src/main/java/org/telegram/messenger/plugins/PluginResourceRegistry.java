@@ -62,6 +62,11 @@ final class PluginResourceRegistry {
         }
     }
 
+    int size() {
+        threadGuard.requireThread();
+        return resources.size();
+    }
+
     private static Exception collect(Exception failure, Throwable error) {
         if (failure == null) {
             return new Exception("Plugin resource cleanup failed", error);

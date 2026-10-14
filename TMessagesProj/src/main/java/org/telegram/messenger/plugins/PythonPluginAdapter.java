@@ -38,6 +38,8 @@ public final class PythonPluginAdapter implements Plugin {
     private static final String TAG = "FluxGramPython";
     private static final Handler UI_HANDLER = new Handler(Looper.getMainLooper());
     private static final int MAILBOX_CAPACITY = 69;
+    private static final int EVENT_CAPACITY = 64;
+    private static final int STORAGE_CAPACITY = 2;
     private final String id;
     private final String moduleName;
     private final int nameResId;
@@ -52,6 +54,9 @@ public final class PythonPluginAdapter implements Plugin {
     private PluginSession pluginSession;
     private volatile Thread workerThread;
     private volatile String loadError;
+    private volatile PluginUnloadReport lastUnloadReport;
+    private boolean lastJavaHostReferencesReleased = true;
+    private String lastClassLoaderState = "not_applicable";
     private File iconFile;
     private volatile java.util.List<PluginSettings.Setting> settingsSchema;
 
@@ -106,6 +111,35 @@ public final class PythonPluginAdapter implements Plugin {
         return lifecycle.getState().name();
     }
 
+    public PluginUnloadReport getLastUnloadReport() {
+        return lastUnloadReport;
+    }
+
+    public long getGeneration() {
+        return lifecycle.getGeneration();
+    }
+
+    String awaitDebugRuntime(long timeoutMs) throws IOException {
+        PythonPluginLifecycle.State state;
+
+        try {
+            state = lifecycle.awaitSettled(timeoutMs);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Plugin activation was interrupted", error);
+        }
+
+        if (state == null) {
+            throw new IOException("Plugin activation timed out");
+        }
+
+        if (state == PythonPluginLifecycle.State.FAILED) {
+            throw new IOException("Plugin activation failed: " + loadError);
+        }
+
+        return state.name();
+    }
+
     public boolean hasJavaModule() {
         return javaModule != null;
     }
@@ -134,7 +168,7 @@ public final class PythonPluginAdapter implements Plugin {
     }
 
     private final ThreadPoolExecutor executor;
-    private final Semaphore eventSlots = new Semaphore(64);
+    private final Semaphore eventSlots = new Semaphore(EVENT_CAPACITY);
     private final Semaphore storageSlots = new Semaphore(2);
     private final PythonPluginLifecycle lifecycle = new PythonPluginLifecycle();
     private final PythonPluginTaskScheduler taskScheduler;
@@ -528,6 +562,11 @@ public final class PythonPluginAdapter implements Plugin {
                     throw new IllegalArgumentException("Unsupported low-level UI extension");
                 }
 
+                if (javaModule == null || !javaModule.supportsLowLevelHost()) {
+                    throw new IllegalStateException(
+                            "Plugin package does not declare the current low-level host contract");
+                }
+
                 ComposerInputRendererExtensions.Factory rendererFactory =
                         (ComposerInputRendererExtensions.Factory) factory;
                 return uiResources.register(() -> ComposerInputRendererExtensions.register(
@@ -748,12 +787,23 @@ public final class PythonPluginAdapter implements Plugin {
                 taskScheduler.cancelAll();
                 pendingSettings.clear();
                 removal = new FutureTask<>(() -> {
+                    long generation = pluginSession == null
+                            ? lifecycle.getGeneration() : pluginSession.getGeneration();
+
                     try {
                         unloadStrict();
-                        executor.getQueue().clear();
+                        Runnable queued;
+
+                        while ((queued = executor.getQueue().poll()) != null) {
+                            queued.run();
+                        }
+
+                        lastUnloadReport = createUnloadReport(generation, true, null);
                         lifecycle.terminate();
                         executor.shutdown();
                     } catch (Exception | LinkageError error) {
+                        lastUnloadReport = createUnloadReport(
+                                generation, false, "cleanup");
                         lifecycle.failRemoval();
                         throw error;
                     }
@@ -892,6 +942,8 @@ public final class PythonPluginAdapter implements Plugin {
         if (javaLoader != null && javaUiStop == null) {
             try {
                 javaLoader.close();
+                lastJavaHostReferencesReleased = javaLoader.areHostReferencesReleased();
+                lastClassLoaderState = javaLoader.classLoaderState();
                 javaLoader = null;
             } catch (Exception | LinkageError error) {
                 failure = new Exception("Java cleanup failed", error);
@@ -928,6 +980,31 @@ public final class PythonPluginAdapter implements Plugin {
         if (failure != null) {
             throw failure;
         }
+    }
+
+    private PluginUnloadReport createUnloadReport(
+            long generation, boolean successful, String failedPhase) {
+        PluginScope.Diagnostics diagnostics = pluginSession == null
+                ? new PluginScope.Diagnostics() : pluginSession.diagnostics();
+        int pendingUiResources = javaUiStop == null ? 0 : javaUiStop.activeCount();
+
+        return new PluginUnloadReport(
+                id,
+                generation,
+                successful,
+                failedPhase,
+                diagnostics.scopes,
+                diagnostics.externalScopes,
+                diagnostics.resources,
+                pendingUiResources,
+                taskScheduler.activeCount(),
+                executor.getQueue().size(),
+                EVENT_CAPACITY - eventSlots.availablePermits(),
+                STORAGE_CAPACITY - storageSlots.availablePermits(),
+                javaLoader == null && lastJavaHostReferencesReleased,
+                instance == null && bridge == null,
+                pluginSession == null,
+                lastClassLoaderState);
     }
 
     @Override
