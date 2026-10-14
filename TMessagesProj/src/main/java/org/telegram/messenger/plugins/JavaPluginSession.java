@@ -52,6 +52,11 @@ final class JavaPluginSession implements AutoCloseable {
                 long generation, ComposerContentEffect.Factory factory) {
             throw new UnsupportedOperationException("Composer content effects are unavailable");
         }
+
+        default JavaPluginUiResource registerLowLevelUiResource(
+                long generation, String extensionId, Object factory) {
+            throw new UnsupportedOperationException("Low-level UI extensions are unavailable");
+        }
     }
 
     private final Constructor<? extends JavaPluginModule> constructor;
@@ -173,7 +178,7 @@ final class JavaPluginSession implements AutoCloseable {
         return failure;
     }
 
-    private static final class Context implements JavaPluginContext {
+    private static final class Context implements JavaPluginContext, LowLevelJavaPluginContext {
         private static final int RESOURCE_LIMIT = 128;
 
         private final PluginSession session;
@@ -255,6 +260,13 @@ final class JavaPluginSession implements AutoCloseable {
         public JavaPluginUiResource registerComposerContentEffect(ComposerContentEffect.Factory factory) {
             requireActive();
             return host.registerComposerContentEffect(session.getGeneration(), factory);
+        }
+
+        @Override
+        public JavaPluginUiResource registerLowLevelUiResource(String extensionId, Object factory) {
+            requireActive();
+            return host.registerLowLevelUiResource(
+                    session.getGeneration(), extensionId, factory);
         }
 
         @Override

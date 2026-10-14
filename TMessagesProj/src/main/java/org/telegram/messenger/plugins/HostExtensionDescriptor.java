@@ -3,7 +3,8 @@ package org.telegram.messenger.plugins;
 final class HostExtensionDescriptor<I, C> {
     enum Mode {
         OBSERVER,
-        CONTRIBUTOR
+        CONTRIBUTOR,
+        REPLACEMENT
     }
 
     final String id;
@@ -25,7 +26,8 @@ final class HostExtensionDescriptor<I, C> {
             throw new IllegalArgumentException("Invalid extension contract limits");
         }
 
-        if (mode == Mode.OBSERVER && maxContributionsPerCallback != 0
+        if ((mode == Mode.OBSERVER || mode == Mode.REPLACEMENT)
+                && maxContributionsPerCallback != 0
                 || mode == Mode.CONTRIBUTOR && maxContributionsPerCallback <= 0) {
             throw new IllegalArgumentException("Invalid contribution limit");
         }
@@ -80,4 +82,24 @@ interface HostExtensionContributorFactory<I, C> {
 
 interface HostExtensionContributionSink<C> {
     boolean add(C contribution);
+}
+
+interface HostExtensionReplacement<I> extends AutoCloseable {
+    boolean replace(I input) throws Exception;
+
+    @Override
+    default void close() throws Exception {
+    }
+}
+
+interface HostExtensionReplacementFactory<I> {
+    HostExtensionReplacement<I> create() throws Exception;
+}
+
+interface HostExtensionBudgetInput {
+    long excludedCallbackNanos();
+}
+
+interface HostExtensionFailureInput {
+    boolean isHostFailure(Throwable error);
 }

@@ -517,6 +517,24 @@ public final class PythonPluginAdapter implements Plugin {
             }
 
             @Override
+            public JavaPluginUiResource registerLowLevelUiResource(
+                    long generation, String extensionId, Object factory) {
+                if (!lifecycle.isCurrent(generation)) {
+                    throw new IllegalStateException("Low-level UI generation is inactive");
+                }
+
+                if (!ComposerInputRendererExtensions.EXTENSION_ID.equals(extensionId)
+                        || !(factory instanceof ComposerInputRendererExtensions.Factory)) {
+                    throw new IllegalArgumentException("Unsupported low-level UI extension");
+                }
+
+                ComposerInputRendererExtensions.Factory rendererFactory =
+                        (ComposerInputRendererExtensions.Factory) factory;
+                return uiResources.register(() -> ComposerInputRendererExtensions.register(
+                        id, generation, () -> lifecycle.isCurrent(generation), rendererFactory));
+            }
+
+            @Override
             public JavaPluginUiResource registerComposerEffect(long generation, ComposerEffect.Factory factory) {
                 if (!lifecycle.isCurrent(generation)) {
                     throw new IllegalStateException("Composer generation is inactive");

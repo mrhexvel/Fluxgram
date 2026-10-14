@@ -23,8 +23,9 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.UserConfig;
-import org.telegram.messenger.plugins.PluginManagedUi;
+import org.telegram.messenger.plugins.ComposerInputRendererHostSurface;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
+import org.telegram.messenger.plugins.PluginManagedUi;
 import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
 import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
 import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
@@ -64,6 +65,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private final PluginManagedUi.Scope fragmentScope;
     private PluginManagedUi.Scope viewScope;
     private PluginManagedUi.Scope surfaceScope;
+    private ComposerInputRendererHostSurface rendererSurface;
     private View overlayHost;
     private View expandedLayer;
     private PluginComposerRegistry.Surface surface;
@@ -205,7 +207,16 @@ public final class FluxGramComposerController implements TextWatcher,
     public void refresh() {
         if (surface != null && surface.isClosed()) {
             surface = null;
+            removeOverlay();
+            removeExpandedLayer();
+        }
+
+        if (surfaceScope != null && !surfaceScope.isActive()) {
             closeSurfaceScope();
+
+            if (surfaceScope != null) {
+                return;
+            }
         }
 
         if (!available()) {
@@ -247,15 +258,7 @@ public final class FluxGramComposerController implements TextWatcher,
             clearSelectionCapture();
         }
 
-        if (surface == null) {
-            if (surfaceScope != null) {
-                closeSurfaceScope();
-
-                if (surfaceScope != null) {
-                    return;
-                }
-            }
-
+        if (surfaceScope == null || surface == null) {
             if (viewScope == null || !viewScope.isActive()) {
                 hide();
                 return;
@@ -375,18 +378,30 @@ public final class FluxGramComposerController implements TextWatcher,
                     cursorCapture.draw(canvas, nativeDraw, snapshot, presentation, cursorContentOffsetY);
                 }
             };
-            PluginManagedUi.Scope nextScope = null;
+            boolean creatingScope = surfaceScope == null;
+            PluginManagedUi.Scope nextScope = surfaceScope;
             PluginComposerRegistry.Surface nextSurface = null;
+            ComposerInputRendererHostSurface nextRenderer = null;
             boolean surfaceManaged = false;
+            boolean rendererManaged = false;
 
             try {
-                nextScope = viewScope.openSurface(
-                        PluginManagedUi.nextIdentity(), this::available);
+                if (creatingScope) {
+                    nextScope = viewScope.openSurface(
+                            PluginManagedUi.nextIdentity(), this::available);
+                    nextScope.register(this::removeOverlay);
+                    nextScope.register(this::removeExpandedLayer);
+
+                    if (previewPluginId == null) {
+                        nextRenderer = ComposerInputRendererHostSurface.attach(field);
+                    }
+                }
+
                 nextSurface = previewPluginId == null
                         ? PluginComposerRegistry.attach(host)
                         : PluginComposerRegistry.attachPreview(host, previewPluginId);
 
-                if (nextSurface == null) {
+                if (nextSurface == null && nextRenderer == null && creatingScope) {
                     try {
                         nextScope.close();
                     } catch (Exception | LinkageError | AssertionError cleanupError) {
@@ -398,15 +413,25 @@ public final class FluxGramComposerController implements TextWatcher,
                     return;
                 }
 
-                nextScope.register(nextSurface);
-                surfaceManaged = true;
-                nextScope.register(this::removeOverlay);
-                nextScope.register(this::removeExpandedLayer);
-                surfaceScope = nextScope;
-                surface = nextSurface;
-                overlayHost.getOverlay().add(overlay);
+                if (nextSurface != null) {
+                    nextScope.register(nextSurface);
+                    surfaceManaged = true;
+                    surface = nextSurface;
+                    overlayHost.getOverlay().add(overlay);
+                }
+
+                if (nextRenderer != null) {
+                    nextScope.register(nextRenderer);
+                    rendererManaged = true;
+                    rendererSurface = nextRenderer;
+                }
+
+                if (creatingScope) {
+                    surfaceScope = nextScope;
+                }
             } catch (RuntimeException | LinkageError | AssertionError error) {
                 surface = null;
+                rendererSurface = null;
                 surfaceScope = null;
 
                 if (nextScope != null) {
@@ -421,6 +446,14 @@ public final class FluxGramComposerController implements TextWatcher,
 
                 if (nextSurface != null && !surfaceManaged && !nextSurface.isClosed()) {
                     nextSurface.close();
+                }
+
+                if (nextRenderer != null && !rendererManaged) {
+                    try {
+                        nextRenderer.close();
+                    } catch (Exception | LinkageError | AssertionError cleanupError) {
+                        error.addSuppressed(cleanupError);
+                    }
                 }
 
                 removeOverlay();
@@ -530,6 +563,7 @@ public final class FluxGramComposerController implements TextWatcher,
     private void hide() {
         PluginComposerRegistry.Surface previous = surface;
         surface = null;
+        rendererSurface = null;
         closeSurfaceScope();
 
         if (previous != null && surfaceScope == null && !previous.isClosed()) {
@@ -548,10 +582,19 @@ public final class FluxGramComposerController implements TextWatcher,
     }
 
     public void drawText(EditTextCaption source, Canvas canvas, Consumer<Canvas> nativeDraw) {
-        if (source == field && !destroyed && surface != null) {
-            surface.drawContent(canvas, contentCanvas -> surface.drawText(contentCanvas, nativeDraw));
+        Consumer<Canvas> legacyDraw = target -> {
+            if (source == field && !destroyed && surface != null) {
+                surface.drawContent(target,
+                        contentCanvas -> surface.drawText(contentCanvas, nativeDraw));
+            } else {
+                nativeDraw.accept(target);
+            }
+        };
+
+        if (source == field && !destroyed && rendererSurface != null && available()) {
+            rendererSurface.draw(canvas, legacyDraw);
         } else {
-            nativeDraw.accept(canvas);
+            legacyDraw.accept(canvas);
         }
     }
 

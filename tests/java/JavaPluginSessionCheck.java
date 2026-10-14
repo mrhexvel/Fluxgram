@@ -74,6 +74,7 @@ public final class JavaPluginSessionCheck {
         int textRegistrations;
         int selectionRegistrations;
         int contentRegistrations;
+        int lowLevelRegistrations;
 
         @Override
         public boolean isActive(long value) {
@@ -168,6 +169,29 @@ public final class JavaPluginSessionCheck {
                 }
             };
         }
+
+        @Override
+        public JavaPluginUiResource registerLowLevelUiResource(
+                long value, String extensionId, Object factory) {
+            check(value == generation && "test.renderer".equals(extensionId) && factory != null,
+                    "low-level registration identity");
+            lowLevelRegistrations++;
+            return new JavaPluginUiResource() {
+                @Override
+                public boolean isActive() {
+                    return true;
+                }
+
+                @Override
+                public boolean isClosed() {
+                    return false;
+                }
+
+                @Override
+                public void close() {
+                }
+            };
+        }
     }
 
     public static final class BrokenModule implements JavaPluginModule {
@@ -204,6 +228,9 @@ public final class JavaPluginSessionCheck {
         check(host.selectionRegistrations == 1, "selection effect registration was not delegated");
         context.registerComposerContentEffect(surface -> null);
         check(host.contentRegistrations == 1, "content effect registration was not delegated");
+        ((LowLevelJavaPluginContext) context).registerLowLevelUiResource(
+                "test.renderer", new Object());
+        check(host.lowLevelRegistrations == 1, "low-level registration was not delegated");
         session.settingChanged("enabled", true);
         host.generation++;
         session.settingChanged("stale", true);
@@ -211,6 +238,8 @@ public final class JavaPluginSessionCheck {
         rejects(() -> context.registerComposerTextEffect(surface -> null));
         rejects(() -> context.registerComposerSelectionEffect(surface -> null));
         rejects(() -> context.registerComposerContentEffect(surface -> null));
+        rejects(() -> ((LowLevelJavaPluginContext) context).registerLowLevelUiResource(
+                "test.renderer", new Object()));
         rejects(() -> context.readIntSetting("count", 0));
         session.close();
         session.close();

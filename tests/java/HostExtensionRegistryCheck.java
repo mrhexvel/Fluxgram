@@ -49,6 +49,8 @@ public final class HostExtensionRegistryCheck {
 
     public static void main(String[] args) throws Exception {
         checkOrderingConflictsAndContributionBounds();
+        checkReplacementExclusivityBudgetAndFailureBoundary();
+        checkReplacementBudgetAndCleanupRetry();
         checkFactoriesRunOutsideRegistryLock();
         checkExceptionQuarantinesOnlyBinding();
         checkBudgetQuarantinesRegistration();
@@ -122,6 +124,186 @@ public final class HostExtensionRegistryCheck {
                 lateSink.set(sink);
             }
         };
+    }
+
+    private static void checkReplacementExclusivityBudgetAndFailureBoundary() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        Boundary boundary = new Boundary();
+        List<Throwable> reports = new ArrayList<>();
+        HostExtensionRegistry registry = new HostExtensionRegistry(clock::get, boundary, reports::add);
+        HostExtensionDescriptor<ReplacementInput, Void> descriptor = replacement(
+                "test.replacement", 10, 2);
+        AtomicBoolean firstActive = new AtomicBoolean(true);
+        AtomicBoolean secondActive = new AtomicBoolean(true);
+        AtomicInteger closes = new AtomicInteger();
+
+        AutoCloseable registration = registry.registerReplacement(
+                "plugin.first", 1, firstActive::get, descriptor,
+                new HostExtensionRegistrationSpec("renderer", 0),
+                () -> new HostExtensionReplacement<ReplacementInput>() {
+                    @Override
+                    public boolean replace(ReplacementInput input) {
+                        if (input.pluginFailure) {
+                            throw new IllegalStateException("intentional plugin failure");
+                        }
+
+                        input.callNative();
+                        clock.addAndGet(5);
+                        return true;
+                    }
+
+                    @Override
+                    public void close() {
+                        closes.incrementAndGet();
+                    }
+                });
+        rejectsRuntime(() -> registry.registerReplacement(
+                "plugin.second", 1, secondActive::get, descriptor,
+                new HostExtensionRegistrationSpec("renderer", 0), inputFactory(false)));
+
+        HostExtensionRegistry.Endpoint<ReplacementInput, Void> endpoint =
+                registry.openEndpoint(descriptor);
+        ReplacementInput successful = new ReplacementInput(clock, false, false);
+        require(endpoint.dispatchReplacement(successful),
+                "replacement did not handle input");
+        require(successful.nativeCalls == 1, "replacement did not invoke native continuation");
+        require(registry.registrationCount() == 1 && registry.bindingCount() == 1,
+                "native continuation time consumed callback budget");
+
+        ReplacementInput hostFailure = new ReplacementInput(clock, true, false);
+        require(!endpoint.dispatchReplacement(hostFailure),
+                "host failure committed replacement");
+        require(boundary.handled.size() == 1 && reports.size() == 1
+                        && reports.get(0) == hostFailure.hostFailure,
+                "host failure was attributed to plugin");
+        require(registry.registrationCount() == 1 && registry.bindingCount() == 1,
+                "host failure quarantined replacement");
+
+        require(!endpoint.dispatchReplacement(new ReplacementInput(clock, false, true)),
+                "plugin failure committed replacement");
+        require(boundary.handled.size() == 2 && reports.size() == 2,
+                "plugin failure was not attributed");
+        require(registry.registrationCount() == 1 && registry.bindingCount() == 0,
+                "plugin failure did not quarantine binding");
+
+        endpoint.close();
+        registration.close();
+        require(closes.get() == 1 && registry.registrationCount() == 0,
+                "replacement cleanup did not release exclusivity");
+
+        registry.registerReplacement("plugin.second", 1, secondActive::get, descriptor,
+                new HostExtensionRegistrationSpec("renderer", 0), inputFactory(true)).close();
+    }
+
+    private static HostExtensionReplacementFactory<ReplacementInput> inputFactory(boolean result) {
+        return () -> input -> result;
+    }
+
+    private static void checkReplacementBudgetAndCleanupRetry() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        Boundary boundary = new Boundary();
+        List<Throwable> reports = new ArrayList<>();
+        HostExtensionRegistry registry = new HostExtensionRegistry(clock::get, boundary, reports::add);
+        HostExtensionDescriptor<ReplacementInput, Void> budgetDescriptor = replacement(
+                "test.replacement_budget", 10, 2);
+        AutoCloseable budgetRegistration = registry.registerReplacement(
+                "plugin.budget", 1, () -> true, budgetDescriptor,
+                new HostExtensionRegistrationSpec("renderer", 0),
+                () -> input -> {
+                    clock.addAndGet(11);
+                    return true;
+                });
+        HostExtensionRegistry.Endpoint<ReplacementInput, Void> budgetEndpoint =
+                registry.openEndpoint(budgetDescriptor);
+
+        require(!budgetEndpoint.dispatchReplacement(
+                        new ReplacementInput(clock, false, false)),
+                "replacement budget overrun committed frame");
+        require(registry.registrationCount() == 1 && registry.bindingCount() == 1,
+                "first replacement budget overrun quarantined registration");
+        require(!budgetEndpoint.dispatchReplacement(
+                        new ReplacementInput(clock, false, false)),
+                "quarantined replacement committed frame");
+        require(registry.registrationCount() == 0 && registry.bindingCount() == 0
+                        && reports.size() == 1,
+                "replacement budget quarantine mismatch");
+        budgetEndpoint.close();
+        budgetRegistration.close();
+
+        HostExtensionDescriptor<ReplacementInput, Void> cleanupDescriptor = replacement(
+                "test.replacement_cleanup", 10, 2);
+        AtomicInteger closes = new AtomicInteger();
+        AutoCloseable cleanupRegistration = registry.registerReplacement(
+                "plugin.cleanup", 1, () -> true, cleanupDescriptor,
+                new HostExtensionRegistrationSpec("renderer", 0),
+                () -> new HostExtensionReplacement<ReplacementInput>() {
+                    @Override
+                    public boolean replace(ReplacementInput input) {
+                        return true;
+                    }
+
+                    @Override
+                    public void close() throws Exception {
+                        if (closes.incrementAndGet() == 1) {
+                            throw new Exception("intentional replacement cleanup failure");
+                        }
+                    }
+                });
+        HostExtensionRegistry.Endpoint<ReplacementInput, Void> cleanupEndpoint =
+                registry.openEndpoint(cleanupDescriptor);
+
+        rejects(cleanupRegistration::close);
+        require(registry.registrationCount() == 1,
+                "failed replacement cleanup released exclusivity");
+        rejectsRuntime(() -> registry.registerReplacement(
+                "plugin.conflict", 1, () -> true, cleanupDescriptor,
+                new HostExtensionRegistrationSpec("renderer", 0), inputFactory(true)));
+        cleanupRegistration.close();
+        require(closes.get() == 2 && registry.registrationCount() == 0,
+                "replacement cleanup retry mismatch");
+        cleanupEndpoint.close();
+    }
+
+    private static final class ReplacementInput
+            implements HostExtensionBudgetInput, HostExtensionFailureInput {
+        final AtomicLong clock;
+        final RuntimeException hostFailure = new RuntimeException("intentional host failure");
+        final boolean failHost;
+        final boolean pluginFailure;
+        long excludedNanos;
+        int nativeCalls;
+
+        ReplacementInput(AtomicLong clock, boolean failHost, boolean pluginFailure) {
+            this.clock = clock;
+            this.failHost = failHost;
+            this.pluginFailure = pluginFailure;
+        }
+
+        void callNative() {
+            long started = clock.get();
+
+            try {
+                nativeCalls++;
+                clock.addAndGet(100);
+
+                if (failHost) {
+                    throw hostFailure;
+                }
+
+            } finally {
+                excludedNanos += Math.max(0, clock.get() - started);
+            }
+        }
+
+        @Override
+        public long excludedCallbackNanos() {
+            return excludedNanos;
+        }
+
+        @Override
+        public boolean isHostFailure(Throwable error) {
+            return error == hostFailure;
+        }
     }
 
     private static void checkFactoriesRunOutsideRegistryLock() throws Exception {
@@ -495,6 +677,12 @@ public final class HostExtensionRegistryCheck {
         return new HostExtensionDescriptor<>(
                 id, 1, HostExtensionDescriptor.Mode.CONTRIBUTOR,
                 budget, overruns, contributions);
+    }
+
+    private static <I> HostExtensionDescriptor<I, Void> replacement(
+            String id, long budget, int overruns) {
+        return new HostExtensionDescriptor<>(
+                id, 1, HostExtensionDescriptor.Mode.REPLACEMENT, budget, overruns, 0);
     }
 
     private static void rejects(CheckedAction action) throws Exception {

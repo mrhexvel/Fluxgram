@@ -57,6 +57,43 @@ class JavaPluginRuntimeTest(unittest.TestCase):
                 capture_output=True,
             )
 
+    def test_composer_input_renderer_surface_fallback_and_cleanup(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        sources = [
+            *sorted((SOURCE / "api").glob("*.java")),
+            ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+            ROOT / "tests/java/e5_stubs/android/graphics/Picture.java",
+            ROOT / "tests/java/e5_stubs/android/view/View.java",
+            ROOT / "tests/java/e5_stubs/org/telegram/messenger/FileLog.java",
+            ROOT / "tests/java/e5_stubs/org/telegram/messenger/plugins/HostExtensionAttribution.java",
+            SOURCE / "PluginResourceRegistry.java",
+            SOURCE / "PluginScope.java",
+            SOURCE / "PluginSession.java",
+            SOURCE / "HostExtensionDescriptor.java",
+            SOURCE / "HostExtensionRegistry.java",
+            SOURCE / "LowLevelJavaPluginContext.java",
+            SOURCE / "ComposerInputRendererExtensions.java",
+            SOURCE / "ComposerInputRendererHostSurface.java",
+            ROOT / "tests/java/ComposerInputRendererHostSurfaceCheck.java",
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(
+                ["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    "java", "-cp", directory,
+                    "org.telegram.messenger.plugins.ComposerInputRendererHostSurfaceCheck",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
     def test_shared_scope_lifecycle_retry_and_generation(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")
@@ -117,6 +154,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
             SOURCE / "PluginResourceRegistry.java",
             SOURCE / "PluginScope.java",
             SOURCE / "PluginSession.java",
+            SOURCE / "LowLevelJavaPluginContext.java",
             SOURCE / "JavaPluginSession.java",
             ROOT / "tests/java/JavaPluginSessionCheck.java",
         ]

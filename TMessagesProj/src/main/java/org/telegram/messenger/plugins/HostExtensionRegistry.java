@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -25,7 +26,7 @@ final class HostExtensionRegistry {
     }
 
     private interface Callback<I, C> extends AutoCloseable {
-        void invoke(I input, HostExtensionContributionSink<C> sink) throws Exception;
+        boolean invoke(I input, HostExtensionContributionSink<C> sink) throws Exception;
     }
 
     private static final int MAX_REGISTRATIONS = 128;
@@ -66,8 +67,9 @@ final class HostExtensionRegistry {
 
             return new Callback<I, Void>() {
                 @Override
-                public void invoke(I input, HostExtensionContributionSink<Void> sink) throws Exception {
+                public boolean invoke(I input, HostExtensionContributionSink<Void> sink) throws Exception {
                     observer.onObserved(input);
+                    return false;
                 }
 
                 @Override
@@ -93,8 +95,9 @@ final class HostExtensionRegistry {
 
             return new Callback<I, C>() {
                 @Override
-                public void invoke(I input, HostExtensionContributionSink<C> sink) throws Exception {
+                public boolean invoke(I input, HostExtensionContributionSink<C> sink) throws Exception {
                     contributor.contribute(input, sink);
+                    return false;
                 }
 
                 @Override
@@ -103,6 +106,69 @@ final class HostExtensionRegistry {
                 }
             };
         });
+    }
+
+    <I> AutoCloseable registerReplacement(String pluginId, long generation,
+            BooleanSupplier active,
+            HostExtensionDescriptor<I, Void> descriptor,
+            HostExtensionRegistrationSpec spec,
+            HostExtensionReplacementFactory<I> factory) {
+        requireMode(descriptor, HostExtensionDescriptor.Mode.REPLACEMENT);
+
+        if (pluginId == null || pluginId.isEmpty() || generation <= 0 || active == null
+                || spec == null || factory == null || !active.getAsBoolean()) {
+            throw new IllegalArgumentException("Replacement registration is incomplete");
+        }
+
+        Registration<I, Void> registration;
+
+        ArrayList<Endpoint<?, ?>> snapshot;
+
+        synchronized (this) {
+            requireDescriptor(descriptor);
+            requireRegistration(pluginId, generation, descriptor, spec);
+            registration = new Registration<>(pluginId, generation, active,
+                    descriptor, spec, () -> {
+                        HostExtensionReplacement<I> replacement = factory.create();
+
+                        if (replacement == null) {
+                            throw new IllegalStateException("Replacement factory returned null");
+                        }
+
+                        return new Callback<I, Void>() {
+                            @Override
+                            public boolean invoke(I input, HostExtensionContributionSink<Void> sink)
+                                    throws Exception {
+                                return replacement.replace(input);
+                            }
+
+                            @Override
+                            public void close() throws Exception {
+                                replacement.close();
+                            }
+                        };
+                    }, nextSequence++);
+            registrations.add(registration);
+            snapshot = new ArrayList<>(endpoints);
+        }
+
+        try {
+            for (Endpoint<?, ?> endpoint : snapshot) {
+                if (endpoint.descriptor.id.equals(descriptor.id)) {
+                    attachUnchecked(registration, endpoint);
+                }
+            }
+
+            return registration;
+        } catch (RuntimeException | Error error) {
+            try {
+                registration.close();
+            } catch (Exception cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
+
+            throw error;
+        }
     }
 
     <I, C> Endpoint<I, C> openEndpoint(HostExtensionDescriptor<I, C> descriptor) {
@@ -161,8 +227,9 @@ final class HostExtensionRegistry {
 
         synchronized (this) {
             requireDescriptor(descriptor);
-            requireRegistration(owner, descriptor, spec);
-            registration = new Registration<>(owner, descriptor, spec, factory, nextSequence++);
+            requireRegistration(owner.getPluginId(), owner.getGeneration(), descriptor, spec);
+            registration = new Registration<>(owner.getPluginId(), owner.getGeneration(), owner::isActive,
+                    descriptor, spec, factory, nextSequence++);
         }
 
         AutoCloseable resource = owner.registerResource(registration);
@@ -171,7 +238,7 @@ final class HostExtensionRegistry {
         try {
             synchronized (this) {
                 owner.requireActive();
-                requireRegistration(owner, descriptor, spec);
+                requireRegistration(owner.getPluginId(), owner.getGeneration(), descriptor, spec);
                 registrations.add(registration);
                 snapshot = new ArrayList<>(endpoints);
             }
@@ -212,7 +279,7 @@ final class HostExtensionRegistry {
         descriptors.put(descriptor.id, descriptor);
     }
 
-    private synchronized void requireRegistration(PluginScope owner,
+    private synchronized void requireRegistration(String pluginId, long generation,
             HostExtensionDescriptor<?, ?> descriptor,
             HostExtensionRegistrationSpec spec) {
         if (registrations.size() >= MAX_REGISTRATIONS) {
@@ -222,8 +289,13 @@ final class HostExtensionRegistry {
         int pluginCount = 0;
 
         for (Registration<?, ?> registration : registrations) {
-            if (registration.pluginId.equals(owner.getPluginId())
-                    && registration.generation == owner.getGeneration()) {
+            if (descriptor.mode == HostExtensionDescriptor.Mode.REPLACEMENT
+                    && registration.descriptor.id.equals(descriptor.id)) {
+                throw new IllegalStateException("Replacement extension conflict: " + descriptor.id);
+            }
+
+            if (registration.pluginId.equals(pluginId)
+                    && registration.generation == generation) {
                 pluginCount++;
 
                 if (registration.descriptor.id.equals(descriptor.id)
@@ -266,7 +338,12 @@ final class HostExtensionRegistry {
             callback = callFactory(registration);
         } catch (Exception | LinkageError | AssertionError error) {
             finishFailedAttachment(registration, endpoint);
-            report.accept(error);
+
+            if (registration.descriptor.mode == HostExtensionDescriptor.Mode.REPLACEMENT) {
+                quarantine(registration, error);
+            } else {
+                report.accept(error);
+            }
             return;
         } catch (Error error) {
             finishFailedAttachment(registration, endpoint);
@@ -403,6 +480,20 @@ final class HostExtensionRegistry {
             return Collections.unmodifiableList(result);
         }
 
+        boolean dispatchReplacement(I input) {
+            requireMode(descriptor, HostExtensionDescriptor.Mode.REPLACEMENT);
+            Binding<I, C>[] current = snapshot;
+
+            return current.length == 1 && current[0].replace(input);
+        }
+
+        boolean hasReplacement() {
+            requireMode(descriptor, HostExtensionDescriptor.Mode.REPLACEMENT);
+            Binding<I, C>[] current = snapshot;
+
+            return current.length == 1 && current[0].isActive();
+        }
+
         boolean isActive() {
             return !closed;
         }
@@ -462,9 +553,9 @@ final class HostExtensionRegistry {
     }
 
     private final class Registration<I, C> implements AutoCloseable {
-        final PluginScope owner;
         final String pluginId;
         final long generation;
+        final BooleanSupplier active;
         final HostExtensionDescriptor<I, C> descriptor;
         final HostExtensionRegistrationSpec spec;
         final Factory<I, C> factory;
@@ -475,11 +566,12 @@ final class HostExtensionRegistry {
         int budgetOverruns;
         int attaching;
 
-        Registration(PluginScope owner, HostExtensionDescriptor<I, C> descriptor,
+        Registration(String pluginId, long generation, BooleanSupplier active,
+                HostExtensionDescriptor<I, C> descriptor,
                 HostExtensionRegistrationSpec spec, Factory<I, C> factory, long sequence) {
-            this.owner = owner;
-            this.pluginId = owner.getPluginId();
-            this.generation = owner.getGeneration();
+            this.pluginId = pluginId;
+            this.generation = generation;
+            this.active = active;
             this.descriptor = descriptor;
             this.spec = spec;
             this.factory = factory;
@@ -487,7 +579,7 @@ final class HostExtensionRegistry {
         }
 
         boolean isActive() {
-            return !closing && !quarantined && owner.isActive();
+            return !closing && !quarantined && active.getAsBoolean();
         }
 
         boolean recordBudget(long elapsed) {
@@ -513,6 +605,33 @@ final class HostExtensionRegistry {
             return false;
         }
 
+        boolean recordReplacementBudget(long elapsed) {
+            if (elapsed <= descriptor.callbackBudgetNanos) {
+                return true;
+            }
+
+            boolean quarantine;
+
+            synchronized (HostExtensionRegistry.this) {
+                if (!isActive()) {
+                    return false;
+                }
+
+                budgetOverruns++;
+                quarantine = budgetOverruns >= descriptor.maxBudgetOverruns;
+
+                if (quarantine) {
+                    quarantined = true;
+                }
+            }
+
+            if (quarantine) {
+                quarantine(this, new IllegalStateException("Host extension callback budget exceeded"));
+            }
+
+            return false;
+        }
+
         @Override
         public void close() throws Exception {
             ArrayList<Binding<I, C>> closingBindings;
@@ -520,7 +639,6 @@ final class HostExtensionRegistry {
 
             synchronized (HostExtensionRegistry.this) {
                 closing = true;
-                registrations.remove(this);
                 attachmentPending = attaching > 0;
                 closingBindings = new ArrayList<>(bindings);
                 Collections.reverse(closingBindings);
@@ -544,6 +662,10 @@ final class HostExtensionRegistry {
 
             if (failure != null) {
                 throw failure;
+            }
+
+            synchronized (HostExtensionRegistry.this) {
+                registrations.remove(this);
             }
         }
     }
@@ -626,6 +748,48 @@ final class HostExtensionRegistry {
             }
 
             return sink.values();
+        }
+
+        boolean replace(I input) {
+            Callback<I, C> invocation = beginInvocation();
+
+            if (invocation == null) {
+                return false;
+            }
+
+            long start = clock.getAsLong();
+            boolean[] committed = {false};
+            Throwable failure = null;
+
+            try {
+                boundary.run(registration.pluginId,
+                        () -> committed[0] = invocation.invoke(input, null));
+            } catch (Exception | LinkageError | AssertionError | OutOfMemoryError error) {
+                failure = error;
+            } finally {
+                finishInvocation();
+            }
+
+            if (failure != null) {
+                boundary.handled(failure);
+
+                if (input instanceof HostExtensionFailureInput
+                        && ((HostExtensionFailureInput) input).isHostFailure(failure)) {
+                    report.accept(failure);
+                } else {
+                    quarantine(this, failure);
+                }
+
+                return false;
+            }
+
+            long excluded = input instanceof HostExtensionBudgetInput
+                    ? Math.max(0, ((HostExtensionBudgetInput) input).excludedCallbackNanos())
+                    : 0;
+            long elapsed = Math.max(0, clock.getAsLong() - start - excluded);
+
+            return committed[0] && isActive()
+                    && registration.recordReplacementBudget(elapsed) && isActive();
         }
 
         boolean isActive() {
