@@ -545,14 +545,21 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private boolean isCenterTitle;
 
     public void centerTitle() {
-        isCenterTitle = true;
+        setTitleCentered(true);
+    }
+
+    public void setTitleCentered(boolean centered) {
+        isCenterTitle = centered;
         if (titleTextView != null) {
             for (int a = 0; a < titleTextView.length; a++) {
                 if (titleTextView[a] != null) {
-                    titleTextView[a].setGravity(Gravity.CENTER);
+                    titleTextView[a].setGravity(
+                            centered ? Gravity.CENTER : Gravity.LEFT | Gravity.CENTER_VERTICAL
+                    );
                 }
             }
         }
+        requestLayout();
     }
 
     public void setTitleRightMargin(int value) {
@@ -1437,6 +1444,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         for (int i = 0; i < 2; i++) {
             if (titleTextView[0] != null && titleTextView[0].getVisibility() != GONE || subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
                 int availableWidth = width - (menu != null ? menu.getMeasuredWidth() : 0) - dp(16) - textLeft - titleRightMargin;
+                if (isCenterTitle) {
+                    int leftInset = textLeft + additionalTextLeft;
+                    int rightInset = (menu != null ? menu.getMeasuredWidth() : 0) + dp(16) + titleRightMargin;
+                    availableWidth = width - Math.max(leftInset, rightInset) * 2;
+                }
                 availableWidth = Math.max(availableWidth, 0);
 
                 if (((fromBottom && i == 0) || (!fromBottom && i == 1)) && overlayTitleAnimation && titleAnimationRunning) {
@@ -1533,6 +1545,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         for (int i = 0; i < 2; i++) {
             if (titleTextView[i] != null && titleTextView[i].getVisibility() != GONE) {
+                int titleLeft = isCenterTitle
+                        ? (getMeasuredWidth() - titleTextView[i].getMeasuredWidth()) / 2
+                        : textLeft;
                 int textTop;
                 if (((fromBottom && i == 0) || (!fromBottom && i == 1)) && overlayTitleAnimation && titleAnimationRunning) {
                     textTop = (getCurrentActionBarHeight() - titleTextView[i].getTextHeight()) / 2;
@@ -1543,7 +1558,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                         textTop = (getCurrentActionBarHeight() - titleTextView[i].getTextHeight()) / 2;
                     }
                 }
-                titleTextView[i].layout(textLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), textLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
+                titleTextView[i].layout(titleLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), titleLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
             }
         }
         if (additionalSubTitleOverlayContainer != null) {

@@ -296,6 +296,15 @@
     <string name="FluxGramGeneral">Основные</string>
     <string name="FluxGramGeneralEmpty">В этом разделе пока нет настроек.</string>
     <string name="FluxGramAppearance">Внешний вид</string>
+    <string name="FluxGramAppName">FluxGram</string>
+    <string name="FluxGramChatList">Список чатов</string>
+    <string name="FluxGramActionBarTitle">Текст в заголовке</string>
+    <string name="FluxGramActionBarTitleAppName">Название приложения</string>
+    <string name="FluxGramActionBarTitleUsername">Юзернейм</string>
+    <string name="FluxGramActionBarTitleName">Имя</string>
+    <string name="FluxGramActionBarTitleChats">Чаты</string>
+    <string name="FluxGramHideActionBarStatus">Скрыть статус</string>
+    <string name="FluxGramCenterActionBarTitle">Заголовок по центру</string>
     <string name="FluxGramChats">Чаты</string>
     <string name="FluxGramCategories">Категории</string>
     <string name="FluxGramLinks">Ссылки</string>

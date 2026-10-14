@@ -130,6 +130,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.XiaomiUtilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.FBool;
 import org.telegram.messenger.utils.GradientProtectionDrawable;
@@ -3014,6 +3015,23 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (statusDrawable == null || actionBar == null) {
             return;
         }
+        if (usesFluxGramDialogsTitle()) {
+            boolean hideStatus = AppearanceSettings.hidesActionBarStatus(currentAccount);
+            actionBar.setTitleCentered(
+                    AppearanceSettings.centersActionBarTitle(currentAccount)
+            );
+            actionBar.setTitle(
+                    AppearanceSettings.getActionBarTitle(currentAccount),
+                    hideStatus ? null : statusDrawable
+            );
+
+            if (hideStatus) {
+                statusDrawable.set((Drawable) null, animated);
+                statusDrawable.setParticles(false, animated);
+                actionBar.setRightDrawableOnClick(null);
+                return;
+            }
+        }
         Long emojiStatusId = UserObject.getEmojiStatusDocumentId(user);
         statusDrawableGiftId = null;
         if (emojiStatusId != null) {
@@ -3533,12 +3551,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             } else {
                 statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26));
                 statusDrawable.center = true;
-                logoDrawable = context.getResources().getDrawable(R.drawable.telegram_logo_2).mutate();
-                logoDrawable.setBounds(0, dp(2), logoDrawable.getIntrinsicWidth(), dp(2) + logoDrawable.getIntrinsicHeight());
-                logoDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
-                SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
-                ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                actionBar.setTitle(ssb, statusDrawable);
+                if (!usesFluxGramDialogsTitle()) {
+                    logoDrawable = context.getResources().getDrawable(R.drawable.telegram_logo_2).mutate();
+                    logoDrawable.setBounds(0, dp(2), logoDrawable.getIntrinsicWidth(), dp(2) + logoDrawable.getIntrinsicHeight());
+                    logoDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
+                    SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
+                    ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    actionBar.setTitle(ssb, statusDrawable);
+                }
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
             if (folderId == 0) {
@@ -7091,6 +7111,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        if (statusDrawable != null) {
+            updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
+        }
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }
@@ -7284,6 +7307,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         }
+    }
+
+    private boolean usesFluxGramDialogsTitle() {
+        return initialDialogsType == DIALOGS_TYPE_DEFAULT
+                && !onlySelect
+                && folderId == 0
+                && communityId == 0
+                && TextUtils.isEmpty(searchString);
     }
 
     @Override

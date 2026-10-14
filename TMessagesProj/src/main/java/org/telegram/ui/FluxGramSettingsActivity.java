@@ -12,7 +12,9 @@ import androidx.core.content.FileProvider;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginManager;
@@ -24,6 +26,8 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
+import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Components.FluxGramChatListPreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
 import org.telegram.ui.Components.FluxGramSettingsHeaderCell;
 import org.telegram.ui.Components.ItemOptions;
@@ -45,9 +49,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int CHANNEL_LINK = 8;
     private static final int CHATS_LINK = 9;
     private static final int BUILT_IN_PLUGINS = 10;
+    private static final int ACTION_BAR_TITLE = 11;
+    private static final int HIDE_ACTION_BAR_STATUS = 12;
+    private static final int CENTER_ACTION_BAR_TITLE = 13;
 
     private final int section;
     private UniversalRecyclerView listView;
+    private FluxGramChatListPreviewCell appearancePreview;
     private boolean destroyed;
 
     private final Runnable refresh = () -> {
@@ -113,6 +121,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
         content.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
         fragmentView = content;
 
+        if (section == APPEARANCE) {
+            appearancePreview = new FluxGramChatListPreviewCell(
+                    context, currentAccount, getResourceProvider()
+            );
+        }
+
         listView = new UniversalRecyclerView(
                 this,
                 (items, adapter) -> fillItems(items),
@@ -141,7 +155,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
         if (section == HOME) {
             items.add(UItem.asCustomShadow(new FluxGramSettingsHeaderCell(
                     getParentActivity(), getResourceProvider()), 232));
-            items.add(UItem.asHeader(LocaleController.getString(R.string.FluxGramCategories)));
+            addSectionLabel(items, R.string.FluxGramCategories);
             items.add(UItem.asButton(
                     GENERAL,
                     R.drawable.msg_settings,
@@ -163,7 +177,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramPlugins)
             ));
             items.add(UItem.asShadow(null));
-            items.add(UItem.asHeader(LocaleController.getString(R.string.FluxGramLinks)));
+            addSectionLabel(items, R.string.FluxGramLinks);
             items.add(UItem.asButton(
                     CHANNEL_LINK,
                     R.drawable.msg_channel,
@@ -193,7 +207,27 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         if (section == APPEARANCE) {
-            items.add(UItem.asShadow(LocaleController.getString(R.string.FluxGramSectionComingSoon)));
+            appearancePreview.update(false);
+            addSectionLabel(items, R.string.FluxGramChatList);
+            items.add(UItem.asCustom(appearancePreview, 88));
+            items.add(UItem.asButton(
+                    ACTION_BAR_TITLE,
+                    LocaleController.getString(R.string.FluxGramActionBarTitle),
+                    appearanceTitleOption(AppearanceSettings.getTitleMode(currentAccount))
+            ));
+
+            if (UserConfig.getInstance(currentAccount).isPremium()) {
+                items.add(UItem.asCheck(
+                        HIDE_ACTION_BAR_STATUS,
+                        LocaleController.getString(R.string.FluxGramHideActionBarStatus)
+                ).setChecked(AppearanceSettings.hidesActionBarStatus(currentAccount)));
+            }
+
+            items.add(UItem.asCheck(
+                    CENTER_ACTION_BAR_TITLE,
+                    LocaleController.getString(R.string.FluxGramCenterActionBarTitle)
+            ).setChecked(AppearanceSettings.centersActionBarTitle(currentAccount)));
+            items.add(UItem.asShadow(null));
 
             return;
         }
@@ -283,10 +317,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
             }
 
             if (showHeader && !headerAdded) {
-                HeaderCell label = new HeaderCell(
-                        getParentActivity(), 33, getResourceProvider());
-                label.setText(LocaleController.getString(R.string.FluxGramInstalledPlugins));
-                items.add(UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT));
+                addSectionLabel(items, R.string.FluxGramInstalledPlugins);
                 headerAdded = true;
             }
 
@@ -382,6 +413,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
         options.show();
     }
 
+    private void addSectionLabel(ArrayList<UItem> items, int textResource) {
+        HeaderCell label = new HeaderCell(getParentActivity(), 33, getResourceProvider());
+        label.setText(LocaleController.getString(textResource));
+        items.add(UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT));
+    }
+
     private void onItemClick(UItem item, View view, int position, float x, float y) {
         if (section == HOME) {
             if (item.id == GENERAL) {
@@ -413,6 +450,24 @@ public class FluxGramSettingsActivity extends BaseFragment {
             return;
         }
 
+        if (section == APPEARANCE) {
+            if (item.id == ACTION_BAR_TITLE) {
+                showAppearanceTitleDialog();
+            } else if (item.id == HIDE_ACTION_BAR_STATUS) {
+                boolean hidden = !AppearanceSettings.hidesActionBarStatus(currentAccount);
+                AppearanceSettings.setHidesActionBarStatus(currentAccount, hidden);
+                ((TextCheckCell) view).setChecked(hidden);
+                appearancePreview.update(true);
+            } else if (item.id == CENTER_ACTION_BAR_TITLE) {
+                boolean centered = !AppearanceSettings.centersActionBarTitle(currentAccount);
+                AppearanceSettings.setCentersActionBarTitle(currentAccount, centered);
+                ((TextCheckCell) view).setChecked(centered);
+                appearancePreview.update(true);
+            }
+
+            return;
+        }
+
         if (section == PLUGINS) {
             if (item.id == PLUGIN_SYSTEM) {
                 PluginManager manager = PluginManager.getInstance();
@@ -429,6 +484,46 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                .create());
+    }
+
+    private CharSequence appearanceTitleOption(int mode) {
+        if (mode == AppearanceSettings.TITLE_USERNAME) {
+            return LocaleController.getString(R.string.FluxGramActionBarTitleUsername);
+        }
+        if (mode == AppearanceSettings.TITLE_NAME) {
+            return LocaleController.getString(R.string.FluxGramActionBarTitleName);
+        }
+        if (mode == AppearanceSettings.TITLE_CHATS) {
+            return LocaleController.getString(R.string.FluxGramActionBarTitleChats);
+        }
+
+        return LocaleController.getString(R.string.FluxGramActionBarTitleAppName);
+    }
+
+    private void showAppearanceTitleDialog() {
+        CharSequence[] options = {
+                appearanceTitleOption(AppearanceSettings.TITLE_APP_NAME),
+                appearanceTitleOption(AppearanceSettings.TITLE_USERNAME),
+                appearanceTitleOption(AppearanceSettings.TITLE_NAME),
+                appearanceTitleOption(AppearanceSettings.TITLE_CHATS)
+        };
+        int selected = AppearanceSettings.getTitleMode(currentAccount);
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramActionBarTitle))
+                .setItems(options, (dialog, index) -> {
+                    AppearanceSettings.setTitleMode(currentAccount, index);
+                    appearancePreview.update(true);
+                    listView.adapter.update(true);
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                 .create());
     }
 
