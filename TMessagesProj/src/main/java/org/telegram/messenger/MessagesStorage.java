@@ -35,6 +35,7 @@ import org.telegram.messenger.fluxgram.EditHistory;
 import org.telegram.messenger.fluxgram.EditHistoryCapture;
 import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
+import org.telegram.messenger.fluxgram.ReadTimeArchive;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLiteException;
@@ -867,6 +868,7 @@ public class MessagesStorage extends BaseController {
         storageQueue.postRunnable(() -> {
             EditHistory.clearAccount(currentAccount);
             GhostModeSettings.clearAccount(currentAccount);
+            ReadTimeArchive.clearAccount(currentAccount);
             cleanupInternal(true);
             openDatabase(1);
             if (isLogin) {
@@ -14295,9 +14297,11 @@ public class MessagesStorage extends BaseController {
         }
     }
 
-    private void markMessagesAsReadInternal(LongSparseIntArray inbox, LongSparseIntArray outbox, SparseIntArray encryptedMessages) {
+    private void markMessagesAsReadInternal(LongSparseIntArray inbox, LongSparseIntArray outbox, SparseIntArray encryptedMessages, int outboxReadDate) {
         SQLitePreparedStatement state = null;
         try {
+            ReadTimeArchive.capture(this, currentAccount, outbox, outboxReadDate);
+
             if (!isEmpty(inbox)) {
                 state = database.executeFast("DELETE FROM unread_push_messages WHERE uid = ? AND mid <= ?");
                 for (int b = 0; b < inbox.size(); b++) {
@@ -14470,11 +14474,11 @@ public class MessagesStorage extends BaseController {
         });
     }
 
-    public void markMessagesAsRead(LongSparseIntArray inbox, LongSparseIntArray outbox, SparseIntArray encryptedMessages, boolean useQueue) {
+    public void markMessagesAsRead(LongSparseIntArray inbox, LongSparseIntArray outbox, SparseIntArray encryptedMessages, boolean useQueue, int outboxReadDate) {
         if (useQueue) {
-            storageQueue.postRunnable(() -> markMessagesAsReadInternal(inbox, outbox, encryptedMessages));
+            storageQueue.postRunnable(() -> markMessagesAsReadInternal(inbox, outbox, encryptedMessages, outboxReadDate));
         } else {
-            markMessagesAsReadInternal(inbox, outbox, encryptedMessages);
+            markMessagesAsReadInternal(inbox, outbox, encryptedMessages, outboxReadDate);
         }
     }
 

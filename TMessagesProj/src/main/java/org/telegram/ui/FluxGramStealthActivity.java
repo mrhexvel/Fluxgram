@@ -13,6 +13,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.fluxgram.EditHistory;
 import org.telegram.messenger.fluxgram.LocalStorageStatistics;
+import org.telegram.messenger.fluxgram.ReadTimeArchive;
 import org.telegram.messenger.fluxgram.SavedAttachments;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -52,6 +53,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
         checked[0] = EditHistory.keepsDeleted(currentAccount);
         checked[1] = EditHistory.isEnabled(currentAccount);
         checked[2] = EditHistory.includesBots(currentAccount);
+        checked[3] = ReadTimeArchive.isEnabled(currentAccount);
         actionBar.setTitle(text(R.string.FluxGramStealth));
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
@@ -249,6 +251,8 @@ public final class FluxGramStealthActivity extends BaseFragment {
                     EditHistory.setEnabled(currentAccount, checked[index]);
                 } else if (index == 2) {
                     EditHistory.setIncludesBots(currentAccount, checked[index]);
+                } else if (index == 3) {
+                    ReadTimeArchive.setEnabled(currentAccount, checked[index]);
                 } else if (index == 4) {
                     SavedAttachments.get(currentAccount).setEnabled(checked[index]);
                 }

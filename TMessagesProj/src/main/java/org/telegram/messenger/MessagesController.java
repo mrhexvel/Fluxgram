@@ -21459,7 +21459,13 @@ public class MessagesController extends BaseController implements NotificationCe
             if (markAsReadMessagesInbox != null || markAsReadMessagesOutbox != null || markContentAsReadMessages != null || stillUnreadMessagesCount != null) {
                 getMessagesStorage().updateDialogsWithReadMessages(markAsReadMessagesInbox, markAsReadMessagesOutbox, markContentAsReadMessages, stillUnreadMessagesCount, true);
             }
-            getMessagesStorage().markMessagesAsRead(markAsReadMessagesInbox, markAsReadMessagesOutbox, markAsReadEncrypted, true);
+            getMessagesStorage().markMessagesAsRead(
+                    markAsReadMessagesInbox,
+                    markAsReadMessagesOutbox,
+                    markAsReadEncrypted,
+                    true,
+                    date > 0 ? date : getConnectionsManager().getCurrentTime()
+            );
         }
         if (topicsReadInbox != null) {
             for (MessagesStorage.TopicKey topicKey : topicsReadInbox.keySet()) {
