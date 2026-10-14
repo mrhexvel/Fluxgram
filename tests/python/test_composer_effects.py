@@ -138,18 +138,22 @@ class ComposerEffectsTest(unittest.TestCase):
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         activity = (JAVA / "ui/PluginSettingsActivity.java").read_text()
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
+        surface = (JAVA / "messenger/plugins/api/ComposerSurface.java").read_text()
 
-        self.assertIn("registration.pluginId.equals(pluginId)", registry)
-        self.assertIn("PluginComposerRegistry.attachPreview(host, previewPluginId)", controller)
+        self.assertNotIn("attachPreview", registry)
+        self.assertNotIn("refreshPreview", registry)
+        self.assertNotIn("previewPluginId", controller)
         self.assertFalse((JAVA / "ui/fluxgram/PluginComposerPreviewView.java").exists())
         self.assertNotIn("PluginComposerPreviewView", activity)
         self.assertNotIn("FluxGramPluginPreview", activity)
+        self.assertIn("default boolean isPreview()", surface)
+        self.assertIn("return false;", surface)
 
         drain = adapter.split("private void drainSettings()", 1)[1].split(
             "public synchronized boolean isStoppingForRemoval()", 1
         )[0]
         self.assertLess(drain.index("javaLoader.settingChanged"), drain.index("dispatch_setting_changed"))
-        self.assertLess(drain.index("dispatch_setting_changed"), drain.index("refreshPreview"))
+        self.assertNotIn("refreshPreview", drain)
 
     def test_composer_registration_uses_ui_cleanup_scope(self):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()

@@ -306,25 +306,13 @@ public final class PluginComposerRegistry {
     }
 
     public static Surface attach(Host host) {
-        return attach(host, null, false);
-    }
-
-    public static Surface attachPreview(Host host, String pluginId) {
-        if (pluginId == null || pluginId.isEmpty()) {
-            throw new IllegalArgumentException("Preview plugin ID is missing");
-        }
-
-        return attach(host, pluginId, true);
-    }
-
-    private static Surface attach(Host host, String pluginId, boolean preview) {
         requireUi();
 
         if (surfaces.size() >= 4 || !host.isAvailable()) {
             return null;
         }
 
-        Surface surface = new Surface(host, pluginId, preview);
+        Surface surface = new Surface(host);
         surfaces.add(surface);
 
         for (Registration registration : new ArrayList<>(registrations)) {
@@ -332,20 +320,6 @@ public final class PluginComposerRegistry {
         }
 
         return surface;
-    }
-
-    public static void refreshPreview(String pluginId) {
-        requireUi();
-
-        if (pluginId == null || pluginId.isEmpty()) {
-            return;
-        }
-
-        for (Surface surface : new ArrayList<>(surfaces)) {
-            if (surface.preview && pluginId.equals(surface.pluginId)) {
-                surface.refreshBindings();
-            }
-        }
     }
 
     public static String diagnostics() {
@@ -366,8 +340,6 @@ public final class PluginComposerRegistry {
 
     public static final class Surface implements AutoCloseable {
         private Host host;
-        private final String pluginId;
-        private final boolean preview;
         private final ArrayList<Binding> bindings = new ArrayList<>();
         private Binding[] snapshot = new Binding[0];
         private Binding cursorOwner;
@@ -383,33 +355,8 @@ public final class PluginComposerRegistry {
         private int nextDraw;
         private int nextExpandedDraw;
 
-        private Surface(Host host, String pluginId, boolean preview) {
+        private Surface(Host host) {
             this.host = host;
-            this.pluginId = pluginId;
-            this.preview = preview;
-        }
-
-        private boolean accepts(Registration registration) {
-            return !preview || registration.pluginId.equals(pluginId);
-        }
-
-        private void refreshBindings() {
-            if (host == null || !host.isAvailable()) {
-                close();
-                return;
-            }
-
-            for (Binding binding : new ArrayList<>(bindings)) {
-                try {
-                    binding.close();
-                } catch (Exception error) {
-                    binding.registration.suspend(error);
-                }
-            }
-
-            for (Registration registration : new ArrayList<>(registrations)) {
-                registration.attach(this);
-            }
         }
 
         public void input(ComposerInput input) {
@@ -865,7 +812,7 @@ public final class PluginComposerRegistry {
         }
 
         void attach(Surface surface) {
-            if (closing || closed || failed || !active.getAsBoolean() || !surface.accepts(this)) {
+            if (closing || closed || failed || !active.getAsBoolean()) {
                 return;
             }
 
@@ -1006,11 +953,6 @@ public final class PluginComposerRegistry {
         @Override
         public long getDialogId() {
             return dialogId;
-        }
-
-        @Override
-        public boolean isPreview() {
-            return surface != null && surface.preview;
         }
 
         @Override

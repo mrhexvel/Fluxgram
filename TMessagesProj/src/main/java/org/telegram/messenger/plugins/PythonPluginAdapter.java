@@ -692,10 +692,6 @@ public final class PythonPluginAdapter implements Plugin {
     }
 
     private void drainSettings() {
-        long previewGeneration = -1;
-        int previewAccount = -1;
-        long previewOwnerId = 0;
-
         while (true) {
             String key;
             PendingSetting pending;
@@ -753,24 +749,6 @@ public final class PythonPluginAdapter implements Plugin {
                 }
             }
 
-            if (lifecycle.isCurrent(pending.generation)
-                    && UserConfig.getInstance(pending.account).getClientUserId() == pending.ownerId) {
-                previewGeneration = pending.generation;
-                previewAccount = pending.account;
-                previewOwnerId = pending.ownerId;
-            }
-        }
-
-        if (previewGeneration >= 0) {
-            long generation = previewGeneration;
-            int account = previewAccount;
-            long ownerId = previewOwnerId;
-            UI_HANDLER.post(() -> {
-                if (lifecycle.isCurrent(generation)
-                        && UserConfig.getInstance(account).getClientUserId() == ownerId) {
-                    PluginComposerRegistry.refreshPreview(id);
-                }
-            });
         }
     }
 

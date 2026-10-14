@@ -59,7 +59,6 @@ public final class FluxGramComposerController implements TextWatcher,
     private final long ownerId;
     private final long dialogId;
     private final ViewGroup expandedHost;
-    private final String previewPluginId;
     private final BooleanSupplier eligible;
     private final Theme.ResourcesProvider colors;
     private final ForegroundDetector foreground;
@@ -113,17 +112,10 @@ public final class FluxGramComposerController implements TextWatcher,
     public FluxGramComposerController(EditText field, ChatInputViewsContainer expandedHost,
             int account, long dialogId,
             BooleanSupplier eligible, Theme.ResourcesProvider colors) {
-        this(field, expandedHost, account, dialogId, null, eligible, colors);
-    }
-
-    public FluxGramComposerController(EditText field, ViewGroup expandedHost,
-            int account, long dialogId, String previewPluginId,
-            BooleanSupplier eligible, Theme.ResourcesProvider colors) {
         this.field = field;
         this.expandedHost = expandedHost;
         this.account = account;
         this.dialogId = dialogId;
-        this.previewPluginId = previewPluginId;
         this.ownerId = UserConfig.getInstance(account).getClientUserId();
         this.eligible = eligible;
         this.colors = colors;
@@ -395,23 +387,18 @@ public final class FluxGramComposerController implements TextWatcher,
                             PluginManagedUi.nextIdentity(), this::available);
                     nextScope.register(this::removeOverlay);
                     nextScope.register(this::removeExpandedLayer);
+                    nextRenderer = ComposerInputRendererHostSurface.attach(
+                            field, account, ownerId, dialogId, () -> geometry,
+                            this::available, () -> {
+                                field.invalidate();
 
-                    if (previewPluginId == null) {
-                        nextRenderer = ComposerInputRendererHostSurface.attach(
-                                field, account, ownerId, dialogId, () -> geometry,
-                                this::available, () -> {
-                                    field.invalidate();
-
-                                    if (expandedLayer != null) {
-                                        expandedLayer.invalidate();
-                                    }
-                                }, this::captureRendererTextClusters);
-                    }
+                                if (expandedLayer != null) {
+                                    expandedLayer.invalidate();
+                                }
+                            }, this::captureRendererTextClusters);
                 }
 
-                nextSurface = previewPluginId == null
-                        ? PluginComposerRegistry.attach(host)
-                        : PluginComposerRegistry.attachPreview(host, previewPluginId);
+                nextSurface = PluginComposerRegistry.attach(host);
 
                 if (nextSurface == null && nextRenderer == null && creatingScope) {
                     try {
