@@ -579,8 +579,8 @@ public final class PythonPluginAdapter implements Plugin {
                     throw new IllegalStateException("Composer generation is inactive");
                 }
 
-                return uiResources.register(() -> PluginComposerRegistry.register(
-                        id, () -> lifecycle.isCurrent(generation), factory));
+                return uiResources.register(() -> LegacyComposerExtensions.register(
+                        id, generation, () -> lifecycle.isCurrent(generation), factory));
             }
 
             @Override
@@ -589,8 +589,8 @@ public final class PythonPluginAdapter implements Plugin {
                     throw new IllegalStateException("Composer text generation is inactive");
                 }
 
-                return uiResources.register(() -> PluginComposerRegistry.registerText(
-                        id, () -> lifecycle.isCurrent(generation), factory));
+                return uiResources.register(() -> LegacyComposerExtensions.registerText(
+                        id, generation, () -> lifecycle.isCurrent(generation), factory));
             }
 
             @Override
@@ -600,8 +600,8 @@ public final class PythonPluginAdapter implements Plugin {
                     throw new IllegalStateException("Composer cursor generation is inactive");
                 }
 
-                return uiResources.register(() -> PluginComposerRegistry.registerCursor(
-                        id, () -> lifecycle.isCurrent(generation), factory));
+                return uiResources.register(() -> LegacyComposerExtensions.registerCursor(
+                        id, generation, () -> lifecycle.isCurrent(generation), factory));
             }
 
             @Override
@@ -611,8 +611,8 @@ public final class PythonPluginAdapter implements Plugin {
                     throw new IllegalStateException("Composer selection generation is inactive");
                 }
 
-                return uiResources.register(() -> PluginComposerRegistry.registerSelection(
-                        id, () -> lifecycle.isCurrent(generation), factory));
+                return uiResources.register(() -> LegacyComposerExtensions.registerSelection(
+                        id, generation, () -> lifecycle.isCurrent(generation), factory));
             }
 
             @Override
@@ -622,8 +622,8 @@ public final class PythonPluginAdapter implements Plugin {
                     throw new IllegalStateException("Composer content generation is inactive");
                 }
 
-                return uiResources.register(() -> PluginComposerRegistry.registerContent(
-                        id, () -> lifecycle.isCurrent(generation), factory));
+                return uiResources.register(() -> LegacyComposerExtensions.registerContent(
+                        id, generation, () -> lifecycle.isCurrent(generation), factory));
             }
         };
     }

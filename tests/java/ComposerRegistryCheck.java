@@ -47,6 +47,7 @@ import org.telegram.messenger.plugins.api.ComposerTextTransitionEffect;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 public final class ComposerRegistryCheck {
     private static final class Host implements PluginComposerRegistry.Host {
@@ -655,7 +656,7 @@ public final class ComposerRegistryCheck {
     public static void main(String[] args) throws Exception {
         AtomicBoolean active = new AtomicBoolean(true);
         Effect effect = new Effect();
-        AutoCloseable registration = PluginComposerRegistry.register("test.effect", active::get, context -> {
+        AutoCloseable registration = register("test.effect", active::get, context -> {
             effect.context = context;
             return effect;
         });
@@ -685,14 +686,14 @@ public final class ComposerRegistryCheck {
         ArrayList<Effect> previewAlphaEffects = new ArrayList<>();
         ArrayList<Effect> previewBetaEffects = new ArrayList<>();
         ArrayList<Effect> previewLateEffects = new ArrayList<>();
-        AutoCloseable previewAlphaRegistration = PluginComposerRegistry.register(
+        AutoCloseable previewAlphaRegistration = register(
                 "test.preview.alpha", () -> true, context -> {
                     Effect value = new Effect();
                     value.context = context;
                     previewAlphaEffects.add(value);
                     return value;
                 });
-        AutoCloseable previewBetaRegistration = PluginComposerRegistry.register(
+        AutoCloseable previewBetaRegistration = register(
                 "test.preview.beta", () -> true, context -> {
                     Effect value = new Effect();
                     value.context = context;
@@ -707,7 +708,7 @@ public final class ComposerRegistryCheck {
         require(!previewAlphaEffects.get(0).context.isPreview()
                         && previewAlphaEffects.get(1).context.isPreview(),
                 "preview surface marker was not isolated");
-        AutoCloseable previewLateRegistration = PluginComposerRegistry.register(
+        AutoCloseable previewLateRegistration = register(
                 "test.preview.late", () -> true, context -> {
                     Effect value = new Effect();
                     value.context = context;
@@ -731,7 +732,7 @@ public final class ComposerRegistryCheck {
         previewAlphaRegistration.close();
 
         Effect hidden = new Effect();
-        AutoCloseable hiddenRegistration = PluginComposerRegistry.register("test.hidden", () -> true, context -> hidden);
+        AutoCloseable hiddenRegistration = register("test.hidden", () -> true, context -> hidden);
         Host hiddenHost = new Host();
         PluginComposerRegistry.Surface hiddenSurface = PluginComposerRegistry.attach(hiddenHost);
         hiddenSurface.input(new ComposerInput(1, 0, 1, false, false));
@@ -743,8 +744,8 @@ public final class ComposerRegistryCheck {
         Effect bad = new Effect();
         bad.failFrame = true;
         Effect good = new Effect();
-        AutoCloseable badRegistration = PluginComposerRegistry.register("test.bad", () -> true, context -> bad);
-        AutoCloseable goodRegistration = PluginComposerRegistry.register("test.good", () -> true, context -> good);
+        AutoCloseable badRegistration = register("test.bad", () -> true, context -> bad);
+        AutoCloseable goodRegistration = register("test.good", () -> true, context -> good);
         surface = PluginComposerRegistry.attach(new Host());
         surface.input(new ComposerInput(1, 0, 1, false, false));
         tick();
@@ -755,7 +756,7 @@ public final class ComposerRegistryCheck {
 
         Effect retry = new Effect();
         retry.failClose = true;
-        AutoCloseable retryRegistration = PluginComposerRegistry.register("test.retry", () -> true, context -> retry);
+        AutoCloseable retryRegistration = register("test.retry", () -> true, context -> retry);
         surface = PluginComposerRegistry.attach(new Host());
         surface.close();
         require(retry.closes == 1, "failed cleanup silently retried during detach");
@@ -765,8 +766,8 @@ public final class ComposerRegistryCheck {
         Effect expensive = new Effect();
         expensive.slow = true;
         Effect deferred = new Effect();
-        AutoCloseable expensiveRegistration = PluginComposerRegistry.register("test.expensive", () -> true, context -> expensive);
-        AutoCloseable deferredRegistration = PluginComposerRegistry.register("test.deferred", () -> true, context -> deferred);
+        AutoCloseable expensiveRegistration = register("test.expensive", () -> true, context -> expensive);
+        AutoCloseable deferredRegistration = register("test.deferred", () -> true, context -> deferred);
         surface = PluginComposerRegistry.attach(new Host());
         Choreographer.getInstance().tick(3_000_000_000L);
         surface.draw(new Canvas());
@@ -780,7 +781,7 @@ public final class ComposerRegistryCheck {
 
         Effect slow = new Effect();
         slow.slow = true;
-        AutoCloseable slowRegistration = PluginComposerRegistry.register("test.slow", () -> true, context -> slow);
+        AutoCloseable slowRegistration = register("test.slow", () -> true, context -> slow);
         surface = PluginComposerRegistry.attach(new Host());
         Choreographer.getInstance().tick(4_000_000_000L);
         surface.draw(new Canvas());
@@ -794,7 +795,7 @@ public final class ComposerRegistryCheck {
 
         Effect endless = new Effect();
         endless.forever = true;
-        AutoCloseable endlessRegistration = PluginComposerRegistry.register("test.endless", () -> true, context -> endless);
+        AutoCloseable endlessRegistration = register("test.endless", () -> true, context -> endless);
         surface = PluginComposerRegistry.attach(new Host());
         surface.input(new ComposerInput(1, 0, 1, false, false));
         Choreographer.getInstance().tick(5_000_000_000L);
@@ -804,11 +805,11 @@ public final class ComposerRegistryCheck {
         endlessRegistration.close();
 
         TextEffect text = new TextEffect();
-        AutoCloseable textRegistration = PluginComposerRegistry.registerText("test.text", () -> true, context -> {
+        AutoCloseable textRegistration = registerText("test.text", () -> true, context -> {
             text.surface = context;
             return text;
         });
-        rejects(() -> PluginComposerRegistry.registerText("test.text.conflict", () -> true, context -> new TextEffect()));
+        rejects(() -> registerText("test.text.conflict", () -> true, context -> new TextEffect()));
         Host textHost = new Host();
         surface = PluginComposerRegistry.attach(textHost);
         require(surface.hasTextEffect(), "text owner not attached");
@@ -865,12 +866,12 @@ public final class ComposerRegistryCheck {
 
         TextEffect concurrentText = new TextEffect();
         CursorEffect concurrentCursor = new CursorEffect();
-        AutoCloseable concurrentTextRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable concurrentTextRegistration = registerText(
                 "test.text.concurrent_cursor", () -> true, context -> {
                     concurrentText.surface = context;
                     return concurrentText;
                 });
-        AutoCloseable concurrentCursorRegistration = PluginComposerRegistry.registerCursor(
+        AutoCloseable concurrentCursorRegistration = registerCursor(
                 "test.cursor.concurrent_text", () -> true, context -> concurrentCursor);
         Host concurrentHost = new Host();
         surface = PluginComposerRegistry.attach(concurrentHost);
@@ -893,7 +894,7 @@ public final class ComposerRegistryCheck {
         TextEffect invalidTint = new TextEffect();
         invalidTint.presentation = new ComposerTextPresentation(
                 0, 0, 1, 1, 1, 0, 0, 0, 0xFFFF0000, 2);
-        AutoCloseable invalidTintRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable invalidTintRegistration = registerText(
                 "test.text.invalid_tint", () -> true, context -> {
                     invalidTint.surface = context;
                     return invalidTint;
@@ -909,7 +910,7 @@ public final class ComposerRegistryCheck {
         TextEffect invalidBlur = new TextEffect();
         invalidBlur.presentation = new ComposerTextPresentation(
                 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 13);
-        AutoCloseable invalidBlurRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable invalidBlurRegistration = registerText(
                 "test.text.invalid_blur", () -> true, context -> {
                     invalidBlur.surface = context;
                     return invalidBlur;
@@ -923,7 +924,7 @@ public final class ComposerRegistryCheck {
         invalidBlurRegistration.close();
 
         LayoutTextEffect layoutText = new LayoutTextEffect();
-        AutoCloseable layoutTextRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable layoutTextRegistration = registerText(
                 "test.text.layout", () -> true, context -> {
                     layoutText.surface = context;
                     return layoutText;
@@ -969,7 +970,7 @@ public final class ComposerRegistryCheck {
         layoutTextRegistration.close();
 
         ClusterTextEffect clusterText = new ClusterTextEffect();
-        AutoCloseable clusterTextRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable clusterTextRegistration = registerText(
                 "test.text.clusters", () -> true, context -> {
                     clusterText.context = context;
                     return clusterText;
@@ -1033,7 +1034,7 @@ public final class ComposerRegistryCheck {
         clusterTextRegistration.close();
 
         TransitionTextEffect transitionText = new TransitionTextEffect();
-        AutoCloseable transitionRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable transitionRegistration = registerText(
                 "test.text.transition", () -> true, context -> {
                     transitionText.surface = context;
                     return transitionText;
@@ -1060,7 +1061,7 @@ public final class ComposerRegistryCheck {
         transitionRegistration.close();
 
         LayerTransitionTextEffect layerTransitionText = new LayerTransitionTextEffect();
-        AutoCloseable layerTransitionRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable layerTransitionRegistration = registerText(
                 "test.text.layer_transition", () -> true, context -> {
                     layerTransitionText.surface = context;
                     return layerTransitionText;
@@ -1088,12 +1089,12 @@ public final class ComposerRegistryCheck {
         layerTransitionRegistration.close();
 
         ContentEffect content = new ContentEffect();
-        AutoCloseable contentRegistration = PluginComposerRegistry.registerContent(
+        AutoCloseable contentRegistration = registerContent(
                 "test.content", () -> true, context -> {
                     content.context = context;
                     return content;
                 });
-        rejects(() -> PluginComposerRegistry.registerContent(
+        rejects(() -> registerContent(
                 "test.content.conflict", () -> true, context -> new ContentEffect()));
         Host contentHost = new Host();
         surface = PluginComposerRegistry.attach(contentHost);
@@ -1120,7 +1121,7 @@ public final class ComposerRegistryCheck {
         contentRegistration.close();
 
         Effect nonMotion = new Effect();
-        AutoCloseable nonMotionRegistration = PluginComposerRegistry.register(
+        AutoCloseable nonMotionRegistration = register(
                 "test.motion.invalid", () -> true, context -> {
                     nonMotion.context = context;
                     return nonMotion;
@@ -1133,12 +1134,12 @@ public final class ComposerRegistryCheck {
 
         MotionEffect motion = new MotionEffect();
         MotionEffect secondMotion = new MotionEffect();
-        AutoCloseable motionRegistration = PluginComposerRegistry.register(
+        AutoCloseable motionRegistration = register(
                 "test.motion.first", () -> true, context -> {
                     motion.context = context;
                     return motion;
                 });
-        AutoCloseable secondMotionRegistration = PluginComposerRegistry.register(
+        AutoCloseable secondMotionRegistration = register(
                 "test.motion.second", () -> true, context -> {
                     secondMotion.context = context;
                     return secondMotion;
@@ -1174,7 +1175,7 @@ public final class ComposerRegistryCheck {
 
         sensors.gravityRegisterSuccess = false;
         MotionEffect fallbackMotion = new MotionEffect();
-        AutoCloseable fallbackRegistration = PluginComposerRegistry.register(
+        AutoCloseable fallbackRegistration = register(
                 "test.motion.fallback", () -> true, context -> {
                     fallbackMotion.context = context;
                     return fallbackMotion;
@@ -1193,7 +1194,7 @@ public final class ComposerRegistryCheck {
         sensors.gravityRegisterSuccess = true;
 
         MotionEffect cleanupMotion = new MotionEffect();
-        AutoCloseable cleanupRegistration = PluginComposerRegistry.register(
+        AutoCloseable cleanupRegistration = register(
                 "test.motion.cleanup", () -> true, context -> {
                     cleanupMotion.context = context;
                     return cleanupMotion;
@@ -1205,7 +1206,7 @@ public final class ComposerRegistryCheck {
         surface.close();
         cleanupRegistration.close();
         MotionEffect afterCleanupMotion = new MotionEffect();
-        AutoCloseable afterCleanupRegistration = PluginComposerRegistry.register(
+        AutoCloseable afterCleanupRegistration = register(
                 "test.motion.after_cleanup", () -> true, context -> {
                     afterCleanupMotion.context = context;
                     return afterCleanupMotion;
@@ -1218,7 +1219,7 @@ public final class ComposerRegistryCheck {
 
         MotionEffect endlessMotion = new MotionEffect();
         endlessMotion.forever = true;
-        AutoCloseable motionEndlessRegistration = PluginComposerRegistry.register(
+        AutoCloseable motionEndlessRegistration = register(
                 "test.motion.endless", () -> true, context -> {
                     endlessMotion.context = context;
                     return endlessMotion;
@@ -1238,12 +1239,12 @@ public final class ComposerRegistryCheck {
 
         Effect firstHaptic = new Effect();
         Effect secondHaptic = new Effect();
-        AutoCloseable firstHapticRegistration = PluginComposerRegistry.register(
+        AutoCloseable firstHapticRegistration = register(
                 "test.haptic.first", () -> true, context -> {
                     firstHaptic.context = context;
                     return firstHaptic;
                 });
-        AutoCloseable secondHapticRegistration = PluginComposerRegistry.register(
+        AutoCloseable secondHapticRegistration = register(
                 "test.haptic.second", () -> true, context -> {
                     secondHaptic.context = context;
                     return secondHaptic;
@@ -1290,7 +1291,7 @@ public final class ComposerRegistryCheck {
         secondHapticRegistration.close();
 
         Effect boundaryHaptic = new Effect();
-        AutoCloseable boundaryHapticRegistration = PluginComposerRegistry.register(
+        AutoCloseable boundaryHapticRegistration = register(
                 "test.haptic.boundary", () -> true, context -> {
                     boundaryHaptic.context = context;
                     return boundaryHaptic;
@@ -1319,12 +1320,12 @@ public final class ComposerRegistryCheck {
         boundaryHapticRegistration.close();
 
         CursorEffect cursor = new CursorEffect();
-        AutoCloseable cursorRegistration = PluginComposerRegistry.registerCursor(
+        AutoCloseable cursorRegistration = registerCursor(
                 "test.cursor", () -> true, context -> {
                     cursor.context = context;
                     return cursor;
                 });
-        rejects(() -> PluginComposerRegistry.registerCursor(
+        rejects(() -> registerCursor(
                 "test.cursor.conflict", () -> true, context -> new CursorEffect()));
         Host cursorHost = new Host();
         surface = PluginComposerRegistry.attach(cursorHost);
@@ -1356,15 +1357,15 @@ public final class ComposerRegistryCheck {
 
         Effect selectionBlocker = new Effect();
         selectionBlocker.slow = true;
-        AutoCloseable selectionBlockerRegistration = PluginComposerRegistry.register(
+        AutoCloseable selectionBlockerRegistration = register(
                 "test.selection.blocker", () -> true, context -> selectionBlocker);
         SelectionEffect selection = new SelectionEffect();
-        AutoCloseable selectionRegistration = PluginComposerRegistry.registerSelection(
+        AutoCloseable selectionRegistration = registerSelection(
                 "test.selection", () -> true, context -> {
                     selection.context = context;
                     return selection;
                 });
-        rejects(() -> PluginComposerRegistry.registerSelection(
+        rejects(() -> registerSelection(
                 "test.selection.conflict", () -> true, context -> new SelectionEffect()));
         Host selectionHost = new Host();
         surface = PluginComposerRegistry.attach(selectionHost);
@@ -1412,12 +1413,12 @@ public final class ComposerRegistryCheck {
 
         SendEffect firstSend = new SendEffect();
         SendEffect secondSend = new SendEffect();
-        AutoCloseable firstSendRegistration = PluginComposerRegistry.register(
+        AutoCloseable firstSendRegistration = register(
                 "test.send.first", () -> true, context -> {
                     firstSend.context = context;
                     return firstSend;
                 });
-        AutoCloseable secondSendRegistration = PluginComposerRegistry.register(
+        AutoCloseable secondSendRegistration = register(
                 "test.send.second", () -> true, context -> secondSend);
         Host sendHost = new Host();
         surface = PluginComposerRegistry.attach(sendHost);
@@ -1443,7 +1444,7 @@ public final class ComposerRegistryCheck {
         secondSendRegistration.close();
 
         ExpandedEffect expanded = new ExpandedEffect();
-        AutoCloseable expandedRegistration = PluginComposerRegistry.register(
+        AutoCloseable expandedRegistration = register(
                 "test.expanded", () -> true, context -> expanded);
         Host expandedHost = new Host();
         surface = PluginComposerRegistry.attach(expandedHost);
@@ -1465,12 +1466,12 @@ public final class ComposerRegistryCheck {
 
         InsertionEffect firstInsertion = new InsertionEffect();
         InsertionEffect secondInsertion = new InsertionEffect();
-        AutoCloseable firstInsertionRegistration = PluginComposerRegistry.register(
+        AutoCloseable firstInsertionRegistration = register(
                 "test.insertion.first", () -> true, context -> firstInsertion);
-        AutoCloseable secondInsertionRegistration = PluginComposerRegistry.register(
+        AutoCloseable secondInsertionRegistration = register(
                 "test.insertion.second", () -> true, context -> secondInsertion);
         TextEffect insertionTextOwner = new TextEffect();
-        AutoCloseable insertionTextRegistration = PluginComposerRegistry.registerText(
+        AutoCloseable insertionTextRegistration = registerText(
                 "test.insertion.text", () -> true, context -> {
                     insertionTextOwner.surface = context;
                     return insertionTextOwner;
@@ -1501,11 +1502,11 @@ public final class ComposerRegistryCheck {
         ArrayList<AutoCloseable> registrations = new ArrayList<>();
 
         for (int i = 0; i < 8; i++) {
-            registrations.add(PluginComposerRegistry.register("test.limit" + i, () -> true, context -> new Effect()));
+            registrations.add(register("test.limit" + i, () -> true, context -> new Effect()));
         }
 
         try {
-            PluginComposerRegistry.register("test.excess", () -> true, context -> new Effect());
+            register("test.excess", () -> true, context -> new Effect());
             throw new AssertionError("unbounded registration");
         } catch (IllegalStateException expected) {
         }
@@ -1528,6 +1529,101 @@ public final class ComposerRegistryCheck {
         }
 
         require(PluginComposerRegistry.diagnostics().contains("registrations=0 surfaces=0 pending=0"), "registry leak");
+        checkExclusiveCleanupRetry();
+        checkAttributedExecution();
+    }
+
+    private static void checkExclusiveCleanupRetry() throws Exception {
+        TextEffect effect = new TextEffect();
+        effect.failClose = true;
+        AutoCloseable registration = registerText(
+                "test.text.cleanup_retry", () -> true, context -> effect);
+        PluginComposerRegistry.Surface surface = PluginComposerRegistry.attach(new Host());
+        int handledBeforeCleanup = HostExtensionAttribution.handled;
+
+        rejectsCleanup(registration::close);
+        require(HostExtensionAttribution.handled == handledBeforeCleanup + 2,
+                "nested composer cleanup failure lost attribution");
+        rejects(() -> registerText(
+                "test.text.cleanup_conflict", () -> true, context -> new TextEffect()));
+        registration.close();
+        AutoCloseable replacement = registerText(
+                "test.text.cleanup_replacement", () -> true, context -> new TextEffect());
+        replacement.close();
+        surface.close();
+        require(PluginComposerRegistry.diagnostics().contains("registrations=0 surfaces=0 pending=0"),
+                "exclusive cleanup retry left registry state");
+    }
+
+    private static void checkAttributedExecution() throws Exception {
+        String pluginId = "test.attributed";
+        Effect effect = new Effect();
+        int beforeRegistration = HostExtensionAttribution.pluginIds.size();
+        AutoCloseable registration = register(pluginId, () -> true, context -> effect);
+        int afterRegistration = HostExtensionAttribution.pluginIds.size();
+        PluginComposerRegistry.Surface surface = PluginComposerRegistry.attach(new Host());
+        int afterFactory = HostExtensionAttribution.pluginIds.size();
+        surface.input(new ComposerInput(1, 0, 1, false, false));
+        tick();
+        int afterFrame = HostExtensionAttribution.pluginIds.size();
+        surface.draw(new Canvas());
+        int afterDraw = HostExtensionAttribution.pluginIds.size();
+        surface.close();
+        int afterClose = HostExtensionAttribution.pluginIds.size();
+        registration.close();
+
+        require(afterRegistration == beforeRegistration + 1,
+                "compat registration factory lost attribution");
+        require(afterFactory == afterRegistration + 1, "composer factory lost attribution");
+        require(afterFrame == afterFactory + 2, "composer frame callbacks lost attribution");
+        require(afterDraw == afterFrame + 1, "composer draw lost attribution");
+        require(afterClose == afterDraw + 1, "composer cleanup lost attribution");
+
+        for (int index = beforeRegistration;
+                index < HostExtensionAttribution.pluginIds.size(); index++) {
+            require(pluginId.equals(HostExtensionAttribution.pluginIds.get(index)),
+                    "composer callback attributed to another plugin");
+        }
+
+        String failingPluginId = "test.attributed_factory_failure";
+        int handledBeforeFactory = HostExtensionAttribution.handled;
+        AutoCloseable failingRegistration = register(
+                failingPluginId, () -> true, context -> {
+                    throw new IllegalStateException("intentional factory failure");
+                });
+        PluginComposerRegistry.Surface failingSurface = PluginComposerRegistry.attach(new Host());
+        require(HostExtensionAttribution.handled == handledBeforeFactory + 1,
+                "composer factory failure lost attribution");
+        require(failingPluginId.equals(HostExtensionAttribution.pluginIds.get(
+                        HostExtensionAttribution.pluginIds.size() - 1)),
+                "composer factory failure attributed to another plugin");
+        failingSurface.close();
+        failingRegistration.close();
+    }
+
+    private static AutoCloseable register(String pluginId, BooleanSupplier active,
+            ComposerEffect.Factory factory) {
+        return LegacyComposerExtensions.register(pluginId, 1, active, factory);
+    }
+
+    private static AutoCloseable registerText(String pluginId, BooleanSupplier active,
+            ComposerTextEffect.Factory factory) {
+        return LegacyComposerExtensions.registerText(pluginId, 1, active, factory);
+    }
+
+    private static AutoCloseable registerCursor(String pluginId, BooleanSupplier active,
+            ComposerCursorEffect.Factory factory) {
+        return LegacyComposerExtensions.registerCursor(pluginId, 1, active, factory);
+    }
+
+    private static AutoCloseable registerSelection(String pluginId, BooleanSupplier active,
+            ComposerSelectionEffect.Factory factory) {
+        return LegacyComposerExtensions.registerSelection(pluginId, 1, active, factory);
+    }
+
+    private static AutoCloseable registerContent(String pluginId, BooleanSupplier active,
+            ComposerContentEffect.Factory factory) {
+        return LegacyComposerExtensions.registerContent(pluginId, 1, active, factory);
     }
 
     private static void tick() {
@@ -1544,6 +1640,16 @@ public final class ComposerRegistryCheck {
         }
 
         throw new AssertionError("Expected rejection");
+    }
+
+    private static void rejectsCleanup(AutoCloseable action) throws Exception {
+        try {
+            action.close();
+        } catch (Exception expected) {
+            return;
+        }
+
+        throw new AssertionError("Expected cleanup failure");
     }
 
     private static void require(boolean condition, String message) {

@@ -4,6 +4,8 @@ import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 import org.telegram.messenger.plugins.api.ComposerContentEffect;
+import org.telegram.messenger.plugins.api.ComposerCursorEffect;
+import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 
@@ -71,7 +73,9 @@ public final class JavaPluginSessionCheck {
     public static final class Host implements JavaPluginSession.Host {
         long generation = 1;
         Thread worker = Thread.currentThread();
+        int effectRegistrations;
         int textRegistrations;
+        int cursorRegistrations;
         int selectionRegistrations;
         int contentRegistrations;
         int lowLevelRegistrations;
@@ -106,24 +110,25 @@ public final class JavaPluginSessionCheck {
         }
 
         @Override
+        public JavaPluginUiResource registerComposerEffect(long value, ComposerEffect.Factory factory) {
+            check(value == generation && factory != null, "effect registration identity");
+            effectRegistrations++;
+            return resource();
+        }
+
+        @Override
         public JavaPluginUiResource registerComposerTextEffect(long value, ComposerTextEffect.Factory factory) {
             check(value == generation && factory != null, "text registration identity");
             textRegistrations++;
-            return new JavaPluginUiResource() {
-                @Override
-                public boolean isActive() {
-                    return true;
-                }
+            return resource();
+        }
 
-                @Override
-                public boolean isClosed() {
-                    return false;
-                }
-
-                @Override
-                public void close() {
-                }
-            };
+        @Override
+        public JavaPluginUiResource registerComposerCursorEffect(
+                long value, ComposerCursorEffect.Factory factory) {
+            check(value == generation && factory != null, "cursor registration identity");
+            cursorRegistrations++;
+            return resource();
         }
 
         @Override
@@ -131,21 +136,7 @@ public final class JavaPluginSessionCheck {
                 long value, ComposerSelectionEffect.Factory factory) {
             check(value == generation && factory != null, "selection registration identity");
             selectionRegistrations++;
-            return new JavaPluginUiResource() {
-                @Override
-                public boolean isActive() {
-                    return true;
-                }
-
-                @Override
-                public boolean isClosed() {
-                    return false;
-                }
-
-                @Override
-                public void close() {
-                }
-            };
+            return resource();
         }
 
         @Override
@@ -153,21 +144,7 @@ public final class JavaPluginSessionCheck {
                 long value, ComposerContentEffect.Factory factory) {
             check(value == generation && factory != null, "content registration identity");
             contentRegistrations++;
-            return new JavaPluginUiResource() {
-                @Override
-                public boolean isActive() {
-                    return true;
-                }
-
-                @Override
-                public boolean isClosed() {
-                    return false;
-                }
-
-                @Override
-                public void close() {
-                }
-            };
+            return resource();
         }
 
         @Override
@@ -176,6 +153,10 @@ public final class JavaPluginSessionCheck {
             check(value == generation && "test.renderer".equals(extensionId) && factory != null,
                     "low-level registration identity");
             lowLevelRegistrations++;
+            return resource();
+        }
+
+        private static JavaPluginUiResource resource() {
             return new JavaPluginUiResource() {
                 @Override
                 public boolean isActive() {
@@ -222,8 +203,12 @@ public final class JavaPluginSessionCheck {
         check(context.readBooleanSetting("enabled", false), "boolean setting");
         check(context.readIntSetting("count", 4) == 5, "integer setting");
         check(context.readStringSetting("name", "x").equals("x!"), "string setting");
+        context.registerComposerEffect(surface -> null);
+        check(host.effectRegistrations == 1, "effect registration was not delegated");
         context.registerComposerTextEffect(surface -> null);
         check(host.textRegistrations == 1, "text effect registration was not delegated");
+        context.registerComposerCursorEffect(surface -> null);
+        check(host.cursorRegistrations == 1, "cursor effect registration was not delegated");
         context.registerComposerSelectionEffect(surface -> null);
         check(host.selectionRegistrations == 1, "selection effect registration was not delegated");
         context.registerComposerContentEffect(surface -> null);
@@ -235,7 +220,9 @@ public final class JavaPluginSessionCheck {
         host.generation++;
         session.settingChanged("stale", true);
         rejects(() -> context.registerResource(() -> {}));
+        rejects(() -> context.registerComposerEffect(surface -> null));
         rejects(() -> context.registerComposerTextEffect(surface -> null));
+        rejects(() -> context.registerComposerCursorEffect(surface -> null));
         rejects(() -> context.registerComposerSelectionEffect(surface -> null));
         rejects(() -> context.registerComposerContentEffect(surface -> null));
         rejects(() -> ((LowLevelJavaPluginContext) context).registerLowLevelUiResource(

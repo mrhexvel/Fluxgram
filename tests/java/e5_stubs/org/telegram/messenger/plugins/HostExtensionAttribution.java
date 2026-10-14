@@ -1,9 +1,11 @@
 package org.telegram.messenger.plugins;
 
+import java.util.ArrayList;
 import java.util.function.Consumer;
 
 final class HostExtensionAttribution {
     static int handled;
+    static final ArrayList<String> pluginIds = new ArrayList<>();
 
     private HostExtensionAttribution() {
     }
@@ -15,6 +17,7 @@ final class HostExtensionAttribution {
                     @Override
                     public void run(String pluginId, HostExtensionRegistry.Operation operation)
                             throws Exception {
+                        pluginIds.add(pluginId);
                         operation.run();
                     }
 

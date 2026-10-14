@@ -60,6 +60,7 @@ public final class HostExtensionRegistryCheck {
         checkConcurrentCleanupDuringFactory();
         checkEndpointCleanupRetry();
         checkScopeCleanupRetry();
+        checkDetachedObserverCleanupRetry();
     }
 
     private static void checkOrderingConflictsAndContributionBounds() throws Exception {
@@ -647,6 +648,49 @@ public final class HostExtensionRegistryCheck {
 
         endpoint.close();
         require(closes.get() == 2, "successful scope cleanup repeated through endpoint");
+    }
+
+    private static void checkDetachedObserverCleanupRetry() throws Exception {
+        Boundary boundary = new Boundary();
+        HostExtensionRegistry registry = new HostExtensionRegistry(() -> 0, boundary, error -> {});
+        HostExtensionDescriptor<String, Void> descriptor = observer("test.detached", 10, 2);
+        HostExtensionRegistry.Endpoint<String, Void> endpoint = registry.openEndpoint(descriptor);
+        AtomicBoolean active = new AtomicBoolean(true);
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger closes = new AtomicInteger();
+        AutoCloseable registration = registry.registerObserver(
+                "plugin.detached", 7, active::get, descriptor,
+                new HostExtensionRegistrationSpec("detached", 0),
+                () -> failingObserver(calls, closes));
+
+        endpoint.dispatchObserved("before");
+        rejects(registration::close);
+        endpoint.dispatchObserved("after");
+        require(registry.registrationCount() == 1 && registry.bindingCount() == 1,
+                "failed detached cleanup released registry state");
+        registration.close();
+        require(calls.get() == 1, "closing detached registration remained active");
+        require(closes.get() == 2, "detached cleanup did not retry");
+        require(registry.registrationCount() == 0 && registry.bindingCount() == 0,
+                "detached cleanup left registry state");
+        require(boundary.pluginIds.equals(Arrays.asList(
+                "plugin.detached", "plugin.detached", "plugin.detached", "plugin.detached")),
+                "detached callbacks lost attribution");
+
+        rejectsRuntime(() -> registry.registerObserver(
+                "plugin.factory_failure", 8, () -> true, descriptor,
+                new HostExtensionRegistrationSpec("factory_failure", 0),
+                () -> {
+                    throw new IllegalStateException("intentional factory failure");
+                }));
+        require(registry.registrationCount() == 0 && registry.bindingCount() == 0,
+                "strict detached factory rollback left registry state");
+
+        rejectsRuntime(() -> registry.registerObserver(
+                "plugin.inactive", 9, () -> false, descriptor,
+                new HostExtensionRegistrationSpec("inactive", 0),
+                () -> failingObserver(new AtomicInteger(), new AtomicInteger())));
+        endpoint.close();
     }
 
     private static HostExtensionObserver<String> failingObserver(

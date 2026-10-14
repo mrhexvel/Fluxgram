@@ -35,12 +35,24 @@ class ComposerEffectsTest(unittest.TestCase):
                 *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
                 JAVA / "messenger/plugins/ComposerFrameCoordinator.java",
                 JAVA / "messenger/plugins/ComposerMotionSensors.java",
+                ROOT / "tests/java/e5_stubs/org/telegram/messenger/FileLog.java",
+                ROOT / "tests/java/e5_stubs/org/telegram/messenger/plugins/HostExtensionAttribution.java",
+                JAVA / "messenger/plugins/PluginResourceRegistry.java",
+                JAVA / "messenger/plugins/PluginScope.java",
+                JAVA / "messenger/plugins/PluginSession.java",
+                JAVA / "messenger/plugins/HostExtensionDescriptor.java",
+                JAVA / "messenger/plugins/HostExtensionRegistry.java",
                 JAVA / "messenger/plugins/PluginComposerRegistry.java",
+                JAVA / "messenger/plugins/LegacyComposerExtensions.java",
                 ROOT / "tests/java/ComposerRegistryCheck.java",
+                ROOT / "tests/java/LegacyComposerExtensionsCheck.java",
             ]
             subprocess.run(["javac", "--release", "8", "-d", directory, *map(str, sources)],
                            check=True, capture_output=True)
             subprocess.run(["java", "-cp", directory, "org.telegram.messenger.plugins.ComposerRegistryCheck"],
+                           check=True, capture_output=True)
+            subprocess.run(["java", "-cp", directory,
+                            "org.telegram.messenger.plugins.LegacyComposerExtensionsCheck"],
                            check=True, capture_output=True)
 
     def test_frame_coalescing_budget_fairness_and_cancellation(self):
@@ -141,7 +153,9 @@ class ComposerEffectsTest(unittest.TestCase):
 
     def test_composer_registration_uses_ui_cleanup_scope(self):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
-        self.assertIn("uiResources.register(() -> PluginComposerRegistry.register", adapter)
+        for method in ("register(", "registerText(", "registerCursor(",
+                       "registerSelection(", "registerContent("):
+            self.assertIn("uiResources.register(() -> LegacyComposerExtensions." + method, adapter)
         api = (JAVA / "messenger/plugins/api/ComposerEffect.java").read_text()
         self.assertIn("android.graphics.Canvas", api)
         self.assertNotIn("org.telegram.ui", api)

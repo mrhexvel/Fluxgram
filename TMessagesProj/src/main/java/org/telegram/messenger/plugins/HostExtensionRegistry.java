@@ -80,6 +80,35 @@ final class HostExtensionRegistry {
         });
     }
 
+    <I> AutoCloseable registerObserver(String pluginId, long generation,
+            BooleanSupplier active,
+            HostExtensionDescriptor<I, Void> descriptor,
+            HostExtensionRegistrationSpec spec,
+            HostExtensionObserverFactory<I> factory) {
+        requireMode(descriptor, HostExtensionDescriptor.Mode.OBSERVER);
+
+        return registerDetached(pluginId, generation, active, descriptor, spec, () -> {
+            HostExtensionObserver<I> observer = factory.create();
+
+            if (observer == null) {
+                throw new IllegalStateException("Observer factory returned null");
+            }
+
+            return new Callback<I, Void>() {
+                @Override
+                public boolean invoke(I input, HostExtensionContributionSink<Void> sink) throws Exception {
+                    observer.onObserved(input);
+                    return false;
+                }
+
+                @Override
+                public void close() throws Exception {
+                    observer.close();
+                }
+            };
+        }, true);
+    }
+
     <I, C> AutoCloseable registerContributor(PluginScope owner,
             HostExtensionDescriptor<I, C> descriptor,
             HostExtensionRegistrationSpec spec,
@@ -115,60 +144,26 @@ final class HostExtensionRegistry {
             HostExtensionReplacementFactory<I> factory) {
         requireMode(descriptor, HostExtensionDescriptor.Mode.REPLACEMENT);
 
-        if (pluginId == null || pluginId.isEmpty() || generation <= 0 || active == null
-                || spec == null || factory == null || !active.getAsBoolean()) {
-            throw new IllegalArgumentException("Replacement registration is incomplete");
-        }
+        return registerDetached(pluginId, generation, active, descriptor, spec, () -> {
+            HostExtensionReplacement<I> replacement = factory.create();
 
-        Registration<I, Void> registration;
+            if (replacement == null) {
+                throw new IllegalStateException("Replacement factory returned null");
+            }
 
-        ArrayList<Endpoint<?, ?>> snapshot;
-
-        synchronized (this) {
-            requireDescriptor(descriptor);
-            requireRegistration(pluginId, generation, descriptor, spec);
-            registration = new Registration<>(pluginId, generation, active,
-                    descriptor, spec, () -> {
-                        HostExtensionReplacement<I> replacement = factory.create();
-
-                        if (replacement == null) {
-                            throw new IllegalStateException("Replacement factory returned null");
-                        }
-
-                        return new Callback<I, Void>() {
-                            @Override
-                            public boolean invoke(I input, HostExtensionContributionSink<Void> sink)
-                                    throws Exception {
-                                return replacement.replace(input);
-                            }
-
-                            @Override
-                            public void close() throws Exception {
-                                replacement.close();
-                            }
-                        };
-                    }, nextSequence++);
-            registrations.add(registration);
-            snapshot = new ArrayList<>(endpoints);
-        }
-
-        try {
-            for (Endpoint<?, ?> endpoint : snapshot) {
-                if (endpoint.descriptor.id.equals(descriptor.id)) {
-                    attachUnchecked(registration, endpoint);
+            return new Callback<I, Void>() {
+                @Override
+                public boolean invoke(I input, HostExtensionContributionSink<Void> sink)
+                        throws Exception {
+                    return replacement.replace(input);
                 }
-            }
 
-            return registration;
-        } catch (RuntimeException | Error error) {
-            try {
-                registration.close();
-            } catch (Exception cleanupError) {
-                error.addSuppressed(cleanupError);
-            }
-
-            throw error;
-        }
+                @Override
+                public void close() throws Exception {
+                    replacement.close();
+                }
+            };
+        }, false);
     }
 
     <I, C> Endpoint<I, C> openEndpoint(HostExtensionDescriptor<I, C> descriptor) {
@@ -261,6 +256,48 @@ final class HostExtensionRegistry {
         }
     }
 
+    private <I, C> AutoCloseable registerDetached(String pluginId, long generation,
+            BooleanSupplier active,
+            HostExtensionDescriptor<I, C> descriptor,
+            HostExtensionRegistrationSpec spec,
+            Factory<I, C> factory,
+            boolean strictFactory) {
+        if (pluginId == null || pluginId.isEmpty() || generation <= 0 || active == null
+                || spec == null || factory == null || !active.getAsBoolean()) {
+            throw new IllegalArgumentException("Detached extension registration is incomplete");
+        }
+
+        Registration<I, C> registration;
+        ArrayList<Endpoint<?, ?>> snapshot;
+
+        synchronized (this) {
+            requireDescriptor(descriptor);
+            requireRegistration(pluginId, generation, descriptor, spec);
+            registration = new Registration<>(pluginId, generation, active,
+                    descriptor, spec, factory, nextSequence++);
+            registrations.add(registration);
+            snapshot = new ArrayList<>(endpoints);
+        }
+
+        try {
+            for (Endpoint<?, ?> endpoint : snapshot) {
+                if (endpoint.descriptor.id.equals(descriptor.id)) {
+                    attachUnchecked(registration, endpoint, strictFactory);
+                }
+            }
+
+            return registration;
+        } catch (RuntimeException | Error error) {
+            try {
+                registration.close();
+            } catch (Exception cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
+
+            throw error;
+        }
+    }
+
     private synchronized void requireDescriptor(HostExtensionDescriptor<?, ?> descriptor) {
         if (descriptor == null) {
             throw new IllegalArgumentException("Extension descriptor is required");
@@ -319,10 +356,17 @@ final class HostExtensionRegistry {
 
     @SuppressWarnings("unchecked")
     private <I, C> void attachUnchecked(Registration<?, ?> registration, Endpoint<?, ?> endpoint) {
-        attach((Registration<I, C>) registration, (Endpoint<I, C>) endpoint);
+        attach((Registration<I, C>) registration, (Endpoint<I, C>) endpoint, false);
     }
 
-    private <I, C> void attach(Registration<I, C> registration, Endpoint<I, C> endpoint) {
+    @SuppressWarnings("unchecked")
+    private <I, C> void attachUnchecked(Registration<?, ?> registration,
+            Endpoint<?, ?> endpoint, boolean strictFactory) {
+        attach((Registration<I, C>) registration, (Endpoint<I, C>) endpoint, strictFactory);
+    }
+
+    private <I, C> void attach(Registration<I, C> registration, Endpoint<I, C> endpoint,
+            boolean strictFactory) {
         synchronized (this) {
             if (!registration.isActive() || !endpoint.isActive()) {
                 return;
@@ -338,6 +382,18 @@ final class HostExtensionRegistry {
             callback = callFactory(registration);
         } catch (Exception | LinkageError | AssertionError error) {
             finishFailedAttachment(registration, endpoint);
+
+            if (strictFactory) {
+                if (error instanceof RuntimeException) {
+                    throw (RuntimeException) error;
+                }
+
+                if (error instanceof Error) {
+                    throw (Error) error;
+                }
+
+                throw new IllegalStateException("Extension factory failed", error);
+            }
 
             if (registration.descriptor.mode == HostExtensionDescriptor.Mode.REPLACEMENT) {
                 quarantine(registration, error);
@@ -393,7 +449,7 @@ final class HostExtensionRegistry {
         return callback;
     }
 
-    private void runPlugin(String pluginId, Operation operation) throws Exception {
+    void runPlugin(String pluginId, Operation operation) throws Exception {
         try {
             boundary.run(pluginId, operation);
         } catch (Exception | LinkageError | AssertionError error) {
