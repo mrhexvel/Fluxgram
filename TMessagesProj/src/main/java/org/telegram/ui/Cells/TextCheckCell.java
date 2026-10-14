@@ -134,6 +134,10 @@ public class TextCheckCell extends FrameLayout {
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
         checkBox.setEnabled(enabled);
+
+        if (imageView != null) {
+            imageView.setAlpha(enabled ? 1f : 0.5f);
+        }
     }
 
     public void setCheckBoxIcon(int icon) {
@@ -142,6 +146,36 @@ public class TextCheckCell extends FrameLayout {
 
     public Switch getCheckBox() {
         return checkBox;
+    }
+
+    public void setIcon(int resId) {
+        if (imageView == null) {
+            imageView = new RLottieImageView(getContext());
+            imageView.setScaleType(ImageView.ScaleType.CENTER);
+            addView(imageView, LayoutHelper.createFrame(24, 24,
+                    (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL,
+                    21, 0, 21, 0));
+        }
+
+        int textPadding = AndroidUtilities.dp(71);
+        padding = textPadding;
+
+        MarginLayoutParams textParams = (MarginLayoutParams) textView.getLayoutParams();
+        textParams.leftMargin = LocaleController.isRTL ? textParams.leftMargin : textPadding;
+        textParams.rightMargin = LocaleController.isRTL ? textPadding : textParams.rightMargin;
+
+        MarginLayoutParams valueParams = (MarginLayoutParams) valueTextView.getLayoutParams();
+        valueParams.leftMargin = LocaleController.isRTL ? valueParams.leftMargin : textPadding;
+        valueParams.rightMargin = LocaleController.isRTL ? textPadding : valueParams.rightMargin;
+
+        imageView.setVisibility(VISIBLE);
+        imageView.setImageResource(resId);
+        imageView.setPadding(0, 0, 0, 0);
+        imageView.setBackground(null);
+        imageView.setColorFilter(new PorterDuffColorFilter(
+                Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon, resourcesProvider),
+                PorterDuff.Mode.MULTIPLY));
+        imageView.setAlpha(isEnabled() ? 1f : 0.5f);
     }
 
     @Override

@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import re
 import sys
 import types
 import unittest
@@ -32,17 +33,17 @@ class PluginSettingsTest(unittest.TestCase):
 
     def test_default_and_live_changes(self):
         values = {}
-        settings = self.sdk.Settings([self.sdk.SwitchSetting("show_muted", "Muted", True)])
+        settings = self.sdk.Settings([self.sdk.Switch("show_muted", "Muted", True)])
         settings._bind_runtime(self.host(values), 7)
         self.assertTrue(settings.get("show_muted"))
         values["show_muted"] = False
         self.assertFalse(settings.get("show_muted"))
-        replacement = self.sdk.Settings([self.sdk.SwitchSetting("show_muted", "Muted", True)])
+        replacement = self.sdk.Settings([self.sdk.Switch("show_muted", "Muted", True)])
         replacement._bind_runtime(self.host(values), 7)
         self.assertFalse(replacement.get("show_muted"))
 
     def test_inactive_runtime_cannot_read(self):
-        settings = self.sdk.Settings([self.sdk.SwitchSetting("enabled", "Enabled")])
+        settings = self.sdk.Settings([self.sdk.Switch("enabled", "Enabled")])
         with self.assertRaises(RuntimeError):
             settings.get("enabled")
         settings._bind_runtime(self.host({}, active=False), 7)
@@ -52,39 +53,64 @@ class PluginSettingsTest(unittest.TestCase):
     def test_invalid_schema(self):
         for key in ("", "../key", "a:b", "x" * 65):
             with self.subTest(key=key), self.assertRaises(ValueError):
-                self.sdk.SwitchSetting(key, "Title")
+                self.sdk.Switch(key, "Title")
         with self.assertRaises(TypeError):
-            self.sdk.SwitchSetting("key", "Title", 1)
-        item = self.sdk.SwitchSetting("key", "Title")
+            self.sdk.Switch("key", "Title", 1)
+        item = self.sdk.Switch("key", "Title")
         with self.assertRaises(ValueError):
             self.sdk.Settings([item, item])
         with self.assertRaises(ValueError):
             self.sdk.Settings([object()])
 
     def test_schema_export(self):
-        settings = self.sdk.Settings([self.sdk.SwitchSetting("key", "Title", True, "Details")])
+        settings = self.sdk.Settings([self.sdk.Switch("key", "Title", True, "Details")])
         self.assertEqual(settings._describe(), [
             {"key": "key", "title": "Title", "default": True, "description": "Details", "label": "", "type": "switch"}
         ])
 
     def test_label_export_and_whitespace(self):
-        item = self.sdk.SwitchSetting("key", "Title", label="  Notifications  ")
+        item = self.sdk.Switch("key", "Title", label="  Notifications  ")
         self.assertEqual(self.sdk.Settings([item])._describe()[0]["label"], "Notifications")
-        blank = self.sdk.SwitchSetting("key", "Title", label="   ")
+        blank = self.sdk.Switch("key", "Title", label="   ")
         self.assertEqual(self.sdk.Settings([blank])._describe()[0]["label"], "")
 
     def test_invalid_label(self):
         for label in (None, 123, "x" * 121):
             with self.subTest(label=label), self.assertRaises(ValueError):
-                self.sdk.SwitchSetting("key", "Title", label=label)
+                self.sdk.Switch("key", "Title", label=label)
+
+    def test_icon_export_and_validation(self):
+        item = self.sdk.Switch("key", "Title", icon="notifications")
+        self.assertEqual(self.sdk.Settings([item])._describe()[0]["icon"], "notifications")
+
+        for icon in (None, 123, "msg_notifications", "unknown"):
+            with self.subTest(icon=icon), self.assertRaises(ValueError):
+                self.sdk.Switch("key", "Title", icon=icon)
+
+    def test_legacy_setting_names_are_aliases(self):
+        self.assertIs(self.sdk.SwitchSetting, self.sdk.Switch)
+        self.assertIs(self.sdk.SelectSetting, self.sdk.Select)
+        self.assertIs(self.sdk.SliderSetting, self.sdk.Slider)
+        self.assertIs(self.sdk.TextSetting, self.sdk.Text)
+
+    def test_java_icon_allowlist_matches_sdk(self):
+        source = (
+            PROJECT
+            / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/PluginSettings.java"
+        ).read_text()
+        method = source.split("private static int iconResource", 1)[1].split(
+            "public boolean accepts", 1
+        )[0]
+        icons = set(re.findall(r'case "([a-z_]+)"', method))
+        self.assertEqual(icons, set(self.sdk._SETTING_ICONS))
 
     def test_builtin_notifications_apply_switch_without_reload(self):
         module = types.ModuleType("fluxgram")
         module.Plugin = object
         module.MessageReceivedEvent = object
-        module.SwitchSetting = self.sdk.SwitchSetting
-        module.SelectSetting = self.sdk.SelectSetting
-        module.SliderSetting = self.sdk.SliderSetting
+        module.Switch = self.sdk.Switch
+        module.Select = self.sdk.Select
+        module.Slider = self.sdk.Slider
         received = []
         ui_module = types.ModuleType("fluxgram.ui")
         ui_module.Notifications = lambda ui: types.SimpleNamespace(
@@ -117,7 +143,7 @@ class PluginSettingsTest(unittest.TestCase):
         self.assertEqual(received[-1]["duration"], 7000)
 
     def test_select_values_and_removed_option_fallback(self):
-        item = self.sdk.SelectSetting("mode", "Mode", (("a", "First"), ("b", "Second")), "a")
+        item = self.sdk.Select("mode", "Mode", (("a", "First"), ("b", "Second")), "a")
         values = {"mode": "b"}
         settings = self.sdk.Settings([item])
         settings._bind_runtime(self.host(values), 7)
@@ -129,10 +155,10 @@ class PluginSettingsTest(unittest.TestCase):
     def test_select_rejects_bad_options(self):
         for options in ((), (("a", "First"), ("a", "Duplicate")), ("ab",), (("a", ""),)):
             with self.subTest(options=options), self.assertRaises(ValueError):
-                self.sdk.SelectSetting("mode", "Mode", options, "a")
+                self.sdk.Select("mode", "Mode", options, "a")
 
     def test_slider_range_step_and_old_value_fallback(self):
-        item = self.sdk.SliderSetting("duration", "Duration", 2, 10, 4, step=2, unit="s")
+        item = self.sdk.Slider("duration", "Duration", 2, 10, 4, step=2, unit="s")
         values = {"duration": 8}
         settings = self.sdk.Settings([item])
         settings._bind_runtime(self.host(values), 7)
@@ -147,12 +173,12 @@ class PluginSettingsTest(unittest.TestCase):
         for low, high, default, step in ((1, 1, 1, 1), (0, 10, 5, 0), (0, 10, 3, 2),
                                           (0, 9, 2, 2), (0, 2000, 2, 1), (0, 10, 12, 1)):
             with self.subTest(low=low, high=high, default=default, step=step), self.assertRaises(ValueError):
-                self.sdk.SliderSetting("key", "Title", low, high, default, step)
+                self.sdk.Slider("key", "Title", low, high, default, step)
         with self.assertRaises(TypeError):
-            self.sdk.SliderSetting("key", "Title", 0, 10, True)
+            self.sdk.Slider("key", "Title", 0, 10, True)
 
     def test_text_default_empty_and_live_changes(self):
-        item = self.sdk.TextSetting("prefix", "Prefix", default="Hello", placeholder="Enter prefix", max_length=12)
+        item = self.sdk.Text("prefix", "Prefix", default="Hello", placeholder="Enter prefix", max_length=12)
         values = {}
         settings = self.sdk.Settings([item])
         settings._bind_runtime(self.host(values), 7)
@@ -166,7 +192,7 @@ class PluginSettingsTest(unittest.TestCase):
         self.assertEqual(settings._describe()[0]["placeholder"], "Enter prefix")
 
     def test_text_old_value_outside_new_limit_falls_back(self):
-        item = self.sdk.TextSetting("text", "Text", default="ok", max_length=3)
+        item = self.sdk.Text("text", "Text", default="ok", max_length=3)
         values = {"text": "too long"}
         settings = self.sdk.Settings([item])
         settings._bind_runtime(self.host(values), 7)
@@ -175,26 +201,26 @@ class PluginSettingsTest(unittest.TestCase):
         self.assertEqual(settings.get("text"), "ok")
 
     def test_text_limit_counts_unicode_codepoints(self):
-        item = self.sdk.TextSetting("emoji", "Emoji", default="😀", max_length=1)
+        item = self.sdk.Text("emoji", "Emoji", default="😀", max_length=1)
         settings = self.sdk.Settings([item])
         settings._bind_runtime(self.host({"emoji": "🚀"}), 7)
         self.assertEqual(settings.get("emoji"), "🚀")
         with self.assertRaises(ValueError):
-            self.sdk.TextSetting("emoji", "Emoji", default="😀🚀", max_length=1)
+            self.sdk.Text("emoji", "Emoji", default="😀🚀", max_length=1)
 
     def test_invalid_text_schema(self):
         for options in ({"max_length": 0}, {"max_length": 4097}, {"max_length": True},
                         {"default": None}, {"default": "a\nb"}, {"default": "a\rb"},
                         {"placeholder": 123}, {"placeholder": "x" * 121}):
             with self.subTest(options=options), self.assertRaises(ValueError):
-                self.sdk.TextSetting("text", "Text", **options)
+                self.sdk.Text("text", "Text", **options)
 
     def callback_items(self, callback):
         return (
-            self.sdk.SwitchSetting("switch", "Switch", on_changed=callback),
-            self.sdk.SelectSetting("select", "Select", (("a", "A"),), "a", on_changed=callback),
-            self.sdk.SliderSetting("slider", "Slider", 0, 10, 5, on_changed=callback),
-            self.sdk.TextSetting("text", "Text", on_changed=callback),
+            self.sdk.Switch("switch", "Switch", on_changed=callback),
+            self.sdk.Select("select", "Select", (("a", "A"),), "a", on_changed=callback),
+            self.sdk.Slider("slider", "Slider", 0, 10, 5, on_changed=callback),
+            self.sdk.Text("text", "Text", on_changed=callback),
         )
 
     def test_callbacks_receive_current_instance_for_shared_schema(self):
@@ -220,8 +246,8 @@ class PluginSettingsTest(unittest.TestCase):
         calls = []
         owner = types.SimpleNamespace(on_setting_changed=lambda key, value: calls.append((key, value)))
         settings = self.sdk.Settings([
-            self.sdk.TextSetting("own", "Own", on_changed=lambda plugin, value: calls.append((plugin, value))),
-            self.sdk.TextSetting("legacy", "Legacy"),
+            self.sdk.Text("own", "Own", on_changed=lambda plugin, value: calls.append((plugin, value))),
+            self.sdk.Text("legacy", "Legacy"),
         ])
         settings._bind_runtime(self.host({}), 7)
         settings._dispatch_changed(owner, "own", "first")
@@ -236,7 +262,7 @@ class PluginSettingsTest(unittest.TestCase):
             raise ValueError("callback failed")
 
         owner = types.SimpleNamespace(on_setting_changed=lambda *args: calls.append(args))
-        settings = self.sdk.Settings([self.sdk.TextSetting("text", "Text", on_changed=changed)])
+        settings = self.sdk.Settings([self.sdk.Text("text", "Text", on_changed=changed)])
         settings._bind_runtime(self.host({}), 7)
 
         with self.assertRaisesRegex(ValueError, "callback failed"):

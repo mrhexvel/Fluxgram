@@ -2,6 +2,7 @@ package org.telegram.ui;
 
 import android.content.Context;
 import android.content.DialogInterface;
+import android.graphics.Canvas;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.inputmethod.EditorInfo;
@@ -21,17 +22,18 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.HeaderCell;
+import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextSettingsCell;
+import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LinkSpanDrawable;
 import org.telegram.ui.Components.SeekBarView;
-import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public final class PluginSettingsActivity extends BaseFragment {
     private final String pluginId;
@@ -106,7 +108,12 @@ public final class PluginSettingsActivity extends BaseFragment {
             return;
         }
 
-        for (PluginSettings.Setting setting : adapter.getSettingsSchema()) {
+        List<PluginSettings.Setting> schema = adapter.getSettingsSchema();
+
+        for (int index = 0; index < schema.size(); index++) {
+            PluginSettings.Setting setting = schema.get(index);
+            boolean divider = index + 1 < schema.size() && schema.get(index + 1).label.isEmpty();
+
             if (!setting.label.isEmpty()) {
                 HeaderCell label = new HeaderCell(getParentActivity(), 33, getResourceProvider());
                 label.setText(setting.label);
@@ -115,8 +122,19 @@ public final class PluginSettingsActivity extends BaseFragment {
 
             if (setting.type.equals("switch")) {
                 TextCheckCell cell = new TextCheckCell(getParentActivity(), getResourceProvider());
-                cell.setTextAndValueAndCheck(setting.title, setting.description,
-                        (Boolean) PluginSettings.getValue(pluginId, setting), true, false);
+                boolean checked = (Boolean) PluginSettings.getValue(pluginId, setting);
+
+                if (setting.description.isEmpty()) {
+                    cell.setTextAndCheck(setting.title, checked, divider);
+                } else {
+                    cell.setTextAndValueAndCheck(
+                            setting.title, setting.description, checked, true, divider);
+                }
+
+                if (setting.iconResId != 0) {
+                    cell.setIcon(setting.iconResId);
+                }
+
                 cell.setEnabled(canEdit(adapter));
                 cell.setOnClickListener(view -> {
                     if (!canEdit(adapter)) {
@@ -129,7 +147,8 @@ public final class PluginSettingsActivity extends BaseFragment {
                 });
                 items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
             } else {
-                items.add(UItem.asCustom(createValueCell(adapter, setting), LayoutHelper.WRAP_CONTENT));
+                items.add(UItem.asCustom(
+                        createValueCell(adapter, setting, divider), LayoutHelper.WRAP_CONTENT));
             }
         }
     }
@@ -139,14 +158,31 @@ public final class PluginSettingsActivity extends BaseFragment {
                 && !adapter.isStoppingForRemoval() && ExternalPlugins.getPending(pluginId) == null;
     }
 
-    private View createValueCell(PythonPluginAdapter adapter, PluginSettings.Setting setting) {
-        LinearLayout container = new LinearLayout(getParentActivity());
+    private View createValueCell(
+            PythonPluginAdapter adapter, PluginSettings.Setting setting, boolean divider) {
+        LinearLayout container = new LinearLayout(getParentActivity()) {
+            @Override
+            protected void dispatchDraw(Canvas canvas) {
+                super.dispatchDraw(canvas);
+
+                if (divider) {
+                    int offset = AndroidUtilities.dp(setting.iconResId == 0 ? 20 : 58);
+                    canvas.drawLine(
+                            LocaleController.isRTL ? 0 : offset,
+                            getMeasuredHeight() - 1,
+                            getMeasuredWidth() - (LocaleController.isRTL ? offset : 0),
+                            getMeasuredHeight() - 1,
+                            Theme.dividerPaint);
+                }
+            }
+        };
         container.setOrientation(LinearLayout.VERTICAL);
         container.setAlpha(canEdit(adapter) ? 1f : 0.5f);
 
         TextSettingsCell title = new TextSettingsCell(getParentActivity(), getResourceProvider());
         Object value = PluginSettings.getValue(pluginId, setting);
         title.setTextAndValue(setting.title, setting.displayValue(value), false);
+        title.setIcon(setting.iconResId);
         container.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         if (setting.type.equals("select")) {
@@ -225,8 +261,10 @@ public final class PluginSettingsActivity extends BaseFragment {
             description.setText(setting.description);
             description.setTextSize(14);
             description.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+            int horizontalMargin = setting.iconResId == 0 ? 21 : 58;
             container.addView(description, LayoutHelper.createLinear(
-                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 21, 0, 21, 12));
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                    horizontalMargin, 0, horizontalMargin, 12));
         }
 
         return container;

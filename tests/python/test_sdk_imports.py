@@ -37,16 +37,20 @@ from fluxgram import (
     MessageReceivedEvent,
     NotificationOverride,
     Plugin,
+    Select,
     SelectSetting,
+    Slider,
     SliderSetting,
     StorageResult,
     StorageTask,
+    Switch,
     SwitchSetting,
     TaskHandle,
     Tasks,
     EventContext,
     ExecutionContext,
     PluginSettingChangedEvent,
+    Text,
     TextSetting,
 )
 from fluxgram.storage import Storage, StorageMigration
@@ -54,10 +58,14 @@ from fluxgram.ui import Bulletins, Navigation, Notifications, UI
 from fluxgram.testing import PluginHarness
 
 assert API_VERSION == 2
-assert API_MINOR_VERSION == 9
+assert API_MINOR_VERSION == 10
 assert fluxgram.ChatInfo is fluxgram.models.ChatInfo
 assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notifications"}
-assert SwitchSetting("enabled", "Enabled").default is False
+assert Switch("enabled", "Enabled").default is False
+assert SwitchSetting is Switch
+assert SelectSetting is Select
+assert SliderSetting is Slider
+assert TextSetting is Text
 assert UI()._active() is False
 assert PluginHarness.__module__ == "fluxgram.testing.harness"
 assert Storage.__module__ == "fluxgram.storage"
@@ -151,7 +159,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
     def test_package_metadata_and_chaquopy_source_set(self):
         metadata = tomllib.loads((SDK / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-plugin")
-        self.assertEqual(metadata["project"]["version"], "2.10.0")
+        self.assertEqual(metadata["project"]["version"], "2.11.0")
         self.assertEqual(metadata["project"]["requires-python"], ">=3.11")
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
 

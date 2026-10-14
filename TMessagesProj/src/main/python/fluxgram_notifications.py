@@ -1,25 +1,27 @@
-from fluxgram import Plugin, MessageReceivedEvent, SwitchSetting, SelectSetting, SliderSetting
+from fluxgram import MessageReceivedEvent, Plugin, Select, Slider, Switch
 from fluxgram.ui import Notifications
 
 
 class PluginEntry(Plugin):
 
     settings_schema = (
-        SwitchSetting(
+        Switch(
             "show_muted_chats",
             "Заглушённые чаты",
             default=False,
             description="Показывать уведомления внутри FluxGram, даже если уведомления чата выключены.",
             label="Уведомления",
+            icon="notifications",
         ),
-        SelectSetting(
+        Select(
             "duration_mode",
             "Длительность показа",
             options=(("3", "3 секунды"), ("5", "5 секунд"), ("8", "8 секунд"), ("custom", "Своя")),
             default="5",
             label="Отображение",
+            icon="auto_delete",
         ),
-        SliderSetting(
+        Slider(
             "custom_duration",
             "Своя длительность",
             minimum=1,
@@ -27,6 +29,7 @@ class PluginEntry(Plugin):
             default=5,
             unit="с",
             description="Используется, когда выше выбрана длительность «Своя».",
+            icon="speed",
         ),
     )
     SHOW_IN_CURRENT_CHAT = False
