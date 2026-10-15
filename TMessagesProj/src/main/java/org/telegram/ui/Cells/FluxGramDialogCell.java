@@ -1,18 +1,26 @@
 package org.telegram.ui.Cells;
 
+import static org.telegram.messenger.AndroidUtilities.dp;
+
 import android.content.Context;
 import android.graphics.Canvas;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.TextUtils;
 
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.AvatarSpan;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
@@ -22,6 +30,8 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
     private final int account;
     private final FluxGramDialogListAppearanceController controller;
     private final FluxGramUserListBadgeRenderer renderer;
+    private boolean senderMiniAvatars;
+    private AvatarSpan messageAvatarSpan;
 
     private FluxGramPeerKey requestedPeer;
     private boolean attached;
@@ -31,16 +41,56 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
             Context context,
             int account,
             Theme.ResourcesProvider resourcesProvider,
-            FluxGramDialogListAppearanceController controller
+            FluxGramDialogListAppearanceController controller,
+            boolean senderMiniAvatars
     ) {
         super(fragment, context, true, false, account, resourcesProvider);
         this.account = account;
         this.controller = controller;
+        this.senderMiniAvatars = senderMiniAvatars;
         renderer = new FluxGramUserListBadgeRenderer(
                 this,
                 account,
                 AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS
         );
+    }
+
+    public void setSenderMiniAvatars(boolean shown) {
+        senderMiniAvatars = shown;
+    }
+
+    @Override
+    protected CharSequence decorateMessageSender(CharSequence sender, MessageObject messageObject) {
+        if (!senderMiniAvatars || messageObject == null || TextUtils.isEmpty(sender)) {
+            return sender;
+        }
+
+        long fromDialogId = getMessageSenderAvatarDialogId(messageObject);
+        if (fromDialogId == 0
+                || fromDialogId == INVALID_MESSAGE_SENDER_DIALOG_ID
+                || fromDialogId == UserConfig.getInstance(account).getClientUserId()) {
+            return sender;
+        }
+
+        if (messageAvatarSpan == null) {
+            messageAvatarSpan = new AvatarSpan(this, account, 18);
+            messageAvatarSpan.needDrawShadow = false;
+        }
+        messageAvatarSpan.setDialogId(fromDialogId);
+
+        SpannableStringBuilder decorated = new SpannableStringBuilder("A ");
+        decorated.setSpan(messageAvatarSpan, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        int spacerStart = decorated.length();
+        decorated.append(' ');
+        decorated.setSpan(
+                new DialogCell.FixedWidthSpan(dp(1)),
+                spacerStart,
+                decorated.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        decorated.append(sender);
+
+        return decorated;
     }
 
     @Override

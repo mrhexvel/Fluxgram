@@ -16,6 +16,11 @@ public final class AppearanceSettings {
     private static final String TITLE_MODE = "title_mode";
     private static final String HIDE_ACTION_BAR_STATUS = "hide_action_bar_status";
     private static final String CENTER_ACTION_BAR_TITLE = "center_action_bar_title";
+    private static final String HIDE_STORIES = "hide_stories";
+    private static final String HIDE_FLOATING_BUTTON = "hide_floating_button";
+    private static final String HIDE_DIALOGS_SEARCH_BAR = "hide_dialogs_search_bar";
+    private static final String SENDER_MINI_AVATARS = "sender_mini_avatars";
+    private static final String FORCE_SNOW = "force_snow";
 
     public static final int TITLE_APP_NAME = 0;
     public static final int TITLE_USERNAME = 1;
@@ -57,6 +62,46 @@ public final class AppearanceSettings {
 
     public static void setCentersActionBarTitle(int account, boolean centered) {
         setBoolean(account, CENTER_ACTION_BAR_TITLE, centered);
+    }
+
+    public static boolean hidesStories(int account) {
+        return getBoolean(account, HIDE_STORIES);
+    }
+
+    public static void setHidesStories(int account, boolean hidden) {
+        setBoolean(account, HIDE_STORIES, hidden);
+    }
+
+    public static boolean hidesFloatingButton(int account) {
+        return getBoolean(account, HIDE_FLOATING_BUTTON);
+    }
+
+    public static void setHidesFloatingButton(int account, boolean hidden) {
+        setBoolean(account, HIDE_FLOATING_BUTTON, hidden);
+    }
+
+    public static boolean hidesDialogsSearchBar(int account) {
+        return getBoolean(account, HIDE_DIALOGS_SEARCH_BAR);
+    }
+
+    public static void setHidesDialogsSearchBar(int account, boolean hidden) {
+        setBoolean(account, HIDE_DIALOGS_SEARCH_BAR, hidden);
+    }
+
+    public static boolean showsSenderMiniAvatars(int account) {
+        return getBoolean(account, SENDER_MINI_AVATARS);
+    }
+
+    public static void setShowsSenderMiniAvatars(int account, boolean shown) {
+        setBoolean(account, SENDER_MINI_AVATARS, shown);
+    }
+
+    public static boolean forcesSnow(int account) {
+        return getBoolean(account, FORCE_SNOW);
+    }
+
+    public static void setForcesSnow(int account, boolean forced) {
+        setBoolean(account, FORCE_SNOW, forced);
     }
 
     public static CharSequence getActionBarTitle(int account) {

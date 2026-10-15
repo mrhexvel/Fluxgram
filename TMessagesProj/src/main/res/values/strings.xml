@@ -11277,6 +11277,11 @@
     <string name="FluxGramActionBarTitleChats">Chats</string>
     <string name="FluxGramHideActionBarStatus">Hide status</string>
     <string name="FluxGramCenterActionBarTitle">Center title</string>
+    <string name="FluxGramHideStories">Hide stories</string>
+    <string name="FluxGramHideFloatingButton">Hide compose button</string>
+    <string name="FluxGramHideDialogsSearchBar">Hide search bar</string>
+    <string name="FluxGramSenderMiniAvatars">Sender mini avatars</string>
+    <string name="FluxGramForceSnow">Always show snow</string>
     <string name="FluxGramChats">Chats</string>
     <string name="FluxGramCategories">Categories</string>
     <string name="FluxGramLinks">Links</string>

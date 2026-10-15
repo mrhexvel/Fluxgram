@@ -52,6 +52,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int ACTION_BAR_TITLE = 11;
     private static final int HIDE_ACTION_BAR_STATUS = 12;
     private static final int CENTER_ACTION_BAR_TITLE = 13;
+    private static final int HIDE_STORIES = 14;
+    private static final int HIDE_FLOATING_BUTTON = 15;
+    private static final int HIDE_DIALOGS_SEARCH_BAR = 16;
+    private static final int SENDER_MINI_AVATARS = 17;
+    private static final int FORCE_SNOW = 18;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -227,6 +232,26 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     CENTER_ACTION_BAR_TITLE,
                     LocaleController.getString(R.string.FluxGramCenterActionBarTitle)
             ).setChecked(AppearanceSettings.centersActionBarTitle(currentAccount)));
+            items.add(UItem.asCheck(
+                    HIDE_STORIES,
+                    LocaleController.getString(R.string.FluxGramHideStories)
+            ).setChecked(AppearanceSettings.hidesStories(currentAccount)));
+            items.add(UItem.asCheck(
+                    HIDE_FLOATING_BUTTON,
+                    LocaleController.getString(R.string.FluxGramHideFloatingButton)
+            ).setChecked(AppearanceSettings.hidesFloatingButton(currentAccount)));
+            items.add(UItem.asCheck(
+                    HIDE_DIALOGS_SEARCH_BAR,
+                    LocaleController.getString(R.string.FluxGramHideDialogsSearchBar)
+            ).setChecked(AppearanceSettings.hidesDialogsSearchBar(currentAccount)));
+            items.add(UItem.asCheck(
+                    SENDER_MINI_AVATARS,
+                    LocaleController.getString(R.string.FluxGramSenderMiniAvatars)
+            ).setChecked(AppearanceSettings.showsSenderMiniAvatars(currentAccount)));
+            items.add(UItem.asCheck(
+                    FORCE_SNOW,
+                    LocaleController.getString(R.string.FluxGramForceSnow)
+            ).setChecked(AppearanceSettings.forcesSnow(currentAccount)));
             items.add(UItem.asShadow(null));
 
             return;
@@ -462,6 +487,27 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean centered = !AppearanceSettings.centersActionBarTitle(currentAccount);
                 AppearanceSettings.setCentersActionBarTitle(currentAccount, centered);
                 ((TextCheckCell) view).setChecked(centered);
+                appearancePreview.update(true);
+            } else if (item.id == HIDE_STORIES) {
+                boolean hidden = !AppearanceSettings.hidesStories(currentAccount);
+                AppearanceSettings.setHidesStories(currentAccount, hidden);
+                ((TextCheckCell) view).setChecked(hidden);
+            } else if (item.id == HIDE_FLOATING_BUTTON) {
+                boolean hidden = !AppearanceSettings.hidesFloatingButton(currentAccount);
+                AppearanceSettings.setHidesFloatingButton(currentAccount, hidden);
+                ((TextCheckCell) view).setChecked(hidden);
+            } else if (item.id == HIDE_DIALOGS_SEARCH_BAR) {
+                boolean hidden = !AppearanceSettings.hidesDialogsSearchBar(currentAccount);
+                AppearanceSettings.setHidesDialogsSearchBar(currentAccount, hidden);
+                ((TextCheckCell) view).setChecked(hidden);
+            } else if (item.id == SENDER_MINI_AVATARS) {
+                boolean shown = !AppearanceSettings.showsSenderMiniAvatars(currentAccount);
+                AppearanceSettings.setShowsSenderMiniAvatars(currentAccount, shown);
+                ((TextCheckCell) view).setChecked(shown);
+            } else if (item.id == FORCE_SNOW) {
+                boolean forced = !AppearanceSettings.forcesSnow(currentAccount);
+                AppearanceSettings.setForcesSnow(currentAccount, forced);
+                ((TextCheckCell) view).setChecked(forced);
                 appearancePreview.update(true);
             }
 

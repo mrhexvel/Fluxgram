@@ -123,6 +123,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private View[] actionModeHidingViews;
 
     private boolean supportsHolidayImage;
+    private boolean forceHolidayImage;
+    private Drawable forcedHolidayDrawable;
     private SnowflakesEffect snowflakesEffect;
     private FireworksEffect fireworksEffect;
     private Paint.FontMetricsInt fontMetricsInt;
@@ -343,6 +345,35 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         invalidate();
     }
 
+    public void setForceHolidayImage(boolean value) {
+        if (forceHolidayImage == value) {
+            return;
+        }
+
+        forceHolidayImage = value;
+        if (forceHolidayImage) {
+            forcedHolidayDrawable = getContext().getResources().getDrawable(R.drawable.newyear).mutate();
+            if (titleColorToSet != 0) {
+                forcedHolidayDrawable.setColorFilter(titleColorToSet, PorterDuff.Mode.MULTIPLY);
+            }
+            if (fontMetricsInt == null) {
+                fontMetricsInt = new Paint.FontMetricsInt();
+                rect = new Rect();
+            }
+        } else {
+            forcedHolidayDrawable = null;
+            if (!Theme.canStartHolidayAnimation() && !manualStart) {
+                snowflakesEffect = null;
+            }
+        }
+
+        invalidate();
+    }
+
+    private Drawable getHolidayDrawable() {
+        return forceHolidayImage ? forcedHolidayDrawable : Theme.getCurrentHolidayDrawable();
+    }
+
     public BackupImageView getSearchAvatarImageView() {
         return avatarSearchImageView;
     }
@@ -362,8 +393,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL && ev.getAction() == MotionEvent.ACTION_DOWN) {
-            Drawable drawable = Theme.getCurrentHolidayDrawable();
+        if ((supportsHolidayImage || forceHolidayImage) && !titleOverlayShown && !LocaleController.isRTL && ev.getAction() == MotionEvent.ACTION_DOWN) {
+            Drawable drawable = getHolidayDrawable();
             if (drawable != null && drawable.getBounds().contains((int) ev.getX(), (int) ev.getY())) {
                 manualStart = true;
                 if (snowflakesEffect == null) {
@@ -401,18 +432,22 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             canvas.clipRect(0, -getTranslationY() + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0), getMeasuredWidth(), getMeasuredHeight());
         }
         boolean result = super.drawChild(canvas, child, drawingTime);
-        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL && (child == titleTextView[0] || child == titleTextView[1] || child == titlesContainer && useContainerForTitles)) {
-            Drawable drawable = Theme.getCurrentHolidayDrawable();
+        if ((supportsHolidayImage || forceHolidayImage) && !titleOverlayShown && !LocaleController.isRTL && (child == titleTextView[0] || child == titleTextView[1] || child == titlesContainer && useContainerForTitles)) {
+            Drawable drawable = getHolidayDrawable();
             if (drawable != null) {
                 SimpleTextView titleView = child == titlesContainer ? titleTextView[0] : (SimpleTextView) child;
                 if (titleView != null && titleView.getVisibility() == View.VISIBLE && titleView.getText() instanceof String) {
                     TextPaint textPaint = titleView.getTextPaint();
                     textPaint.getFontMetricsInt(fontMetricsInt);
                     textPaint.getTextBounds((String) titleView.getText(), 0, 1, rect);
-                    int x = titleView.getTextStartX() + Theme.getCurrentHolidayDrawableXOffset() + (rect.width() - (drawable.getIntrinsicWidth() + Theme.getCurrentHolidayDrawableXOffset())) / 2;
-                    int y = titleView.getTextStartY() + Theme.getCurrentHolidayDrawableYOffset() + (int) Math.ceil((titleView.getTextHeight() - rect.height()) / 2.0f) + (int) (dp(8) * (1f - titlesContainer.getScaleY()));
+                    int offsetX = forceHolidayImage ? -dp(3) : Theme.getCurrentHolidayDrawableXOffset();
+                    int offsetY = forceHolidayImage ? dp(7) : Theme.getCurrentHolidayDrawableYOffset();
+                    float titleScaleY = titlesContainer == null ? titleView.getScaleY() : titlesContainer.getScaleY();
+                    float titleContainerAlpha = titlesContainer == null ? 1f : titlesContainer.getAlpha();
+                    int x = titleView.getTextStartX() + offsetX + (rect.width() - (drawable.getIntrinsicWidth() + offsetX)) / 2;
+                    int y = titleView.getTextStartY() + offsetY + (int) Math.ceil((titleView.getTextHeight() - rect.height()) / 2.0f) + (int) (dp(8) * (1f - titleScaleY));
                     drawable.setBounds(x, y - drawable.getIntrinsicHeight(), x + drawable.getIntrinsicWidth(), y);
-                    drawable.setAlpha((int) (255 * titlesContainer.getAlpha() * titleView.getAlpha()));
+                    drawable.setAlpha((int) (255 * titleContainerAlpha * titleView.getAlpha()));
                     drawable.draw(canvas);
                     if (overlayTitleAnimationInProgress) {
                         child.invalidate();
@@ -420,7 +455,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                     }
                 }
 
-                if (Theme.canStartHolidayAnimation()) {
+                if (forceHolidayImage || Theme.canStartHolidayAnimation()) {
                     if (snowflakesEffect == null) {
                         snowflakesEffect = new SnowflakesEffect(0);
                     }
@@ -604,6 +639,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             createTitleTextView(0);
         }
         titleColorToSet = color;
+        if (forcedHolidayDrawable != null) {
+            forcedHolidayDrawable.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
         titleTextView[0].setTextColor(color);
         titleTextView[0].setEmojiColor(color);
         if (titleTextView[1] != null) {

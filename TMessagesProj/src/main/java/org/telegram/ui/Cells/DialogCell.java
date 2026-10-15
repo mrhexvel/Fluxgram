@@ -1558,6 +1558,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 needEmoji = true;
                 updateMessageThumbs();
                 messageNameString = ChatObject.isMonoForum(chat) ? null : AndroidUtilities.escape(getMessageNameString());
+                messageNameString = decorateMessageSender(messageNameString, message);
                 if (ChatObject.isMonoForum(chat)) {
                     messageNameString = null;
                     if (messageFormatType == 1) {
@@ -1798,6 +1799,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                                 user != null && user.id == UserObject.VERIFY && message != null && message.getForwardedFromId() != null
                             ) {
                                 messageNameString = AndroidUtilities.escape(triedMessageName != null ? triedMessageName : getMessageNameString());
+                                messageNameString = decorateMessageSender(messageNameString, message);
                                 if (chat != null && chat.forum && !isTopic && !useFromUserAsAvatar) {
                                     CharSequence topicName = MessagesController.getInstance(currentAccount).getTopicsController().getTopicIconName(chat, message, currentMessagePaint);
                                     if (!TextUtils.isEmpty(topicName)) {
@@ -2947,6 +2949,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
         }
         updateThumbsPosition();
+    }
+
+    protected CharSequence decorateMessageSender(CharSequence sender, MessageObject messageObject) {
+        return sender;
     }
 
     public void setTitleOverride(String s) {
@@ -5851,31 +5857,11 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         TLRPC.User user;
         TLRPC.User fromUser = null;
         TLRPC.Chat fromChat = null;
-        long fromId = message.getFromChatId();
+        long fromId = getMessageSenderDialogId(message);
+        if (fromId == INVALID_MESSAGE_SENDER_DIALOG_ID) {
+            return null;
+        }
         final long selfId = UserConfig.getInstance(currentAccount).getClientUserId();
-        if (!isSavedDialog && currentDialogId == selfId) {
-            long savedDialogId = message.getSavedDialogId();
-            if (savedDialogId == selfId) {
-                return null;
-            } else if (savedDialogId != UserObject.ANONYMOUS) {
-                if (message.messageOwner != null && message.messageOwner.fwd_from != null) {
-                    long fwdId = DialogObject.getPeerDialogId(message.messageOwner.fwd_from.saved_from_id);
-                    if (fwdId == 0) {
-                        fwdId = DialogObject.getPeerDialogId(message.messageOwner.fwd_from.from_id);
-                    }
-                    if (fwdId > 0 && fwdId != savedDialogId) {
-                        return null;
-                    }
-                }
-                fromId = savedDialogId;
-            }
-        }
-        if (isSavedDialog && message.messageOwner != null && message.messageOwner.fwd_from != null) {
-            fromId = DialogObject.getPeerDialogId(message.messageOwner.fwd_from.saved_from_id);
-            if (fromId == 0) {
-                fromId = DialogObject.getPeerDialogId(message.messageOwner.fwd_from.from_id);
-            }
-        }
         if (DialogObject.isUserDialog(fromId)) {
             fromUser = MessagesController.getInstance(currentAccount).getUser(fromId);
         } else {
@@ -5923,6 +5909,91 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         } else {
             return "DELETED";
         }
+    }
+
+    protected static final long INVALID_MESSAGE_SENDER_DIALOG_ID = Long.MIN_VALUE;
+
+    protected long getMessageSenderDialogId(MessageObject messageObject) {
+        if (messageObject == null) {
+            return INVALID_MESSAGE_SENDER_DIALOG_ID;
+        }
+
+        long fromId = messageObject.getFromChatId();
+        final long selfId = UserConfig.getInstance(currentAccount).getClientUserId();
+        if (!isSavedDialog && currentDialogId == selfId) {
+            long savedDialogId = messageObject.getSavedDialogId();
+            if (savedDialogId == selfId) {
+                return INVALID_MESSAGE_SENDER_DIALOG_ID;
+            } else if (savedDialogId != UserObject.ANONYMOUS) {
+                if (messageObject.messageOwner != null && messageObject.messageOwner.fwd_from != null) {
+                    long forwardedId = DialogObject.getPeerDialogId(messageObject.messageOwner.fwd_from.saved_from_id);
+                    if (forwardedId == 0) {
+                        forwardedId = DialogObject.getPeerDialogId(messageObject.messageOwner.fwd_from.from_id);
+                    }
+                    if (forwardedId > 0 && forwardedId != savedDialogId) {
+                        return INVALID_MESSAGE_SENDER_DIALOG_ID;
+                    }
+                }
+                fromId = savedDialogId;
+            }
+        }
+        if (isSavedDialog && messageObject.messageOwner != null && messageObject.messageOwner.fwd_from != null) {
+            fromId = DialogObject.getPeerDialogId(messageObject.messageOwner.fwd_from.saved_from_id);
+            if (fromId == 0) {
+                fromId = DialogObject.getPeerDialogId(messageObject.messageOwner.fwd_from.from_id);
+            }
+        }
+
+        return fromId;
+    }
+
+    protected long getMessageSenderAvatarDialogId(MessageObject messageObject) {
+        long fromId = getMessageSenderDialogId(messageObject);
+        if (fromId == INVALID_MESSAGE_SENDER_DIALOG_ID
+                || messageObject == null
+                || messageObject.messageOwner == null) {
+            return fromId;
+        }
+
+        TLRPC.MessageFwdHeader forwarded = messageObject.messageOwner.fwd_from;
+        if (currentDialogId == UserObject.VERIFY && forwarded != null) {
+            if (forwarded.from_name != null) {
+                return INVALID_MESSAGE_SENDER_DIALOG_ID;
+            }
+            long forwardedId = DialogObject.getPeerDialogId(forwarded.from_id);
+            return isMessageSenderAvatarPeerAvailable(forwardedId)
+                    ? forwardedId
+                    : INVALID_MESSAGE_SENDER_DIALOG_ID;
+        }
+
+        long selfId = UserConfig.getInstance(currentAccount).getClientUserId();
+        if (currentDialogId == selfId) {
+            return fromId;
+        }
+        if (!isSavedDialog && messageObject.messageOwner.from_id instanceof TLRPC.TL_peerUser) {
+            TLRPC.User user = MessagesController.getInstance(currentAccount)
+                    .getUser(messageObject.messageOwner.from_id.user_id);
+            if (user != null) {
+                return messageObject.messageOwner.from_id.user_id;
+            }
+        }
+        if (forwarded != null && forwarded.from_name != null) {
+            return INVALID_MESSAGE_SENDER_DIALOG_ID;
+        }
+
+        return isMessageSenderAvatarPeerAvailable(fromId)
+                ? fromId
+                : INVALID_MESSAGE_SENDER_DIALOG_ID;
+    }
+
+    private boolean isMessageSenderAvatarPeerAvailable(long dialogId) {
+        if (dialogId == 0) {
+            return false;
+        }
+        if (DialogObject.isUserDialog(dialogId)) {
+            return MessagesController.getInstance(currentAccount).getUser(dialogId) != null;
+        }
+        return MessagesController.getInstance(currentAccount).getChat(-dialogId) != null;
     }
 
     public SpannableStringBuilder getMessageStringFormatted(int messageFormatType, String restrictionReason, CharSequence messageNameString, boolean applyThumbs) {

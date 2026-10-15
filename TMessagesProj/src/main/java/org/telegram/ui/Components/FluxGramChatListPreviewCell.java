@@ -62,6 +62,7 @@ public final class FluxGramChatListPreviewCell extends FrameLayout {
     public void update(boolean animated) {
         updateColors();
         actionBar.setTitleCentered(AppearanceSettings.centersActionBarTitle(account));
+        actionBar.setForceHolidayImage(AppearanceSettings.forcesSnow(account));
 
         TLRPC.User user = UserConfig.getInstance(account).getCurrentUser();
         Drawable status = null;

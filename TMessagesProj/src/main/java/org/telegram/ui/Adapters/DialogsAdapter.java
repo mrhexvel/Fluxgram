@@ -151,6 +151,8 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
     private TLRPC.RequestPeerType requestPeerType;
     private FluxGramDialogListAppearanceController fluxGramAppearanceController;
+    private boolean fluxGramSenderMiniAvatars;
+    private boolean fluxGramHideComposeHints;
     public boolean isEmpty;
     public final long communityId;
 
@@ -178,6 +180,14 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
     public void setFluxGramAppearanceController(FluxGramDialogListAppearanceController controller) {
         fluxGramAppearanceController = controller;
+    }
+
+    public void setFluxGramAppearanceOptions(
+            boolean senderMiniAvatars,
+            boolean hideComposeHints
+    ) {
+        fluxGramSenderMiniAvatars = senderMiniAvatars;
+        fluxGramHideComposeHints = hideComposeHints;
     }
 
     public void setOpenedDialogId(long id) {
@@ -683,7 +693,8 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                                 mContext,
                                 currentAccount,
                                 null,
-                                fluxGramAppearanceController
+                                fluxGramAppearanceController,
+                                fluxGramSenderMiniAvatars
                         );
                     } else {
                         dialogCell = new DialogCell(parentFragment, mContext, true, false, currentAccount, null);
@@ -1021,6 +1032,9 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     cell.setChecked(selectedDialogs.contains(cell.getDialogId()), oldDialogId == cell.getDialogId());
                 } else {
                     DialogCell cell = (DialogCell) holder.itemView;
+                    if (cell instanceof FluxGramDialogCell) {
+                        ((FluxGramDialogCell) cell).setSenderMiniAvatars(fluxGramSenderMiniAvatars);
+                    }
                     cell.isHiddenInCommunity = communityId != 0 && ChatObject.isHiddenInCommunity(currentAccount, dialog.id);
                     cell.useSeparator = false; // nextDialog != null;
                     cell.fullSeparator = false; // dialog.pinned && nextDialog != null && !nextDialog.pinned;
@@ -1063,6 +1077,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                 DialogsEmptyCell cell = (DialogsEmptyCell) holder.itemView;
                 int fromDialogsEmptyType = lastDialogsEmptyType;
                 cell.setType(lastDialogsEmptyType = dialogsEmptyType(), isOnlySelect);
+                cell.setHideNewChatHelp(fluxGramHideComposeHints);
                 if (dialogsType != 7 && dialogsType != 8) {
                     cell.setOnUtyanAnimationEndListener(() -> parentFragment.setScrollDisabled(false));
                     cell.setOnUtyanAnimationUpdateListener(progress -> parentFragment.setContactsAlpha(progress));
@@ -1819,7 +1834,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     itemInternals.add(new ItemInternal(VIEW_TYPE_EMPTY, dialogsEmptyType()));
                 }
             } else {
-                if (folderId == 0 && dialogsCount > 10 && dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT) {
+                if (folderId == 0 && dialogsCount > 10 && dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT && !fluxGramHideComposeHints) {
                     itemInternals.add(new ItemInternal(VIEW_TYPE_NEW_CHAT_HINT));
                 }
                 itemInternals.add(new ItemInternal(VIEW_TYPE_LAST_EMPTY));

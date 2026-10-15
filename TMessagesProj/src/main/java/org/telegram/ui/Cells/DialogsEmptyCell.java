@@ -72,6 +72,7 @@ public class DialogsEmptyCell extends LinearLayout {
 
     @EmptyType
     private int currentType = TYPE_UNSPECIFIED;
+    private boolean hideNewChatHelp;
 
     @RawRes
     private int prevIcon;
@@ -184,6 +185,22 @@ public class DialogsEmptyCell extends LinearLayout {
             help = help.replace('\n', ' ');
         }
         subtitleView.setText(help, false);
+        updateSubtitleVisibility();
+    }
+
+    public void setHideNewChatHelp(boolean hidden) {
+        if (hideNewChatHelp == hidden) {
+            return;
+        }
+
+        hideNewChatHelp = hidden;
+        updateSubtitleVisibility();
+    }
+
+    private void updateSubtitleVisibility() {
+        boolean welcome = currentType == TYPE_WELCOME_NO_CONTACTS
+                || currentType == TYPE_WELCOME_WITH_CONTACTS;
+        subtitleView.setVisibility(hideNewChatHelp && welcome ? GONE : VISIBLE);
     }
 
     public boolean isUtyanAnimationTriggered() {
