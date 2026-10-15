@@ -21,6 +21,7 @@ import android.view.Gravity;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.MediaDataController;
@@ -65,6 +66,7 @@ public class MentionCell extends LinearLayout {
                 super.setText(text, type);
             }
         };
+        nameTextView.setTypeface(AndroidUtilities.regular());
         nameTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
         nameTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         nameTextView.setSingleLine(true);
@@ -73,6 +75,7 @@ public class MentionCell extends LinearLayout {
         addView(nameTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
 
         usernameTextView = new TextView(context);
+        usernameTextView.setTypeface(AndroidUtilities.regular());
         usernameTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText3));
         usernameTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         usernameTextView.setSingleLine(true);

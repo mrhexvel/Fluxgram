@@ -145,6 +145,25 @@ class FontSettingsTest(unittest.TestCase):
         self.assertIn("multilineValueTextView.setTypeface(AndroidUtilities.regular())", notifications)
         self.assertIn("profile_aboutTextPaint.setTypeface(AndroidUtilities.regular())", theme)
 
+    def test_chat_composer_and_mentions_use_regular_role(self):
+        composer = (
+            JAVA / "ui/Components/ChatActivityEnterView.java"
+        ).read_text()
+        mentions = (JAVA / "ui/Cells/MentionCell.java").read_text()
+
+        self.assertIn(
+            "messageEditText.setTypeface(AndroidUtilities.regular())",
+            composer,
+        )
+        self.assertIn(
+            "nameTextView.setTypeface(AndroidUtilities.regular())",
+            mentions,
+        )
+        self.assertIn(
+            "usernameTextView.setTypeface(AndroidUtilities.regular())",
+            mentions,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
