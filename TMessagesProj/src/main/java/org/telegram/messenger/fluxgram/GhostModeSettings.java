@@ -18,6 +18,18 @@ public final class GhostModeSettings {
     private static final String USE_SEND_DELAY = "use_send_delay";
     private static final String SILENT_SEND_MODE = "silent_send_mode";
     private static final String SUGGEST_FOR_STORIES = "suggest_for_stories";
+    private static final String STATE_VERSION = "state_version";
+    private static final int CURRENT_STATE_VERSION = 1;
+    private static final String[] CHILD_SETTINGS = {
+            HIDE_ONLINE,
+            HIDE_TYPING,
+            HIDE_READ_RECEIPTS,
+            HIDE_STORY_VIEWS,
+            AUTOMATIC_OFFLINE,
+            READ_ON_ACTIONS,
+            USE_SEND_DELAY,
+            SUGGEST_FOR_STORIES
+    };
 
     public static final int SILENT_SEND_NEVER = 0;
     public static final int SILENT_SEND_IN_GHOST_MODE = 1;
@@ -31,7 +43,19 @@ public final class GhostModeSettings {
     }
 
     public static void setEnabled(int account, boolean enabled) {
-        set(account, ENABLED, enabled);
+        SharedPreferences preferences = activePreferences(account);
+
+        if (preferences == null) {
+            return;
+        }
+
+        SharedPreferences.Editor editor = preferences.edit().putBoolean(ENABLED, enabled);
+
+        if (!enabled) {
+            clearChildSettings(editor);
+        }
+
+        editor.apply();
     }
 
     public static boolean hidesOnline(int account) {
@@ -39,7 +63,7 @@ public final class GhostModeSettings {
     }
 
     public static void setHidesOnline(int account, boolean enabled) {
-        set(account, HIDE_ONLINE, enabled);
+        setChild(account, HIDE_ONLINE, enabled);
     }
 
     public static boolean shouldHideOnline(int account) {
@@ -51,7 +75,7 @@ public final class GhostModeSettings {
     }
 
     public static void setHidesTyping(int account, boolean enabled) {
-        set(account, HIDE_TYPING, enabled);
+        setChild(account, HIDE_TYPING, enabled);
     }
 
     public static boolean shouldHideTypingAction(int account, long dialogId, int action) {
@@ -67,7 +91,7 @@ public final class GhostModeSettings {
     }
 
     public static void setHidesReadReceipts(int account, boolean enabled) {
-        set(account, HIDE_READ_RECEIPTS, enabled);
+        setChild(account, HIDE_READ_RECEIPTS, enabled);
     }
 
     public static boolean shouldHideReadReceipts(int account, long dialogId) {
@@ -79,7 +103,7 @@ public final class GhostModeSettings {
     }
 
     public static void setHidesStoryViews(int account, boolean enabled) {
-        set(account, HIDE_STORY_VIEWS, enabled);
+        setChild(account, HIDE_STORY_VIEWS, enabled);
     }
 
     public static boolean shouldHideStoryViews(int account, long dialogId) {
@@ -91,7 +115,7 @@ public final class GhostModeSettings {
     }
 
     public static void setUsesAutomaticOffline(int account, boolean enabled) {
-        set(account, AUTOMATIC_OFFLINE, enabled);
+        setChild(account, AUTOMATIC_OFFLINE, enabled);
     }
 
     public static boolean shouldUseAutomaticOffline(int account) {
@@ -99,11 +123,11 @@ public final class GhostModeSettings {
     }
 
     public static boolean readsOnActions(int account) {
-        return get(account, READ_ON_ACTIONS, true);
+        return get(account, READ_ON_ACTIONS);
     }
 
     public static void setReadsOnActions(int account, boolean enabled) {
-        set(account, READ_ON_ACTIONS, enabled);
+        setChild(account, READ_ON_ACTIONS, enabled);
     }
 
     public static boolean shouldReadOnActions(int account, long dialogId) {
@@ -115,7 +139,7 @@ public final class GhostModeSettings {
     }
 
     public static void setUsesSendDelay(int account, boolean enabled) {
-        set(account, USE_SEND_DELAY, enabled);
+        setChild(account, USE_SEND_DELAY, enabled);
     }
 
     public static boolean shouldUseSendDelay(int account, long dialogId) {
@@ -148,11 +172,11 @@ public final class GhostModeSettings {
     }
 
     public static boolean suggestsForStories(int account) {
-        return get(account, SUGGEST_FOR_STORIES, true);
+        return get(account, SUGGEST_FOR_STORIES);
     }
 
     public static void setSuggestsForStories(int account, boolean enabled) {
-        set(account, SUGGEST_FOR_STORIES, enabled);
+        setChild(account, SUGGEST_FOR_STORIES, enabled);
     }
 
     public static void clearAccount(int account) {
@@ -173,11 +197,23 @@ public final class GhostModeSettings {
         return preferences != null && preferences.getBoolean(key, defaultValue);
     }
 
-    private static void set(int account, String key, boolean value) {
+    private static void setChild(int account, String key, boolean value) {
         SharedPreferences preferences = activePreferences(account);
 
         if (preferences != null) {
-            preferences.edit().putBoolean(key, value).apply();
+            SharedPreferences.Editor editor = preferences.edit().putBoolean(key, value);
+
+            if (value) {
+                editor.putBoolean(ENABLED, true);
+            }
+
+            editor.apply();
+        }
+    }
+
+    private static void clearChildSettings(SharedPreferences.Editor editor) {
+        for (String key : CHILD_SETTINGS) {
+            editor.putBoolean(key, false);
         }
     }
 
@@ -205,7 +241,20 @@ public final class GhostModeSettings {
         SharedPreferences preferences = preferences(account);
 
         if (preferences.getLong(OWNER, 0) != owner) {
-            preferences.edit().clear().putLong(OWNER, owner).apply();
+            preferences.edit()
+                    .clear()
+                    .putLong(OWNER, owner)
+                    .putInt(STATE_VERSION, CURRENT_STATE_VERSION)
+                    .apply();
+        } else if (preferences.getInt(STATE_VERSION, 0) < CURRENT_STATE_VERSION) {
+            SharedPreferences.Editor editor = preferences.edit()
+                    .putInt(STATE_VERSION, CURRENT_STATE_VERSION);
+
+            if (!preferences.getBoolean(ENABLED, false)) {
+                clearChildSettings(editor);
+            }
+
+            editor.apply();
         }
 
         return preferences;

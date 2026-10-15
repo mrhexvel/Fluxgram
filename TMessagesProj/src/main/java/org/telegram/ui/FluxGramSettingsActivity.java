@@ -189,13 +189,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     CHANNEL_LINK,
                     R.drawable.msg_channel,
                     LocaleController.getString(R.string.FluxGramChannel),
-                    "@fluxBeta"
+                    "@FluxGramTG"
             ));
             items.add(UItem.asButton(
                     CHATS_LINK,
                     R.drawable.msg_groups,
                     LocaleController.getString(R.string.FluxGramChats),
-                    "@fluxBeta_chat"
+                    "@FluxGramForum"
             ));
             items.add(UItem.asShadow(null));
 
@@ -465,9 +465,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
             } else if (item.id == CHATS) {
                 presentFragment(new FluxGramSettingsActivity(CHATS));
             } else if (item.id == CHANNEL_LINK) {
-                Browser.openUrl(getParentActivity(), "https://t.me/fluxBeta");
+                Browser.openUrl(getParentActivity(), "https://t.me/FluxGramTG");
             } else if (item.id == CHATS_LINK) {
-                Browser.openUrl(getParentActivity(), "https://t.me/fluxBeta_chat");
+                Browser.openUrl(getParentActivity(), "https://t.me/FluxGramForum");
             }
 
             return;

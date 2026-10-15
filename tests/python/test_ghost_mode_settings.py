@@ -19,7 +19,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn('"fluxgram_ghost_mode_" + account', source)
         self.assertIn("getClientUserId()", source)
         self.assertIn("preferences.getLong(OWNER, 0) != owner", source)
-        self.assertIn("preferences.edit().clear().putLong(OWNER, owner).apply()", source)
+        self.assertIn(".putLong(OWNER, owner)", source)
         self.assertIn("preferences.getBoolean(key, defaultValue)", source)
 
         for key in (
@@ -36,9 +36,39 @@ class GhostModeSettingsTest(unittest.TestCase):
         ):
             self.assertIn(f'"{key}"', source)
 
-        self.assertIn("return get(account, READ_ON_ACTIONS, true);", source)
-        self.assertIn("return get(account, SUGGEST_FOR_STORIES, true);", source)
+        self.assertIn("return get(account, READ_ON_ACTIONS);", source)
+        self.assertIn("return get(account, SUGGEST_FOR_STORIES);", source)
         self.assertIn("return getInt(account, SILENT_SEND_MODE, SILENT_SEND_NEVER);", source)
+
+    def test_child_switches_enable_master_and_master_disable_clears_them(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+
+        for setter in (
+            "setHidesOnline",
+            "setHidesTyping",
+            "setHidesReadReceipts",
+            "setHidesStoryViews",
+            "setUsesAutomaticOffline",
+            "setReadsOnActions",
+            "setUsesSendDelay",
+            "setSuggestsForStories",
+        ):
+            start = source.index(f"    public static void {setter}(")
+            end = source.index("    }", start)
+            self.assertIn("setChild(account,", source[start:end])
+
+        self.assertIn("editor.putBoolean(ENABLED, true);", source)
+        self.assertIn("if (!enabled) {\n            clearChildSettings(editor);", source)
+        self.assertIn("private static final String[] CHILD_SETTINGS", source)
+        self.assertIn("for (String key : CHILD_SETTINGS)", source)
+
+    def test_old_disabled_state_is_normalized_without_resetting_other_policy(self):
+        source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
+
+        self.assertIn('private static final String STATE_VERSION = "state_version";', source)
+        self.assertIn("preferences.getInt(STATE_VERSION, 0) < CURRENT_STATE_VERSION", source)
+        self.assertIn("if (!preferences.getBoolean(ENABLED, false))", source)
+        self.assertNotIn("clearChildSettings(editor);\n            editor.putInt(SILENT_SEND_MODE", source)
 
     def test_temporary_primary_settings_are_runtime_only(self):
         settings = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
@@ -124,11 +154,13 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn('selected + "/5"', source)
         self.assertIn(".setCollapsed(!expanded)", source)
         self.assertIn("expanded = !expanded;", source)
-        self.assertIn("GhostModeSettings.setEnabled(currentAccount, !GhostModeSettings.isEnabled(currentAccount));", source)
+        self.assertIn("private void updateSettings(Runnable mutation)", source)
+        self.assertIn("updateSettings(() -> GhostModeSettings.setEnabled(", source)
         self.assertIn("MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();", source)
+        self.assertEqual(source.count("updateGhostModeOnlineStatus();"), 1)
         self.assertIn("if (expanded)", source)
         self.assertIn("UItem.asCheck(AUTOMATIC_OFFLINE", source)
-        self.assertNotIn("if (!GhostModeSettings.isEnabled(currentAccount))", source)
+        self.assertIn("listView.adapter.update(true);", source)
         self.assertNotIn("ConnectionsManager", source)
 
     def test_extended_screen_has_compact_secondary_settings(self):
@@ -172,7 +204,7 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("lastAutomaticOfflineTime = System.currentTimeMillis();", controller)
         self.assertIn("lastAutomaticOfflineTime = 0;", controller)
         self.assertIn("automaticOfflineBefore", screen)
-        self.assertGreaterEqual(screen.count("updateGhostModeOnlineStatus();"), 3)
+        self.assertEqual(screen.count("updateGhostModeOnlineStatus();"), 1)
 
     def test_read_policy_requires_dialog_scope_and_child_switch(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()
@@ -824,10 +856,10 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("R.string.FluxGramAppearance", activity)
         self.assertIn("R.string.FluxGramChats", activity)
         self.assertIn("R.string.FluxGramLinks", activity)
-        self.assertIn('"@fluxBeta"', activity)
-        self.assertIn('"@fluxBeta_chat"', activity)
-        self.assertIn('"https://t.me/fluxBeta"', activity)
-        self.assertIn('"https://t.me/fluxBeta_chat"', activity)
+        self.assertIn('"@FluxGramTG"', activity)
+        self.assertIn('"@FluxGramForum"', activity)
+        self.assertIn('"https://t.me/FluxGramTG"', activity)
+        self.assertIn('"https://t.me/FluxGramForum"', activity)
         self.assertIn("UItem.asButton(", activity)
         self.assertIn("private static final int BUILT_IN_PLUGINS", activity)
         self.assertIn("R.string.FluxGramBuiltInPlugins", activity)

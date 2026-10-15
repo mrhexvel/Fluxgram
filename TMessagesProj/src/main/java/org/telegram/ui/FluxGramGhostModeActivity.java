@@ -19,7 +19,6 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.InviteMembersBottomSheet;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
@@ -90,18 +89,9 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
                 )
                 .setChecked(enabled)
                 .setCollapsed(!expanded)
-                .setClickCallback(view -> {
-                    boolean hiddenBefore = GhostModeSettings.shouldHideOnline(currentAccount);
-                    boolean automaticOfflineBefore = GhostModeSettings.shouldUseAutomaticOffline(currentAccount);
-                    GhostModeSettings.setEnabled(currentAccount, !GhostModeSettings.isEnabled(currentAccount));
-
-                    if (hiddenBefore != GhostModeSettings.shouldHideOnline(currentAccount)
-                            || automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(currentAccount)) {
-                        MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
-                    }
-
-                    listView.adapter.update(true);
-                }));
+                .setClickCallback(view -> updateSettings(() -> GhostModeSettings.setEnabled(
+                        currentAccount, !GhostModeSettings.isEnabled(currentAccount)
+                ))));
 
         if (expanded) {
             items.add(UItem.asCheck(HIDE_READ_RECEIPTS, text(R.string.FluxGramGhostModeHideReadReceipts))
@@ -168,36 +158,36 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
         boolean checked = !item.checked;
 
         if (item.id == HIDE_ONLINE) {
-            boolean hiddenBefore = GhostModeSettings.shouldHideOnline(currentAccount);
-            GhostModeSettings.setHidesOnline(currentAccount, checked);
-
-            if (hiddenBefore != GhostModeSettings.shouldHideOnline(currentAccount)) {
-                MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
-            }
+            updateSettings(() -> GhostModeSettings.setHidesOnline(currentAccount, checked));
         } else if (item.id == HIDE_TYPING) {
-            GhostModeSettings.setHidesTyping(currentAccount, checked);
+            updateSettings(() -> GhostModeSettings.setHidesTyping(currentAccount, checked));
         } else if (item.id == HIDE_READ_RECEIPTS) {
-            GhostModeSettings.setHidesReadReceipts(currentAccount, checked);
+            updateSettings(() -> GhostModeSettings.setHidesReadReceipts(currentAccount, checked));
         } else if (item.id == HIDE_STORY_VIEWS) {
-            GhostModeSettings.setHidesStoryViews(currentAccount, checked);
+            updateSettings(() -> GhostModeSettings.setHidesStoryViews(currentAccount, checked));
         } else if (item.id == AUTOMATIC_OFFLINE) {
-            boolean automaticOfflineBefore = GhostModeSettings.shouldUseAutomaticOffline(currentAccount);
-            GhostModeSettings.setUsesAutomaticOffline(currentAccount, checked);
-
-            if (automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(currentAccount)) {
-                MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
-            }
+            updateSettings(() -> GhostModeSettings.setUsesAutomaticOffline(currentAccount, checked));
         } else if (item.id == READ_ON_ACTIONS) {
-            GhostModeSettings.setReadsOnActions(currentAccount, checked);
+            updateSettings(() -> GhostModeSettings.setReadsOnActions(currentAccount, checked));
         } else if (item.id == USE_SEND_DELAY) {
-            GhostModeSettings.setUsesSendDelay(currentAccount, checked);
+            updateSettings(() -> GhostModeSettings.setUsesSendDelay(currentAccount, checked));
         } else if (item.id == SUGGEST_FOR_STORIES) {
-            GhostModeSettings.setSuggestsForStories(currentAccount, checked);
+            updateSettings(() -> GhostModeSettings.setSuggestsForStories(currentAccount, checked));
         } else {
             return;
         }
+    }
 
-        ((TextCheckCell) view).setChecked(checked);
+    private void updateSettings(Runnable mutation) {
+        boolean hiddenBefore = GhostModeSettings.shouldHideOnline(currentAccount);
+        boolean automaticOfflineBefore = GhostModeSettings.shouldUseAutomaticOffline(currentAccount);
+        mutation.run();
+
+        if (hiddenBefore != GhostModeSettings.shouldHideOnline(currentAccount)
+                || automaticOfflineBefore != GhostModeSettings.shouldUseAutomaticOffline(currentAccount)) {
+            MessagesController.getInstance(currentAccount).updateGhostModeOnlineStatus();
+        }
+
         listView.adapter.update(true);
     }
 
