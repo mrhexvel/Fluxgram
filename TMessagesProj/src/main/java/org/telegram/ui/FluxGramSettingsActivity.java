@@ -15,6 +15,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
+import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginManager;
@@ -57,6 +58,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int HIDE_DIALOGS_SEARCH_BAR = 16;
     private static final int SENDER_MINI_AVATARS = 17;
     private static final int FORCE_SNOW = 18;
+    private static final int FONTS = 19;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -213,6 +215,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
         if (section == APPEARANCE) {
             appearancePreview.update(false);
+            addSectionLabel(items, R.string.FluxGramFonts);
+            items.add(UItem.asButton(
+                    FONTS,
+                    R.drawable.msg_text_outlined,
+                    LocaleController.getString(R.string.FluxGramFonts),
+                    fontModeOption(FontSettings.getMode())
+            ));
+            items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramChatList);
             items.add(UItem.asCustom(appearancePreview, 88));
             items.add(UItem.asButton(
@@ -476,7 +486,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         if (section == APPEARANCE) {
-            if (item.id == ACTION_BAR_TITLE) {
+            if (item.id == FONTS) {
+                presentFragment(new FluxGramFontSettingsActivity());
+            } else if (item.id == ACTION_BAR_TITLE) {
                 showAppearanceTitleDialog();
             } else if (item.id == HIDE_ACTION_BAR_STATUS) {
                 boolean hidden = !AppearanceSettings.hidesActionBarStatus(currentAccount);
@@ -545,6 +557,17 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         return LocaleController.getString(R.string.FluxGramActionBarTitleAppName);
+    }
+
+    private CharSequence fontModeOption(int mode) {
+        if (mode == FontSettings.MODE_SYSTEM) {
+            return LocaleController.getString(R.string.FluxGramFontSystem);
+        }
+        if (mode == FontSettings.MODE_CUSTOM) {
+            return LocaleController.getString(R.string.FluxGramFontCustom);
+        }
+
+        return LocaleController.getString(R.string.FluxGramFontTelegram);
     }
 
     private void showAppearanceTitleDialog() {
