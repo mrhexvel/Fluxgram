@@ -44,10 +44,10 @@ class FontSettingsTest(unittest.TestCase):
 
         self.assertIn("if (role == Role.MONOSPACE)", source)
         self.assertIn("return telegramTypeface(Role.MONOSPACE);", source)
-        self.assertIn("loadCustomTypeface(Role.REGULAR)", source)
-        self.assertIn("loadCustomTypeface(Role.MEDIUM)", source)
-        self.assertIn("loadCustomTypeface(Role.BOLD)", source)
-        self.assertIn("loadCustomTypeface(Role.ITALIC)", source)
+        self.assertIn("customTypefaces.get(Role.REGULAR)", source)
+        self.assertIn("customTypefaces.get(Role.MEDIUM)", source)
+        self.assertIn("customTypefaces.get(Role.BOLD)", source)
+        self.assertIn("customTypefaces.get(Role.ITALIC)", source)
 
     def test_screen_uses_telegram_components_and_background_import(self):
         activity = (JAVA / "ui/FluxGramFontSettingsActivity.java").read_text()
@@ -58,6 +58,7 @@ class FontSettingsTest(unittest.TestCase):
         self.assertIn("Intent.ACTION_OPEN_DOCUMENT", activity)
         self.assertIn("Intent.CATEGORY_OPENABLE", activity)
         self.assertIn("Utilities.globalQueue.postRunnable", activity)
+        self.assertIn("FontSettings.preparePreview()", activity)
         self.assertIn("ItemOptions.makeOptions(this, anchor)", activity)
         self.assertIn("FontSettings.getPreviewTypeface", preview)
 
@@ -69,12 +70,80 @@ class FontSettingsTest(unittest.TestCase):
         self.assertLess(fonts, chat_list)
         self.assertIn("presentFragment(new FluxGramFontSettingsActivity())", activity)
 
-    def test_first_stage_does_not_change_production_typeface_routes(self):
+    def test_active_configuration_is_captured_before_android_utilities(self):
+        settings = (JAVA / "messenger/fluxgram/FontSettings.java").read_text()
+        loader = (JAVA / "messenger/ApplicationLoader.java").read_text()
+
+        self.assertLess(
+            loader.index("FontSettings.initialize();"),
+            loader.index("AndroidUtilities.getHelloWorld()"),
+        )
+        self.assertIn("if (active != null)", settings)
+        self.assertIn("active = new Active(mode, typefaces);", settings)
+        self.assertIn("return resolveTypeface(active.mode, role, active.typefaces);", settings)
+
+    def test_android_utilities_routes_supported_font_roles(self):
         android_utilities = (JAVA / "messenger/AndroidUtilities.java").read_text()
+        settings = (JAVA / "messenger/fluxgram/FontSettings.java").read_text()
+
+        self.assertIn("FontSettings.getActiveTypeface(FontSettings.Role.REGULAR)", android_utilities)
+        self.assertIn("FontSettings.getActiveTypeface(FontSettings.Role.BOLD)", android_utilities)
+        self.assertIn("FontSettings.getActiveTypefaceForAsset(assetPath)", android_utilities)
+        self.assertIn("return getAssetTypeface(assetPath);", android_utilities)
+        self.assertIn("TYPEFACE_ROBOTO_MEDIUM.equals(assetPath)", settings)
+        self.assertIn("TYPEFACE_ROBOTO_EXTRA_BOLD.equals(assetPath)", settings)
+        self.assertIn("TYPEFACE_ROBOTO_MEDIUM_ITALIC.equals(assetPath)", settings)
+        self.assertIn("TYPEFACE_ROBOTO_MONO.equals(assetPath)", settings)
+        self.assertIn('"fonts/ritalic.ttf".equals(assetPath)', settings)
+
+        asset_mapping = settings.split(
+            "private static Role roleForAssetPath", 1
+        )[1].split("private static String assetPathForRole", 1)[0]
+        self.assertNotIn("num.otf", asset_mapping)
+        self.assertNotIn("mw_bold", asset_mapping)
+        self.assertNotIn("rcondensed", asset_mapping)
+
+        paint_typeface = (
+            JAVA / "ui/Components/Paint/PaintTypeface.java"
+        ).read_text()
+        self.assertIn("AndroidUtilities.getAssetTypeface", paint_typeface)
+        self.assertNotIn(
+            "AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_",
+            paint_typeface,
+        )
+
+    def test_main_text_primitives_and_theme_use_resolver(self):
+        theme = (JAVA / "ui/ActionBar/Theme.java").read_text()
+        simple = (JAVA / "ui/ActionBar/SimpleTextView.java").read_text()
+        animated = (JAVA / "ui/Components/AnimatedTextView.java").read_text()
+        edit = (JAVA / "ui/Components/EditTextEffects.java").read_text()
+
+        self.assertIn("textPaint.setTypeface(AndroidUtilities.regular())", simple)
+        self.assertIn("textPaint.setTypeface(AndroidUtilities.regular())", animated)
+        self.assertIn("setTypeface(AndroidUtilities.regular())", edit)
+        self.assertIn("chat_msgTextPaint.setTypeface(AndroidUtilities.regular())", theme)
+        self.assertIn("dialogs_messagePaint[a].setTypeface(AndroidUtilities.regular())", theme)
+        self.assertIn("chat_msgTextCodePaint.setTypeface(AndroidUtilities.monospace())", theme)
+        self.assertNotIn("chat_msgTextCodePaint.setTypeface(Typeface.MONOSPACE)", theme)
+
+    def test_settings_and_profile_information_use_resolver(self):
+        settings = (JAVA / "ui/SettingsActivity.java").read_text()
+        detail = (JAVA / "ui/Cells/TextDetailCell.java").read_text()
+        about = (JAVA / "ui/Cells/AboutLinkCell.java").read_text()
+        notifications = (JAVA / "ui/Cells/NotificationsCheckCell.java").read_text()
         theme = (JAVA / "ui/ActionBar/Theme.java").read_text()
 
-        self.assertNotIn("FontSettings", android_utilities)
-        self.assertNotIn("FontSettings", theme)
+        self.assertGreaterEqual(
+            settings.count("setTypeface(AndroidUtilities.regular())"), 5
+        )
+        self.assertIn("textView.setTypeface(AndroidUtilities.regular())", detail)
+        self.assertIn("valueTextView.setTypeface(AndroidUtilities.regular())", detail)
+        self.assertIn("rightValueTextView.setTypeface(AndroidUtilities.regular())", detail)
+        self.assertIn("valueTextView.setTypeface(AndroidUtilities.regular())", about)
+        self.assertIn("showMoreTextView.setTypeface(AndroidUtilities.regular())", about)
+        self.assertIn("textView.setTypeface(AndroidUtilities.regular())", notifications)
+        self.assertIn("multilineValueTextView.setTypeface(AndroidUtilities.regular())", notifications)
+        self.assertIn("profile_aboutTextPaint.setTypeface(AndroidUtilities.regular())", theme)
 
 
 if __name__ == "__main__":

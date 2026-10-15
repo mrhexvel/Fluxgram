@@ -32,7 +32,10 @@ public final class FontSettings {
     private static final String MODE = "fluxgram_font_mode";
     private static final String NAME_PREFIX = "fluxgram_font_name_";
     private static final Object lock = new Object();
-    private static final EnumMap<Role, Typeface> customTypefaces = new EnumMap<>(Role.class);
+    private static final EnumMap<Role, Typeface> previewTypefaces = new EnumMap<>(Role.class);
+    private static final EnumMap<Role, Typeface> telegramTypefaces = new EnumMap<>(Role.class);
+    private static boolean previewPrepared;
+    private static Active active;
 
     public enum Role {
         REGULAR("regular"),
@@ -72,6 +75,71 @@ public final class FontSettings {
     }
 
     private FontSettings() {
+    }
+
+    public static void initialize() {
+        synchronized (lock) {
+            if (active != null) {
+                return;
+            }
+
+            int mode = getMode();
+            EnumMap<Role, Typeface> typefaces = new EnumMap<>(Role.class);
+
+            if (mode == MODE_CUSTOM) {
+                for (Role role : Role.values()) {
+                    Typeface typeface = loadTypefaceFile(fontFile(role));
+
+                    if (typeface != null) {
+                        typefaces.put(role, typeface);
+                    }
+                }
+
+                previewTypefaces.putAll(typefaces);
+                previewPrepared = true;
+            }
+
+            active = new Active(mode, typefaces);
+        }
+    }
+
+    public static boolean isActiveTelegramMode() {
+        initialize();
+        return active.mode == MODE_TELEGRAM;
+    }
+
+    public static Typeface getActiveTypeface(Role role) {
+        initialize();
+        return resolveTypeface(active.mode, role, active.typefaces);
+    }
+
+    public static Typeface getActiveTypefaceForAsset(String assetPath) {
+        initialize();
+
+        if (active.mode == MODE_TELEGRAM) {
+            return null;
+        }
+
+        Role role = roleForAssetPath(assetPath);
+        return role == null ? null : resolveTypeface(active.mode, role, active.typefaces);
+    }
+
+    public static void preparePreview() {
+        synchronized (lock) {
+            if (previewPrepared) {
+                return;
+            }
+
+            for (Role role : Role.values()) {
+                Typeface typeface = loadTypefaceFile(fontFile(role));
+
+                if (typeface != null) {
+                    previewTypefaces.put(role, typeface);
+                }
+            }
+
+            previewPrepared = true;
+        }
     }
 
     public static int getMode() {
@@ -120,13 +188,13 @@ public final class FontSettings {
 
             try {
                 copyBounded(uri, temporary);
-                validateFont(temporary);
+                Typeface typeface = validateFont(temporary);
                 Os.rename(temporary.getAbsolutePath(), fontFile(role).getAbsolutePath());
                 syncDirectory(directory);
 
                 String name = readDisplayName(uri);
                 preferences().edit().putString(NAME_PREFIX + role.key, name).commit();
-                customTypefaces.remove(role);
+                previewTypefaces.put(role, typeface);
 
                 return name;
             } catch (FontImportException error) {
@@ -154,7 +222,7 @@ public final class FontSettings {
             }
 
             preferences().edit().remove(NAME_PREFIX + role.key).commit();
-            customTypefaces.remove(role);
+            previewTypefaces.remove(role);
         }
     }
 
@@ -165,18 +233,25 @@ public final class FontSettings {
 
         int mode = getMode();
 
+        if (mode != MODE_CUSTOM) {
+            return resolveTypeface(mode, role, new EnumMap<>(Role.class));
+        }
+
+        return resolveTypeface(mode, role, previewSnapshot());
+    }
+
+    private static Typeface resolveTypeface(
+            int mode,
+            Role role,
+            EnumMap<Role, Typeface> customTypefaces) {
         if (mode == MODE_SYSTEM) {
             return systemTypeface(role);
         }
-        if (mode == MODE_CUSTOM) {
-            return customTypeface(role);
+        if (mode == MODE_TELEGRAM) {
+            return telegramTypeface(role);
         }
 
-        return telegramTypeface(role);
-    }
-
-    private static Typeface customTypeface(Role role) {
-        Typeface direct = loadCustomTypeface(role);
+        Typeface direct = customTypefaces.get(role);
 
         if (direct != null) {
             return direct;
@@ -186,7 +261,7 @@ public final class FontSettings {
             return telegramTypeface(Role.MONOSPACE);
         }
 
-        Typeface regular = loadCustomTypeface(Role.REGULAR);
+        Typeface regular = customTypefaces.get(Role.REGULAR);
 
         if (regular == null) {
             return telegramTypeface(role);
@@ -196,7 +271,7 @@ public final class FontSettings {
             return regular;
         }
         if (role == Role.MEDIUM) {
-            Typeface bold = loadCustomTypeface(Role.BOLD);
+            Typeface bold = customTypefaces.get(Role.BOLD);
 
             if (bold != null) {
                 return bold;
@@ -209,17 +284,17 @@ public final class FontSettings {
             return Typeface.create(regular, Typeface.BOLD);
         }
         if (role == Role.BOLD) {
-            Typeface medium = loadCustomTypeface(Role.MEDIUM);
+            Typeface medium = customTypefaces.get(Role.MEDIUM);
             return medium != null ? medium : Typeface.create(regular, Typeface.BOLD);
         }
         if (role == Role.EXTRA_BOLD) {
-            Typeface bold = loadCustomTypeface(Role.BOLD);
+            Typeface bold = customTypefaces.get(Role.BOLD);
 
             if (bold != null) {
                 return bold;
             }
 
-            Typeface medium = loadCustomTypeface(Role.MEDIUM);
+            Typeface medium = customTypefaces.get(Role.MEDIUM);
 
             if (medium != null) {
                 return medium;
@@ -235,51 +310,70 @@ public final class FontSettings {
             return Typeface.create(regular, Typeface.ITALIC);
         }
 
-        Typeface italic = loadCustomTypeface(Role.ITALIC);
+        Typeface italic = customTypefaces.get(Role.ITALIC);
         return Typeface.create(italic == null ? regular : italic, Typeface.BOLD_ITALIC);
     }
 
-    private static Typeface loadCustomTypeface(Role role) {
+    private static EnumMap<Role, Typeface> previewSnapshot() {
         synchronized (lock) {
-            if (customTypefaces.containsKey(role)) {
-                return customTypefaces.get(role);
+            EnumMap<Role, Typeface> typefaces = new EnumMap<>(Role.class);
+
+            for (Role role : Role.values()) {
+                Typeface typeface = previewTypefaces.get(role);
+
+                if (typeface != null) {
+                    typefaces.put(role, typeface);
+                }
             }
 
-            File file = fontFile(role);
-
-            if (!file.isFile()) {
-                return null;
-            }
-
-            try {
-                Typeface typeface = createTypeface(file);
-                customTypefaces.put(role, typeface);
-                return typeface;
-            } catch (RuntimeException ignored) {
-                return null;
-            }
+            return typefaces;
         }
     }
 
     private static Typeface telegramTypeface(Role role) {
-        Typeface typeface;
-
         if (role == Role.REGULAR) {
             return Typeface.DEFAULT;
         }
-        if (role == Role.MEDIUM || role == Role.BOLD) {
-            typeface = AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM);
-        } else if (role == Role.EXTRA_BOLD) {
-            typeface = AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_EXTRA_BOLD);
-        } else if (role == Role.ITALIC) {
-            typeface = AndroidUtilities.getTypeface("fonts/ritalic.ttf");
-        } else if (role == Role.BOLD_ITALIC) {
-            typeface = AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM_ITALIC);
-        } else {
-            typeface = AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MONO);
-        }
 
-        return typeface == null ? Typeface.DEFAULT : typeface;
+        synchronized (lock) {
+            Typeface cached = telegramTypefaces.get(role);
+
+            if (cached != null) {
+                return cached;
+            }
+
+            String assetPath = assetPathForRole(role);
+            Typeface typeface = null;
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    Typeface.Builder builder = new Typeface.Builder(
+                            ApplicationLoader.applicationContext.getAssets(), assetPath);
+
+                    if (role == Role.EXTRA_BOLD) {
+                        builder.setWeight(800);
+                    } else if (role == Role.MEDIUM || role == Role.BOLD) {
+                        builder.setWeight(700);
+                    }
+                    if (role == Role.ITALIC || role == Role.BOLD_ITALIC) {
+                        builder.setItalic(true);
+                    }
+
+                    typeface = builder.build();
+                } else {
+                    typeface = Typeface.createFromAsset(
+                            ApplicationLoader.applicationContext.getAssets(), assetPath);
+                }
+            } catch (RuntimeException ignored) {
+            }
+
+            if (typeface == null) {
+                typeface = defaultTypeface(role);
+            }
+
+            telegramTypefaces.put(role, typeface);
+            return typeface;
+        }
     }
 
     private static Typeface systemTypeface(Role role) {
@@ -300,6 +394,69 @@ public final class FontSettings {
         }
 
         return Typeface.create("monospace", Typeface.NORMAL);
+    }
+
+    private static Typeface loadTypefaceFile(File file) {
+        if (!file.isFile()) {
+            return null;
+        }
+
+        try {
+            return createTypeface(file);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static Role roleForAssetPath(String assetPath) {
+        if (AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM.equals(assetPath)) {
+            return Role.MEDIUM;
+        }
+        if (AndroidUtilities.TYPEFACE_ROBOTO_EXTRA_BOLD.equals(assetPath)) {
+            return Role.EXTRA_BOLD;
+        }
+        if (AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM_ITALIC.equals(assetPath)) {
+            return Role.BOLD_ITALIC;
+        }
+        if (AndroidUtilities.TYPEFACE_ROBOTO_MONO.equals(assetPath)) {
+            return Role.MONOSPACE;
+        }
+        if ("fonts/ritalic.ttf".equals(assetPath)) {
+            return Role.ITALIC;
+        }
+
+        return null;
+    }
+
+    private static String assetPathForRole(Role role) {
+        if (role == Role.EXTRA_BOLD) {
+            return AndroidUtilities.TYPEFACE_ROBOTO_EXTRA_BOLD;
+        }
+        if (role == Role.ITALIC) {
+            return "fonts/ritalic.ttf";
+        }
+        if (role == Role.BOLD_ITALIC) {
+            return AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM_ITALIC;
+        }
+        if (role == Role.MONOSPACE) {
+            return AndroidUtilities.TYPEFACE_ROBOTO_MONO;
+        }
+
+        return AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM;
+    }
+
+    private static Typeface defaultTypeface(Role role) {
+        if (role == Role.MONOSPACE) {
+            return Typeface.MONOSPACE;
+        }
+        if (role == Role.ITALIC) {
+            return Typeface.create(Typeface.DEFAULT, Typeface.ITALIC);
+        }
+        if (role == Role.BOLD_ITALIC) {
+            return Typeface.create(Typeface.DEFAULT, Typeface.BOLD_ITALIC);
+        }
+
+        return Typeface.DEFAULT_BOLD;
     }
 
     private static void copyBounded(Uri uri, File destination) throws FontImportException {
@@ -338,9 +495,9 @@ public final class FontSettings {
         }
     }
 
-    private static void validateFont(File file) throws FontImportException {
+    private static Typeface validateFont(File file) throws FontImportException {
         try {
-            createTypeface(file);
+            return createTypeface(file);
         } catch (RuntimeException error) {
             throw new FontImportException(ImportFailure.INVALID, error);
         }
@@ -424,6 +581,16 @@ public final class FontSettings {
                 } catch (ErrnoException ignored) {
                 }
             }
+        }
+    }
+
+    private static final class Active {
+        private final int mode;
+        private final EnumMap<Role, Typeface> typefaces;
+
+        private Active(int mode, EnumMap<Role, Typeface> typefaces) {
+            this.mode = mode;
+            this.typefaces = typefaces;
         }
     }
 }

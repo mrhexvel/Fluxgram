@@ -120,6 +120,7 @@ public class AboutLinkCell extends FrameLayout {
         rippleBackground = Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), 0, 0);
 
         valueTextView = new TextView(context);
+        valueTextView.setTypeface(AndroidUtilities.regular());
         valueTextView.setVisibility(GONE);
         valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
         valueTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
@@ -164,6 +165,7 @@ public class AboutLinkCell extends FrameLayout {
                 super.onDraw(canvas);
             }
         };
+        showMoreTextView.setTypeface(AndroidUtilities.regular());
         showMoreTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
         showMoreTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         showMoreTextView.setLines(1);

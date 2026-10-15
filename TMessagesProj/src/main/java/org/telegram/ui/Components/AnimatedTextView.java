@@ -174,6 +174,7 @@ public class AnimatedTextView extends View {
             this.preserveIndex = preserveIndex;
             this.startFromEnd = startFromEnd;
             this.enforceByLetter = enforceByLetter;
+            textPaint.setTypeface(AndroidUtilities.regular());
         }
 
         public void setAllowCancel(boolean allowCancel) {

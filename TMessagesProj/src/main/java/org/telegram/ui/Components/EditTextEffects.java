@@ -69,6 +69,7 @@ public class EditTextEffects extends EditText {
 
     public EditTextEffects(Context context) {
         super(context, null, 0, R.style.EditTextNoBackgroundStyle);
+        setTypeface(AndroidUtilities.regular());
 
         if (Looper.getMainLooper().getThread() == Thread.currentThread()) {
             clickDetector = new SpoilersClickDetector(this, spoilers, this::onSpoilerClicked);

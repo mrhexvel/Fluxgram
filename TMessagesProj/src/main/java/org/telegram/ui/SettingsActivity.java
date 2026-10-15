@@ -458,6 +458,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         topView.addView(titleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 16, 138.333f - 12, 16, 0));
 
         subtitleView = new TextView(context);
+        subtitleView.setTypeface(AndroidUtilities.regular());
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         subtitleView.setGravity(Gravity.CENTER);
         subtitleView.setSingleLine();
@@ -465,6 +466,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         topView.addView(subtitleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 168 - 12, 0, 0));
 
         versionView = new TextView(context);
+        versionView.setTypeface(AndroidUtilities.regular());
         versionView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         versionView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText4));
         versionView.setPadding(dp(21), dp(10), dp(21), dp(10));
@@ -1174,14 +1176,17 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             textLayout.setOrientation(VERTICAL);
 
             titleView = new TextView(context);
+            titleView.setTypeface(AndroidUtilities.regular());
             titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
             textLayout.addView(titleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 0));
 
             subtitleView = new TextView(context);
+            subtitleView.setTypeface(AndroidUtilities.regular());
             subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
             textLayout.addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
 
             valueView = new TextView(context);
+            valueView.setTypeface(AndroidUtilities.regular());
             valueView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
             if (LocaleController.isRTL) {
                 addView(valueView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, 20, 0, 0, 0));

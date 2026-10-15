@@ -75,6 +75,16 @@ public final class FluxGramFontSettingsActivity extends BaseFragment {
 
         actionBar.setAdaptiveBackground(listView);
 
+        Utilities.globalQueue.postRunnable(() -> {
+            FontSettings.preparePreview();
+            AndroidUtilities.runOnUIThread(() -> {
+                if (!destroyed && preview != null && listView != null) {
+                    preview.update();
+                    listView.adapter.update(false);
+                }
+            });
+        });
+
         return fragmentView;
     }
 

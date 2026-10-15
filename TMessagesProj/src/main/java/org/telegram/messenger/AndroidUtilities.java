@@ -152,6 +152,7 @@ import com.google.android.gms.tasks.Task;
 
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.utils.proxy.ProxySettings;
 import org.telegram.messenger.utils.CustomHtml;
 import org.telegram.messenger.utils.DebugRecordingCanvas;
@@ -259,7 +260,15 @@ public class AndroidUtilities {
     public static ThreadLocal<byte[]> readBufferLocal = new ThreadLocal<>();
     public static ThreadLocal<byte[]> bufferLocal = new ThreadLocal<>();
 
+    public static Typeface regular() {
+        return FontSettings.getActiveTypeface(FontSettings.Role.REGULAR);
+    }
+
     public static Typeface bold() {
+        if (!FontSettings.isActiveTelegramMode()) {
+            return FontSettings.getActiveTypeface(FontSettings.Role.BOLD);
+        }
+
         if (mediumTypeface == null) {
             if (SharedConfig.useSystemBoldFont && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 mediumTypeface = Typeface.create(null, 500, false);
@@ -268,6 +277,14 @@ public class AndroidUtilities {
             }
         }
         return mediumTypeface;
+    }
+
+    public static Typeface italic() {
+        return FontSettings.getActiveTypeface(FontSettings.Role.ITALIC);
+    }
+
+    public static Typeface monospace() {
+        return FontSettings.getActiveTypeface(FontSettings.Role.MONOSPACE);
     }
 
     private static final Hashtable<String, Typeface> typefaceCache = new Hashtable<>();
@@ -2390,6 +2407,16 @@ public class AndroidUtilities {
     }
 
     public static Typeface getTypeface(String assetPath) {
+        Typeface configured = FontSettings.getActiveTypefaceForAsset(assetPath);
+
+        if (configured != null) {
+            return configured;
+        }
+
+        return getAssetTypeface(assetPath);
+    }
+
+    public static Typeface getAssetTypeface(String assetPath) {
         synchronized (typefaceCache) {
             if (!typefaceCache.containsKey(assetPath)) {
                 try {

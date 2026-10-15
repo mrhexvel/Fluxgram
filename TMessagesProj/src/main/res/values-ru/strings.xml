@@ -299,7 +299,7 @@
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Шрифты</string>
     <string name="FluxGramFontMode">Режим шрифта</string>
-    <string name="FluxGramFontModeInfo">Настройка общая для всех аккаунтов. Предпросмотр показывает сохранённый выбор.</string>
+    <string name="FluxGramFontModeInfo">Настройка общая для всех аккаунтов. Предпросмотр показывает сохранённый выбор. Полностью перезапустите FluxGram, чтобы применить его к интерфейсу.</string>
     <string name="FluxGramFontTelegram">Telegram</string>
     <string name="FluxGramFontSystem">Системный</string>
     <string name="FluxGramFontCustom">Кастомный</string>

@@ -11271,7 +11271,7 @@
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Fonts</string>
     <string name="FluxGramFontMode">Font mode</string>
-    <string name="FluxGramFontModeInfo">This setting is global for all accounts. The preview shows the saved selection.</string>
+    <string name="FluxGramFontModeInfo">This setting is global for all accounts. The preview shows the saved selection. Fully restart FluxGram to apply it to the interface.</string>
     <string name="FluxGramFontTelegram">Telegram</string>
     <string name="FluxGramFontSystem">System</string>
     <string name="FluxGramFontCustom">Custom</string>

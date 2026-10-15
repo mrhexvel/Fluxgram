@@ -38,6 +38,7 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
 import org.json.JSONObject;
+import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.messenger.plugins.PluginCrashRecovery;
@@ -301,6 +302,11 @@ public class ApplicationLoader extends Application {
         }
 
         super.onCreate();
+
+        if (applicationContext == null) {
+            applicationContext = getApplicationContext();
+        }
+        FontSettings.initialize();
 
         // AndroidUtilities must be initialized before FileLog
         final String helloWorld = AndroidUtilities.getHelloWorld();
