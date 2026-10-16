@@ -85,6 +85,39 @@ class JavaPluginRuntimeTest(unittest.TestCase):
                 capture_output=True,
             )
 
+    def test_chat_selection_action_ordering_revalidation_and_cleanup(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        sources = [
+            SOURCE / "api/ChatSelectionAction.java",
+            SOURCE / "api/ChatSelectionMessageSnapshot.java",
+            ROOT / "tests/java/chat_action_stubs/org/telegram/messenger/R.java",
+            ROOT / "tests/java/e5_stubs/org/telegram/messenger/FileLog.java",
+            ROOT / "tests/java/e5_stubs/org/telegram/messenger/plugins/HostExtensionAttribution.java",
+            SOURCE / "PluginResourceRegistry.java",
+            SOURCE / "PluginScope.java",
+            SOURCE / "PluginSession.java",
+            SOURCE / "HostExtensionDescriptor.java",
+            SOURCE / "HostExtensionRegistry.java",
+            SOURCE / "PluginSemanticIcons.java",
+            SOURCE / "PluginChatSelectionActions.java",
+            ROOT / "tests/java/PluginChatSelectionActionsCheck.java",
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(
+                ["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["java", "-cp", directory,
+                 "org.telegram.messenger.plugins.PluginChatSelectionActionsCheck"],
+                check=True,
+                capture_output=True,
+            )
+
     def test_composer_input_renderer_surface_fallback_and_cleanup(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")

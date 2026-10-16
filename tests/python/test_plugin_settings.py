@@ -96,12 +96,9 @@ class PluginSettingsTest(unittest.TestCase):
     def test_java_icon_allowlist_matches_sdk(self):
         source = (
             PROJECT
-            / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/PluginSettings.java"
+            / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/PluginSemanticIcons.java"
         ).read_text()
-        method = source.split("private static int iconResource", 1)[1].split(
-            "public boolean accepts", 1
-        )[0]
-        icons = set(re.findall(r'case "([a-z_]+)"', method))
+        icons = set(re.findall(r'case "([a-z_]+)"', source))
         self.assertEqual(icons, set(self.sdk._SETTING_ICONS))
 
     def test_builtin_notifications_apply_switch_without_reload(self):

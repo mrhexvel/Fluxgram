@@ -44,6 +44,11 @@ public interface JavaPluginContext {
         throw new UnsupportedOperationException("Composer content effects require Java API 1.16");
     }
 
+    default JavaPluginUiResource registerChatSelectionAction(
+            String id, String title, String icon, ChatSelectionAction action) {
+        throw new UnsupportedOperationException("Chat selection actions require Java API 1.23");
+    }
+
     boolean readBooleanSetting(String key, boolean fallback);
 
     int readIntSetting(String key, int fallback);

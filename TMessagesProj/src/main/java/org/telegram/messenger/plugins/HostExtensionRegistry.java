@@ -137,6 +137,35 @@ final class HostExtensionRegistry {
         });
     }
 
+    <I, C> AutoCloseable registerContributor(String pluginId, long generation,
+            BooleanSupplier active,
+            HostExtensionDescriptor<I, C> descriptor,
+            HostExtensionRegistrationSpec spec,
+            HostExtensionContributorFactory<I, C> factory) {
+        requireMode(descriptor, HostExtensionDescriptor.Mode.CONTRIBUTOR);
+
+        return registerDetached(pluginId, generation, active, descriptor, spec, () -> {
+            HostExtensionContributor<I, C> contributor = factory.create();
+
+            if (contributor == null) {
+                throw new IllegalStateException("Contributor factory returned null");
+            }
+
+            return new Callback<I, C>() {
+                @Override
+                public boolean invoke(I input, HostExtensionContributionSink<C> sink) throws Exception {
+                    contributor.contribute(input, sink);
+                    return false;
+                }
+
+                @Override
+                public void close() throws Exception {
+                    contributor.close();
+                }
+            };
+        }, true);
+    }
+
     <I> AutoCloseable registerReplacement(String pluginId, long generation,
             BooleanSupplier active,
             HostExtensionDescriptor<I, Void> descriptor,

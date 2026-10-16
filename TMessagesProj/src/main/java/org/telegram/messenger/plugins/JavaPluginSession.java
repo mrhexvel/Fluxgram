@@ -5,6 +5,7 @@ import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 import org.telegram.messenger.plugins.api.JavaMethodHook;
 import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
+import org.telegram.messenger.plugins.api.ChatSelectionAction;
 import org.telegram.messenger.plugins.api.ComposerContentEffect;
 import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
@@ -65,6 +66,11 @@ final class JavaPluginSession implements AutoCloseable {
         default JavaPluginUiResource registerComposerContentEffect(
                 long generation, ComposerContentEffect.Factory factory) {
             throw new UnsupportedOperationException("Composer content effects are unavailable");
+        }
+
+        default JavaPluginUiResource registerChatSelectionAction(long generation,
+                String id, String title, String icon, ChatSelectionAction action) {
+            throw new UnsupportedOperationException("Chat selection actions are unavailable");
         }
 
         default JavaPluginUiResource registerLowLevelUiResource(
@@ -296,6 +302,14 @@ final class JavaPluginSession implements AutoCloseable {
         public JavaPluginUiResource registerComposerContentEffect(ComposerContentEffect.Factory factory) {
             requireActive();
             return host.registerComposerContentEffect(session.getGeneration(), factory);
+        }
+
+        @Override
+        public JavaPluginUiResource registerChatSelectionAction(
+                String id, String title, String icon, ChatSelectionAction action) {
+            requireActive();
+            return host.registerChatSelectionAction(
+                    session.getGeneration(), id, title, icon, action);
         }
 
         @Override

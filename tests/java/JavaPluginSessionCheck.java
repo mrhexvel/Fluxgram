@@ -5,6 +5,7 @@ import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 import org.telegram.messenger.plugins.api.JavaMethodHook;
 import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
+import org.telegram.messenger.plugins.api.ChatSelectionAction;
 import org.telegram.messenger.plugins.api.ComposerContentEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerEffect;
@@ -81,6 +82,7 @@ public final class JavaPluginSessionCheck {
         int cursorRegistrations;
         int selectionRegistrations;
         int contentRegistrations;
+        int chatActionRegistrations;
         int lowLevelRegistrations;
         int hookRegistrations;
         int hookCloses;
@@ -197,6 +199,17 @@ public final class JavaPluginSessionCheck {
         }
 
         @Override
+        public JavaPluginUiResource registerChatSelectionAction(long value,
+                String id, String title, String icon, ChatSelectionAction action) {
+            check(value == generation && "copy_id".equals(id)
+                            && "Copy ID".equals(title) && "copy".equals(icon)
+                            && action != null,
+                    "chat action registration identity");
+            chatActionRegistrations++;
+            return resource();
+        }
+
+        @Override
         public JavaPluginUiResource registerLowLevelUiResource(
                 long value, String extensionId, Object factory) {
             check(value == generation && "test.renderer".equals(extensionId) && factory != null,
@@ -262,6 +275,10 @@ public final class JavaPluginSessionCheck {
         check(host.selectionRegistrations == 1, "selection effect registration was not delegated");
         context.registerComposerContentEffect(surface -> null);
         check(host.contentRegistrations == 1, "content effect registration was not delegated");
+        context.registerChatSelectionAction(
+                "copy_id", "Copy ID", "copy", message -> {});
+        check(host.chatActionRegistrations == 1,
+                "chat selection action registration was not delegated");
         Member hookMember = JavaPluginSessionCheck.class.getDeclaredMethod("hookTarget", int.class);
         JavaMethodHookRegistration hookRegistration = context.registerMethodHook(
                 hookMember, new JavaMethodHook() {});
@@ -299,6 +316,8 @@ public final class JavaPluginSessionCheck {
         rejects(() -> context.registerComposerCursorEffect(surface -> null));
         rejects(() -> context.registerComposerSelectionEffect(surface -> null));
         rejects(() -> context.registerComposerContentEffect(surface -> null));
+        rejects(() -> context.registerChatSelectionAction(
+                "copy_id", "Copy ID", "copy", message -> {}));
         rejects(() -> context.registerMethodHook(hookMember, new JavaMethodHook() {}));
         rejects(() -> ((LowLevelJavaPluginContext) context).registerLowLevelUiResource(
                 "test.renderer", new Object()));

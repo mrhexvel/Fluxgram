@@ -15,6 +15,7 @@ import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
 import org.telegram.messenger.plugins.api.JavaMethodHook;
 import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
+import org.telegram.messenger.plugins.api.ChatSelectionAction;
 import org.telegram.messenger.plugins.api.ComposerContentEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
@@ -671,6 +672,24 @@ public final class PythonPluginAdapter implements Plugin {
 
                 return uiResources.register(() -> LegacyComposerExtensions.registerContent(
                         id, generation, () -> lifecycle.isCurrent(generation), factory));
+            }
+
+            @Override
+            public JavaPluginUiResource registerChatSelectionAction(long generation,
+                    String actionId, String title, String icon, ChatSelectionAction action) {
+                if (!lifecycle.isCurrent(generation)) {
+                    throw new IllegalStateException("Chat selection action generation is inactive");
+                }
+
+                return uiResources.register(() -> PluginChatSelectionActions.register(
+                        id,
+                        generation,
+                        () -> lifecycle.isCurrent(generation),
+                        actionId,
+                        title,
+                        icon,
+                        action
+                ));
             }
         };
     }

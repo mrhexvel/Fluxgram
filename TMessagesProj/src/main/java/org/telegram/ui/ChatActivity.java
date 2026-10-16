@@ -124,6 +124,7 @@ import androidx.dynamicanimation.animation.SpringForce;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.ui.fluxgram.EditHistoryMenuController;
 import org.telegram.ui.fluxgram.FluxGramComposerController;
+import org.telegram.ui.fluxgram.ChatSelectionActionController;
 import org.telegram.ui.Components.EditTextCaption;
 import org.telegram.ui.recyclerview.ChatListItemAnimator;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -503,6 +504,7 @@ public class ChatActivity extends BaseFragment implements
     private FluxGramChatHeaderAppearanceController fluxGramChatHeaderAppearanceController;
     private final PluginChatLifecycle pluginChatLifecycle = new PluginChatLifecycle();
     private FluxGramComposerController pluginComposer;
+    private ChatSelectionActionController pluginSelectionActions;
     private AnimatedTextView selectedMessagesCountTextView;
     private RecyclerListView.OnItemClickListener mentionsOnItemClickListener;
     private SuggestEmojiView suggestEmojiPanel;
@@ -3368,6 +3370,10 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         pluginChatLifecycle.onDestroyed();
+        if (pluginSelectionActions != null) {
+            pluginSelectionActions.destroy();
+            pluginSelectionActions = null;
+        }
         if (pluginComposer != null) {
             pluginComposer.destroy();
             pluginComposer = null;
@@ -3561,6 +3567,61 @@ public class ChatActivity extends BaseFragment implements
                 dialog_id,
                 getTopicId()
         );
+    }
+
+    private void bindPluginSelectionActions() {
+        if (pluginSelectionActions != null) {
+            pluginSelectionActions.destroy();
+            pluginSelectionActions = null;
+        }
+
+        int boundAccount = currentAccount;
+        long boundOwner = getUserConfig().getClientUserId();
+        long boundDialog = dialog_id;
+
+        if (boundOwner <= 0) {
+            return;
+        }
+
+        pluginSelectionActions = new ChatSelectionActionController(
+                boundAccount,
+                boundOwner,
+                () -> currentAccount == boundAccount
+                        && dialog_id == boundDialog
+                        && isPluginSelectionActionEligible(),
+                this::updatePluginSelectionAction
+        );
+    }
+
+    private boolean isPluginSelectionActionEligible() {
+        return !paused
+                && isFullyVisible
+                && actionBar != null
+                && actionBar.isActionModeShowed()
+                && isPluginChatLifecycleEligible();
+    }
+
+    private MessageObject getSinglePluginSelectedMessage() {
+        if (!isPluginSelectionActionEligible()
+                || selectedMessagesIds[0].size() + selectedMessagesIds[1].size() != 1) {
+            return null;
+        }
+
+        MessageObject message = selectedMessagesIds[0].size() == 1
+                ? selectedMessagesIds[0].valueAt(0)
+                : selectedMessagesIds[1].valueAt(0);
+
+        if (message == null || message.messageOwner == null || message.getId() <= 0) {
+            return null;
+        }
+
+        return message;
+    }
+
+    private void updatePluginSelectionAction() {
+        if (pluginSelectionActions != null) {
+            pluginSelectionActions.update(getSinglePluginSelectedMessage());
+        }
     }
 
     private boolean isPluginChatLifecycleEligible() {
@@ -3851,6 +3912,8 @@ public class ChatActivity extends BaseFragment implements
 
         Theme.createChatResources(context, false);
 
+        bindPluginSelectionActions();
+
         actionBar.setAddToContainer(false);
         actionBar.setCastShadows(false);
         actionBar.setBackground(null);
@@ -3884,6 +3947,9 @@ public class ChatActivity extends BaseFragment implements
                             finishFragment();
                         }
                     }
+                } else if (pluginSelectionActions != null
+                        && pluginSelectionActions.handleClick(id, getSinglePluginSelectedMessage())) {
+                    clearSelectionMode();
                 } else if (id == view_as_topics) {
                     if (getUserConfig().getClientUserId() == dialog_id) {
                         getMessagesController().setSavedViewAs(true);
@@ -10539,6 +10605,9 @@ public class ChatActivity extends BaseFragment implements
             actionModeViews.add(actionMode.addItemWithWidth(star, R.drawable.msg_fave, dp(48), LocaleController.getString(R.string.AddToFavorites)));
             actionModeViews.add(actionMode.addItemWithWidth(copy, R.drawable.msg_copy, dp(48), LocaleController.getString(R.string.Copy)));
             actionModeViews.add(actionMode.addItemWithWidth(delete, R.drawable.msg_delete, dp(48), LocaleController.getString(R.string.Delete)));
+        }
+        if (pluginSelectionActions != null) {
+            pluginSelectionActions.attach(actionMode, actionModeViews, dp(48));
         }
         actionMode.setItemVisibility(edit, canEditMessagesCount == 1 && selectedMessagesIds[0].size() + selectedMessagesIds[1].size() == 1 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(copy, !isPeerNoForwards() && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
@@ -19557,6 +19626,9 @@ public class ChatActivity extends BaseFragment implements
                     shareItem.setVisibility(show ? View.VISIBLE : View.GONE);
                 }
 
+                updatePluginSelectionAction();
+                ActionBarMenuItem pluginItem = actionBar.createActionMode().getItem(
+                        ChatSelectionActionController.MENU_ITEM_ID);
                 if (tagItem != null) {
                     tagItem.setVisibility(getUserConfig().isPremium() && (
                         (editItem != null && editItem.getVisibility() == View.VISIBLE ? 1 : 0) +
@@ -19565,7 +19637,8 @@ public class ChatActivity extends BaseFragment implements
                         (copyItem != null && copyItem.getVisibility() == View.VISIBLE ? 1 : 0) +
                         (deleteItem != null && deleteItem.getVisibility() == View.VISIBLE ? 1 : 0) +
                         (starItem != null && starItem.getVisibility() == View.VISIBLE ? 1 : 0) +
-                        (shareItem != null && shareItem.getVisibility() == View.VISIBLE ? 1 : 0)
+                        (shareItem != null && shareItem.getVisibility() == View.VISIBLE ? 1 : 0) +
+                        (pluginItem != null && pluginItem.getVisibility() == View.VISIBLE ? 1 : 0)
                     ) < 4 ? View.VISIBLE : View.GONE);
                 }
             }
@@ -27502,6 +27575,7 @@ public class ChatActivity extends BaseFragment implements
         }
         isFullyVisible = false;
         pluginChatLifecycle.onHidden();
+        updatePluginSelectionAction();
         if (pluginComposer != null) {
             pluginComposer.refresh();
         }
@@ -30311,6 +30385,7 @@ public class ChatActivity extends BaseFragment implements
         getMessagesController().markDialogAsReadNow(dialog_id, replyId);
         MediaController.getInstance().stopRaiseToEarSensors(this, true, true);
         paused = true;
+        updatePluginSelectionAction();
         if (pluginComposer != null) {
             pluginComposer.refresh();
         }
@@ -35098,6 +35173,7 @@ public class ChatActivity extends BaseFragment implements
             selectedMessagesCanStarIds[a].clear();
         }
         hideActionMode();
+        updatePluginSelectionAction();
         updatePinnedMessageView(true);
         updateVisibleRows(suppressUpdateMessageObject);
         updateSelectedMessageReactions();
