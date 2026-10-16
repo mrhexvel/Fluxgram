@@ -150,6 +150,8 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
+import org.telegram.messenger.plugins.OutgoingTextTransformRequest;
+import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.CameraController;
 import org.telegram.messenger.utils.DrawableUtils;
@@ -683,6 +685,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     private boolean isPaste;
 
     private boolean destroyed;
+    private boolean outgoingTextTransformPending;
+    private long outgoingTextTransformSequence;
+    private String outgoingTextTransformText;
 
     private MessageObject editingMessageObject;
     private boolean editingCaption;
@@ -6527,6 +6532,9 @@ public class ChatActivityEnterView extends FrameLayout implements
             MediaDataController.getInstance(currentAccount).setDraftVoiceRegion(dialog_id, parentFragment != null && parentFragment.isTopic ? parentFragment.getTopicId() : 0, audioTimelineView == null ? 0.0f : audioTimelineView.getAudioLeft(), audioTimelineView == null ? 1.0f : audioTimelineView.getAudioRight());
         }
         destroyed = true;
+        outgoingTextTransformPending = false;
+        outgoingTextTransformText = null;
+        outgoingTextTransformSequence++;
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recordStarted);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recordPaused);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recordResumed);
@@ -7404,50 +7412,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 return;
             }
             CharSequence message = messageEditText == null ? "" : messageEditText.getTextToUse();
-            if (parentFragment != null) {
-                TLRPC.Chat chat = parentFragment.getCurrentChat();
-                if (chat != null && chat.slowmode_enabled && !ChatObject.hasAdminRights(chat)) {
-                    if (message.length() > accountInstance.getMessagesController().getMaxMessageLength()) {
-                        AlertsCreator.showSimpleAlert(parentFragment, getString("Slowmode", R.string.Slowmode), getString("SlowmodeSendErrorTooLong", R.string.SlowmodeSendErrorTooLong), resourcesProvider);
-                        return;
-                    } else if (forceShowSendButton && message.length() > 0) {
-                        AlertsCreator.showSimpleAlert(parentFragment, getString("Slowmode", R.string.Slowmode), getString("SlowmodeSendError", R.string.SlowmodeSendError), resourcesProvider);
-                        return;
-                    }
-                }
-            }
-            if (checkPremiumAnimatedEmoji(currentAccount, dialog_id, parentFragment, null, message)) {
-                return;
-            }
-            if (processSendingText(message, notify, scheduleDate, scheduleRepeatPeriod, payStars)) {
-                if (delegate.hasForwardingMessages() || (scheduleDate != 0 && !isInScheduleMode()) || isInScheduleMode()) {
-                    if (messageEditText != null) {
-                        messageEditText.setText("");
-                    }
-                    if (delegate != null) {
-                        delegate.onMessageSend(message, notify, scheduleDate, scheduleRepeatPeriod, payStars);
-                    }
-                } else {
-                    onComposerSend(messageEditText, sendButton);
-                    messageTransitionIsRunning = false;
-                    AndroidUtilities.runOnUIThread(moveToSendStateRunnable = () -> {
-                        moveToSendStateRunnable = null;
-                        hideTopView(true);
-                        if (messageEditText != null) {
-                            messageEditText.setText("");
-                        }
-                        if (delegate != null) {
-                            delegate.onMessageSend(message, notify, scheduleDate, scheduleRepeatPeriod, payStars);
-                        }
-                    }, 200);
-                }
-                lastTypingTimeSend = 0;
-            } else if (forceShowSendButton) {
-                if (delegate != null) {
-                    delegate.onMessageSend(null, notify, scheduleDate, scheduleRepeatPeriod, payStars);
-                }
-            }
-            updateSendButtonPaid();
+            sendTextMessage(message, notify, scheduleDate, scheduleRepeatPeriod, payStars);
         };
         if (allowConfirmFinal) {
             boolean alertShown = AlertsCreator.ensurePaidMessageConfirmation(currentAccount, dialog_id, getMessagesCount(), starsPrice -> sendMessageInternal(notify, scheduleDate, scheduleRepeatPeriod, starsPrice, false), payStars);
@@ -7477,6 +7442,144 @@ public class ChatActivityEnterView extends FrameLayout implements
             send.run();
             return false;
         }
+    }
+
+    private void sendTextMessage(
+            CharSequence message,
+            boolean notify,
+            int scheduleDate,
+            int scheduleRepeatPeriod,
+            long payStars) {
+        String originalText = message.toString();
+
+        if (outgoingTextTransformPending
+                && originalText.equals(outgoingTextTransformText)) {
+            return;
+        }
+
+        long sequence = ++outgoingTextTransformSequence;
+        long ownerId = UserConfig.getInstance(currentAccount).getClientUserId();
+        long capturedDialogId = dialog_id;
+        long topicId = parentFragment != null && parentFragment.isTopic
+                ? parentFragment.getTopicId() : 0;
+        outgoingTextTransformPending = true;
+        outgoingTextTransformText = originalText;
+
+        OutgoingTextTransformRequest request = new OutgoingTextTransformRequest(
+                sequence,
+                currentAccount,
+                ownerId,
+                capturedDialogId,
+                topicId,
+                originalText,
+                notify,
+                scheduleDate,
+                scheduleRepeatPeriod,
+                payStars
+        );
+        boolean started = PluginManager.getInstance().transformOutgoingText(request, transformedText -> {
+            if (destroyed || sequence != outgoingTextTransformSequence) {
+                return;
+            }
+
+            outgoingTextTransformPending = false;
+            outgoingTextTransformText = null;
+
+            long currentTopicId = parentFragment != null && parentFragment.isTopic
+                    ? parentFragment.getTopicId() : 0;
+
+            if (dialog_id != capturedDialogId
+                    || currentTopicId != topicId
+                    || UserConfig.getInstance(currentAccount).getClientUserId() != ownerId
+                    || messageEditText == null) {
+                return;
+            }
+
+            CharSequence currentMessage = messageEditText.getTextToUse();
+
+            if (!originalText.contentEquals(currentMessage)) {
+                return;
+            }
+
+            CharSequence finalMessage = originalText.equals(transformedText)
+                    ? currentMessage : transformedText;
+            sendPreparedTextMessage(
+                    finalMessage,
+                    notify,
+                    scheduleDate,
+                    scheduleRepeatPeriod,
+                    payStars
+            );
+        });
+
+        if (!started) {
+            outgoingTextTransformPending = false;
+            outgoingTextTransformText = null;
+            sendPreparedTextMessage(
+                    message,
+                    notify,
+                    scheduleDate,
+                    scheduleRepeatPeriod,
+                    payStars
+            );
+        }
+    }
+
+    private void sendPreparedTextMessage(
+            CharSequence message,
+            boolean notify,
+            int scheduleDate,
+            int scheduleRepeatPeriod,
+            long payStars) {
+        if (parentFragment != null) {
+            TLRPC.Chat chat = parentFragment.getCurrentChat();
+
+            if (chat != null && chat.slowmode_enabled && !ChatObject.hasAdminRights(chat)) {
+                if (message.length() > accountInstance.getMessagesController().getMaxMessageLength()) {
+                    AlertsCreator.showSimpleAlert(parentFragment, getString("Slowmode", R.string.Slowmode), getString("SlowmodeSendErrorTooLong", R.string.SlowmodeSendErrorTooLong), resourcesProvider);
+
+                    return;
+                } else if (forceShowSendButton && message.length() > 0) {
+                    AlertsCreator.showSimpleAlert(parentFragment, getString("Slowmode", R.string.Slowmode), getString("SlowmodeSendError", R.string.SlowmodeSendError), resourcesProvider);
+
+                    return;
+                }
+            }
+        }
+
+        if (checkPremiumAnimatedEmoji(currentAccount, dialog_id, parentFragment, null, message)) {
+            return;
+        }
+
+        if (processSendingText(message, notify, scheduleDate, scheduleRepeatPeriod, payStars)) {
+            if (delegate.hasForwardingMessages() || (scheduleDate != 0 && !isInScheduleMode()) || isInScheduleMode()) {
+                if (messageEditText != null) {
+                    messageEditText.setText("");
+                }
+                if (delegate != null) {
+                    delegate.onMessageSend(message, notify, scheduleDate, scheduleRepeatPeriod, payStars);
+                }
+            } else {
+                onComposerSend(messageEditText, sendButton);
+                messageTransitionIsRunning = false;
+                AndroidUtilities.runOnUIThread(moveToSendStateRunnable = () -> {
+                    moveToSendStateRunnable = null;
+                    hideTopView(true);
+                    if (messageEditText != null) {
+                        messageEditText.setText("");
+                    }
+                    if (delegate != null) {
+                        delegate.onMessageSend(message, notify, scheduleDate, scheduleRepeatPeriod, payStars);
+                    }
+                }, 200);
+            }
+            lastTypingTimeSend = 0;
+        } else if (forceShowSendButton) {
+            if (delegate != null) {
+                delegate.onMessageSend(null, notify, scheduleDate, scheduleRepeatPeriod, payStars);
+            }
+        }
+        updateSendButtonPaid();
     }
 
     protected boolean showConfirmAlert(Runnable onConfirmed) {

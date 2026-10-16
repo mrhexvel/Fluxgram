@@ -23,6 +23,9 @@ class Plugin:
     def _unload(self):
         self.closed = True
 
+    def transform_outgoing_text(self, request):
+        return None
+
 
 class EventContext:
     def __init__(self, **values):
@@ -67,6 +70,8 @@ class ExternalLoaderTest(unittest.TestCase):
         models.NotificationOverride = Record
         runtime = types.ModuleType("fluxgram._runtime")
         runtime.runtime_scope = runtime_scope
+        transforms = types.ModuleType("fluxgram.transforms")
+        transforms.OutgoingTextTransformRequest = Record
         runtime_package = types.ModuleType("fluxgram_runtime")
         runtime_package.__path__ = []
         bindings = types.ModuleType("fluxgram_runtime._bindings")
@@ -79,6 +84,7 @@ class ExternalLoaderTest(unittest.TestCase):
                 "fluxgram.events": events,
                 "fluxgram.models": models,
                 "fluxgram._runtime": runtime,
+                "fluxgram.transforms": transforms,
                 "fluxgram_runtime": runtime_package,
                 "fluxgram_runtime._bindings": bindings,
             },
@@ -200,6 +206,75 @@ class ExternalLoaderTest(unittest.TestCase):
             ("typed", 2, 99, 7, "prefix", "Updated"),
         )
         self.assertEqual(calls[1], ("legacy", (plugin, "prefix", "Updated")))
+
+    def test_outgoing_text_transform_detects_override_and_rebuilds_request(self):
+        class TransformPlugin(Plugin):
+            def transform_outgoing_text(self, request):
+                self.request = request
+
+                return request.text.replace(".hello ", "Hello, ") + "!"
+
+        plugin = TransformPlugin("test.transform")
+        self.assertTrue(self.bridge.has_outgoing_text_transformer(plugin))
+        result = self.bridge.dispatch_outgoing_text_transform(
+            plugin,
+            """{
+                "account": 2,
+                "owner_id": 88,
+                "generation": 9,
+                "dialog_id": -10,
+                "topic_id": 3,
+                "text": ".hello Alice",
+                "notify": false,
+                "schedule_date": 5,
+                "schedule_repeat_period": 7,
+                "pay_stars": 10
+            }""",
+        )
+
+        self.assertEqual(
+            result,
+            '{"changed": true, "text": "Hello, Alice!"}',
+        )
+        self.assertEqual(plugin.request.context.account, 2)
+        self.assertEqual(plugin.request.context.owner_id, 88)
+        self.assertEqual(plugin.request.context.generation, 9)
+        self.assertEqual(plugin.request.dialog_id, -10)
+        self.assertEqual(plugin.request.topic_id, 3)
+        self.assertFalse(plugin.request.notify)
+        self.assertEqual(plugin.request.schedule_date, 5)
+        self.assertEqual(plugin.request.schedule_repeat_period, 7)
+        self.assertEqual(plugin.request.pay_stars, 10)
+
+    def test_registered_commands_activate_base_transformer(self):
+        plugin = Plugin("test.commands")
+        plugin.commands = types.SimpleNamespace(_has_registrations=lambda: True)
+
+        self.assertTrue(self.bridge.has_outgoing_text_transformer(plugin))
+
+    def test_outgoing_text_transform_rejects_invalid_result(self):
+        class InvalidPlugin(Plugin):
+            def transform_outgoing_text(self, request):
+                return 7
+
+        plugin = InvalidPlugin("test.invalid-transform")
+
+        with self.assertRaisesRegex(TypeError, "str or None"):
+            self.bridge.dispatch_outgoing_text_transform(
+                plugin,
+                """{
+                    "account": 0,
+                    "owner_id": 1,
+                    "generation": 1,
+                    "dialog_id": 1,
+                    "topic_id": 0,
+                    "text": "Hello",
+                    "notify": true,
+                    "schedule_date": 0,
+                    "schedule_repeat_period": 0,
+                    "pay_stars": 0
+                }""",
+            )
 
     def test_typed_message_snapshot_is_rebuilt_from_json(self):
         calls = []

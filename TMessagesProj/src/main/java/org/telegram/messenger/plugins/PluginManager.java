@@ -4,11 +4,15 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.AndroidUtilities;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 
 public final class PluginManager {
+    private static final long TRANSFORM_TOTAL_TIMEOUT_MS = 1000L;
+    private static final long TRANSFORM_PLUGIN_TIMEOUT_MS = 400L;
     private static final PluginManager INSTANCE = new PluginManager();
     private final LinkedHashMap<String, Entry> plugins = new LinkedHashMap<>();
     private SharedPreferences preferences;
@@ -543,6 +547,137 @@ public final class PluginManager {
             } catch (Exception e) {
                 FileLog.e("FluxGram before_send plugin failed: " + entry.id, e);
             }
+        }
+    }
+
+    public boolean transformOutgoingText(
+            OutgoingTextTransformRequest request,
+            OutgoingTextTransformCallback callback) {
+        ArrayList<Entry> snapshot = new ArrayList<>();
+
+        if (request == null || callback == null || !request.isValid()) {
+            return false;
+        }
+
+        synchronized (this) {
+            if (!isRuntimeEnabled()) {
+                return false;
+            }
+
+            for (Entry entry : plugins.values()) {
+                if (entry.enabled && entry.plugin.hasOutgoingTextTransformer()) {
+                    snapshot.add(entry);
+                }
+            }
+        }
+
+        if (snapshot.isEmpty()) {
+            return false;
+        }
+
+        snapshot.sort(Comparator.comparing(entry -> entry.id));
+        new OutgoingTextPipeline(snapshot, request, callback).advance();
+
+        return true;
+    }
+
+    private synchronized boolean canTransform(Entry entry) {
+        return isRuntimeEnabled()
+                && entry.enabled
+                && entry.plugin.hasOutgoingTextTransformer();
+    }
+
+    private final class OutgoingTextPipeline {
+        private final ArrayList<Entry> entries;
+        private final OutgoingTextTransformCallback callback;
+        private final long deadline;
+        private OutgoingTextTransformRequest request;
+        private int index;
+        private int stage;
+        private boolean completed;
+        private Runnable timeout;
+
+        OutgoingTextPipeline(
+                ArrayList<Entry> entries,
+                OutgoingTextTransformRequest request,
+                OutgoingTextTransformCallback callback) {
+            this.entries = entries;
+            this.request = request;
+            this.callback = callback;
+            deadline = System.currentTimeMillis() + TRANSFORM_TOTAL_TIMEOUT_MS;
+        }
+
+        void advance() {
+            if (completed) {
+                return;
+            }
+
+            long remaining = deadline - System.currentTimeMillis();
+
+            if (index >= entries.size() || remaining <= 0) {
+                finish();
+
+                return;
+            }
+
+            Entry entry = entries.get(index++);
+
+            if (!canTransform(entry)) {
+                advance();
+
+                return;
+            }
+
+            int currentStage = ++stage;
+            timeout = () -> accept(currentStage, null);
+            AndroidUtilities.runOnUIThread(
+                    timeout,
+                    Math.min(TRANSFORM_PLUGIN_TIMEOUT_MS, remaining)
+            );
+
+            try {
+                entry.plugin.transformOutgoingText(
+                        request,
+                        text -> AndroidUtilities.runOnUIThread(
+                                () -> accept(currentStage, text)
+                        )
+                );
+            } catch (Exception error) {
+                FileLog.e("FluxGram outgoing text transform failed: " + entry.id, error);
+                accept(currentStage, null);
+            }
+        }
+
+        void accept(int currentStage, String text) {
+            if (completed || currentStage != stage) {
+                return;
+            }
+
+            if (timeout != null) {
+                AndroidUtilities.cancelRunOnUIThread(timeout);
+                timeout = null;
+            }
+
+            if (text != null && text.length() <= OutgoingTextTransformRequest.MAX_TEXT_LENGTH) {
+                request = request.withText(text);
+            }
+
+            advance();
+        }
+
+        void finish() {
+            if (completed) {
+                return;
+            }
+
+            completed = true;
+
+            if (timeout != null) {
+                AndroidUtilities.cancelRunOnUIThread(timeout);
+                timeout = null;
+            }
+
+            callback.complete(request.text);
         }
     }
 }

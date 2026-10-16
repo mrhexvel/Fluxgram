@@ -63,5 +63,15 @@ public interface Plugin {
         return false;
     }
 
+    default boolean hasOutgoingTextTransformer() {
+        return false;
+    }
+
+    default void transformOutgoingText(
+            OutgoingTextTransformRequest request,
+            OutgoingTextTransformCallback callback) {
+        callback.complete(null);
+    }
+
     void beforeSend(BeforeSendEvent event);
 }

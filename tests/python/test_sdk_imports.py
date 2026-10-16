@@ -31,11 +31,16 @@ from fluxgram import (
     ChatInfo,
     ChatNotifications,
     ChatOpenedEvent,
+    CommandHandler,
+    CommandInvocation,
+    CommandRegistration,
+    Commands,
     MessageInfo,
     MessageDeletedEvent,
     MessageEditedEvent,
     MessageReceivedEvent,
     NotificationOverride,
+    OutgoingTextTransformRequest,
     Plugin,
     Select,
     SelectSetting,
@@ -58,7 +63,7 @@ from fluxgram.ui import Bulletins, Navigation, Notifications, UI
 from fluxgram.testing import PluginHarness
 
 assert API_VERSION == 2
-assert API_MINOR_VERSION == 10
+assert API_MINOR_VERSION == 11
 assert fluxgram.ChatInfo is fluxgram.models.ChatInfo
 assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notifications"}
 assert Switch("enabled", "Enabled").default is False
@@ -83,6 +88,11 @@ assert ChatClosedEvent.__module__ == "fluxgram.events"
 assert ChatOpenedEvent.__module__ == "fluxgram.events"
 assert ApplicationBackgroundedEvent.__module__ == "fluxgram.events"
 assert ApplicationForegroundedEvent.__module__ == "fluxgram.events"
+assert OutgoingTextTransformRequest.__module__ == "fluxgram.transforms"
+assert CommandInvocation.__module__ == "fluxgram.commands"
+assert CommandRegistration.__module__ == "fluxgram.commands"
+assert Commands.__module__ == "fluxgram.commands"
+assert CommandHandler is fluxgram.CommandHandler
 try:
     Plugin("standalone.test")
 except RuntimeError as error:
@@ -159,7 +169,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
     def test_package_metadata_and_chaquopy_source_set(self):
         metadata = tomllib.loads((SDK / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-plugin")
-        self.assertEqual(metadata["project"]["version"], "2.11.0")
+        self.assertEqual(metadata["project"]["version"], "2.12.0")
         self.assertEqual(metadata["project"]["requires-python"], ">=3.11")
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
 

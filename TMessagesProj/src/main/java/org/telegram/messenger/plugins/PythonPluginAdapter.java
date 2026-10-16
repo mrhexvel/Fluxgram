@@ -40,6 +40,7 @@ public final class PythonPluginAdapter implements Plugin {
     private static final int MAILBOX_CAPACITY = 69;
     private static final int EVENT_CAPACITY = 64;
     private static final int STORAGE_CAPACITY = 2;
+    private static final int TRANSFORM_CAPACITY = 2;
     private final String id;
     private final String moduleName;
     private final int nameResId;
@@ -170,6 +171,7 @@ public final class PythonPluginAdapter implements Plugin {
     private final ThreadPoolExecutor executor;
     private final Semaphore eventSlots = new Semaphore(EVENT_CAPACITY);
     private final Semaphore storageSlots = new Semaphore(2);
+    private final Semaphore transformSlots = new Semaphore(TRANSFORM_CAPACITY);
     private final PythonPluginLifecycle lifecycle = new PythonPluginLifecycle();
     private final PythonPluginTaskScheduler taskScheduler;
     private final LinkedHashMap<String, PendingSetting> pendingSettings = new LinkedHashMap<>();
@@ -185,6 +187,7 @@ public final class PythonPluginAdapter implements Plugin {
     private volatile boolean chatClosedSubscribers;
     private volatile boolean applicationForegroundedSubscribers;
     private volatile boolean applicationBackgroundedSubscribers;
+    private volatile boolean outgoingTextTransformer;
 
     private static final class PendingSetting {
         final long generation;
@@ -286,6 +289,7 @@ public final class PythonPluginAdapter implements Plugin {
         chatClosedSubscribers = false;
         applicationForegroundedSubscribers = false;
         applicationBackgroundedSubscribers = false;
+        outgoingTextTransformer = false;
 
         if (reconcile) {
             try {
@@ -355,6 +359,7 @@ public final class PythonPluginAdapter implements Plugin {
         }
 
         try {
+            boolean nextOutgoingTextTransformer = false;
             PyObject nextBridge = null;
 
             if (moduleName != null) {
@@ -463,14 +468,21 @@ public final class PythonPluginAdapter implements Plugin {
 
             if (instance != null) {
                 instance.callAttr("on_load");
+                nextOutgoingTextTransformer = Boolean.parseBoolean(
+                        bridge.callAttr("has_outgoing_text_transformer", instance).toString()
+                );
             }
 
             if (!lifecycle.isCurrent(request)) {
                 return;
             }
 
-            if (lifecycle.setState(request, PythonPluginLifecycle.State.RUNNING) && javaUiStop != null) {
-                javaUiStop.activate();
+            if (lifecycle.setState(request, PythonPluginLifecycle.State.RUNNING)) {
+                outgoingTextTransformer = nextOutgoingTextTransformer;
+
+                if (javaUiStop != null) {
+                    javaUiStop.activate();
+                }
             }
         } catch (Exception | LinkageError error) {
             handleFailure(request, "Load", error, true);
@@ -1025,6 +1037,96 @@ public final class PythonPluginAdapter implements Plugin {
         } catch (RejectedExecutionException error) {
             eventSlots.release();
             Log.w(TAG, "[" + id + "] Event rejected", error);
+        }
+    }
+
+    @Override
+    public boolean hasOutgoingTextTransformer() {
+        return outgoingTextTransformer && lifecycle.getState() == PythonPluginLifecycle.State.RUNNING;
+    }
+
+    @Override
+    public synchronized void transformOutgoingText(
+            OutgoingTextTransformRequest request,
+            OutgoingTextTransformCallback callback) {
+        if (moduleName == null || !hasOutgoingTextTransformer()) {
+            callback.complete(null);
+
+            return;
+        }
+
+        if (!transformSlots.tryAcquire()) {
+            Log.w(TAG, "[" + id + "] Outgoing text transform queue full");
+            callback.complete(null);
+
+            return;
+        }
+
+        final long generation = lifecycle.getGeneration();
+
+        try {
+            executor.execute(
+                    () -> {
+                        String transformed = null;
+
+                        try {
+                            if (lifecycle.isCurrent(generation)
+                                    && instance != null
+                                    && UserConfig.getInstance(request.account).getClientUserId()
+                                    == request.ownerId) {
+                                JSONObject payload = new JSONObject();
+                                payload.put("account", request.account);
+                                payload.put("owner_id", request.ownerId);
+                                payload.put("generation", generation);
+                                payload.put("dialog_id", request.dialogId);
+                                payload.put("topic_id", request.topicId);
+                                payload.put("text", request.text);
+                                payload.put("notify", request.notify);
+                                payload.put("schedule_date", request.scheduleDate);
+                                payload.put("schedule_repeat_period", request.scheduleRepeatPeriod);
+                                payload.put("pay_stars", request.payStars);
+
+                                JSONObject result = new JSONObject(
+                                        bridge.callAttr(
+                                                "dispatch_outgoing_text_transform",
+                                                instance,
+                                                payload.toString()
+                                        ).toString()
+                                );
+
+                                if (result.getBoolean("changed")) {
+                                    transformed = result.getString("text");
+
+                                    if (transformed.length()
+                                            > OutgoingTextTransformRequest.MAX_TEXT_LENGTH) {
+                                        transformed = null;
+                                    }
+                                }
+                            }
+                        } catch (Exception | LinkageError error) {
+                            Log.e(TAG, "[" + id + "] Outgoing text transform failed", error);
+                        } finally {
+                            transformSlots.release();
+                        }
+
+                        String result = transformed;
+
+                        org.telegram.messenger.AndroidUtilities.runOnUIThread(() -> {
+                            if (!lifecycle.isCurrent(generation)
+                                    || UserConfig.getInstance(request.account).getClientUserId()
+                                    != request.ownerId) {
+                                callback.complete(null);
+
+                                return;
+                            }
+
+                            callback.complete(result);
+                        });
+                    });
+        } catch (RejectedExecutionException error) {
+            transformSlots.release();
+            Log.w(TAG, "[" + id + "] Outgoing text transform rejected", error);
+            callback.complete(null);
         }
     }
 

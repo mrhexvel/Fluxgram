@@ -58,6 +58,33 @@ public class FileLog {
     }
 }
 """,
+            "org/telegram/messenger/AndroidUtilities.java": """package org.telegram.messenger;
+
+import java.util.*;
+
+public class AndroidUtilities {
+
+    private static final List<Runnable> delayed = new ArrayList<>();
+
+    public static void runOnUIThread(Runnable runnable) {
+        runnable.run();
+    }
+
+    public static void runOnUIThread(Runnable runnable, long delay) {
+        delayed.add(runnable);
+    }
+
+    public static void cancelRunOnUIThread(Runnable runnable) {
+        delayed.remove(runnable);
+    }
+
+    public static void runDelayed() {
+        while (!delayed.isEmpty()) {
+            delayed.remove(0).run();
+        }
+    }
+}
+""",
             "org/telegram/messenger/plugins/PluginMessageReceivedEvent.java": """package org.telegram.messenger.plugins;
 
 public final class PluginMessageReceivedEvent {}
@@ -153,6 +180,10 @@ public class RegistryCheck {
 
         int calls;
 
+        boolean transform;
+
+        boolean hang;
+
         P(String id) {
             this.id = id;
         }
@@ -179,6 +210,18 @@ public class RegistryCheck {
 
         public void beforeSend(BeforeSendEvent event) {
             calls++;
+        }
+
+        public boolean hasOutgoingTextTransformer() {
+            return transform;
+        }
+
+        public void transformOutgoingText(
+                OutgoingTextTransformRequest request,
+                OutgoingTextTransformCallback callback) {
+            if (!hang) {
+                callback.complete(request.text + "[" + id + "]");
+            }
         }
     }
 
@@ -286,6 +329,37 @@ public class RegistryCheck {
             check(!external.active);
             manager.beforeSend(null);
             check(external.calls == 0);
+        } else if (args[0].equals("transform")) {
+            P first = new P("z.last");
+            P second = new P("a.first");
+            first.transform = true;
+            second.transform = true;
+            manager.register(first, true);
+            manager.register(second, true);
+            manager.setSystemEnabled(true);
+            manager.setEnabled(external.id, true);
+            final String[] result = {null};
+            boolean started = manager.transformOutgoingText(
+                    new OutgoingTextTransformRequest(
+                            1, 0, 1, 10, 0, "text", true, 0, 0, 0),
+                    text -> result[0] = text
+            );
+            check(started);
+            check("text[a.first][z.last]".equals(result[0]));
+        } else if (args[0].equals("transform_timeout")) {
+            external.transform = true;
+            external.hang = true;
+            manager.setSystemEnabled(true);
+            manager.setEnabled(external.id, true);
+            final String[] result = {null};
+            check(manager.transformOutgoingText(
+                    new OutgoingTextTransformRequest(
+                            1, 0, 1, 10, 0, "text", true, 0, 0, 0),
+                    text -> result[0] = text
+            ));
+            check(result[0] == null);
+            org.telegram.messenger.AndroidUtilities.runDelayed();
+            check("text".equals(result[0]));
         }
     }
 }
@@ -305,6 +379,8 @@ public class RegistryCheck {
                 "PluginCrashRecovery.java",
                 "PluginManager.java",
                 "BeforeSendEvent.java",
+                "OutgoingTextTransformCallback.java",
+                "OutgoingTextTransformRequest.java",
             )
         ]
         subprocess.run(
@@ -337,3 +413,9 @@ public class RegistryCheck {
 
     def test_recovery_disables_master_and_requires_restart_before_callbacks(self):
         self.run_case("recovery")
+
+    def test_outgoing_text_transforms_use_stable_plugin_id_order(self):
+        self.run_case("transform")
+
+    def test_outgoing_text_transform_timeout_returns_last_text(self):
+        self.run_case("transform_timeout")

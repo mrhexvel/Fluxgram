@@ -39,6 +39,7 @@ class PluginCleanupTest(unittest.TestCase):
 
         modules = {
             "fluxgram": module("fluxgram", __path__=[]),
+            "fluxgram.commands": module("fluxgram.commands", Commands=Resource),
             "fluxgram.events": module(
                 "fluxgram.events",
                 BeforeSendEvent=object,
@@ -50,6 +51,10 @@ class PluginCleanupTest(unittest.TestCase):
                 StorageMigration=object,
             ),
             "fluxgram.tasks": module("fluxgram.tasks", Tasks=Resource),
+            "fluxgram.transforms": module(
+                "fluxgram.transforms",
+                OutgoingTextTransformRequest=object,
+            ),
             "fluxgram.ui": module("fluxgram.ui", UI=Resource),
         }
         resources = types.SimpleNamespace(

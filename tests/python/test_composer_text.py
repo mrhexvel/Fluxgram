@@ -41,8 +41,8 @@ class ComposerTextTest(unittest.TestCase):
         self.assertIn("pluginComposer.selectionChanged(field, start, end)", chat)
         self.assertIn("surface.selectionChanged(null, null)", controller)
         self.assertIn(
-            "} else {\n                    onComposerSend(messageEditText, sendButton);\n"
-            "                    messageTransitionIsRunning",
+            "} else {\n                onComposerSend(messageEditText, sendButton);\n"
+            "                messageTransitionIsRunning",
             enter_view,
         )
         self.assertIn("pluginComposer.sent(field, button)", chat)

@@ -19,6 +19,7 @@ from fluxgram.events import (
 )
 from fluxgram.models import ChatInfo, ChatNotifications, MessageInfo, NotificationOverride
 from fluxgram.plugin import Plugin
+from fluxgram.transforms import OutgoingTextTransformRequest
 from fluxgram._runtime import runtime_scope
 
 from ._bindings import create_runtime_bindings
@@ -68,6 +69,41 @@ def dispatch_before_send(plugin, event_json: str):
     )
 
     plugin.before_send(event)
+
+
+def has_outgoing_text_transformer(plugin):
+    if type(plugin).transform_outgoing_text is not Plugin.transform_outgoing_text:
+        return True
+
+    commands = getattr(plugin, "commands", None)
+
+    return commands is not None and commands._has_registrations()
+
+
+def dispatch_outgoing_text_transform(plugin, request_json: str):
+    data = json.loads(request_json)
+    result = plugin.transform_outgoing_text(OutgoingTextTransformRequest(
+        context=EventContext(
+            account=int(data["account"]),
+            owner_id=int(data["owner_id"]),
+            generation=int(data["generation"]),
+        ),
+        dialog_id=int(data["dialog_id"]),
+        topic_id=int(data["topic_id"]),
+        text=str(data["text"]),
+        notify=bool(data["notify"]),
+        schedule_date=int(data["schedule_date"]),
+        schedule_repeat_period=int(data["schedule_repeat_period"]),
+        pay_stars=int(data["pay_stars"]),
+    ))
+
+    if result is not None and not isinstance(result, str):
+        raise TypeError("transform_outgoing_text must return str or None")
+
+    return json.dumps(
+        {"changed": result is not None, "text": result},
+        ensure_ascii=False,
+    )
 
 
 def _forget_namespace(namespace):
