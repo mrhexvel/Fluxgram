@@ -3,6 +3,8 @@ package org.telegram.messenger.plugins;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.JavaMethodHook;
+import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
 import org.telegram.messenger.plugins.api.ComposerContentEffect;
 import org.telegram.messenger.plugins.api.ComposerEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
@@ -10,7 +12,9 @@ import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
 import org.telegram.messenger.plugins.api.ComposerTextEffect;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Member;
 import java.lang.reflect.Modifier;
+import java.util.function.BooleanSupplier;
 
 final class JavaPluginSession implements AutoCloseable {
     interface Host {
@@ -25,6 +29,16 @@ final class JavaPluginSession implements AutoCloseable {
         String readStringSetting(String key, String fallback);
 
         void log(String message);
+
+        default JavaMethodHookRegistration registerMethodHook(long generation,
+                Member member, int priority, JavaMethodHook hook) {
+            throw new UnsupportedOperationException("Method hooks are unavailable");
+        }
+
+        default void releaseMethodHookResource(JavaMethodHookRegistration registration,
+                AutoCloseable resource) {
+            throw new UnsupportedOperationException("Method hook cleanup is unavailable");
+        }
 
         default JavaPluginUiResource registerUiResource(long generation, JavaPluginUiResource.Factory factory) {
             throw new UnsupportedOperationException("Java UI resources are unavailable");
@@ -227,6 +241,28 @@ final class JavaPluginSession implements AutoCloseable {
         }
 
         @Override
+        public JavaMethodHookRegistration registerMethodHook(
+                Member member, int priority, JavaMethodHook hook) {
+            requireActive();
+            JavaMethodHookRegistration registration = host.registerMethodHook(
+                    session.getGeneration(), member, priority, hook);
+
+            try {
+                AutoCloseable owner = scope.registerResource(registration);
+                return new OwnedMethodHookRegistration(
+                        registration, owner, host::isWorkerThread, host);
+            } catch (RuntimeException | Error error) {
+                try {
+                    registration.close();
+                } catch (Exception | LinkageError | AssertionError cleanupError) {
+                    error.addSuppressed(cleanupError);
+                }
+
+                throw error;
+            }
+        }
+
+        @Override
         public JavaPluginUiResource registerUiResource(JavaPluginUiResource.Factory factory) {
             requireActive();
             return host.registerUiResource(session.getGeneration(), factory);
@@ -290,6 +326,40 @@ final class JavaPluginSession implements AutoCloseable {
         @Override
         public void log(String message) {
             host.log(message);
+        }
+    }
+
+    private static final class OwnedMethodHookRegistration implements JavaMethodHookRegistration {
+        private final JavaMethodHookRegistration registration;
+        private final AutoCloseable owner;
+        private final BooleanSupplier workerThread;
+        private final Host host;
+
+        OwnedMethodHookRegistration(JavaMethodHookRegistration registration, AutoCloseable owner,
+                BooleanSupplier workerThread, Host host) {
+            this.registration = registration;
+            this.owner = owner;
+            this.workerThread = workerThread;
+            this.host = host;
+        }
+
+        @Override
+        public Member getMember() {
+            return registration.getMember();
+        }
+
+        @Override
+        public boolean isActive() {
+            return registration.isActive();
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (workerThread.getAsBoolean()) {
+                owner.close();
+            } else {
+                host.releaseMethodHookResource(registration, owner);
+            }
         }
     }
 }

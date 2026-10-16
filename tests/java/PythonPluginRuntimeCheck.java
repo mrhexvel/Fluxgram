@@ -17,6 +17,8 @@ public final class PythonPluginRuntimeCheck {
 
         PythonPluginLifecycle.Request first = lifecycle.currentRequest();
         require(first.enabled && lifecycle.isCurrent(first.generation), "enabled request");
+        require(!lifecycle.isRunning(first.generation), "starting request is not running");
+        require(!lifecycle.commitIfRunning(first.generation, () -> {}), "starting commit gate");
         require(!lifecycle.requestEnabled(false), "toggle must coalesce");
         require(lifecycle.finishReconcile(first.generation), "new generation must continue");
 
@@ -50,7 +52,15 @@ public final class PythonPluginRuntimeCheck {
             throw new RuntimeException(error);
         }
 
+        int[] commits = {0};
+        require(lifecycle.isRunning(waiting.generation), "running generation");
+        require(lifecycle.commitIfRunning(waiting.generation, () -> commits[0]++),
+                "running commit gate");
+        require(commits[0] == 1, "running commit result");
+
         require(lifecycle.requestEnabled(true), "restart reconcile");
+        require(!lifecycle.commitIfRunning(waiting.generation, () -> commits[0]++),
+                "stale commit gate");
         PythonPluginLifecycle.Request failing = lifecycle.currentRequest();
         require(lifecycle.fail(failing.generation), "current failure");
         require(lifecycle.getState() == PythonPluginLifecycle.State.FAILED, "failed state");

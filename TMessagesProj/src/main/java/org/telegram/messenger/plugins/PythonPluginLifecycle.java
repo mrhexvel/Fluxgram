@@ -71,6 +71,19 @@ final class PythonPluginLifecycle {
         return !removal && enabled && generation == request;
     }
 
+    synchronized boolean isRunning(long request) {
+        return !removal && enabled && generation == request && state == State.RUNNING;
+    }
+
+    synchronized boolean commitIfRunning(long request, Runnable operation) {
+        if (!isRunning(request)) {
+            return false;
+        }
+
+        operation.run();
+        return true;
+    }
+
     synchronized boolean fail(long request) {
         if (removal || generation != request) {
             return false;

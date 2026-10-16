@@ -56,6 +56,7 @@
 #-dontobfuscate
 
 -keep class org.telegram.messenger.plugins.** { *; }
+-keep class de.robv.android.xposed.** { *; }
 -keep class org.telegram.ui.ChatActivity { *; }
 -keep class org.telegram.ui.ChatActivity$* { *; }
 -keep class org.telegram.ui.LaunchActivity { *; }

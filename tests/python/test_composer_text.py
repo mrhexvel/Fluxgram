@@ -33,7 +33,7 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 21", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 22", manifest)
         enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()

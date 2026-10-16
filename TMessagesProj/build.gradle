@@ -57,6 +57,7 @@ dependencies {
     implementation 'androidx.car.app:app:1.4.0'
     implementation 'androidx.car.app:app-projected:1.4.0'
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'com.aliucord:Aliuhook:1.1.4'
 
     compileOnly 'org.checkerframework:checker-qual:2.5.2'
     compileOnly 'org.checkerframework:checker-compat-qual:2.5.0'

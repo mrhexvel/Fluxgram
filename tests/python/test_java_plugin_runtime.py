@@ -10,6 +10,34 @@ SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins"
 
 
 class JavaPluginRuntimeTest(unittest.TestCase):
+    def test_managed_method_hooks_fallback_attribution_and_cleanup(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        sources = [
+            SOURCE / "api/JavaMethodHook.java",
+            SOURCE / "api/JavaMethodHookCall.java",
+            SOURCE / "api/JavaMethodHookRegistration.java",
+            ROOT / "tests/java/hook_stubs/de/robv/android/xposed/XC_MethodHook.java",
+            ROOT / "tests/java/hook_stubs/de/robv/android/xposed/XposedBridge.java",
+            ROOT / "tests/java/hook_stubs/org/telegram/messenger/FileLog.java",
+            ROOT / "tests/java/hook_stubs/org/telegram/messenger/plugins/PluginCrashRecovery.java",
+            SOURCE / "ManagedMethodHooks.java",
+            ROOT / "tests/java/ManagedMethodHooksCheck.java",
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(
+                ["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["java", "-cp", directory, "org.telegram.messenger.plugins.ManagedMethodHooksCheck"],
+                check=True,
+                capture_output=True,
+            )
+
     def test_managed_ui_scope_hierarchy_recreate_and_retry(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")

@@ -3,6 +3,8 @@ package org.telegram.messenger.plugins;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginModule;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.JavaMethodHook;
+import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
 import org.telegram.messenger.plugins.api.ComposerContentEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerEffect;
@@ -12,6 +14,7 @@ import org.telegram.messenger.plugins.api.ComposerTextEffect;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.lang.reflect.Member;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class JavaPluginSessionCheck {
@@ -79,6 +82,9 @@ public final class JavaPluginSessionCheck {
         int selectionRegistrations;
         int contentRegistrations;
         int lowLevelRegistrations;
+        int hookRegistrations;
+        int hookCloses;
+        AutoCloseable pendingHookCleanup;
 
         @Override
         public boolean isActive(long value) {
@@ -107,6 +113,49 @@ public final class JavaPluginSessionCheck {
 
         @Override
         public void log(String message) {
+        }
+
+        @Override
+        public JavaMethodHookRegistration registerMethodHook(long value,
+                Member member, int priority, JavaMethodHook hook) {
+            check(value == generation && member != null && hook != null,
+                    "method hook registration identity");
+            check(priority == JavaMethodHook.PRIORITY_DEFAULT, "method hook priority");
+            hookRegistrations++;
+
+            return new JavaMethodHookRegistration() {
+                private boolean active = true;
+
+                @Override
+                public Member getMember() {
+                    return member;
+                }
+
+                @Override
+                public boolean isActive() {
+                    return active;
+                }
+
+                @Override
+                public void close() {
+                    if (active) {
+                        active = false;
+                        hookCloses++;
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void releaseMethodHookResource(JavaMethodHookRegistration registration,
+                AutoCloseable resource) {
+            try {
+                registration.close();
+            } catch (Exception error) {
+                throw new IllegalStateException(error);
+            }
+
+            pendingHookCleanup = resource;
         }
 
         @Override
@@ -213,6 +262,31 @@ public final class JavaPluginSessionCheck {
         check(host.selectionRegistrations == 1, "selection effect registration was not delegated");
         context.registerComposerContentEffect(surface -> null);
         check(host.contentRegistrations == 1, "content effect registration was not delegated");
+        Member hookMember = JavaPluginSessionCheck.class.getDeclaredMethod("hookTarget", int.class);
+        JavaMethodHookRegistration hookRegistration = context.registerMethodHook(
+                hookMember, new JavaMethodHook() {});
+        check(host.hookRegistrations == 1 && hookRegistration.getMember() == hookMember,
+                "method hook registration was not delegated");
+        hookRegistration.close();
+        check(host.hookCloses == 1 && !hookRegistration.isActive(),
+                "method hook registration was not closed");
+        JavaMethodHookRegistration foreignHook = context.registerMethodHook(
+                hookMember, new JavaMethodHook() {});
+        AtomicReference<Throwable> hookThreadFailure = new AtomicReference<>();
+        Thread hookThread = new Thread(() -> {
+            try {
+                foreignHook.close();
+            } catch (Throwable error) {
+                hookThreadFailure.set(error);
+            }
+        });
+        hookThread.start();
+        hookThread.join();
+        check(hookThreadFailure.get() == null && !foreignHook.isActive(),
+                "foreign method hook close");
+        check(host.pendingHookCleanup != null, "foreign method hook cleanup was not scheduled");
+        host.pendingHookCleanup.close();
+        host.pendingHookCleanup = null;
         ((LowLevelJavaPluginContext) context).registerLowLevelUiResource(
                 "test.renderer", new Object());
         check(host.lowLevelRegistrations == 1, "low-level registration was not delegated");
@@ -225,6 +299,7 @@ public final class JavaPluginSessionCheck {
         rejects(() -> context.registerComposerCursorEffect(surface -> null));
         rejects(() -> context.registerComposerSelectionEffect(surface -> null));
         rejects(() -> context.registerComposerContentEffect(surface -> null));
+        rejects(() -> context.registerMethodHook(hookMember, new JavaMethodHook() {}));
         rejects(() -> ((LowLevelJavaPluginContext) context).registerLowLevelUiResource(
                 "test.renderer", new Object()));
         rejects(() -> context.readIntSetting("count", 0));
@@ -294,6 +369,10 @@ public final class JavaPluginSessionCheck {
         rejects(broken::start);
         rejects(() -> broken.settingChanged("key", true));
         rejects(broken::close);
+    }
+
+    private static int hookTarget(int value) {
+        return value + 1;
     }
 
     private static void rejects(AutoCloseable action) throws Exception {

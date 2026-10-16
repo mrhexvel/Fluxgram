@@ -18,6 +18,24 @@ repositories {
     google()
 }
 
+configure([
+        project(':TMessagesProj'),
+        project(':TMessagesProj_App'),
+        project(':TMessagesProj_AppHuawei'),
+        project(':TMessagesProj_AppHockeyApp'),
+        project(':TMessagesProj_AppStandalone'),
+        project(':TMessagesProj_AppTests')
+]) {
+    repositories {
+        maven {
+            url 'https://maven.aliucord.com/releases'
+            content {
+                includeGroupByRegex 'com\\.aliucord(\\..*)?'
+            }
+        }
+    }
+}
+
 // Strip JLatexMath fonts we don't ship (transitive AAR assets from
 // io.noties.markwon:ext-latex -> ru.noties:jlatexmath-android, ~764 KB total under
 // assets/org/scilab/forge/jlatexmath/fonts/). Has to live in the APK modules — a

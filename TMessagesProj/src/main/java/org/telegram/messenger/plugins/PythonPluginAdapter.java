@@ -13,6 +13,8 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.telegram.messenger.plugins.api.JavaMethodHook;
+import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
 import org.telegram.messenger.plugins.api.ComposerContentEffect;
 import org.telegram.messenger.plugins.api.ComposerCursorEffect;
 import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
@@ -23,6 +25,7 @@ import org.telegram.messenger.plugins.packages.PluginPackageStore;
 import java.io.File;
 import java.io.IOException;
 
+import java.lang.reflect.Member;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -554,6 +557,38 @@ public final class PythonPluginAdapter implements Plugin {
             }
 
             @Override
+            public JavaMethodHookRegistration registerMethodHook(long generation,
+                    Member member, int priority, JavaMethodHook hook) {
+                if (!lifecycle.isCurrent(generation)) {
+                    throw new IllegalStateException("Java method hook generation is inactive");
+                }
+
+                return ManagedMethodHooks.register(
+                        id,
+                        new ManagedMethodHooks.Lifecycle() {
+                            @Override
+                            public boolean isActive() {
+                                return lifecycle.isRunning(generation);
+                            }
+
+                            @Override
+                            public boolean commit(Runnable operation) {
+                                return lifecycle.commitIfRunning(generation, operation);
+                            }
+                        },
+                        member,
+                        priority,
+                        hook);
+            }
+
+            @Override
+            public void releaseMethodHookResource(JavaMethodHookRegistration registration,
+                    AutoCloseable resource) {
+                ManagedMethodHooks.deactivate(registration);
+                enqueueMethodHookCleanup(resource, 0, true);
+            }
+
+            @Override
             public JavaPluginUiResource registerUiResource(long generation, JavaPluginUiResource.Factory factory) {
                 if (!lifecycle.isCurrent(generation)) {
                     throw new IllegalStateException("Java UI generation is inactive");
@@ -638,6 +673,38 @@ public final class PythonPluginAdapter implements Plugin {
                         id, generation, () -> lifecycle.isCurrent(generation), factory));
             }
         };
+    }
+
+    private void enqueueMethodHookCleanup(
+            AutoCloseable resource, int attempt, boolean reportRejection) {
+        try {
+            executeControl(() -> {
+                try {
+                    resource.close();
+                } catch (Exception | LinkageError | AssertionError error) {
+                    Log.e(TAG, "[" + id + "] Method hook cleanup failed", error);
+                    scheduleMethodHookCleanup(resource, attempt + 1);
+                }
+            });
+        } catch (RejectedExecutionException error) {
+            scheduleMethodHookCleanup(resource, attempt + 1);
+
+            if (reportRejection) {
+                throw error;
+            }
+
+            Log.w(TAG, "[" + id + "] Method hook cleanup rejected", error);
+        }
+    }
+
+    private void scheduleMethodHookCleanup(AutoCloseable resource, int attempt) {
+        if (lifecycle.getState() == PythonPluginLifecycle.State.TERMINATED) {
+            return;
+        }
+
+        long delay = Math.min(1_000L, 50L << Math.min(attempt, 4));
+        UI_HANDLER.postDelayed(
+                () -> enqueueMethodHookCleanup(resource, attempt, false), delay);
     }
 
     public java.util.List<PluginSettings.Setting> getSettingsSchema() {

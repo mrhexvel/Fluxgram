@@ -1,5 +1,7 @@
 package org.telegram.messenger.plugins.api;
 
+import java.lang.reflect.Member;
+
 public interface JavaPluginContext {
     String getPluginId();
 
@@ -8,6 +10,15 @@ public interface JavaPluginContext {
     boolean isActive();
 
     AutoCloseable registerResource(AutoCloseable resource);
+
+    default JavaMethodHookRegistration registerMethodHook(Member member, JavaMethodHook hook) {
+        return registerMethodHook(member, JavaMethodHook.PRIORITY_DEFAULT, hook);
+    }
+
+    default JavaMethodHookRegistration registerMethodHook(
+            Member member, int priority, JavaMethodHook hook) {
+        throw new UnsupportedOperationException("Method hooks require Java API 1.22");
+    }
 
     default JavaPluginUiResource registerUiResource(JavaPluginUiResource.Factory factory) {
         throw new UnsupportedOperationException("Java UI resources require API 1.1");
