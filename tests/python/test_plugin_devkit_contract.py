@@ -48,6 +48,9 @@ class PluginDevkitContractTest(unittest.TestCase):
         self.assertEqual(metadata["host_validator_sha256"], validator_digest.hexdigest())
         artifact = ARTIFACTS / f"fluxgram-java-api-{major}.{minor}.jar"
         self.assertEqual(metadata["sha256"], hashlib.sha256(artifact.read_bytes()).hexdigest())
+        sources_artifact = ARTIFACTS / f"fluxgram-java-api-{major}.{minor}-sources.jar"
+        self.assertEqual(metadata["sources_jar_sha256"],
+                         hashlib.sha256(sources_artifact.read_bytes()).hexdigest())
 
         with zipfile.ZipFile(artifact) as archive:
             classes = [name for name in archive.namelist() if name.endswith(".class")]
@@ -56,6 +59,16 @@ class PluginDevkitContractTest(unittest.TestCase):
         self.assertTrue(all(name.startswith("org/fluxgram/") for name in classes))
         self.assertIn("org/fluxgram/JavaPluginModule.class", classes)
         self.assertIn("org/fluxgram/ComposerSurface.class", classes)
+
+        with zipfile.ZipFile(sources_artifact) as archive:
+            sources = {name: archive.read(name) for name in archive.namelist()}
+
+        expected_sources = {
+            f"org/fluxgram/{path.name}": path.read_bytes()
+            for path in API_SOURCE.glob("*.java")
+        }
+        self.assertEqual(sources, expected_sources)
+        self.assertTrue(all(b"/**" in source for source in sources.values()))
 
     def test_template_does_not_bundle_host_sdks(self):
         template = ROOT / "sdk/python/devkit/src/fluxgram_devkit/templates/hybrid"
