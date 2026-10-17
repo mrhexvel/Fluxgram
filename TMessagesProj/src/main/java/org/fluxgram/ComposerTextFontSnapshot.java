@@ -1,5 +1,9 @@
 package org.fluxgram;
 
+/**
+ * Immutable neutral text-paint metadata for a layout snapshot.
+ * It does not identify or guarantee a concrete typeface family.
+ */
 public final class ComposerTextFontSnapshot {
     public final float textSize;
     public final float scaleX;
@@ -13,6 +17,10 @@ public final class ComposerTextFontSnapshot {
     public final String featureSettings;
     public final String variationSettings;
 
+    /**
+     * Creates font metadata copied from the active Android {@code TextPaint}; text size is in
+     * physical pixels and color is ARGB.
+     */
     public ComposerTextFontSnapshot(float textSize, float scaleX, float skewX, float letterSpacing,
             int flags, int color, int typefaceStyle, int typefaceWeight,
             String locales, String featureSettings, String variationSettings) {

@@ -1,5 +1,6 @@
 package org.fluxgram;
 
+/** Semantic haptic feedback types accepted by {@link ComposerSurface#performHapticFeedback(int)}. */
 public final class ComposerHapticFeedback {
     public static final int TICK = 1;
     public static final int IMPACT = 2;

@@ -1,6 +1,8 @@
 package org.fluxgram;
 
+/** Immutable insertion mapped exactly to a contiguous range of final-layout shaping clusters. */
 public final class ComposerTextInsertion {
+    /** Maximum cluster count delivered for one insertion. */
     public static final int MAX_CLUSTERS = 64;
 
     public final long revision;
@@ -12,6 +14,10 @@ public final class ComposerTextInsertion {
     public final int firstCluster;
     public final int clusterCount;
 
+    /**
+     * Creates an insertion. Text offsets/counts are UTF-16 units; {@code firstCluster} and
+     * {@code clusterCount} index {@code layout}'s cluster array and cover the full inserted range.
+     */
     public ComposerTextInsertion(long revision, ComposerTextLayoutSnapshot layout,
             int start, int removedCount, int insertedCount, boolean coalesced,
             int firstCluster, int clusterCount) {
