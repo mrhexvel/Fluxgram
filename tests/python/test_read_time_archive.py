@@ -66,6 +66,17 @@ class ReadTimeArchiveTest(unittest.TestCase):
         self.assertIn("mid > 0 AND mid <= ?", (SOURCE / "ReadTimeArchive.java").read_text())
         self.assertIn("out = 1 AND read_state IN(0, 2)", (SOURCE / "ReadTimeArchive.java").read_text())
 
+    def test_lookup_is_storage_queued_and_owner_scoped(self):
+        archive = (SOURCE / "ReadTimeArchive.java").read_text()
+
+        self.assertIn("MessagesStorage.getInstance(account).getStorageQueue().postRunnable", archive)
+        self.assertIn(
+            "SELECT read_at, exact FROM read_times WHERE owner = ? AND dialog = ? AND message = ? LIMIT 1",
+            archive,
+        )
+        self.assertIn("owner == UserConfig.getInstance(account).getClientUserId()", archive)
+        self.assertIn("AndroidUtilities.runOnUIThread", archive)
+
     def test_setting_timestamp_and_logout_are_wired(self):
         archive = (SOURCE / "ReadTimeArchive.java").read_text()
         activity = STEALTH_ACTIVITY.read_text()

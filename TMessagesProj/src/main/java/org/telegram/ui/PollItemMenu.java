@@ -55,6 +55,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.fluxgram.ReadTimeArchive;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
@@ -69,6 +70,7 @@ import org.telegram.ui.Components.AudioVisualizerDrawable;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
+import org.telegram.ui.Components.FluxGramReadTimeCell;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.MessagePreviewView;
@@ -623,6 +625,8 @@ public class PollItemMenu extends Dialog {
         final boolean showMessageSeen = !isReactionsViewAvailable && !chatActivity.isInScheduleMode() && chatActivity.currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(chatActivity.getCurrentAccount()).getCurrentTime() - message.messageOwner.date < chatActivity.getMessagesController().chatReadMarkExpirePeriod) && (ChatObject.isMegagroup(chatActivity.currentChat) || !ChatObject.isChannel(chatActivity.currentChat)) && chatActivity.chatInfo != null && chatActivity.chatInfo.participants_count <= chatActivity.getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && chatActivity.getChatMode() != ChatActivity.MODE_SAVED && message.canSetReaction() && !ChatObject.isMonoForum(chatActivity.currentChat);
         final boolean showMessageAuthor = chatActivity.currentChat != null && !message.isOut() && ChatObject.isMonoForum(chatActivity.currentChat) && ChatObject.canManageMonoForum(chatActivity.getCurrentAccount(), chatActivity.currentChat) && -chatActivity.currentChat.linked_monoforum_id == message.getFromChatId();
         final boolean showPrivateMessageSeen = !isReactionsViewAvailable && chatActivity.currentChat == null && chatActivity.currentEncryptedChat == null && (chatActivity.currentUser != null && !UserObject.isUserSelf(chatActivity.currentUser) && !UserObject.isReplyUser(chatActivity.currentUser) && !UserObject.isAnonymous(chatActivity.currentUser) && !chatActivity.currentUser.bot && !UserObject.isService(chatActivity.currentUser.id)) && (chatActivity.userInfo == null || !chatActivity.userInfo.read_dates_private) && !chatActivity.isInScheduleMode() && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (chatActivity.getConnectionsManager().getCurrentTime() - message.messageOwner.date < chatActivity.getMessagesController().pmReadDateExpirePeriod) && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
+        final ReadTimeArchive.Entry localReadTime = chatActivity.getLocalReadTime(message);
+        final boolean showLocalReadTime = !showPrivateMessageSeen && localReadTime != null;
         final boolean showPrivateMessageEdit = (chatActivity.currentUser == null || !UserObject.isReplyUser(chatActivity.currentUser) && !UserObject.isAnonymous(chatActivity.currentUser)) && !chatActivity.isInScheduleMode() && message.isEdited() && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
         ItemOptions messageOptions = ItemOptions.makeOptions(containerView, chatActivity.getResourceProvider(), null, isReactionsViewAvailable || showMessageSeen);
 
@@ -703,6 +707,9 @@ public class PollItemMenu extends Dialog {
                 dismiss(false);
             }, resourcesProvider);
             messageOptions.addView(messagePrivateSeenView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 36));
+            messageOptions.addGap();
+        } else if (showLocalReadTime) {
+            messageOptions.addView(new FluxGramReadTimeCell(getContext(), localReadTime, resourcesProvider));
             messageOptions.addGap();
         } else if (showPrivateMessageEdit) {
             MessagePrivateSeenView messagePrivateSeenView = new MessagePrivateSeenView(getContext(), MessagePrivateSeenView.TYPE_EDIT, message, () -> {

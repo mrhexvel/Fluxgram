@@ -399,6 +399,8 @@
     <string name="FluxGramStealthBots">Сохранять и в чатах с ботами</string>
     <string name="FluxGramStealthReadDate">Запоминать время прочтения</string>
     <string name="FluxGramStealthReadDateInfo">Локальная запись времени прочтения, если эта информация позже станет недоступна в Telegram.</string>
+    <string name="FluxGramReadTimeConfirmation">Подтверждение прочтения</string>
+    <string name="FluxGramReadTimeObserved">На устройстве: %1$s</string>
     <string name="FluxGramStealthAttachments">Вложения</string>
     <string name="FluxGramStealthSaveAttachments">Сохранять вложения</string>
     <string name="FluxGramStealthAttachmentOptions">Выбор чатов и условий сохранения</string>

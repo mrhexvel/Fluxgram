@@ -9,6 +9,7 @@ import android.util.SparseBooleanArray;
 import android.util.SparseIntArray;
 
 import org.telegram.SQLite.SQLiteCursor;
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MessagesStorage;
@@ -18,6 +19,7 @@ import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.tgnet.TLRPC;
 
 import java.io.File;
+import java.util.function.Consumer;
 
 public final class ReadTimeArchive {
     private static final String OWNER = "owner";
@@ -27,6 +29,16 @@ public final class ReadTimeArchive {
     private static final SparseBooleanArray trimInitialized = new SparseBooleanArray();
 
     private ReadTimeArchive() {
+    }
+
+    public static final class Entry {
+        public final int readAt;
+        public final boolean exact;
+
+        private Entry(int readAt, boolean exact) {
+            this.readAt = readAt;
+            this.exact = exact;
+        }
     }
 
     public static synchronized boolean isEnabled(int account) {
@@ -155,6 +167,41 @@ public final class ReadTimeArchive {
                 }
             }
         }
+    }
+
+    public static void load(int account, long dialog, int message, Consumer<Entry> callback) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+
+        MessagesStorage.getInstance(account).getStorageQueue().postRunnable(() -> {
+            Entry result = null;
+
+            try {
+                if (owner != 0 && databaseFile(account).exists()) {
+                    try (SQLiteDatabase database = open(account);
+                            Cursor cursor = database.rawQuery(
+                                    "SELECT read_at, exact FROM read_times WHERE owner = ? AND dialog = ? AND message = ? LIMIT 1",
+                                    new String[] {
+                                            Long.toString(owner),
+                                            Long.toString(dialog),
+                                            Integer.toString(message)
+                                    })) {
+                        if (cursor.moveToFirst() && cursor.getInt(0) > 0) {
+                            result = new Entry(cursor.getInt(0), cursor.getInt(1) != 0);
+                        }
+                    }
+                }
+            } catch (Exception error) {
+                FileLog.e(error);
+            }
+
+            Entry entry = result;
+
+            AndroidUtilities.runOnUIThread(() -> {
+                if (owner == UserConfig.getInstance(account).getClientUserId()) {
+                    callback.accept(entry);
+                }
+            });
+        });
     }
 
     public static synchronized void clearAccount(int account) {

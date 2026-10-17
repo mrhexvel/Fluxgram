@@ -11371,6 +11371,8 @@
     <string name="FluxGramStealthBots">Also keep history in bot chats</string>
     <string name="FluxGramStealthReadDate">Remember read times</string>
     <string name="FluxGramStealthReadDateInfo">A local record of read times for when this information is no longer available in Telegram.</string>
+    <string name="FluxGramReadTimeConfirmation">Read confirmation</string>
+    <string name="FluxGramReadTimeObserved">On this device: %1$s</string>
     <string name="FluxGramStealthAttachments">Attachments</string>
     <string name="FluxGramStealthSaveAttachments">Keep attachments</string>
     <string name="FluxGramStealthAttachmentOptions">Choose chats and saving preferences</string>

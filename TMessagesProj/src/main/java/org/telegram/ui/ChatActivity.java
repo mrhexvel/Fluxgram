@@ -122,7 +122,8 @@ import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
-import org.telegram.ui.fluxgram.EditHistoryMenuController;
+import org.telegram.messenger.fluxgram.ReadTimeArchive;
+import org.telegram.ui.fluxgram.MessageMenuMetadataController;
 import org.telegram.ui.fluxgram.FluxGramComposerController;
 import org.telegram.ui.fluxgram.ChatSelectionActionController;
 import org.telegram.ui.Components.EditTextCaption;
@@ -3369,6 +3370,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onFragmentDestroy() {
+        messageMenuMetadataController.cancel();
         pluginChatLifecycle.onDestroyed();
         if (pluginSelectionActions != null) {
             pluginSelectionActions.destroy();
@@ -30373,7 +30375,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onPause() {
-        historyMenuController.cancel();
+        messageMenuMetadataController.cancel();
 
         super.onPause();
         scrolling = false;
@@ -31037,13 +31039,51 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    private final EditHistoryMenuController historyMenuController = new EditHistoryMenuController();
+    private final MessageMenuMetadataController messageMenuMetadataController = new MessageMenuMetadataController();
 
-    private boolean prepareHistoryMenu(View cell, MessageObject message, Runnable openMenu) {
-        return historyMenuController.prepare(currentAccount, cell, message,
+    private boolean prepareMessageMenu(View cell, MessageObject message, boolean allowReadTime,
+            Runnable openMenu) {
+        return messageMenuMetadataController.prepare(currentAccount, cell, message,
                 chatMode == MODE_DEFAULT && currentEncryptedChat == null,
+                allowReadTime && canLoadLocalReadTime(message),
                 () -> !isPaused && !isFinishing() && getParentActivity() != null,
                 openMenu);
+    }
+
+    private boolean canLoadLocalReadTime(MessageObject message) {
+        return message != null
+                && message.currentAccount == currentAccount
+                && message.messageOwner != null
+                && chatMode == MODE_DEFAULT
+                && currentChat == null
+                && currentEncryptedChat == null
+                && currentUser != null
+                && !UserObject.isUserSelf(currentUser)
+                && !UserObject.isReplyUser(currentUser)
+                && !UserObject.isAnonymous(currentUser)
+                && !currentUser.bot
+                && !UserObject.isService(currentUser.id)
+                && dialog_id > 0
+                && message.getDialogId() == dialog_id
+                && message.getId() > 0
+                && !message.scheduled
+                && !message.messageOwner.fluxgramDeleted
+                && !message.isEphemeral()
+                && message.isOutOwner()
+                && message.isSent()
+                && !message.isEditing()
+                && !message.isSending()
+                && !message.isSendError()
+                && !message.isContentUnread()
+                && !message.isUnread()
+                && (userInfo != null && userInfo.read_dates_private
+                        || getConnectionsManager().getCurrentTime() - message.messageOwner.date
+                        >= getMessagesController().pmReadDateExpirePeriod)
+                && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
+    }
+
+    ReadTimeArchive.Entry getLocalReadTime(MessageObject message) {
+        return messageMenuMetadataController.getReadTime(message);
     }
 
     private boolean createMenu(View v, boolean single, boolean listView, float x, float y, boolean longpress) {
@@ -31118,7 +31158,7 @@ public class ChatActivity extends BaseFragment implements
         }
         final boolean singleMessageMenu = single;
 
-        if (prepareHistoryMenu(v, message,
+        if (prepareMessageMenu(v, message, !suggestEdit,
                 () -> createMenu(v, singleMessageMenu, listView, x, y, searchGroup, longpress, suggestEdit))) {
             return true;
         }
@@ -31468,6 +31508,8 @@ public class ChatActivity extends BaseFragment implements
             final boolean showMessageSeen = !isArchivedMessage && !suggestEdit && !isEphemeral && !isReactionsViewAvailable && !isInScheduleMode() && currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().chatReadMarkExpirePeriod) && (ChatObject.isMegagroup(currentChat) || !ChatObject.isChannel(currentChat)) && chatInfo != null && chatInfo.participants_count <= getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && chatMode != MODE_SAVED && message.canSetReaction() && !ChatObject.isMonoForum(currentChat);
             final boolean showMessageAuthor = !suggestEdit && !isEphemeral && currentChat != null && !message.isOut() && ChatObject.isMonoForum(currentChat) && ChatObject.canManageMonoForum(currentAccount, currentChat) && -currentChat.linked_monoforum_id == message.getFromChatId();
             final boolean showPrivateMessageSeen = !isArchivedMessage && !suggestEdit && !isEphemeral && !isReactionsViewAvailable && currentChat == null && currentEncryptedChat == null && (currentUser != null && !UserObject.isUserSelf(currentUser) && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser) && !currentUser.bot && !UserObject.isService(currentUser.id)) && (userInfo == null || !userInfo.read_dates_private) && !isInScheduleMode() && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().pmReadDateExpirePeriod) && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
+            final ReadTimeArchive.Entry localReadTime = getLocalReadTime(message);
+            final boolean showLocalReadTime = !showPrivateMessageSeen && localReadTime != null;
             final boolean showPrivateMessageEdit = !suggestEdit && !isEphemeral && (currentUser == null || !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) && !isInScheduleMode() && message.isEdited() && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
             final boolean showPrivateMessageFwdOriginal = !suggestEdit && !isEphemeral && false && (currentUser == null || !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) && !isInScheduleMode() && message.isForwarded() && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
             final boolean showSponsorInfo = !suggestEdit && !isEphemeral && selectedObject != null && selectedObject.isSponsored() && (selectedObject.sponsoredInfo != null || selectedObject.sponsoredAdditionalInfo != null || selectedObject.sponsoredUrl != null && !selectedObject.sponsoredUrl.startsWith("https://" + getMessagesController().linkPrefix));
@@ -31925,6 +31967,12 @@ public class ChatActivity extends BaseFragment implements
                         closeMenu(true);
                     }, themeDelegate);
                     popupLayout.addView(messagePrivateSeenView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 36));
+                    addGap = true;
+                } else if (showLocalReadTime) {
+                    popupLayout.addView(
+                            new FluxGramReadTimeCell(getContext(), localReadTime, themeDelegate),
+                            LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT)
+                    );
                     addGap = true;
                 }
                 if (showPrivateMessageEdit) {
@@ -40683,7 +40731,8 @@ public class ChatActivity extends BaseFragment implements
             if (!(_media instanceof TLRPC.TL_messageMediaToDo)) return false;
             final TLRPC.TL_messageMediaToDo media = (TLRPC.TL_messageMediaToDo) _media;
 
-            if (prepareHistoryMenu(cell, messageObject, () -> didLongPressToDoButton(cell, task))) {
+            if (prepareMessageMenu(cell, messageObject, true,
+                    () -> didLongPressToDoButton(cell, task))) {
                 return true;
             }
 
@@ -40991,7 +41040,8 @@ public class ChatActivity extends BaseFragment implements
             if (!(_media instanceof TLRPC.TL_messageMediaPoll)) return false;
             final TLRPC.TL_messageMediaPoll media = (TLRPC.TL_messageMediaPoll) _media;
 
-            if (prepareHistoryMenu(cell, messageObject, () -> didLongPressPollOption(cell, answer))) {
+            if (prepareMessageMenu(cell, messageObject, true,
+                    () -> didLongPressPollOption(cell, answer))) {
                 return true;
             }
 
@@ -46158,7 +46208,7 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_COPY);
             icons.add(R.drawable.msg_copy);
 
-            if (historyMenuController.hasVersions(message)) {
+            if (messageMenuMetadataController.hasVersions(message)) {
                 items.add(LocaleController.getString(R.string.FluxGramEditHistory));
                 options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
                 icons.add(R.drawable.msg_recent);
@@ -46172,7 +46222,7 @@ public class ChatActivity extends BaseFragment implements
 
 
         if (chatMode == MODE_DEFAULT && currentEncryptedChat == null && !isEphemeral
-                && historyMenuController.hasVersions(message)) {
+                && messageMenuMetadataController.hasVersions(message)) {
             items.add(LocaleController.getString(R.string.FluxGramEditHistory));
             options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
             icons.add(R.drawable.msg_recent);
