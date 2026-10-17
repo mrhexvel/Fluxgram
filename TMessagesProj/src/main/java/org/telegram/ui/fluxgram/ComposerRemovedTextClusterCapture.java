@@ -3,11 +3,11 @@ package org.telegram.ui.fluxgram;
 import android.graphics.Canvas;
 
 import org.telegram.messenger.plugins.ComposerInputRendererHostSurface;
-import org.telegram.messenger.plugins.api.ComposerTextCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextLayers;
+import org.fluxgram.ComposerTextCapture;
+import org.fluxgram.ComposerTextClusterPresentation;
+import org.fluxgram.ComposerTextClusterSnapshot;
+import org.fluxgram.ComposerTextLayoutSnapshot;
+import org.fluxgram.ComposerTextLayers;
 import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.ArrayList;

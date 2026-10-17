@@ -21,8 +21,8 @@ import android.view.View;
 import android.view.inputmethod.BaseInputConnection;
 
 import org.telegram.messenger.plugins.PluginComposerRegistry;
-import org.telegram.messenger.plugins.api.ComposerTextCandidate;
-import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.fluxgram.ComposerTextCandidate;
+import org.fluxgram.ComposerTextPresentation;
 import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.function.Consumer;

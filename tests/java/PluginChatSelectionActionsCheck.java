@@ -1,8 +1,8 @@
 package org.telegram.messenger.plugins;
 
 import org.telegram.messenger.R;
-import org.telegram.messenger.plugins.api.ChatSelectionAction;
-import org.telegram.messenger.plugins.api.ChatSelectionMessageSnapshot;
+import org.fluxgram.ChatSelectionAction;
+import org.fluxgram.ChatSelectionMessageSnapshot;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;

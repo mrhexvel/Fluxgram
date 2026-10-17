@@ -1,8 +1,8 @@
 package org.telegram.messenger.plugins;
 
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.plugins.api.ChatSelectionAction;
-import org.telegram.messenger.plugins.api.ChatSelectionMessageSnapshot;
+import org.fluxgram.ChatSelectionAction;
+import org.fluxgram.ChatSelectionMessageSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;

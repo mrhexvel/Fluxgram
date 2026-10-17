@@ -7,7 +7,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.plugins.PluginChatSelectionActions;
-import org.telegram.messenger.plugins.api.ChatSelectionMessageSnapshot;
+import org.fluxgram.ChatSelectionMessageSnapshot;
 import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 

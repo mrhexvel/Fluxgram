@@ -11,8 +11,8 @@ import android.text.Layout;
 import android.text.TextUtils;
 
 import org.telegram.messenger.plugins.PluginComposerRegistry;
-import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
-import org.telegram.messenger.plugins.api.ComposerSelectionSnapshot;
+import org.fluxgram.ComposerSelectionPresentation;
+import org.fluxgram.ComposerSelectionSnapshot;
 import org.telegram.ui.Components.EditTextCaption;
 
 final class ComposerSelectionCapture implements PluginComposerRegistry.SelectionCapture {

@@ -69,6 +69,7 @@ public final class PluginDexValidator {
             int offset = dex.getInt(stringsOffset + string * 4);
             String descriptor = descriptor(data, offset);
             require(!descriptor.startsWith("Lorg/telegram/")
+                    && !descriptor.startsWith("Lorg/fluxgram/")
                     && !descriptor.startsWith("Landroid/")
                     && !descriptor.startsWith("Ljava/")
                     && !descriptor.startsWith("Ljavax/")

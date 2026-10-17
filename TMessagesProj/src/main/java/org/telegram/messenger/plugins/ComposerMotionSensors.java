@@ -8,7 +8,7 @@ import android.hardware.SensorManager;
 import android.util.Log;
 
 import org.telegram.messenger.ApplicationLoader;
-import org.telegram.messenger.plugins.api.ComposerMotionSnapshot;
+import org.fluxgram.ComposerMotionSnapshot;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;

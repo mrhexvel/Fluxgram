@@ -1,16 +1,16 @@
 package org.telegram.messenger.plugins;
 
-import org.telegram.messenger.plugins.api.JavaPluginContext;
-import org.telegram.messenger.plugins.api.JavaPluginModule;
-import org.telegram.messenger.plugins.api.JavaPluginUiResource;
-import org.telegram.messenger.plugins.api.JavaMethodHook;
-import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
-import org.telegram.messenger.plugins.api.ChatSelectionAction;
-import org.telegram.messenger.plugins.api.ComposerContentEffect;
-import org.telegram.messenger.plugins.api.ComposerEffect;
-import org.telegram.messenger.plugins.api.ComposerCursorEffect;
-import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
-import org.telegram.messenger.plugins.api.ComposerTextEffect;
+import org.fluxgram.JavaPluginContext;
+import org.fluxgram.JavaPluginModule;
+import org.fluxgram.JavaPluginUiResource;
+import org.fluxgram.JavaMethodHook;
+import org.fluxgram.JavaMethodHookRegistration;
+import org.fluxgram.ChatSelectionAction;
+import org.fluxgram.ComposerContentEffect;
+import org.fluxgram.ComposerEffect;
+import org.fluxgram.ComposerCursorEffect;
+import org.fluxgram.ComposerSelectionEffect;
+import org.fluxgram.ComposerTextEffect;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Member;

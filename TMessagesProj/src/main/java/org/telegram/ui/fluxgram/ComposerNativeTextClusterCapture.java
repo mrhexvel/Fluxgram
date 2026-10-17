@@ -6,12 +6,12 @@ import android.util.Log;
 
 import org.telegram.messenger.plugins.ComposerInputRendererHostSurface;
 import org.telegram.messenger.plugins.PluginComposerRegistry;
-import org.telegram.messenger.plugins.api.ComposerTextCandidate;
-import org.telegram.messenger.plugins.api.ComposerTextCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
-import org.telegram.messenger.plugins.api.ComposerTextLayers;
-import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.fluxgram.ComposerTextCandidate;
+import org.fluxgram.ComposerTextCapture;
+import org.fluxgram.ComposerTextClusterPresentation;
+import org.fluxgram.ComposerTextClusterSelection;
+import org.fluxgram.ComposerTextLayers;
+import org.fluxgram.ComposerTextPresentation;
 import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.function.Consumer;

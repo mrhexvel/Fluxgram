@@ -4,7 +4,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Looper;
 
-import org.telegram.messenger.plugins.api.JavaPluginModule;
+import org.fluxgram.JavaPluginModule;
 import org.telegram.messenger.plugins.packages.PluginDexValidator;
 import org.telegram.messenger.plugins.packages.PluginManifest;
 

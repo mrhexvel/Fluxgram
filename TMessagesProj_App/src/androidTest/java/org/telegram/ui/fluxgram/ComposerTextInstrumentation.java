@@ -32,16 +32,16 @@ import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
-import org.telegram.messenger.plugins.api.ComposerTextCandidate;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
-import org.telegram.messenger.plugins.api.ComposerTextLayers;
-import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
-import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
-import org.telegram.messenger.plugins.api.ComposerSelectionPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextInsertion;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.fluxgram.ComposerTextCandidate;
+import org.fluxgram.ComposerTextClusterPresentation;
+import org.fluxgram.ComposerTextClusterSelection;
+import org.fluxgram.ComposerTextLayers;
+import org.fluxgram.ComposerCursorPresentation;
+import org.fluxgram.ComposerCursorSnapshot;
+import org.fluxgram.ComposerSelectionPresentation;
+import org.fluxgram.ComposerTextInsertion;
+import org.fluxgram.ComposerTextLayoutSnapshot;
+import org.fluxgram.ComposerTextPresentation;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Components.EditTextCaption;
 

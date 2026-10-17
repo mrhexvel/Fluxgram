@@ -8,7 +8,7 @@ import android.graphics.Paint;
 import android.graphics.Picture;
 
 import org.telegram.messenger.Utilities;
-import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.fluxgram.ComposerTextPresentation;
 
 final class ComposerTextLayer {
     private static final int BLUR_PADDING = (int) ComposerTextPresentation.MAX_BLUR_RADIUS + 1;

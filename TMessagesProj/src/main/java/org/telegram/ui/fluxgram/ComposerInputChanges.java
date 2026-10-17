@@ -1,6 +1,6 @@
 package org.telegram.ui.fluxgram;
 
-import org.telegram.messenger.plugins.api.ComposerInput;
+import org.fluxgram.ComposerInput;
 
 import java.util.Arrays;
 

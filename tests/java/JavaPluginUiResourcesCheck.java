@@ -1,6 +1,6 @@
 package org.telegram.messenger.plugins;
 
-import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.fluxgram.JavaPluginUiResource;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

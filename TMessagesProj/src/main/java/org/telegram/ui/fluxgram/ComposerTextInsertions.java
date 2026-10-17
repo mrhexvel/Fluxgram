@@ -1,8 +1,8 @@
 package org.telegram.ui.fluxgram;
 
-import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextInsertion;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
+import org.fluxgram.ComposerTextClusterSnapshot;
+import org.fluxgram.ComposerTextInsertion;
+import org.fluxgram.ComposerTextLayoutSnapshot;
 
 final class ComposerTextInsertions {
     private ComposerTextInsertions() {

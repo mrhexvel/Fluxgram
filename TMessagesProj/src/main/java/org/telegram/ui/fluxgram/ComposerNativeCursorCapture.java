@@ -4,8 +4,8 @@ import android.graphics.Canvas;
 import android.graphics.Picture;
 
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.plugins.api.ComposerCursorPresentation;
-import org.telegram.messenger.plugins.api.ComposerCursorSnapshot;
+import org.fluxgram.ComposerCursorPresentation;
+import org.fluxgram.ComposerCursorSnapshot;
 
 import java.util.function.Consumer;
 

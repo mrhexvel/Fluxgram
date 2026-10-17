@@ -140,7 +140,7 @@ class PluginPackagesTest(unittest.TestCase):
                 "path": "java/module.dex",
                 "entrypoint": "example.Module",
                 "sha256": hashlib.sha256(data).hexdigest(),
-                "api_version": 1,
+                "api_version": 2,
                 "min_api_minor": 0,
             },
         }
@@ -195,7 +195,7 @@ class PluginPackagesTest(unittest.TestCase):
         fields = self.java_fields(data)
         fields["schema_version"] = 5
         fields["java_module"]["host_fingerprint"] = (
-            "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7"
+            "f2ff60d61f95bb4c1587fecde7d32978e38bbd8c4e3aec2b8d0a9bcdd7e98e6b"
         )
         self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), True)
 
@@ -211,13 +211,13 @@ class PluginPackagesTest(unittest.TestCase):
     def test_java_module_compatibility_and_strict_fields(self):
         data = self.dex_fixture()
 
-        for minor in range(24):
+        for minor in range(1):
             fields = self.java_fields(data)
             fields["java_module"]["min_api_minor"] = minor
             self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), True)
 
         for key, value in (
-            ("api_version", 2), ("min_api_minor", 24), ("min_api_minor", -1),
+            ("api_version", 1), ("min_api_minor", 1), ("min_api_minor", -1),
             ("path", "../module.dex"), ("path", "module.jar"),
             ("entrypoint", "example.Missing"), ("entrypoint", "bad/class"),
             ("sha256", "abc"), ("unknown", "value"),
@@ -233,11 +233,15 @@ class PluginPackagesTest(unittest.TestCase):
             self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), False)
 
         manifest = {**MANIFEST, **self.java_fields(data)}
-        raw = json.dumps(manifest).replace('"api_version": 1', '"api_version": 1, "api_version": 1')
+        raw = json.dumps(manifest).replace('"api_version": 2', '"api_version": 2, "api_version": 2')
         self.validate(self.archive(raw_manifest=raw, entries=[("java/module.dex", data)]), False)
 
     def test_dex_structure_and_host_class_rejection(self):
-        malformed = [b"not dex", self.dex_fixture("Lorg/telegram/messenger/plugins/api/Copy;")]
+        malformed = [
+            b"not dex",
+            self.dex_fixture("Lorg/telegram/messenger/plugins/api/Copy;"),
+            self.dex_fixture("Lorg/fluxgram/Copy;"),
+        ]
 
         for offset in (32, 36, 40, 60, 68, 100, 112, 116, 120):
             data = bytearray(self.dex_fixture())
@@ -532,7 +536,7 @@ class PluginStoreTest(unittest.TestCase):
     def test_installed_incompatible_java_api_remains_visible(self):
         data = PluginPackagesTest.dex_fixture()
         fields = PluginPackagesTest.java_fields(data)
-        fields["java_module"]["api_version"] = 2
+        fields["java_module"]["api_version"] = 1
         manifest = {**MANIFEST, **fields}
         installed = self.root / "installed" / MANIFEST["id"]
         (installed / "java").mkdir(parents=True)

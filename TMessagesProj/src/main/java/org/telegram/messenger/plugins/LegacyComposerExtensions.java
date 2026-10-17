@@ -1,11 +1,11 @@
 package org.telegram.messenger.plugins;
 
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.plugins.api.ComposerContentEffect;
-import org.telegram.messenger.plugins.api.ComposerCursorEffect;
-import org.telegram.messenger.plugins.api.ComposerEffect;
-import org.telegram.messenger.plugins.api.ComposerSelectionEffect;
-import org.telegram.messenger.plugins.api.ComposerTextEffect;
+import org.fluxgram.ComposerContentEffect;
+import org.fluxgram.ComposerCursorEffect;
+import org.fluxgram.ComposerEffect;
+import org.fluxgram.ComposerSelectionEffect;
+import org.fluxgram.ComposerTextEffect;
 
 import java.util.function.BooleanSupplier;
 

@@ -7,6 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins"
+API = ROOT / "TMessagesProj/src/main/java/org/fluxgram"
 
 
 class JavaPluginRuntimeTest(unittest.TestCase):
@@ -15,9 +16,9 @@ class JavaPluginRuntimeTest(unittest.TestCase):
             self.skipTest("Requires JDK")
 
         sources = [
-            SOURCE / "api/JavaMethodHook.java",
-            SOURCE / "api/JavaMethodHookCall.java",
-            SOURCE / "api/JavaMethodHookRegistration.java",
+            API / "JavaMethodHook.java",
+            API / "JavaMethodHookCall.java",
+            API / "JavaMethodHookRegistration.java",
             ROOT / "tests/java/hook_stubs/de/robv/android/xposed/XC_MethodHook.java",
             ROOT / "tests/java/hook_stubs/de/robv/android/xposed/XposedBridge.java",
             ROOT / "tests/java/hook_stubs/org/telegram/messenger/FileLog.java",
@@ -90,8 +91,8 @@ class JavaPluginRuntimeTest(unittest.TestCase):
             self.skipTest("Requires JDK")
 
         sources = [
-            SOURCE / "api/ChatSelectionAction.java",
-            SOURCE / "api/ChatSelectionMessageSnapshot.java",
+            API / "ChatSelectionAction.java",
+            API / "ChatSelectionMessageSnapshot.java",
             ROOT / "tests/java/chat_action_stubs/org/telegram/messenger/R.java",
             ROOT / "tests/java/e5_stubs/org/telegram/messenger/FileLog.java",
             ROOT / "tests/java/e5_stubs/org/telegram/messenger/plugins/HostExtensionAttribution.java",
@@ -123,7 +124,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
             self.skipTest("Requires JDK")
 
         sources = [
-            *sorted((SOURCE / "api").glob("*.java")),
+            *sorted(API.glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
             ROOT / "tests/java/composer_stubs/android/os/Looper.java",
             ROOT / "tests/java/e5_stubs/android/graphics/Picture.java",
@@ -184,7 +185,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
             self.skipTest("Requires JDK")
 
         sources = [
-            *sorted((SOURCE / "api").glob("*.java")),
+            *sorted(API.glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
             SOURCE / "PluginResourceRegistry.java",
             SOURCE / "PluginScope.java",
@@ -211,7 +212,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
             self.skipTest("Requires JDK")
 
         sources = [
-            *sorted((SOURCE / "api").glob("*.java")),
+            *sorted(API.glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
             SOURCE / "PluginResourceRegistry.java",
             SOURCE / "PluginScope.java",
@@ -276,7 +277,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
 
     def test_release_keeps_java_api(self):
         rules = (ROOT / "TMessagesProj/proguard-rules.pro").read_text()
-        self.assertIn("-keep class org.telegram.messenger.plugins.** { *; }", rules)
+        self.assertIn("-keep class org.fluxgram.** { *; }", rules)
 
     def test_adapter_waits_for_ui_acknowledgement(self):
         source = (SOURCE / "PythonPluginAdapter.java").read_text()

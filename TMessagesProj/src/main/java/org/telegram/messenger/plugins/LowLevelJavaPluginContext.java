@@ -1,6 +1,6 @@
 package org.telegram.messenger.plugins;
 
-import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.fluxgram.JavaPluginUiResource;
 
 interface LowLevelJavaPluginContext {
     JavaPluginUiResource registerLowLevelUiResource(String extensionId, Object factory);

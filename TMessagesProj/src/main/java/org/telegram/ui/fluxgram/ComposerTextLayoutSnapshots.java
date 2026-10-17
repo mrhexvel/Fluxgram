@@ -16,11 +16,11 @@ import android.text.style.SuggestionSpan;
 import android.text.style.UnderlineSpan;
 import android.view.inputmethod.BaseInputConnection;
 
-import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextFontSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextLineSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextRunSnapshot;
+import org.fluxgram.ComposerTextClusterSnapshot;
+import org.fluxgram.ComposerTextFontSnapshot;
+import org.fluxgram.ComposerTextLayoutSnapshot;
+import org.fluxgram.ComposerTextLineSnapshot;
+import org.fluxgram.ComposerTextRunSnapshot;
 import org.telegram.ui.Components.EditTextCaption;
 
 import java.util.ArrayList;

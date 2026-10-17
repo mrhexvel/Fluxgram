@@ -3,16 +3,16 @@ package org.telegram.messenger.plugins;
 import android.graphics.Canvas;
 
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
-import org.telegram.messenger.plugins.api.ComposerGeometry;
-import org.telegram.messenger.plugins.api.ComposerInput;
-import org.telegram.messenger.plugins.api.ComposerSendEvent;
-import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
-import org.telegram.messenger.plugins.api.JavaPluginContext;
-import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.fluxgram.ComposerExpandedBounds;
+import org.fluxgram.ComposerGeometry;
+import org.fluxgram.ComposerInput;
+import org.fluxgram.ComposerSendEvent;
+import org.fluxgram.ComposerTextClusterCapture;
+import org.fluxgram.ComposerTextClusterPresentation;
+import org.fluxgram.ComposerTextClusterSelection;
+import org.fluxgram.ComposerTextLayoutChange;
+import org.fluxgram.JavaPluginContext;
+import org.fluxgram.JavaPluginUiResource;
 
 import java.util.ArrayList;
 import java.util.function.BooleanSupplier;
@@ -37,7 +37,7 @@ public final class ComposerInputRendererExtensions {
             | CAPABILITY_SEND | CAPABILITY_EXPANDED_DRAW | CAPABILITY_TEXT_CAPTURE;
     private static final HostExtensionDescriptor<Object, Void> DESCRIPTOR =
             new HostExtensionDescriptor<>(
-                    EXTENSION_ID, 3, HostExtensionDescriptor.Mode.REPLACEMENT,
+                     EXTENSION_ID, 4, HostExtensionDescriptor.Mode.REPLACEMENT,
                     2_000_000L, 3, 0);
     private static final HostExtensionRegistry REGISTRY =
             HostExtensionAttribution.create(FileLog::e);

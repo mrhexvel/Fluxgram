@@ -16,10 +16,10 @@ public final class PluginManifest {
     public static final int SCHEMA_VERSION = 5;
     public static final int SDK_VERSION = 2;
     public static final int SDK_MINOR_VERSION = 11;
-    public static final int JAVA_API_VERSION = 1;
-    public static final int JAVA_API_MINOR_VERSION = 23;
+    public static final int JAVA_API_VERSION = 2;
+    public static final int JAVA_API_MINOR_VERSION = 0;
     public static final String HOST_FINGERPRINT =
-            "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7";
+            "f2ff60d61f95bb4c1587fecde7d32978e38bbd8c4e3aec2b8d0a9bcdd7e98e6b";
     public final int schemaVersion, sdkVersion, minSdkMinor;
     public final String access = "full";
     public final String id, name, version, description, author, entrypoint, icon;
@@ -325,14 +325,15 @@ public final class PluginManifest {
                     + " is incompatible with schema " + SCHEMA_VERSION;
         }
 
+        if (javaModule != null && (javaModule.apiVersion != JAVA_API_VERSION
+                || javaModule.minApiMinor > JAVA_API_MINOR_VERSION)) {
+            return "Plugin requires Java API " + javaModule.apiVersion + "." + javaModule.minApiMinor
+                    + ", but FluxGram provides Java API " + JAVA_API_VERSION + "." + JAVA_API_MINOR_VERSION;
+        }
+
         if (javaModule != null && javaModule.hostFingerprint != null
                 && !HOST_FINGERPRINT.equals(javaModule.hostFingerprint)) {
             return "Plugin requires a different low-level host contract";
-        }
-
-        if (javaModule != null && !javaModule.isCompatible()) {
-            return "Plugin requires Java API " + javaModule.apiVersion + "." + javaModule.minApiMinor
-                    + ", but FluxGram provides Java API " + JAVA_API_VERSION + "." + JAVA_API_MINOR_VERSION;
         }
 
         if (hasPythonModule()) {

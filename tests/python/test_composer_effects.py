@@ -7,6 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 JAVA = ROOT / "TMessagesProj/src/main/java/org/telegram"
+API = ROOT / "TMessagesProj/src/main/java/org/fluxgram"
 
 
 class ComposerEffectsTest(unittest.TestCase):
@@ -16,7 +17,7 @@ class ComposerEffectsTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             sources = [
-                JAVA / "messenger/plugins/api/ComposerInput.java",
+                API / "ComposerInput.java",
                 JAVA / "ui/fluxgram/ComposerInputChanges.java",
                 ROOT / "tests/java/ComposerInputChangesCheck.java",
             ]
@@ -32,7 +33,7 @@ class ComposerEffectsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             sources = [
                 *sorted((ROOT / "tests/java/composer_stubs").rglob("*.java")),
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 JAVA / "messenger/plugins/ComposerFrameCoordinator.java",
                 JAVA / "messenger/plugins/ComposerMotionSensors.java",
                 ROOT / "tests/java/e5_stubs/org/telegram/messenger/FileLog.java",
@@ -76,7 +77,7 @@ class ComposerEffectsTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 JAVA / "ui/fluxgram/ComposerTextInsertions.java",
                 ROOT / "tests/java/ComposerTextInsertionsCheck.java",
@@ -138,7 +139,7 @@ class ComposerEffectsTest(unittest.TestCase):
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         activity = (JAVA / "ui/PluginSettingsActivity.java").read_text()
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
-        surface = (JAVA / "messenger/plugins/api/ComposerSurface.java").read_text()
+        surface = (API / "ComposerSurface.java").read_text()
 
         self.assertNotIn("attachPreview", registry)
         self.assertNotIn("refreshPreview", registry)
@@ -173,7 +174,7 @@ class ComposerEffectsTest(unittest.TestCase):
         for method in ("register(", "registerText(", "registerCursor(",
                        "registerSelection(", "registerContent("):
             self.assertIn("uiResources.register(() -> LegacyComposerExtensions." + method, adapter)
-        api = (JAVA / "messenger/plugins/api/ComposerEffect.java").read_text()
+        api = (API / "ComposerEffect.java").read_text()
         self.assertIn("android.graphics.Canvas", api)
         self.assertNotIn("org.telegram.ui", api)
 

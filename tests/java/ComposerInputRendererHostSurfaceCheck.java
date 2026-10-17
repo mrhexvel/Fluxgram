@@ -5,19 +5,19 @@ import android.graphics.Picture;
 import android.view.View;
 
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
-import org.telegram.messenger.plugins.api.ComposerGeometry;
-import org.telegram.messenger.plugins.api.ComposerInput;
-import org.telegram.messenger.plugins.api.ComposerTextCandidate;
-import org.telegram.messenger.plugins.api.ComposerTextCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextLineSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.fluxgram.ComposerExpandedBounds;
+import org.fluxgram.ComposerGeometry;
+import org.fluxgram.ComposerInput;
+import org.fluxgram.ComposerTextCandidate;
+import org.fluxgram.ComposerTextCapture;
+import org.fluxgram.ComposerTextClusterCapture;
+import org.fluxgram.ComposerTextClusterPresentation;
+import org.fluxgram.ComposerTextClusterSelection;
+import org.fluxgram.ComposerTextClusterSnapshot;
+import org.fluxgram.ComposerTextLayoutChange;
+import org.fluxgram.ComposerTextLayoutSnapshot;
+import org.fluxgram.ComposerTextLineSnapshot;
+import org.fluxgram.ComposerTextPresentation;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -225,7 +225,7 @@ public final class ComposerInputRendererHostSurfaceCheck {
                         }
 
                         @Override
-                        public void onSend(org.telegram.messenger.plugins.api.ComposerSendEvent event) {
+                        public void onSend(org.fluxgram.ComposerSendEvent event) {
                             sends.incrementAndGet();
                         }
 

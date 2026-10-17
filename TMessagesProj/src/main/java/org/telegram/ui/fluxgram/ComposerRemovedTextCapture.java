@@ -11,8 +11,8 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import org.telegram.messenger.plugins.PluginComposerRegistry;
-import org.telegram.messenger.plugins.api.ComposerTextLayers;
-import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.fluxgram.ComposerTextLayers;
+import org.fluxgram.ComposerTextPresentation;
 import org.telegram.ui.Components.EditTextCaption;
 
 public final class ComposerRemovedTextCapture implements PluginComposerRegistry.OverlayTextCapture {

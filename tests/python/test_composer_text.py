@@ -8,6 +8,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 JAVA = ROOT / "TMessagesProj/src/main/java/org/telegram"
+API = ROOT / "TMessagesProj/src/main/java/org/fluxgram"
 
 
 class ComposerTextTest(unittest.TestCase):
@@ -33,7 +34,8 @@ class ComposerTextTest(unittest.TestCase):
         adapter = (JAVA / "messenger/plugins/PythonPluginAdapter.java").read_text()
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
-        self.assertIn("JAVA_API_MINOR_VERSION = 23", manifest)
+        self.assertIn("JAVA_API_VERSION = 2", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 0", manifest)
         enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
@@ -61,7 +63,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class TextModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -103,7 +105,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -122,7 +124,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class ClusterModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -184,7 +186,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -203,7 +205,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class ExpandedModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -242,7 +244,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -261,7 +263,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class InsertionModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -303,7 +305,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -322,7 +324,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class ContentModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -360,7 +362,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -379,7 +381,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class MotionModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -418,7 +420,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -437,7 +439,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class HapticModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -472,7 +474,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -491,7 +493,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class PreviewModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -526,7 +528,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -545,7 +547,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class LayoutEffect implements ComposerTextLayoutEffect {
                 public ComposerTextCandidate selectCandidate(ComposerTextChange change) { return null; }
@@ -576,7 +578,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -595,7 +597,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class CursorModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -632,7 +634,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -651,7 +653,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class SelectionModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -689,7 +691,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -708,7 +710,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class SendModule implements JavaPluginModule {
                 public void onLoad(JavaPluginContext context) {
@@ -745,7 +747,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]
@@ -764,7 +766,7 @@ class ComposerTextTest(unittest.TestCase):
             package external;
 
             import android.graphics.Canvas;
-            import org.telegram.messenger.plugins.api.*;
+            import org.fluxgram.*;
 
             public final class TransitionEffect implements ComposerTextTransitionEffect {
                 public ComposerTextCandidate selectCandidate(ComposerTextChange change) { return null; }
@@ -788,7 +790,7 @@ class ComposerTextTest(unittest.TestCase):
             module.parent.mkdir()
             module.write_text(source)
             sources = [
-                *sorted((JAVA / "messenger/plugins/api").glob("*.java")),
+                *sorted(API.glob("*.java")),
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 module,
             ]

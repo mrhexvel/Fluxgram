@@ -1,9 +1,9 @@
 package org.telegram.messenger.plugins;
 
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.plugins.api.JavaMethodHook;
-import org.telegram.messenger.plugins.api.JavaMethodHookCall;
-import org.telegram.messenger.plugins.api.JavaMethodHookRegistration;
+import org.fluxgram.JavaMethodHook;
+import org.fluxgram.JavaMethodHookCall;
+import org.fluxgram.JavaMethodHookRegistration;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;

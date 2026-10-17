@@ -5,18 +5,18 @@ import android.graphics.Picture;
 import android.os.Looper;
 import android.view.View;
 
-import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
-import org.telegram.messenger.plugins.api.ComposerGeometry;
-import org.telegram.messenger.plugins.api.ComposerInput;
-import org.telegram.messenger.plugins.api.ComposerSendEvent;
-import org.telegram.messenger.plugins.api.ComposerTextCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSnapshot;
-import org.telegram.messenger.plugins.api.ComposerTextLayers;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
-import org.telegram.messenger.plugins.api.ComposerTextPresentation;
+import org.fluxgram.ComposerExpandedBounds;
+import org.fluxgram.ComposerGeometry;
+import org.fluxgram.ComposerInput;
+import org.fluxgram.ComposerSendEvent;
+import org.fluxgram.ComposerTextCapture;
+import org.fluxgram.ComposerTextClusterCapture;
+import org.fluxgram.ComposerTextClusterPresentation;
+import org.fluxgram.ComposerTextClusterSelection;
+import org.fluxgram.ComposerTextClusterSnapshot;
+import org.fluxgram.ComposerTextLayers;
+import org.fluxgram.ComposerTextLayoutChange;
+import org.fluxgram.ComposerTextPresentation;
 
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -410,7 +410,7 @@ public final class ComposerInputRendererHostSurface implements
         int previousEnd = -1;
 
         for (int index = 0; index < selection.getCount(); index++) {
-            org.telegram.messenger.plugins.api.ComposerTextCandidate candidate =
+            org.fluxgram.ComposerTextCandidate candidate =
                     selection.getCandidate(index);
 
             if (candidate == null || candidate.revision != selection.revision

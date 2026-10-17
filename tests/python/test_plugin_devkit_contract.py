@@ -7,7 +7,7 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
-API_SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/api"
+API_SOURCE = ROOT / "TMessagesProj/src/main/java/org/fluxgram"
 MANIFEST_SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/packages/PluginManifest.java"
 PACKAGE_SOURCE = MANIFEST_SOURCE.parent
 ARTIFACTS = ROOT / "sdk/python/devkit/src/fluxgram_devkit/artifacts"
@@ -53,9 +53,9 @@ class PluginDevkitContractTest(unittest.TestCase):
             classes = [name for name in archive.namelist() if name.endswith(".class")]
 
         self.assertTrue(classes)
-        self.assertTrue(all(name.startswith("org/telegram/messenger/plugins/api/") for name in classes))
-        self.assertIn("org/telegram/messenger/plugins/api/JavaPluginModule.class", classes)
-        self.assertIn("org/telegram/messenger/plugins/api/ComposerSurface.class", classes)
+        self.assertTrue(all(name.startswith("org/fluxgram/") for name in classes))
+        self.assertIn("org/fluxgram/JavaPluginModule.class", classes)
+        self.assertIn("org/fluxgram/ComposerSurface.class", classes)
 
     def test_template_does_not_bundle_host_sdks(self):
         template = ROOT / "sdk/python/devkit/src/fluxgram_devkit/templates/hybrid"
