@@ -79,6 +79,10 @@ public final class PluginManager {
         systemEnabled = enabled;
         preferences.edit().putBoolean("system.enabled", enabled).apply();
 
+        if (!enabled) {
+            PluginDeveloperBridge.stopSession();
+        }
+
         for (Entry entry : plugins.values()) {
             notifyEnabledChanged(entry);
         }

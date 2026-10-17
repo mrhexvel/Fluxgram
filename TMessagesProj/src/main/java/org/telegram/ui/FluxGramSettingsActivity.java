@@ -10,6 +10,7 @@ import android.widget.FrameLayout;
 import androidx.core.content.FileProvider;
 
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -18,6 +19,7 @@ import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
+import org.telegram.messenger.plugins.PluginDeveloperBridge;
 import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.messenger.plugins.PythonPluginAdapter;
 import org.telegram.messenger.plugins.packages.PluginManifest;
@@ -59,6 +61,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SENDER_MINI_AVATARS = 17;
     private static final int FORCE_SNOW = 18;
     private static final int FONTS = 19;
+    private static final int PLUGIN_DEVELOPER_ACCESS = 20;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -86,6 +89,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     @Override
     public boolean onFragmentCreate() {
         ExternalPlugins.addListener(refresh);
+        PluginDeveloperBridge.addListener(refresh);
 
         return super.onFragmentCreate();
     }
@@ -94,6 +98,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     public void onFragmentDestroy() {
         destroyed = true;
         ExternalPlugins.removeListener(refresh);
+        PluginDeveloperBridge.removeListener(refresh);
         super.onFragmentDestroy();
     }
 
@@ -323,6 +328,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
             return;
         }
 
+        if (!BuildConfig.DEBUG) {
+            boolean developerAccess = PluginDeveloperBridge.isSessionActive();
+            addSectionLabel(items, R.string.FluxGramPluginDevelopment);
+            items.add(UItem.asRippleCheck(
+                    PLUGIN_DEVELOPER_ACCESS,
+                    LocaleController.getString(R.string.FluxGramPluginDeveloperAccess)
+            ).setChecked(developerAccess));
+            items.add(UItem.asShadow(LocaleController.getString(developerAccess
+                    ? R.string.FluxGramPluginDeveloperAccessActive
+                    : R.string.FluxGramPluginDeveloperAccessInfo)));
+        }
+
         if (ExternalPlugins.getStartupError() != null) {
             items.add(UItem.asShadow(
                     LocaleController.getString(R.string.FluxGramPluginError)
@@ -533,6 +550,21 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ExternalPlugins.changed();
             } else if (item.id == BUILT_IN_PLUGINS) {
                 presentFragment(new FluxGramSettingsActivity(BUILT_IN_PLUGINS));
+            } else if (item.id == PLUGIN_DEVELOPER_ACCESS) {
+                if (PluginDeveloperBridge.isSessionActive()) {
+                    PluginDeveloperBridge.stopSession();
+                } else {
+                    showDialog(new AlertDialog.Builder(
+                            getParentActivity(), getResourceProvider())
+                            .setTitle(LocaleController.getString(
+                                    R.string.FluxGramPluginDeveloperAccessConfirmTitle))
+                            .setMessage(LocaleController.getString(
+                                    R.string.FluxGramPluginDeveloperAccessConfirmMessage))
+                            .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                            .setPositiveButton(LocaleController.getString(R.string.Enable),
+                                    (dialog, which) -> PluginDeveloperBridge.startSession())
+                            .create());
+                }
             }
         }
     }

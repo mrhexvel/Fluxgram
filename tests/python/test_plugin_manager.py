@@ -119,6 +119,17 @@ final class PluginMessageEvents {
     static void initialize() {}
 }
 """,
+            "org/telegram/messenger/plugins/PluginDeveloperBridge.java": """package org.telegram.messenger.plugins;
+
+public final class PluginDeveloperBridge {
+
+    public static int stops;
+
+    public static void stopSession() {
+        stops++;
+    }
+}
+""",
             "RegistryCheck.java": """import android.content.*;
 
 import org.telegram.messenger.plugins.*;
@@ -287,6 +298,7 @@ public class RegistryCheck {
             check(!external.active);
             check(manager.isEnabled(external.id));
             check(!prefs.getBoolean("system.enabled", true));
+            check(PluginDeveloperBridge.stops == 1);
             manager.beforeSend(null);
             check(external.calls == 1);
 

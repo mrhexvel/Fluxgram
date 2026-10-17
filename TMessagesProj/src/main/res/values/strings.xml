@@ -11331,6 +11331,12 @@
     <string name="FluxGramPluginSystem">Plugin system</string>
     <string name="FluxGramInstalledPlugins">Installed plugins</string>
     <string name="FluxGramBuiltInPlugins">Built-in plugins</string>
+    <string name="FluxGramPluginDevelopment">Development</string>
+    <string name="FluxGramPluginDeveloperAccess">Plugin developer access</string>
+    <string name="FluxGramPluginDeveloperAccessInfo">Allow fp install and reload from an authorized ADB computer for 15 minutes.</string>
+    <string name="FluxGramPluginDeveloperAccessActive">Developer access is active for 15 minutes or until the app process stops.</string>
+    <string name="FluxGramPluginDeveloperAccessConfirmTitle">Enable plugin developer access?</string>
+    <string name="FluxGramPluginDeveloperAccessConfirmMessage">An authorized ADB computer will be able to install and run full-trust plugin code with access to FluxGram data. Enable this only while testing code you trust. Access ends after 15 minutes or when the app process stops.</string>
     <string name="FluxGramPluginVersion">Version</string>
     <string name="FluxGramPluginSettingsSoon">Settings for this plugin will be available later.</string>
     <string name="FluxGramBuiltInShareInfo">This plugin is included with FluxGram and does not have a separate installation file.</string>

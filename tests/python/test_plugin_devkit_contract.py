@@ -94,14 +94,38 @@ class PluginDevkitContractTest(unittest.TestCase):
         self.assertTrue(classes)
         self.assertNotIn("org/telegram/messenger/plugins/PluginManager.class", classes)
 
-    def test_device_bridge_is_debug_source_only(self):
-        debug_manifest = ROOT / "TMessagesProj/src/debug/AndroidManifest.xml"
-        debug_provider = (
+    def test_device_bridge_is_shell_only_and_runtime_gated(self):
+        main_manifest = ROOT / "TMessagesProj/src/main/AndroidManifest.xml"
+        provider = (
             ROOT
-            / "TMessagesProj/src/debug/java/org/telegram/messenger/plugins/PluginDebugProvider.java"
+            / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/PluginDebugProvider.java"
         )
-        self.assertTrue(debug_provider.is_file())
-        self.assertIn("PluginDebugProvider", debug_manifest.read_text())
+        bridge = (
+            ROOT
+            / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/PluginDeveloperBridge.java"
+        )
+        external = (
+            ROOT
+            / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/ExternalPlugins.java"
+        )
+        manifest = main_manifest.read_text()
+        provider_source = provider.read_text()
+        bridge_source = bridge.read_text()
+        external_source = external.read_text()
+
+        self.assertTrue(provider.is_file())
+        self.assertIn("PluginDebugProvider", manifest)
+        self.assertIn('android:permission="android.permission.DUMP"', manifest)
+        self.assertIn('android:exported="true"', manifest)
+        self.assertIn('android:grantUriPermissions="false"', manifest)
+        self.assertIn("Process.SHELL_UID", provider_source)
+        self.assertIn("Process.ROOT_UID", provider_source)
+        self.assertIn("PluginDeveloperBridge.isAvailable()", provider_source)
+        self.assertIn("SESSION_DURATION_MS = 15 * 60 * 1000L", bridge_source)
+        self.assertIn("PluginManager.getInstance().isSystemEnabled()", bridge_source)
+        self.assertIn("BuildConfig.DEBUG", bridge_source)
+        self.assertIn("PluginDeveloperBridge.isAvailable()", external_source)
+        self.assertNotIn("if (!BuildConfig.DEBUG)", external_source)
 
         for manifest in (
                 ROOT / "TMessagesProj/config/debug/AndroidManifest.xml",

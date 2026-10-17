@@ -2,7 +2,6 @@ package org.telegram.messenger.plugins;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
-import android.content.pm.ApplicationInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Binder;
@@ -45,12 +44,9 @@ public final class PluginDebugProvider extends ContentProvider {
     private CountDownLatch resultReady;
     private String resultJson;
     private boolean resultOpened;
-    private boolean available;
-
     @Override
     public boolean onCreate() {
-        available = (getContext().getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        return available;
+        return true;
     }
 
     @Override
@@ -236,7 +232,7 @@ public final class PluginDebugProvider extends ContentProvider {
         CountDownLatch operation = resultReady;
 
         try {
-            ExternalPlugins.debugInstallOrReload(archive, arg, reload, enable, (result, error) -> {
+            ExternalPlugins.developerInstallOrReload(archive, arg, reload, enable, (result, error) -> {
                 String json = result == null
                         ? errorJson("Unavailable", "Plugin debug operation returned no result")
                         : result.toJson(error);
@@ -350,8 +346,9 @@ public final class PluginDebugProvider extends ContentProvider {
     }
 
     private void requireAvailable() {
-        if (!available) {
-            throw new SecurityException("Plugin debug bridge requires a debuggable application");
+        if (!PluginDeveloperBridge.isAvailable()) {
+            throw new SecurityException(
+                    "Enable temporary plugin developer access in FluxGram settings");
         }
     }
 

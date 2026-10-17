@@ -359,6 +359,12 @@
     <string name="FluxGramPluginSystem">Система плагинов</string>
     <string name="FluxGramInstalledPlugins">Установленные плагины</string>
     <string name="FluxGramBuiltInPlugins">Встроенные плагины</string>
+    <string name="FluxGramPluginDevelopment">Разработка</string>
+    <string name="FluxGramPluginDeveloperAccess">Доступ для разработки плагинов</string>
+    <string name="FluxGramPluginDeveloperAccessInfo">Разрешить fp install и reload с авторизованного ADB-компьютера на 15 минут.</string>
+    <string name="FluxGramPluginDeveloperAccessActive">Доступ разработчика активен на 15 минут или до остановки процесса приложения.</string>
+    <string name="FluxGramPluginDeveloperAccessConfirmTitle">Включить доступ для разработки?</string>
+    <string name="FluxGramPluginDeveloperAccessConfirmMessage">Авторизованный ADB-компьютер сможет устанавливать и запускать доверенный код плагинов с доступом к данным FluxGram. Включайте этот режим только для проверки кода, которому доверяете. Доступ завершится через 15 минут или при остановке процесса приложения.</string>
     <string name="FluxGramPluginVersion">Версия</string>
     <string name="FluxGramPluginSettingsSoon">Настройки этого плагина появятся позже.</string>
     <string name="FluxGramBuiltInShareInfo">Этот плагин входит в состав FluxGram и не имеет отдельного установочного файла.</string>

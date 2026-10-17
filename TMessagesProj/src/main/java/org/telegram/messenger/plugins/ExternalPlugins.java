@@ -8,7 +8,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.telegram.messenger.plugins.packages.PluginPackageStore;
@@ -486,10 +485,10 @@ public final class ExternalPlugins {
                 });
     }
 
-    public static void debugInstallOrReload(File archive, String expectedHash,
+    public static void developerInstallOrReload(File archive, String expectedHash,
             boolean reload, boolean enable, Callback<DebugResult> callback) {
-        if (!BuildConfig.DEBUG) {
-            callback.complete(null, new IOException("Plugin debug bridge is unavailable"));
+        if (!PluginDeveloperBridge.isAvailable()) {
+            callback.complete(null, new IOException("Plugin developer access is unavailable"));
             return;
         }
 
