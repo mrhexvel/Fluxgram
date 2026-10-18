@@ -79,6 +79,7 @@ class DeletedMessagesTest(unittest.TestCase):
         self.db.execute(self.schema)
         self.db.execute("CREATE INDEX live_date ON messages_v2(uid, date, mid)")
         self.db.execute("CREATE TABLE fg_deleted_messages AS SELECT * FROM messages_v2 WHERE 0")
+        self.db.execute("CREATE TABLE fg_deleted_attachment_cleanup(uid INTEGER NOT NULL, mid INTEGER NOT NULL, PRIMARY KEY(uid, mid))")
         self.db.execute("CREATE TABLE randoms_v2(mid INTEGER, uid INTEGER, random_id INTEGER, PRIMARY KEY(mid, uid))")
         for statement in self.statements:
             self.db.execute(statement)
@@ -182,6 +183,71 @@ class DeletedMessagesTest(unittest.TestCase):
         self.insert("fg_deleted_messages", [(1, 7, 1, 0), (-2, 7, 1, 1)])
         self.db.execute("DELETE FROM fg_deleted_messages WHERE mid IN(7) AND is_channel = 0")
         self.assertEqual(self.db.execute("SELECT uid FROM fg_deleted_messages").fetchall(), [(-2,)])
+
+    def test_attachment_cleanup_survives_restart_after_archive_delete(self):
+        self.insert(
+            "fg_deleted_messages",
+            [(1, 7, 1, 0), (1, 8, 2, 0), (2, 7, 3, 0)],
+        )
+        attachments = {(1, 7), (1, 8), (2, 7)}
+
+        self.db.execute("SAVEPOINT fg_archive_remove")
+        self.db.execute(
+            "INSERT OR IGNORE INTO fg_deleted_attachment_cleanup(uid, mid) "
+            "SELECT uid, mid FROM fg_deleted_messages WHERE uid = 1 AND mid IN(7)"
+        )
+        self.db.execute("DELETE FROM fg_deleted_messages WHERE uid = 1 AND mid IN(7)")
+        self.db.execute("RELEASE fg_archive_remove")
+
+        pending = self.db.execute(
+            "SELECT uid, mid FROM fg_deleted_attachment_cleanup ORDER BY uid, mid"
+        ).fetchall()
+        self.assertEqual(pending, [(1, 7)])
+        self.assertEqual(
+            self.db.execute(
+                "SELECT uid, mid FROM fg_deleted_messages ORDER BY uid, mid"
+            ).fetchall(),
+            [(1, 8), (2, 7)],
+        )
+
+        for key in pending:
+            attachments.discard(key)
+        self.db.executemany(
+            "DELETE FROM fg_deleted_attachment_cleanup WHERE uid = ? AND mid = ?",
+            pending,
+        )
+
+        self.assertEqual(attachments, {(1, 8), (2, 7)})
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM fg_deleted_attachment_cleanup").fetchone(),
+            (0,),
+        )
+
+    def test_attachment_cleanup_is_durable_and_acknowledged_after_files(self):
+        archive = (JAVA / "messenger/fluxgram/DeletedMessagesArchive.java").read_text()
+        attachments = (JAVA / "messenger/fluxgram/SavedAttachments.java").read_text()
+        remove = archive[
+            archive.index("    public boolean remove("):
+            archive.index("    public void removeDialog(")
+        ]
+        finish = archive[
+            archive.index("    private void finishAttachmentCleanup("):
+            archive.rindex("\n}")
+        ]
+
+        journal = remove.index(
+            "INSERT OR IGNORE INTO fg_deleted_attachment_cleanup(uid, mid) SELECT uid, mid"
+        )
+        delete = remove.index('db.executeFast("DELETE FROM " + table + where)')
+
+        self.assertLess(journal, delete)
+        self.assertIn("SAVEPOINT fg_archive_remove", remove)
+        self.assertIn("resumeAttachmentCleanup();", remove)
+        self.assertIn("SavedAttachments.get(account).remove(messages, success ->", archive)
+        self.assertIn("if (!success || initializedDatabase != storage.getDatabase())", finish)
+        self.assertIn("DELETE FROM fg_deleted_attachment_cleanup", finish)
+        self.assertIn("completed.accept(success);", attachments)
+        self.assertIn("if (!active())", attachments)
 
     def test_failed_batch_rolls_back(self):
         self.insert("messages_v2", [(1, 1, 1, 0)])

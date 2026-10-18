@@ -23,10 +23,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 public final class SavedAttachments {
@@ -455,26 +457,59 @@ public final class SavedAttachments {
     }
 
     public void remove(long dialog, ArrayList<Integer> ids) {
-        ArrayList<Integer> copy = ids == null ? null : new ArrayList<>(ids);
-        queue.postRunnable(() -> {
+        HashMap<Long, ArrayList<Integer>> messages = new HashMap<>();
+        messages.put(dialog, ids);
+        remove(messages, null);
+    }
+
+    void remove(Map<Long, ArrayList<Integer>> messages, Consumer<Boolean> completed) {
+        HashMap<Long, ArrayList<Integer>> copy = new HashMap<>();
+
+        for (Map.Entry<Long, ArrayList<Integer>> entry : messages.entrySet()) {
+            copy.put(entry.getKey(), entry.getValue() == null
+                    ? null : new ArrayList<>(entry.getValue()));
+        }
+
+        boolean posted = queue.postRunnable(() -> {
+            boolean success = false;
+
             try {
-                if (!directory.isDirectory()) {
-                    return;
+                if (!active()) {
+                    throw new IllegalStateException("Attachment archive is closed");
                 }
 
-                open();
-
-                if (copy == null) {
-                    deleteWhere("dialog = ?", new String[] {Long.toString(dialog)});
+                if (!directory.isDirectory()) {
+                    success = true;
                 } else {
-                    for (int mid : copy) {
-                        deleteWhere("dialog = ? AND mid = ?", new String[] {Long.toString(dialog), Integer.toString(mid)});
+                    open();
+
+                    for (Map.Entry<Long, ArrayList<Integer>> entry : copy.entrySet()) {
+                        long dialog = entry.getKey();
+                        ArrayList<Integer> ids = entry.getValue();
+
+                        if (ids == null) {
+                            deleteWhere("dialog = ?", new String[] {Long.toString(dialog)});
+                        } else {
+                            for (int mid : ids) {
+                                deleteWhere("dialog = ? AND mid = ?", new String[] {Long.toString(dialog), Integer.toString(mid)});
+                            }
+                        }
                     }
+
+                    success = true;
                 }
             } catch (Exception error) {
                 FileLog.e(error);
             }
+
+            if (completed != null) {
+                completed.accept(success);
+            }
         });
+
+        if (!posted && completed != null) {
+            completed.accept(false);
+        }
     }
 
     private void changed(long dialog, int mid) {

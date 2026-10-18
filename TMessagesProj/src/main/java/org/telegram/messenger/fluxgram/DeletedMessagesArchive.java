@@ -23,6 +23,8 @@ public final class DeletedMessagesArchive {
     private final int account;
     private SQLiteDatabase initializedDatabase;
     private final HashMap<String, String> columnLists = new HashMap<>();
+    private boolean attachmentCleanupRunning;
+    private boolean attachmentCleanupComplete;
 
     public DeletedMessagesArchive(MessagesStorage storage, int account) {
         this.storage = storage;
@@ -48,13 +50,20 @@ public final class DeletedMessagesArchive {
         SQLiteDatabase db = storage.getDatabase();
 
         if (db == initializedDatabase) {
+            if (!attachmentCleanupComplete) {
+                resumeAttachmentCleanup();
+            }
+
             return db != null;
         }
 
         try {
             prepareTable(db, "messages_v2", "fg_deleted_messages", "fg_timeline_messages", false);
             prepareTable(db, "messages_topics", "fg_deleted_topics", "fg_timeline_topics", true);
+            db.executeFast("CREATE TABLE IF NOT EXISTS fg_deleted_attachment_cleanup(uid INTEGER NOT NULL, mid INTEGER NOT NULL, PRIMARY KEY(uid, mid))").stepThis().dispose();
             initializedDatabase = db;
+            attachmentCleanupComplete = false;
+            resumeAttachmentCleanup();
             return true;
         } catch (Exception error) {
             FileLog.e(error);
@@ -275,31 +284,22 @@ public final class DeletedMessagesArchive {
 
         for (int offset = 0; offset < ids.size(); offset += BATCH_SIZE) {
             String list = TextUtils.join(",", ids.subList(offset, Math.min(offset + BATCH_SIZE, ids.size())));
+            String where = " WHERE mid IN(" + list + ")" + scope(dialog);
+            boolean transaction = false;
 
             try {
-                HashMap<Long, ArrayList<Integer>> removed = new HashMap<>();
-
-                if (dialog == 0) {
-                    SQLiteCursor cursor = storage.getDatabase().queryFinalized(
-                            "SELECT uid, mid FROM fg_deleted_messages WHERE mid IN(" + list + ")" + scope(dialog));
-
-                    try {
-                        while (cursor.next()) {
-                            removed.computeIfAbsent(cursor.longValue(0), key -> new ArrayList<>()).add(cursor.intValue(1));
-                        }
-                    } finally {
-                        cursor.dispose();
-                    }
-
-                }
+                SQLiteDatabase db = storage.getDatabase();
+                db.executeFast("SAVEPOINT fg_archive_remove").stepThis().dispose();
+                transaction = true;
+                db.executeFast("INSERT OR IGNORE INTO fg_deleted_attachment_cleanup(uid, mid) SELECT uid, mid FROM fg_deleted_messages" + where).stepThis().dispose();
 
                 for (String table : new String[] {"fg_deleted_messages", "fg_deleted_topics"}) {
-                    storage.getDatabase().executeFast("DELETE FROM " + table + " WHERE mid IN(" + list + ")" + scope(dialog)).stepThis().dispose();
+                    db.executeFast("DELETE FROM " + table + where).stepThis().dispose();
                 }
 
-                for (Map.Entry<Long, ArrayList<Integer>> entry : removed.entrySet()) {
-                    SavedAttachments.get(account).remove(entry.getKey(), entry.getValue());
-                }
+                db.executeFast("RELEASE fg_archive_remove").stepThis().dispose();
+                transaction = false;
+                attachmentCleanupComplete = false;
 
                 if (dialog != 0) {
                     EditHistory.removeMessages(account, dialog, ids.subList(offset, Math.min(offset + BATCH_SIZE, ids.size())));
@@ -307,10 +307,19 @@ public final class DeletedMessagesArchive {
             } catch (Exception error) {
                 FileLog.e(error);
                 return false;
+            } finally {
+                if (transaction) {
+                    try {
+                        storage.getDatabase().executeFast("ROLLBACK TO fg_archive_remove").stepThis().dispose();
+                        storage.getDatabase().executeFast("RELEASE fg_archive_remove").stepThis().dispose();
+                    } catch (Exception error) {
+                        FileLog.e(error);
+                    }
+                }
             }
         }
 
-        SavedAttachments.get(account).remove(dialog, ids);
+        resumeAttachmentCleanup();
         return true;
     }
 
@@ -320,9 +329,85 @@ public final class DeletedMessagesArchive {
         }
 
         SQLiteDatabase db = storage.getDatabase();
-        db.executeFast("DELETE FROM fg_deleted_messages WHERE uid = " + dialog).stepThis().dispose();
-        db.executeFast("DELETE FROM fg_deleted_topics WHERE uid = " + dialog).stepThis().dispose();
-        SavedAttachments.get(account).remove(dialog, null);
+        boolean transaction = false;
+
+        try {
+            db.executeFast("SAVEPOINT fg_archive_remove_dialog").stepThis().dispose();
+            transaction = true;
+            db.executeFast("INSERT OR IGNORE INTO fg_deleted_attachment_cleanup(uid, mid) SELECT uid, mid FROM fg_deleted_messages WHERE uid = " + dialog).stepThis().dispose();
+            db.executeFast("DELETE FROM fg_deleted_messages WHERE uid = " + dialog).stepThis().dispose();
+            db.executeFast("DELETE FROM fg_deleted_topics WHERE uid = " + dialog).stepThis().dispose();
+            db.executeFast("RELEASE fg_archive_remove_dialog").stepThis().dispose();
+            transaction = false;
+            attachmentCleanupComplete = false;
+        } finally {
+            if (transaction) {
+                db.executeFast("ROLLBACK TO fg_archive_remove_dialog").stepThis().dispose();
+                db.executeFast("RELEASE fg_archive_remove_dialog").stepThis().dispose();
+            }
+        }
+
         EditHistory.removeDialog(account, dialog);
+        resumeAttachmentCleanup();
+    }
+
+    private void resumeAttachmentCleanup() {
+        if (attachmentCleanupRunning || attachmentCleanupComplete || initializedDatabase == null) {
+            return;
+        }
+
+        HashMap<Long, ArrayList<Integer>> messages = new HashMap<>();
+        SQLiteCursor cursor = null;
+
+        try {
+            cursor = initializedDatabase.queryFinalized(
+                    "SELECT uid, mid FROM fg_deleted_attachment_cleanup ORDER BY uid, mid LIMIT "
+                            + BATCH_SIZE);
+
+            while (cursor.next()) {
+                messages.computeIfAbsent(cursor.longValue(0), key -> new ArrayList<>())
+                        .add(cursor.intValue(1));
+            }
+        } catch (Exception error) {
+            FileLog.e(error);
+            return;
+        } finally {
+            if (cursor != null) {
+                cursor.dispose();
+            }
+        }
+
+        if (messages.isEmpty()) {
+            attachmentCleanupComplete = true;
+            return;
+        }
+
+        attachmentCleanupRunning = true;
+        SavedAttachments.get(account).remove(messages, success ->
+                storage.getStorageQueue().postRunnable(() ->
+                        finishAttachmentCleanup(messages, success)));
+    }
+
+    private void finishAttachmentCleanup(
+            HashMap<Long, ArrayList<Integer>> messages, boolean success) {
+        attachmentCleanupRunning = false;
+
+        if (!success || initializedDatabase != storage.getDatabase()) {
+            return;
+        }
+
+        try {
+            for (Map.Entry<Long, ArrayList<Integer>> entry : messages.entrySet()) {
+                initializedDatabase.executeFast(
+                        "DELETE FROM fg_deleted_attachment_cleanup WHERE uid = "
+                                + entry.getKey() + " AND mid IN("
+                                + TextUtils.join(",", entry.getValue()) + ")"
+                ).stepThis().dispose();
+            }
+
+            resumeAttachmentCleanup();
+        } catch (Exception error) {
+            FileLog.e(error);
+        }
     }
 }
