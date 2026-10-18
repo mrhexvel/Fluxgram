@@ -189,6 +189,12 @@ public final class NotificationCardLayout extends Bulletin.TwoLineBackupLayout {
     protected void onDetach() {
         cancelInteraction();
         transition.cancel();
+
+        if (blurBackground != null) {
+            blurBackground.dispose();
+            blurBackground = null;
+        }
+
         super.onDetach();
     }
 

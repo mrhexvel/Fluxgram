@@ -31,6 +31,7 @@ public class NotificationTransitionCheck {
         require(completions[1] == 1, "Exit completion must run once");
         layout.onDetach();
         require(completions[1] == 1, "Detach repeated exit completion");
+        require(background.disposed, "Detach retained blur buffers");
 
         transition.animateEnter(layout, null, () -> completions[0]++, null, 0);
         layout.onDetach();
@@ -69,9 +70,14 @@ class Theme {
 
 class NotificationBlurBackground extends Drawable {
     boolean frozen;
+    boolean disposed;
 
     void freeze() {
         frozen = true;
+    }
+
+    void dispose() {
+        disposed = true;
     }
 }
 

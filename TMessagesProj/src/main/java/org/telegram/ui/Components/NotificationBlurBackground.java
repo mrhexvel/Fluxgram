@@ -37,6 +37,9 @@ public final class NotificationBlurBackground extends Drawable
     private final RectF rect = new RectF();
     private final int[] sourceLocation = new int[2];
     private final int[] targetLocation = new int[2];
+    private BlurBuffer displayedBuffer;
+    private BlurBuffer retiredBuffer;
+    private BlurBuffer availableBuffer;
     private BitmapShader shader;
     private boolean disposed;
     private boolean frozen;
@@ -73,6 +76,18 @@ public final class NotificationBlurBackground extends Drawable
         frozenTargetY = targetLocation[1];
     }
 
+    public void dispose() {
+        if (disposed) {
+            return;
+        }
+
+        disposed = true;
+        attached = false;
+        target.removeCallbacks(refresh);
+        clearBuffers();
+        target.removeOnAttachStateChangeListener(this);
+    }
+
     private void scheduleNext() {
         if (!attached || disposed || frozen || failed || processing) {
             return;
@@ -91,9 +106,14 @@ public final class NotificationBlurBackground extends Drawable
 
         lastCapture = SystemClock.uptimeMillis();
 
-        if (!target.isShown()
-                || source.getWindowVisibility() != View.VISIBLE
-                || getBounds().isEmpty()
+        if (!target.isShown() || source.getWindowVisibility() != View.VISIBLE) {
+            clearBuffers();
+            scheduleNext();
+
+            return;
+        }
+
+        if (getBounds().isEmpty()
                 || source.getWidth() <= 0
                 || source.getHeight() <= 0) {
             scheduleNext();
@@ -101,7 +121,7 @@ public final class NotificationBlurBackground extends Drawable
             return;
         }
 
-        Bitmap snapshot = null;
+        BlurBuffer buffer = null;
         View overlay = null;
         float overlayAlpha = 1f;
 
@@ -129,11 +149,10 @@ public final class NotificationBlurBackground extends Drawable
                 return;
             }
 
-            snapshot =
-                    Bitmap.createBitmap(
-                            Math.max(1, (int) Math.ceil((right - left) / SCALE)),
-                            Math.max(1, (int) Math.ceil((bottom - top) / SCALE)),
-                            Bitmap.Config.ARGB_8888);
+            int width = Math.max(1, (int) Math.ceil((right - left) / SCALE));
+            int height = Math.max(1, (int) Math.ceil((bottom - top) / SCALE));
+            buffer = takeBuffer(width, height);
+            buffer.bitmap.eraseColor(color);
 
             final int screenX = sourceLocation[0] + left;
             final int screenY = sourceLocation[1] + top;
@@ -144,13 +163,18 @@ public final class NotificationBlurBackground extends Drawable
                 overlay.setAlpha(0f);
             }
 
-            Canvas canvas = new Canvas(snapshot);
-            canvas.drawColor(color);
-            canvas.scale(1f / SCALE, 1f / SCALE);
-            canvas.translate(-left, -top);
-            source.draw(canvas);
+            Canvas canvas = buffer.canvas;
+            int save = canvas.save();
 
-            final Bitmap result = snapshot;
+            try {
+                canvas.scale(1f / SCALE, 1f / SCALE);
+                canvas.translate(-left, -top);
+                source.draw(canvas);
+            } finally {
+                canvas.restoreToCount(save);
+            }
+
+            final BlurBuffer result = buffer;
             processing = true;
 
             Utilities.globalQueue.postRunnable(
@@ -159,7 +183,7 @@ public final class NotificationBlurBackground extends Drawable
 
                         try {
                             Utilities.stackBlurBitmap(
-                                    result, Math.max(2, AndroidUtilities.dp(20) / 8));
+                                    result.bitmap, Math.max(2, AndroidUtilities.dp(20) / 8));
                             success = true;
                         } catch (Exception e) {
                             FileLog.e(e);
@@ -172,20 +196,26 @@ public final class NotificationBlurBackground extends Drawable
                                     processing = false;
 
                                     if (disposed || frozen || !ready) {
-                                        result.recycle();
                                         failed = !ready;
+
+                                        return;
+                                    }
+
+                                    if (!attached
+                                            || !target.isShown()
+                                            || source.getWindowVisibility() != View.VISIBLE) {
+                                        clearBuffers();
+                                        scheduleNext();
 
                                         return;
                                     }
 
                                     bitmapScreenX = screenX;
                                     bitmapScreenY = screenY;
-
-                                    shader =
-                                            new BitmapShader(
-                                                    result,
-                                                    Shader.TileMode.CLAMP,
-                                                    Shader.TileMode.CLAMP);
+                                    availableBuffer = retiredBuffer;
+                                    retiredBuffer = displayedBuffer;
+                                    displayedBuffer = result;
+                                    shader = result.shader;
                                     imagePaint.setShader(shader);
                                     target.invalidate();
                                     scheduleNext();
@@ -196,14 +226,35 @@ public final class NotificationBlurBackground extends Drawable
             failed = true;
             processing = false;
 
-            if (snapshot != null) {
-                snapshot.recycle();
+            if (buffer != null) {
+                availableBuffer = buffer;
             }
         } finally {
             if (overlay != null) {
                 overlay.setAlpha(overlayAlpha);
             }
         }
+    }
+
+    private BlurBuffer takeBuffer(int width, int height) {
+        BlurBuffer result = availableBuffer;
+        availableBuffer = null;
+
+        if (result == null
+                || result.bitmap.getWidth() != width
+                || result.bitmap.getHeight() != height) {
+            return new BlurBuffer(width, height);
+        }
+
+        return result;
+    }
+
+    private void clearBuffers() {
+        imagePaint.setShader(null);
+        shader = null;
+        displayedBuffer = null;
+        retiredBuffer = null;
+        availableBuffer = null;
     }
 
     @Override
@@ -258,11 +309,18 @@ public final class NotificationBlurBackground extends Drawable
 
     @Override
     public void onViewDetachedFromWindow(View view) {
-        disposed = true;
-        attached = false;
-        target.removeCallbacks(refresh);
-        imagePaint.setShader(null);
-        shader = null;
-        target.removeOnAttachStateChangeListener(this);
+        dispose();
+    }
+
+    private static final class BlurBuffer {
+        private final Bitmap bitmap;
+        private final BitmapShader shader;
+        private final Canvas canvas;
+
+        private BlurBuffer(int width, int height) {
+            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            shader = new BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            canvas = new Canvas(bitmap);
+        }
     }
 }

@@ -10,6 +10,18 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class NotificationTransitionTest(unittest.TestCase):
+    def test_blur_reuses_buffers_without_recycling_drawn_bitmaps(self):
+        path = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/Components/NotificationBlurBackground.java'
+        source = path.read_text()
+
+        self.assertEqual(source.count('Bitmap.createBitmap('), 1)
+        self.assertNotIn('.recycle()', source)
+        self.assertIn('availableBuffer = retiredBuffer;', source)
+        self.assertIn('retiredBuffer = displayedBuffer;', source)
+        self.assertIn('displayedBuffer = result;', source)
+        self.assertIn('private void clearBuffers()', source)
+        self.assertIn('source.getWindowVisibility() != View.VISIBLE', source)
+
     def test_interrupted_entrance_exit_and_detach(self):
         if not shutil.which('javac') or not shutil.which('java'):
             self.skipTest('Requires JDK')
