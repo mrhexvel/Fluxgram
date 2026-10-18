@@ -39,6 +39,11 @@ public class ChatMessagesMetadataController {
             storiesToCheck.clear();
             for (int i = from; i < to; i++) {
                 MessageObject messageObject = messages.get(i);
+
+                if (messageObject.messageOwner.fluxgramDeleted) {
+                    continue;
+                }
+
                 if (chatActivity.getThreadMessage() != messageObject && messageObject.getId() > 0 && (messageObject.messageOwner.action == null || messageObject.canSetReaction()) && (currentTime - messageObject.reactionsLastCheckTime) > 15000L) {
                     messageObject.reactionsLastCheckTime = currentTime;
                     reactionsToCheck.add(messageObject);
@@ -69,8 +74,13 @@ public class ChatMessagesMetadataController {
             return;
         }
         for (int i = 0; i < visibleObjects.size(); i++) {
-            TL_stories.TL_stories_getStoriesByID req = new TL_stories.TL_stories_getStoriesByID();
             MessageObject messageObject = visibleObjects.get(i);
+
+            if (messageObject.messageOwner.fluxgramDeleted) {
+                continue;
+            }
+
+            TL_stories.TL_stories_getStoriesByID req = new TL_stories.TL_stories_getStoriesByID();
             TL_stories.StoryItem storyItem = new TL_stories.TL_storyItem();
             if (messageObject.type == MessageObject.TYPE_STORY || messageObject.type == MessageObject.TYPE_STORY_MENTION) {
                 storyItem = messageObject.messageOwner.media.storyItem;
@@ -130,8 +140,18 @@ public class ChatMessagesMetadataController {
         req.peer = chatActivity.getMessagesController().getInputPeer(dialogId);
         for (int i = 0; i < visibleObjects.size(); i++) {
             MessageObject messageObject = visibleObjects.get(i);
+
+            if (messageObject.messageOwner.fluxgramDeleted) {
+                continue;
+            }
+
             req.id.add(messageObject.getId());
         }
+
+        if (req.id.isEmpty()) {
+            return;
+        }
+
         int reqId = chatActivity.getConnectionsManager().sendRequest(req, (response, error) -> {
             if (error == null) {
                 TLRPC.Updates updates = (TLRPC.Updates) response;
@@ -157,8 +177,18 @@ public class ChatMessagesMetadataController {
         req.peer = chatActivity.getMessagesController().getInputPeer(dialogId);
         for (int i = 0; i < visibleObjects.size(); i++) {
             MessageObject messageObject = visibleObjects.get(i);
+
+            if (messageObject.messageOwner.fluxgramDeleted) {
+                continue;
+            }
+
             req.id.add(messageObject.getId());
         }
+
+        if (req.id.isEmpty()) {
+            return;
+        }
+
         int reqId = chatActivity.getConnectionsManager().sendRequest(req, (response, error) -> {
             if (error == null) {
                 chatActivity.getMessagesController().processUpdates((TLRPC.Updates) response, false);

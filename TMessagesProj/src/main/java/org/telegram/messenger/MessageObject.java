@@ -50,6 +50,7 @@ import androidx.collection.LongSparseArray;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.ringtone.RingtoneDataStore;
@@ -11611,9 +11612,49 @@ public class MessageObject {
     }
 
     public boolean canForwardMessage() {
-        if (isQuickReply()) return false;
+        if (messageOwner.fluxgramDeleted) {
+            return canSendAsCopy();
+        }
+
+        if (isQuickReply()) {
+            return false;
+        }
         if (type == TYPE_GIFT_STARS || type == TYPE_GIFT_THEME_UPDATE || type == TYPE_SUGGEST_BIRTHDAY || type == TYPE_GIFT_OFFER || type == TYPE_SHARING_OFFER || type == TYPE_COMMUNITY_CHANGED) return false;
         return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview() && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && !messageOwner.noforwards;
+    }
+
+    public boolean canSendAsCopy() {
+        if (!messageOwner.fluxgramDeleted || messageOwner.noforwards || isQuickReply() || needDrawBluredPreview()
+                || isLiveLocation() || isSponsored() || messageOwner instanceof TLRPC.TL_message_secret
+                || messageOwner.action != null && !(messageOwner.action instanceof TLRPC.TL_messageActionEmpty)) {
+            return false;
+        }
+
+        TLRPC.MessageMedia media = getMedia(messageOwner);
+
+        if (media == null || media instanceof TLRPC.TL_messageMediaEmpty || media instanceof TLRPC.TL_messageMediaWebPage) {
+            return !TextUtils.isEmpty(messageOwner.message);
+        }
+
+        if (media instanceof TLRPC.TL_messageMediaPhoto) {
+            return !TextUtils.isEmpty(messageOwner.attachPath) && ArchivedMessageCopy.hasLocalAttachment(this);
+        }
+
+        if (media instanceof TLRPC.TL_messageMediaDocument) {
+            return media.document instanceof TLRPC.TL_document
+                    && !TextUtils.isEmpty(messageOwner.attachPath)
+                    && ArchivedMessageCopy.hasLocalAttachment(this);
+        }
+
+        if (media instanceof TLRPC.TL_messageMediaGeo) {
+            return media.period == 0;
+        }
+
+        if (media instanceof TLRPC.TL_messageMediaVenue) {
+            return media.geo != null;
+        }
+
+        return media instanceof TLRPC.TL_messageMediaContact && media.phone_number != null;
     }
 
     public boolean canEditMedia() {

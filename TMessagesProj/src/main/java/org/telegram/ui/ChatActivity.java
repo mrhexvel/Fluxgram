@@ -121,6 +121,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
+import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
 import org.telegram.ui.fluxgram.MessageMenuMetadataController;
@@ -12482,6 +12483,10 @@ public class ChatActivity extends BaseFragment implements
         return false;
     }
 
+    private boolean canForwardMessages(ArrayList<MessageObject> messages) {
+        return ArchivedMessageCopy.canSendSelection(messages);
+    }
+
     private void share() {
         MessageObject msg = null;
         for (int a = 1; a >= 0; a--) {
@@ -12576,6 +12581,23 @@ public class ChatActivity extends BaseFragment implements
             }
             return;
         }
+
+        if (cantForwardMessagesCount != 0) {
+            return;
+        }
+
+        ArrayList<MessageObject> selectedMessages = new ArrayList<>();
+
+        for (int a = 0; a < 2; a++) {
+            for (int b = 0; b < selectedMessagesIds[a].size(); b++) {
+                selectedMessages.add(selectedMessagesIds[a].valueAt(b));
+            }
+        }
+
+        if (!canForwardMessages(selectedMessages)) {
+            return;
+        }
+
         int hasPoll = 0;
         boolean hasInvoice = false;
         for (int a = 0; a < 2; a++) {
@@ -33849,6 +33871,11 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_FORWARD: {
+                if (!selectedObject.canForwardMessage()
+                        || selectedObjectGroup != null && !canForwardMessages(selectedObjectGroup.messages)) {
+                    return;
+                }
+
                 if (getMessagesController().isFrozen()) {
                     AccountFrozenAlert.show(currentAccount);
                     selectedObject = null;
@@ -34897,6 +34924,11 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
         }
+
+        if (!fmessages.isEmpty() && !canForwardMessages(fmessages)) {
+            return false;
+        }
+
         for (int j = 0; j < dids.size(); j++) {
             TLRPC.Chat chat = getMessagesController().getChat(-dids.get(j).dialogId);
             if (chat != null) {
@@ -46207,6 +46239,13 @@ public class ChatActivity extends BaseFragment implements
             items.add(LocaleController.getString(R.string.Copy));
             options.add(OPTION_COPY);
             icons.add(R.drawable.msg_copy);
+
+            if (message.canForwardMessage()
+                    && (groupedMessages == null || canForwardMessages(groupedMessages.messages))) {
+                items.add(LocaleController.getString(R.string.Forward));
+                options.add(OPTION_FORWARD);
+                icons.add(R.drawable.msg_forward);
+            }
 
             if (messageMenuMetadataController.hasVersions(message)) {
                 items.add(LocaleController.getString(R.string.FluxGramEditHistory));

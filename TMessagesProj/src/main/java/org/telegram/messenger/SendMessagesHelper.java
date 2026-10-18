@@ -10,6 +10,7 @@ package org.telegram.messenger;
 
 import org.telegram.messenger.plugins.BeforeSendEvent;
 import org.telegram.messenger.plugins.PluginManager;
+import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.fluxgram.GhostModeSendDelay;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
 
@@ -2090,6 +2091,12 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
+
+        if (ArchivedMessageCopy.contains(messages)) {
+            return sendArchivedMessageCopy(messages, peer, hideCaption, notify, scheduleDate,
+                    scheduleRepeatPeriod, replyToTopMsg, payStars, monoForumPeerId, suggestionParams);
+        }
+
         int sendResult = 0;
         long myId = getUserConfig().getClientUserId();
         boolean isChannel = false;
@@ -2831,6 +2838,48 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             }
         }
         return sendResult;
+    }
+
+    private int sendArchivedMessageCopy(
+            ArrayList<MessageObject> messages,
+            long peer,
+            boolean hideCaption,
+            boolean notify,
+            int scheduleDate,
+            int scheduleRepeatPeriod,
+            MessageObject replyToTopMsg,
+            long payStars,
+            long monoForumPeerId,
+            MessageSuggestionParams suggestionParams) {
+        if (!ArchivedMessageCopy.canSendSelection(messages)) {
+            return 18;
+        }
+
+        for (int i = 0; i < messages.size(); i++) {
+            int sendResult = ArchivedMessageCopy.checkDestination(getAccountInstance(), peer, messages.get(i));
+
+            if (sendResult != 0) {
+                return sendResult;
+            }
+        }
+
+        long currentPayStars = getMessagesController().getSendPaidMessagesStars(peer);
+
+        if (currentPayStars <= 0) {
+            currentPayStars = DialogObject.getMessagesStarsPrice(getMessagesController().isUserContactBlocked(peer));
+        }
+
+        if (currentPayStars != payStars) {
+            AlertsCreator.ensurePaidMessageConfirmation(currentAccount, peer, messages.size(), newPayStars -> {
+                sendMessage(messages, peer, false, hideCaption, notify, scheduleDate,
+                        scheduleRepeatPeriod, replyToTopMsg, -1, newPayStars, monoForumPeerId, suggestionParams);
+            });
+            return 0;
+        }
+
+        ArchivedMessageCopy.send(getAccountInstance(), messages, peer, hideCaption, notify, scheduleDate,
+                scheduleRepeatPeriod, replyToTopMsg, payStars, monoForumPeerId, suggestionParams);
+        return 0;
     }
 
     public static int canSendMessageToChat(TLRPC.Chat chat, MessageObject msgObj) {

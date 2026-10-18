@@ -193,6 +193,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.WebFile;
+import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.Size;
 import org.telegram.messenger.chromecast.ChromecastController;
@@ -5132,6 +5133,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     if (currentMessageObject == null) {
                         return;
                     }
+
+                    if (id == gallery_menu_reply && currentMessageObject.messageOwner.fluxgramDeleted) {
+                        return;
+                    }
+
                     Bundle args = new Bundle();
                     long dialogId = currentDialogId;
                     if (currentMessageObject != null) {
@@ -5204,7 +5210,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     prepareSegmentImage();
                     ContentPreviewViewer.getInstance().setStickerSetForCustomSticker(null);
                 } else if (id == gallery_menu_send) {
-                    if (currentMessageObject == null || !(parentActivity instanceof LaunchActivity)) {
+                    if (currentMessageObject == null || !currentMessageObject.canForwardMessage() || !(parentActivity instanceof LaunchActivity)) {
                         return;
                     }
                     boolean isChannel = false;
@@ -5222,6 +5228,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         msgs.addAll(group.messages);
                     } else {
                         msgs.add(currentMessageObject);
+                    }
+
+                    if (!canForwardMessages(msgs)) {
+                        return;
                     }
 
                     if (isChannel && msgs.size() <= 1) {
@@ -5271,6 +5281,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         fmessages.add(currentMessageObject);
                         final ChatActivity parentChatActivityFinal = parentChatActivity;
                         fragment.setDelegate((fragment1, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+                            if (!canForwardMessages(fmessages)) {
+                                return true;
+                            }
+
                             if (dids.size() > 1 || dids.get(0).dialogId == UserConfig.getInstance(currentAccount).getClientUserId() || message != null) {
                                 for (int a = 0; a < dids.size(); a++) {
                                     long did = dids.get(a).dialogId;
@@ -5329,6 +5343,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     if (parentActivity == null || placeProvider == null) {
                         return;
                     }
+
+                    if (currentMessageObject != null && currentMessageObject.messageOwner.fluxgramDeleted) {
+                        return;
+                    }
+
                     boolean isChannel = false;
                     if (currentMessageObject != null && !currentMessageObject.scheduled) {
                         long dialogId = currentMessageObject.getDialogId();
@@ -5725,6 +5744,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         return;
                     }
                     MessageObject messageObject = imagesArr.get(switchingToIndex);
+
+                    if (messageObject.messageOwner.fluxgramDeleted) {
+                        return;
+                    }
+
                     captionTranslated = true;
                     AndroidUtilities.runOnUIThread(() -> {
                         menuItem.hideSubItem(gallery_menu_translate);
@@ -8389,7 +8413,15 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         );
     }
 
+    private boolean canForwardMessages(ArrayList<MessageObject> messages) {
+        return ArchivedMessageCopy.canSendSelection(messages);
+    }
+
     private void showShareAlert(ArrayList<MessageObject> messages) {
+        if (!canForwardMessages(messages)) {
+            return;
+        }
+
         final FrameLayout photoContainerView = containerView;
         requestAdjustToNothing();
         boolean openKeyboardOnShareAlertClose = false;
@@ -14149,16 +14181,16 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                             TLRPC.Chat chat = MessagesController.getInstance(messageObject.currentAccount).getChat(-dialogId);
                             canWrite = ChatObject.canWriteToChat(chat);
                         }
-                        if (canWrite) {
+                        if (canWrite && !messageObject.messageOwner.fluxgramDeleted) {
                             menuItem.showSubItem(gallery_menu_reply);
                         } else {
                             menuItem.hideSubItem(gallery_menu_reply);
                         }
                         menuItem.showSubItem(gallery_menu_showall);
                     }
-                    setItemVisible(sendItem, !noforwards, false);
+                    setItemVisible(sendItem, messageObject.canForwardMessage() && !noforwards, false);
                 } else if (isEmbedVideo && messageObject.eventId == 0) {
-                    setItemVisible(sendItem, true, false);
+                    setItemVisible(sendItem, messageObject.canForwardMessage() && !noforwards, false);
                 }
                 setImageIndex(0);
             }
@@ -14239,7 +14271,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     TLRPC.Chat chat = MessagesController.getInstance(openingObject.currentAccount).getChat(-dialogId);
                     canWrite = ChatObject.canWriteToChat(chat);
                 }
-                if (canWrite) {
+                if (canWrite && !openingObject.messageOwner.fluxgramDeleted) {
                     menuItem.showSubItem(gallery_menu_reply);
                 } else {
                     menuItem.hideSubItem(gallery_menu_reply);
@@ -14554,14 +14586,16 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     captionTranslated = false;
                     captionDetectedLanguage = null;
                 }
-                if (translateController.isContextTranslateEnabled()) {
+                if (!newMessageObject.messageOwner.fluxgramDeleted && translateController.isContextTranslateEnabled()) {
                     final MessageObject messageObject = newMessageObject;
                     translateController.detectPhotoLanguage(messageObject, lng -> {
                         if (index != switchingToIndex) {
                             return;
                         }
                         captionDetectedLanguage = lng;
-                        if (translateController.isContextTranslateEnabled() && translateController.canTranslatePhoto(messageObject, captionDetectedLanguage)) {
+                        if (!messageObject.messageOwner.fluxgramDeleted
+                                && translateController.isContextTranslateEnabled()
+                                && translateController.canTranslatePhoto(messageObject, captionDetectedLanguage)) {
                             if (captionTranslated) {
                                 menuItem.showSubItem(gallery_menu_hide_translation);
                                 menuItem.hideSubItem(gallery_menu_translate);
@@ -14575,7 +14609,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         }
                     });
                 }
-                if (translateController.isContextTranslateEnabled() && translateController.canTranslatePhoto(newMessageObject, captionDetectedLanguage)) {
+                if (!newMessageObject.messageOwner.fluxgramDeleted
+                        && translateController.isContextTranslateEnabled()
+                        && translateController.canTranslatePhoto(newMessageObject, captionDetectedLanguage)) {
                     if (captionTranslated) {
                         menuItem.showSubItem(gallery_menu_hide_translation);
                         menuItem.hideSubItem(gallery_menu_translate);
@@ -14591,7 +14627,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 if (newMessageObject.isNewGif() && allowShare && !DialogObject.isEncryptedDialog(newMessageObject.getDialogId())) {
                     menuItem.showSubItem(gallery_menu_savegif);
                 }
-                if (newMessageObject.canDeleteMessage(parentChatActivity != null && parentChatActivity.isInScheduleMode(), null) && slideshowMessageId == 0) {
+                if (!newMessageObject.messageOwner.fluxgramDeleted
+                        && newMessageObject.canDeleteMessage(parentChatActivity != null && parentChatActivity.isInScheduleMode(), null)
+                        && slideshowMessageId == 0) {
                     menuItem.showSubItem(gallery_menu_delete);
                 } else {
                     menuItem.hideSubItem(gallery_menu_delete);
@@ -14764,7 +14802,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 }
                 title = getString(R.string.AttachDocument);
             }
-            if (DialogObject.isEncryptedDialog(currentDialogId) && !isEmbedVideo || noforwards) {
+            if (DialogObject.isEncryptedDialog(currentDialogId) && !isEmbedVideo || noforwards || !newMessageObject.canForwardMessage()) {
                 setItemVisible(sendItem, false, false);
             }
             if (isEmbedVideo || newMessageObject.messageOwner.ttl != 0 && newMessageObject.messageOwner.ttl < 60 * 60 || noforwards) {
