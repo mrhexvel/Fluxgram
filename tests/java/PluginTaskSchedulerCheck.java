@@ -11,6 +11,7 @@ public final class PluginTaskSchedulerCheck {
     private static final class Host implements PythonPluginTaskScheduler.Host {
         final ArrayDeque<Runnable> queue = new ArrayDeque<>();
         long generation = 1;
+        boolean accepting = true;
 
         @Override
         public boolean isGenerationActive(long value) {
@@ -19,6 +20,10 @@ public final class PluginTaskSchedulerCheck {
 
         @Override
         public boolean enqueue(Runnable task) {
+            if (!accepting) {
+                return false;
+            }
+
             queue.addLast(task);
             return true;
         }
@@ -102,6 +107,14 @@ public final class PluginTaskSchedulerCheck {
         host.runNext();
         check(calls[0] == 5);
         scheduler.cancelAll();
+
+        detector.background();
+        check(scheduler.schedule(2, 1002, 0, 1000, callback(calls), null) == 0);
+        host.accepting = false;
+        detector.foreground();
+        check(host.queue.isEmpty());
+        check(!scheduler.isActive(2, 1002) && scheduler.activeCount() == 0);
+        host.accepting = true;
     }
 
     private static PyObject callback(int[] calls) {

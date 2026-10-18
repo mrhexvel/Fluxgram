@@ -294,9 +294,11 @@ final class PythonPluginTaskScheduler implements ForegroundDetector.Listener {
     public synchronized void onBecameForeground() {
         foreground = true;
 
-        for (Record record : records.values()) {
+        for (Record record : records.values().toArray(new Record[0])) {
             if (record.periodic() && record.paused && !record.running && !record.ready) {
-                scheduleLocked(record, record.resumeDelayMs);
+                if (!scheduleLocked(record, record.resumeDelayMs)) {
+                    cancelLocked(record);
+                }
             }
         }
     }
