@@ -80,9 +80,24 @@ public final class SavedAttachments {
         if (current == null || current.owner != owner || current.closed) {
             current = new SavedAttachments(account, owner);
             instances.put(account, current);
+            current.initializeExisting();
         }
 
         return current;
+    }
+
+    private void initializeExisting() {
+        queue.postRunnable(() -> {
+            if (!active() || !directory.isDirectory()) {
+                return;
+            }
+
+            try {
+                open();
+            } catch (Exception error) {
+                FileLog.e(error);
+            }
+        });
     }
 
     public boolean isEnabled() {
@@ -311,6 +326,14 @@ public final class SavedAttachments {
         database.execSQL("CREATE TABLE IF NOT EXISTS attachments (path TEXT PRIMARY KEY, dialog INTEGER NOT NULL, mid INTEGER NOT NULL, size INTEGER NOT NULL, saved INTEGER NOT NULL)");
         database.execSQL("CREATE INDEX IF NOT EXISTS attachments_age ON attachments(saved, path)");
         database.execSQL("CREATE INDEX IF NOT EXISTS attachments_message ON attachments(dialog, mid)");
+
+        try (Cursor cursor = database.rawQuery("SELECT COALESCE(SUM(size), 0), COUNT(*) FROM attachments", null)) {
+            cursor.moveToFirst();
+            used = cursor.getLong(0);
+            count = cursor.getInt(1);
+        }
+
+        reconcileIndex();
         File[] files = directory.listFiles();
 
         if (files != null) {
@@ -329,14 +352,20 @@ public final class SavedAttachments {
             }
         }
 
-        try (Cursor cursor = database.rawQuery("SELECT COALESCE(SUM(size), 0), COUNT(*) FROM attachments", null)) {
-            cursor.moveToFirst();
-            used = cursor.getLong(0);
-            count = cursor.getInt(1);
-        }
-
         trim(0);
         initialized = true;
+    }
+
+    private void reconcileIndex() throws Exception {
+        try (Cursor cursor = database.rawQuery("SELECT path, dialog, mid, size FROM attachments", null)) {
+            while (cursor.moveToNext()) {
+                File target = new File(directory, cursor.getString(0));
+
+                if (!target.isFile()) {
+                    removeRow(cursor);
+                }
+            }
+        }
     }
 
     private void save(FileInputStream input, File destination, long size, long dialog, int mid) {

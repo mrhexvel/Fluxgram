@@ -49,6 +49,39 @@ class SavedAttachmentsTest(unittest.TestCase):
             self.assertTrue(any("attachments_age" in row[3] for row in plan))
             self.assertFalse(any("TEMP B-TREE" in row[3] for row in plan))
 
+    def test_startup_reconciles_rows_without_files(self):
+        source = (SOURCE / "SavedAttachments.java").read_text()
+        statements = re.findall(r'database.execSQL\("(CREATE.*?)"\);', source)
+        startup = source[source.index("    public static synchronized SavedAttachments get("):source.index("    public boolean isEnabled()")]
+        reconcile = source[source.index("    private void reconcileIndex("):source.index("    private void save(")]
+        query = re.search(r'database.rawQuery\("(SELECT path, dialog, mid, size FROM attachments)"', reconcile)[1]
+
+        self.assertIn("current.initializeExisting();", startup)
+        self.assertIn("queue.postRunnable", startup)
+        self.assertIn("!directory.isDirectory()", startup)
+        self.assertIn("open();", startup)
+        self.assertIn("if (!target.isFile())", reconcile)
+        self.assertIn("removeRow(cursor);", reconcile)
+        self.assertLess(source.index("used = cursor.getLong(0);"), source.index("reconcileIndex();"))
+
+        with tempfile.TemporaryDirectory() as directory, sqlite3.connect(":memory:") as db:
+            for statement in statements:
+                db.execute(statement)
+            db.executemany("INSERT INTO attachments VALUES (?, ?, ?, ?, ?)", [
+                ("1_7.jpg", 1, 7, 100, 10),
+                ("1_8.jpg", 1, 8, 200, 20),
+            ])
+            (Path(directory) / "1_8.jpg").write_bytes(b"retained")
+
+            for path, _, _, _ in db.execute(query).fetchall():
+                if not (Path(directory) / path).is_file():
+                    db.execute("DELETE FROM attachments WHERE path = ?", (path,))
+
+            self.assertEqual(db.execute("SELECT path, size FROM attachments").fetchall(), [("1_8.jpg", 200)])
+            self.assertEqual(db.execute("SELECT COALESCE(SUM(size), 0), COUNT(*) FROM attachments").fetchone(), (200, 1))
+            db.execute("INSERT INTO attachments VALUES (?, ?, ?, ?, ?)", ("1_7.jpg", 1, 7, 100, 30))
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM attachments").fetchone()[0], 2)
+
     def test_statistics_use_index_without_scanning_files(self):
         source = (SOURCE / "SavedAttachments.java").read_text()
         statements = re.findall(r'database.execSQL\("(CREATE.*?)"\);', source)
