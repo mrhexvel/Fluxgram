@@ -196,6 +196,8 @@ public final class ExternalPlugins {
                                         app.getCacheDir());
 
                         Map<String, PluginPackageStore.Pending> operations = store.pending();
+                        Set<String> recoveryFailed = ConcurrentHashMap.newKeySet();
+                        recordPendingErrors(store.pendingErrors(), recoveryFailed);
                         PluginManager manager = PluginManager.getInstance();
 
                         if (manager.isRecoveryBlockingImports()) {
@@ -207,89 +209,18 @@ public final class ExternalPlugins {
                         }
 
                         for (PluginPackageStore.Pending operation : operations.values()) {
-                            if (operation.delete) {
-                                PluginStorage.clearPlugin(operation.id);
-
-                                if (!PluginSettings.clearForPluginNow(operation.id)
-                                        || !manager.clearPersistedEnabledStateNow(operation.id)) {
-                                    throw new IOException("Cannot clear deleted plugin state");
-                                }
-
-                                store.applyPendingDelete(operation.id);
-                                continue;
-                            }
-
-                            if (operation.rollback) {
-                                store.rollbackPending(operation.id);
-
-                                if (!manager.setPersistedEnabledState(
-                                        operation.id,
-                                        operation.enabledBeforeUpdate)) {
-                                    throw new IOException("Cannot restore plugin enabled state");
-                                }
-
-                                store.finishPendingRollback(operation.id);
-
-                                continue;
-                            }
-
-                            if (operation.migrated) {
-                                if (!manager.setPersistedEnabledState(
-                                        operation.id,
-                                        operation.enableAfterUpdate)) {
-                                    throw new IOException("Cannot save plugin enabled state");
-                                }
-
-                                store.finishPendingUpdate(operation.id);
-                                continue;
-                            }
-
-                            PluginPackageStore.Installed update =
-                                    store.activatePendingUpdate(operation.id);
-
-                            if (!update.manifest.isCompatible()) {
-                                store.rollbackPending(operation.id);
-
-                                if (!manager.setPersistedEnabledState(
-                                        operation.id,
-                                        operation.enabledBeforeUpdate)) {
-                                    throw new IOException("Cannot restore plugin enabled state");
-                                }
-
-                                store.finishPendingRollback(operation.id);
-                                continue;
-                            }
-
                             try {
-                                PluginCrashRecovery.runExternal(
-                                        operation.id,
-                                        () -> PythonPluginAdapter.migrateStorage(update));
+                                recoverPendingOperation(manager, operation);
                             } catch (Exception | LinkageError error) {
                                 PluginCrashRecovery.handled(error);
-                                FileLog.e(error);
-                                store.rollbackPending(operation.id);
-
-                                if (!manager.setPersistedEnabledState(
-                                        operation.id,
-                                        operation.enabledBeforeUpdate)) {
-                                    throw new IOException("Cannot restore plugin enabled state");
-                                }
-
-                                store.finishPendingRollback(operation.id);
-
-                                continue;
+                                recoveryFailed.add(operation.id);
+                                FileLog.e("FluxGram pending plugin recovery failed: "
+                                        + operation.id, error);
                             }
-
-                            store.markPendingMigrated(operation.id);
-
-                            if (!manager.setPersistedEnabledState(
-                                    operation.id,
-                                    operation.enableAfterUpdate)) {
-                                throw new IOException("Cannot save plugin enabled state");
-                            }
-
-                            store.finishPendingUpdate(operation.id);
                         }
+
+                        pending = Collections.unmodifiableMap(store.pending());
+                        recordPendingErrors(store.pendingErrors(), recoveryFailed);
 
                         LinkedHashMap<String, IncompatiblePlugin> unavailable =
                                 new LinkedHashMap<>();
@@ -297,6 +228,13 @@ public final class ExternalPlugins {
                         for (PluginPackageStore.Installed installed : store.list()) {
                             if (installed.manifest.isCompatible()) {
                                 PythonPluginAdapter adapter = new PythonPluginAdapter(installed);
+
+                                if (recoveryFailed.contains(installed.manifest.id)) {
+                                    adapter.setPreflightError(
+                                            new IOException("Pending plugin recovery failed"));
+                                    manager.registerBlockedUntilRestart(adapter);
+                                    continue;
+                                }
 
                                 try {
                                     PluginCrashRecovery.runExternal(
@@ -329,6 +267,98 @@ public final class ExternalPlugins {
 
                     changed();
                 });
+    }
+
+    private static void recordPendingErrors(
+            Map<String, String> errors, Set<String> recoveryFailed) {
+        for (Map.Entry<String, String> error : errors.entrySet()) {
+            recoveryFailed.add(error.getKey());
+            FileLog.e("FluxGram invalid pending plugin operation: "
+                    + error.getKey() + ": " + error.getValue());
+        }
+    }
+
+    private static void recoverPendingOperation(
+            PluginManager manager, PluginPackageStore.Pending operation) throws Exception {
+        if (operation.delete) {
+            PluginStorage.clearPlugin(operation.id);
+
+            if (!PluginSettings.clearForPluginNow(operation.id)
+                    || !manager.clearPersistedEnabledStateNow(operation.id)) {
+                throw new IOException("Cannot clear deleted plugin state");
+            }
+
+            store.applyPendingDelete(operation.id);
+            return;
+        }
+
+        if (operation.rollback) {
+            store.rollbackPending(operation.id);
+
+            if (!manager.setPersistedEnabledState(
+                    operation.id,
+                    operation.enabledBeforeUpdate)) {
+                throw new IOException("Cannot restore plugin enabled state");
+            }
+
+            store.finishPendingRollback(operation.id);
+            return;
+        }
+
+        if (operation.migrated) {
+            if (!manager.setPersistedEnabledState(
+                    operation.id,
+                    operation.enableAfterUpdate)) {
+                throw new IOException("Cannot save plugin enabled state");
+            }
+
+            store.finishPendingUpdate(operation.id);
+            return;
+        }
+
+        PluginPackageStore.Installed update = store.activatePendingUpdate(operation.id);
+
+        if (!update.manifest.isCompatible()) {
+            store.rollbackPending(operation.id);
+
+            if (!manager.setPersistedEnabledState(
+                    operation.id,
+                    operation.enabledBeforeUpdate)) {
+                throw new IOException("Cannot restore plugin enabled state");
+            }
+
+            store.finishPendingRollback(operation.id);
+            return;
+        }
+
+        try {
+            PluginCrashRecovery.runExternal(
+                    operation.id,
+                    () -> PythonPluginAdapter.migrateStorage(update));
+        } catch (Exception | LinkageError error) {
+            PluginCrashRecovery.handled(error);
+            FileLog.e(error);
+            store.rollbackPending(operation.id);
+
+            if (!manager.setPersistedEnabledState(
+                    operation.id,
+                    operation.enabledBeforeUpdate)) {
+                throw new IOException("Cannot restore plugin enabled state");
+            }
+
+            store.finishPendingRollback(operation.id);
+            return;
+        }
+
+        store.markPendingMigrated(operation.id);
+
+        if (!manager.setPersistedEnabledState(
+                operation.id,
+                operation.enableAfterUpdate)) {
+            throw new IOException("Cannot save plugin enabled state");
+        }
+
+        store.finishPendingUpdate(operation.id);
     }
 
     public static String getStartupError() {

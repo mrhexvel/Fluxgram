@@ -4,6 +4,7 @@ import java.io.*;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -14,6 +15,7 @@ public final class PluginPackageStore {
     public static final String SOURCE_ARCHIVE = ".fluxgram-source.fgplugin";
 
     private final File root, cache;
+    private Map<String, String> pendingErrors = Collections.emptyMap();
 
     public static final class Installed {
         public final PluginManifest manifest;
@@ -399,6 +401,7 @@ public final class PluginPackageStore {
 
     public synchronized Map<String, Pending> pending() throws IOException {
         Map<String, Pending> result = new LinkedHashMap<>();
+        Map<String, String> errors = new LinkedHashMap<>();
         File[] files = root.listFiles();
 
         if (files == null) {
@@ -411,39 +414,59 @@ public final class PluginPackageStore {
             }
 
             String id = file.getName().substring(".pending-".length());
-            validateId(id);
 
-            if (!file.isDirectory()) {
-                throw new IOException("Invalid pending operation");
+            try {
+                validateId(id);
+
+                if (!file.isDirectory()) {
+                    throw new IOException("Invalid pending operation");
+                }
+
+                result.put(
+                        id,
+                        new Pending(
+                                id,
+                                new File(file, "delete").isFile(),
+                                new File(file, "enable").isFile(),
+                                new File(file, "enabled-before").isFile(),
+                                new File(file, "rollback").isFile(),
+                                new File(file, "migrated").isFile()));
+            } catch (IOException error) {
+                errors.put(id, error.getMessage());
             }
-
-            result.put(
-                    id,
-                    new Pending(
-                            id,
-                            new File(file, "delete").isFile(),
-                            new File(file, "enable").isFile(),
-                            new File(file, "enabled-before").isFile(),
-                            new File(file, "rollback").isFile(),
-                            new File(file, "migrated").isFile()));
         }
+
+        pendingErrors = Collections.unmodifiableMap(errors);
 
         return result;
     }
 
+    public synchronized Map<String, String> pendingErrors() {
+        return pendingErrors;
+    }
+
     public synchronized void applyPending() throws IOException {
-        for (Pending operation : pending().values()) {
-            if (operation.delete) {
-                applyPendingDelete(operation.id);
-            } else if (operation.rollback) {
-                rollbackPending(operation.id);
-                finishPendingRollback(operation.id);
-            } else {
-                activatePendingUpdate(operation.id);
-                markPendingMigrated(operation.id);
-                finishPendingUpdate(operation.id);
+        Map<String, Pending> operations = pending();
+        Map<String, String> errors = new LinkedHashMap<>(pendingErrors);
+
+        for (Pending operation : operations.values()) {
+            try {
+                if (operation.delete) {
+                    applyPendingDelete(operation.id);
+                } else if (operation.rollback) {
+                    rollbackPending(operation.id);
+                    finishPendingRollback(operation.id);
+                } else {
+                    activatePendingUpdate(operation.id);
+                    markPendingMigrated(operation.id);
+                    finishPendingUpdate(operation.id);
+                }
+            } catch (IOException error) {
+                errors.put(operation.id, error.getMessage());
             }
         }
+
+        pendingErrors = Collections.unmodifiableMap(errors);
     }
 
     public synchronized Installed activatePendingUpdate(String id) throws IOException {

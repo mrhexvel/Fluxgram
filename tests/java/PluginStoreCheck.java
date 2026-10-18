@@ -47,6 +47,17 @@ public final class PluginStoreCheck {
                 store.applyPending();
             }
 
+            if (args[0].equals("applyerrors")) {
+                store.applyPending();
+
+                for (java.util.Map.Entry<String, String> error
+                        : store.pendingErrors().entrySet()) {
+                    System.out.println(error.getKey() + ":" + error.getValue());
+                }
+
+                return;
+            }
+
             if (args[0].equals("activate")) {
                 store.activatePendingUpdate(args[3]);
             }
@@ -100,6 +111,17 @@ public final class PluginStoreCheck {
                                     + operation.enabledBeforeUpdate
                                     + ":"
                                     + operation.rollback);
+                }
+
+                return;
+            }
+
+            if (args[0].equals("pendingerrors")) {
+                store.pending();
+
+                for (java.util.Map.Entry<String, String> error
+                        : store.pendingErrors().entrySet()) {
+                    System.out.println(error.getKey() + ":" + error.getValue());
                 }
 
                 return;

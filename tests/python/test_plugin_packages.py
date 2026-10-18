@@ -741,6 +741,33 @@ class PluginStoreTest(unittest.TestCase):
         self.store("apply")
         self.assertEqual(self.installed_version(), "1.1.0")
 
+    def test_corrupt_pending_operation_does_not_block_valid_update(self):
+        second_id = "test.second_fixture"
+        self.store("install", self.archive())
+        self.store("install", self.archive(fields={"id": second_id, "name": "Second"}))
+        self.update(version="2.0.0")
+        self.store(
+            "update",
+            self.archive(fields={"id": second_id, "name": "Second", "version": "2.0.0"}),
+            extra=(second_id, MANIFEST["version"], "true"),
+        )
+        installed = self.root / "installed"
+        corrupt = installed / (".pending-" + MANIFEST["id"])
+        shutil.rmtree(corrupt)
+        corrupt.mkdir()
+
+        self.assertEqual(
+            self.store("applyerrors"),
+            [MANIFEST["id"] + ":Missing plugin update backup"],
+        )
+
+        self.assertEqual(
+            json.loads((installed / second_id / "manifest.json").read_text())["version"],
+            "2.0.0",
+        )
+        self.assertTrue(corrupt.is_dir())
+        self.assertEqual(self.store("pending"), [MANIFEST["id"] + ":false:false"])
+
     def test_update_keeps_backup_until_migration_finishes(self):
         self.store("install", self.archive())
         self.store(

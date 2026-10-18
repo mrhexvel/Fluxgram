@@ -106,6 +106,28 @@ class PluginStorageTest(unittest.TestCase):
             store.index("deleteTree(backup);", store.index("finishPendingUpdate")),
         )
 
+    def test_startup_isolates_pending_recovery_failures(self):
+        external = (JAVA / "ExternalPlugins.java").read_text()
+        manager = (JAVA / "PluginManager.java").read_text()
+        store = (JAVA / "packages" / "PluginPackageStore.java").read_text()
+
+        recovery_loop = external[
+            external.index("for (PluginPackageStore.Pending operation : operations.values())"):
+            external.index("LinkedHashMap<String, IncompatiblePlugin> unavailable")
+        ]
+        blocked = manager[
+            manager.index("synchronized void registerBlockedUntilRestart"):
+            manager.index("public synchronized boolean setEnabled")
+        ]
+
+        self.assertIn("catch (Exception | LinkageError error)", recovery_loop)
+        self.assertIn("recoveryFailed.add(operation.id);", recovery_loop)
+        self.assertIn("recordPendingErrors(store.pendingErrors(), recoveryFailed);", external)
+        self.assertIn("manager.registerBlockedUntilRestart(adapter);", external)
+        self.assertIn("pendingErrors = Collections.unmodifiableMap(errors);", store)
+        self.assertIn("entry.blockedUntilRestart = blockedUntilRestart;", blocked)
+        self.assertNotIn("preferences.edit()", blocked)
+
     def test_cleanup_covers_kv_files_sidecars_and_exact_owner(self):
         storage = (JAVA / "PluginStorage.java").read_text()
         files = (JAVA / "PluginPrivateFiles.java").read_text()

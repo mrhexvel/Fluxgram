@@ -145,6 +145,14 @@ public final class PluginManager {
     }
 
     public synchronized void register(Plugin plugin, boolean enabledByDefault) {
+        register(plugin, enabledByDefault, false);
+    }
+
+    synchronized void registerBlockedUntilRestart(Plugin plugin) {
+        register(plugin, false, true);
+    }
+
+    private void register(Plugin plugin, boolean enabledByDefault, boolean blockedUntilRestart) {
         if (preferences == null) {
             throw new IllegalStateException("PluginManager is not initialized");
         }
@@ -171,7 +179,9 @@ public final class PluginManager {
         }
 
         Entry entry = new Entry(id, plugin);
-        entry.enabled = preferences.getBoolean(enabledKey(id), enabledByDefault);
+        entry.enabled = !blockedUntilRestart
+                && preferences.getBoolean(enabledKey(id), enabledByDefault);
+        entry.blockedUntilRestart = blockedUntilRestart;
         plugins.put(id, entry);
 
         notifyEnabledChanged(entry);
