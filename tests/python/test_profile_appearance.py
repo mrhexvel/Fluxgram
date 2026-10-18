@@ -142,6 +142,13 @@ class ProfileAppearanceTest(unittest.TestCase):
                 "java", "-cp", directory, "UserListAppearanceControllerCheck",
             ], check=True, capture_output=True)
 
+        controller = (UI / "FluxGramUserListAppearanceController.java").read_text()
+        self.assertIn("MAX_ENTRIES = 512", controller)
+        self.assertIn("MAX_STALE_REQUESTS = 32", controller)
+        self.assertIn("entry.requestId != requestId", controller)
+        self.assertIn("entry.state != State.PENDING", controller)
+        self.assertIn("entry.requestId == 0", controller)
+
     def test_main_dialog_badges_are_opt_in_and_fail_closed(self):
         activity = (JAVA / "ui/DialogsActivity.java").read_text()
         adapter = (JAVA / "ui/Adapters/DialogsAdapter.java").read_text()

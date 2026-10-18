@@ -29,6 +29,9 @@ public final class UserListAppearanceControllerCheck {
         checkStaleFreshAnimation();
         checkDestroyCancelsAll();
         checkAccountMismatch();
+        checkUserEntriesRemainBounded();
+        checkUserPendingAndAttachedEntriesAreProtected();
+        checkUserStaleFailuresRemainBounded();
         checkDialogFrameCoalescingAndChunks();
         checkDialogDropsUnboundBeforeFlush();
         checkDialogSupportsGroupsOnly();
@@ -188,6 +191,94 @@ public final class UserListAppearanceControllerCheck {
         controller.bind(target, USER);
         frames.runAll();
         expect(target.nonNullCount() == 0, "account mismatch is rejected");
+    }
+
+    private static void checkUserEntriesRemainBounded() {
+        FakeStore store = new FakeStore();
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        FluxGramUserListAppearanceController controller = controller(
+                0,
+                store,
+                new FakeNetwork(),
+                Runnable::run,
+                frames
+        );
+        Target target = new Target();
+
+        for (int id = 1000; id < 1600; id++) {
+            FluxGramPeerKey peer = key(id);
+            store.writeDirect(peer, positive(peer, 1, NOW + 1000, true));
+            target.requestedPeer = peer;
+            controller.bind(target, peer);
+            frames.runAll();
+            controller.unbind(target);
+        }
+
+        expect(activeUserEntries(controller) == 512, "user controller entries remain bounded");
+    }
+
+    private static void checkUserPendingAndAttachedEntriesAreProtected() {
+        FakeStore store = new FakeStore();
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        DeferredExecutor networkExecutor = new DeferredExecutor();
+        FakeNetwork network = new FakeNetwork();
+        network.echo = true;
+        FluxGramUserListAppearanceController controller = controller(
+                0,
+                store,
+                network,
+                networkExecutor,
+                frames
+        );
+        Target pending = new Target(USER);
+        controller.bind(pending, USER);
+        frames.runAll();
+        controller.unbind(pending);
+
+        FluxGramPeerKey attachedPeer = key(900);
+        store.writeDirect(attachedPeer, positive(attachedPeer, 1, NOW + 1000, true));
+        Target attached = new Target(attachedPeer);
+        controller.bind(attached, attachedPeer);
+        frames.runAll();
+
+        Target recycled = new Target();
+        for (int id = 2000; id < 2600; id++) {
+            FluxGramPeerKey peer = key(id);
+            store.writeDirect(peer, positive(peer, 1, NOW + 1000, true));
+            recycled.requestedPeer = peer;
+            controller.bind(recycled, peer);
+            frames.runAll();
+            controller.unbind(recycled);
+        }
+
+        expect(hasUserEntry(controller, USER), "pending user entry is protected");
+        expect(hasUserEntry(controller, attachedPeer), "attached user entry is protected");
+        expect(activeUserEntries(controller) == 512, "protected entries share the bound");
+        controller.destroy();
+    }
+
+    private static void checkUserStaleFailuresRemainBounded() {
+        FakeStore store = new FakeStore();
+        DeferredFrameScheduler frames = new DeferredFrameScheduler();
+        DeferredExecutor networkExecutor = new DeferredExecutor();
+        FakeNetwork network = new FakeNetwork();
+        FluxGramUserListAppearanceController controller = controller(
+                0,
+                store,
+                network,
+                networkExecutor,
+                frames
+        );
+
+        for (int id = 3000; id < 3033; id++) {
+            FluxGramPeerKey peer = key(id);
+            store.writeDirect(peer, positive(peer, 1, NOW - 1, true));
+            controller.bind(new Target(peer), peer);
+            frames.runAll();
+            networkExecutor.runNext();
+        }
+
+        expect(activeUserRequests(controller) == 32, "failed stale user revalidations remain bounded");
     }
 
     private static void checkDialogFrameCoalescingAndChunks() {
@@ -430,6 +521,39 @@ public final class UserListAppearanceControllerCheck {
             return ((java.util.Set<?>) field.get(controller)).size();
         } catch (ReflectiveOperationException exception) {
             throw new AssertionError("cannot inspect dialog requests", exception);
+        }
+    }
+
+    private static int activeUserEntries(FluxGramUserListAppearanceController controller) {
+        try {
+            Field field = FluxGramUserListAppearanceController.class.getDeclaredField("entries");
+            field.setAccessible(true);
+            return ((Map<?, ?>) field.get(controller)).size();
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("cannot inspect user entries", exception);
+        }
+    }
+
+    private static boolean hasUserEntry(
+            FluxGramUserListAppearanceController controller,
+            FluxGramPeerKey peer
+    ) {
+        try {
+            Field field = FluxGramUserListAppearanceController.class.getDeclaredField("entries");
+            field.setAccessible(true);
+            return ((Map<?, ?>) field.get(controller)).containsKey(peer);
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("cannot inspect user entries", exception);
+        }
+    }
+
+    private static int activeUserRequests(FluxGramUserListAppearanceController controller) {
+        try {
+            Field field = FluxGramUserListAppearanceController.class.getDeclaredField("requests");
+            field.setAccessible(true);
+            return ((java.util.Set<?>) field.get(controller)).size();
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("cannot inspect user requests", exception);
         }
     }
 
