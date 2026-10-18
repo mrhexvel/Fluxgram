@@ -20,6 +20,9 @@ public final class AppearanceRepository {
         void write(FluxGramPeerKey requested, AppearanceApiDto.Result result, long storedAt) throws Exception;
 
         void clear() throws Exception;
+
+        default void close() throws Exception {
+        }
     }
 
     public interface Network {
@@ -121,6 +124,7 @@ public final class AppearanceRepository {
     private final AppearanceCachePolicy cachePolicy;
     private final AppearanceMemoryCache memoryCache;
     private final AtomicLong generation = new AtomicLong();
+    private final AtomicBoolean released = new AtomicBoolean();
     private final Map<FluxGramPeerKey, ArrayList<Pending>> inFlight = new HashMap<>();
 
     public AppearanceRepository(
@@ -169,6 +173,12 @@ public final class AppearanceRepository {
         }
 
         Subscription subscription = new Subscription();
+
+        if (released.get()) {
+            subscription.cancel();
+            return subscription;
+        }
+
         long requestGeneration = generation.get();
         workerExecutor.execute(() -> loadOnWorker(
                 new ArrayList<>(unique),
@@ -180,21 +190,54 @@ public final class AppearanceRepository {
     }
 
     public void invalidate() {
+        if (released.get()) {
+            return;
+        }
+
         generation.incrementAndGet();
         workerExecutor.execute(() -> {
+            if (released.get()) {
+                return;
+            }
+
             inFlight.clear();
             memoryCache.clear();
         });
     }
 
     public void clear() {
+        if (released.get()) {
+            return;
+        }
+
+        generation.incrementAndGet();
+        workerExecutor.execute(() -> {
+            if (released.get()) {
+                return;
+            }
+
+            inFlight.clear();
+            memoryCache.clear();
+
+            try {
+                store.clear();
+            } catch (Exception ignore) {
+            }
+        });
+    }
+
+    public void release() {
+        if (!released.compareAndSet(false, true)) {
+            return;
+        }
+
         generation.incrementAndGet();
         workerExecutor.execute(() -> {
             inFlight.clear();
             memoryCache.clear();
 
             try {
-                store.clear();
+                store.close();
             } catch (Exception ignore) {
             }
         });
@@ -410,6 +453,7 @@ public final class AppearanceRepository {
 
     private boolean active(Subscription subscription, long requestGeneration) {
         return !subscription.isCancelled()
+                && !released.get()
                 && generation.get() == requestGeneration
                 && ownerProvider.getOwner(account) == owner;
     }

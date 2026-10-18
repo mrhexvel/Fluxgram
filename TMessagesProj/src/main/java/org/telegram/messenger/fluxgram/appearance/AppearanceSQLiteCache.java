@@ -118,6 +118,14 @@ public final class AppearanceSQLiteCache implements AppearanceRepository.Store {
         db.delete("profiles", "account = ? AND owner = ?", isolation);
     }
 
+    @Override
+    public void close() {
+        if (database != null) {
+            database.close();
+            database = null;
+        }
+    }
+
     private FluxGramPeerKey readAlias(FluxGramPeerKey requested) {
         try (Cursor cursor = open().query(
                 "aliases",

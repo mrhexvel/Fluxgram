@@ -26,6 +26,7 @@ public final class AppearanceRepositoryCheck {
         checkAliasAndTypeMismatch();
         checkRevisionAndCancellation();
         checkBatchLimit();
+        checkOwnerRelease();
     }
 
     private static void checkPolicyAndMemoryLimit() {
@@ -217,6 +218,54 @@ public final class AppearanceRepositoryCheck {
         expect(network.batchSizes.equals(Arrays.asList(100, 100, 5)), "batch capped at 100");
     }
 
+    private static void checkOwnerRelease() {
+        long[] owner = {100};
+        FakeStore oldStore = new FakeStore();
+        DeferredExecutor oldWorker = new DeferredExecutor();
+        DeferredExecutor oldNetwork = new DeferredExecutor();
+        AppearanceRepository oldRepository = new AppearanceRepository(
+                0,
+                100,
+                oldStore,
+                new FakeNetwork(positive(USER, 1, NOW + 1000)),
+                value -> owner[0],
+                () -> NOW,
+                oldWorker,
+                oldNetwork,
+                Runnable::run
+        );
+        ArrayList<AppearanceRepository.Lookup> oldValues = new ArrayList<>();
+        oldRepository.load(USER, oldValues::add);
+        oldWorker.runNext();
+        expect(oldNetwork.size() == 1, "old owner request started");
+
+        oldRepository.release();
+        expect(!oldStore.closed, "release is nonblocking");
+        oldWorker.runNext();
+        expect(oldStore.closed, "store closed on worker");
+
+        owner[0] = 200;
+        oldNetwork.runAll();
+        oldWorker.runAll();
+        expect(oldValues.isEmpty(), "released owner callback ignored");
+        expect(oldRepository.load(USER, oldValues::add).isCancelled(), "released repository rejects load");
+
+        AppearanceRepository nextRepository = new AppearanceRepository(
+                0,
+                200,
+                new FakeStore(),
+                new FakeNetwork(positive(USER, 2, NOW + 1000)),
+                value -> owner[0],
+                () -> NOW,
+                Runnable::run,
+                Runnable::run,
+                Runnable::run
+        );
+        ArrayList<AppearanceRepository.Lookup> nextValues = new ArrayList<>();
+        nextRepository.load(USER, nextValues::add);
+        expect(nextValues.size() == 1, "reused account owner loads independently");
+    }
+
     private static AppearanceRepository repository(
             FakeStore store,
             FakeNetwork network,
@@ -289,6 +338,7 @@ public final class AppearanceRepositoryCheck {
     private static final class FakeStore implements AppearanceRepository.Store {
         private final Map<FluxGramPeerKey, AppearanceApiDto.Result> profiles = new HashMap<>();
         private final Map<FluxGramPeerKey, FluxGramPeerKey> aliases = new HashMap<>();
+        private boolean closed;
 
         @Override
         public AppearanceApiDto.Result read(FluxGramPeerKey requested) {
@@ -314,6 +364,11 @@ public final class AppearanceRepositoryCheck {
         public void clear() {
             profiles.clear();
             aliases.clear();
+        }
+
+        @Override
+        public void close() {
+            closed = true;
         }
 
         private void writeDirect(FluxGramPeerKey requested, AppearanceApiDto.Result result) {

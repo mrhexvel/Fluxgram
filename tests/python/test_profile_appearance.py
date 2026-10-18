@@ -52,6 +52,28 @@ class ProfileAppearanceTest(unittest.TestCase):
                 "java", "-cp", directory, "AppearanceRepositoryCheck",
             ], check=True, capture_output=True)
 
+    def test_repository_registry_releases_captured_owner_before_logout_reset(self):
+        repositories = (APPEARANCE / "AppearanceRepositories.java").read_text()
+        sqlite = (APPEARANCE / "AppearanceSQLiteCache.java").read_text()
+        controller = (JAVA / "messenger/MessagesController.java").read_text()
+
+        release = repositories[
+            repositories.index("    public static synchronized void release("):
+            repositories.index("    private AppearanceRepositories()")
+        ]
+        logout = controller[
+            controller.index("    public void performLogout(int type, long fluxGramPluginStorageOwner)"):
+            controller.index("    public void registerForPush(")
+        ]
+
+        self.assertIn('repositories.remove(account + ":" + owner)', release)
+        self.assertIn("repository.release();", release)
+        self.assertIn("database.close();", sqlite)
+        self.assertLess(
+            logout.index("AppearanceRepositories.release(currentAccount, fluxGramPluginStorageOwner);"),
+            logout.index("getUserConfig().clearConfig();"),
+        )
+
     def test_profile_controller_lifecycle_and_delivery(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")

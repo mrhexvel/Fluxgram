@@ -52,6 +52,18 @@ public final class AppearanceRepositories {
         return repository;
     }
 
+    public static synchronized void release(int account, long owner) {
+        if (owner <= 0) {
+            return;
+        }
+
+        AppearanceRepository repository = repositories.remove(account + ":" + owner);
+
+        if (repository != null) {
+            repository.release();
+        }
+    }
+
     private AppearanceRepositories() {
     }
 }

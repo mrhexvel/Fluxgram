@@ -54,6 +54,7 @@ import androidx.core.util.Consumer;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.fluxgram.GhostModeSettings;
+import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLiteException;
@@ -16395,6 +16396,7 @@ public class MessagesController extends BaseController implements NotificationCe
         } else {
             getConnectionsManager().cleanup(type == 2);
         }
+        AppearanceRepositories.release(currentAccount, fluxGramPluginStorageOwner);
         getUserConfig().clearConfig();
         org.telegram.messenger.plugins.PluginStorageMaintenance.runPendingOwnerCleanup();
         SharedPrefsHelper.cleanupAccount(currentAccount);
