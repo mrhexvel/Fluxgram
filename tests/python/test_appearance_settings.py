@@ -60,6 +60,7 @@ class AppearanceSettingsTest(unittest.TestCase):
 
     def test_main_dialogs_title_hook_is_fail_closed(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()
+        stories = (JAVA / "ui/fluxgram/appearance/FluxGramDialogStoriesCell.java").read_text()
         eligibility = source.split(
             "private boolean usesFluxGramRootDialogsAppearance()", 1
         )[1].split("private int getSearchFieldHeight()", 1)[0]
@@ -73,6 +74,18 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("AppearanceSettings.getActionBarTitle(currentAccount)", source)
         self.assertIn("AppearanceSettings.hidesActionBarStatus(currentAccount)", source)
         self.assertIn("AppearanceSettings.centersActionBarTitle(currentAccount)", source)
+        self.assertIn("new FluxGramDialogStoriesCell(", source)
+        self.assertIn("AppearanceSettings.getActionBarTitle(account)", stories)
+        self.assertIn("AppearanceSettings.hidesActionBarStatus(account)", stories)
+        self.assertIn("AppearanceSettings.centersActionBarTitle(account)", stories)
+
+    def test_collapsed_header_override_preserves_telegram_default(self):
+        source = (JAVA / "ui/Stories/DialogStoriesCell.java").read_text()
+
+        self.assertIn("protected CharSequence getCollapsedHeaderTitleOverride()", source)
+        self.assertIn("return null;", source)
+        self.assertIn("collapsedHeaderOverrideActive", source)
+        self.assertIn("isCollapsedHeaderStatusHidden() ? 0 : titleAlpha", source)
 
     def test_action_bar_centering_uses_symmetric_bounds(self):
         source = (JAVA / "ui/ActionBar/ActionBar.java").read_text()

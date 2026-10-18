@@ -3,7 +3,10 @@ package org.telegram.ui.fluxgram.appearance;
 import android.content.Context;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.text.TextUtils;
+import android.view.View;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -21,7 +24,7 @@ public final class FluxGramBadgeBulletin {
             return;
         }
 
-        Bulletin.TwoLineBackupLayout layout = new Bulletin.TwoLineBackupLayout(
+        BadgeLayout layout = new BadgeLayout(
                 context,
                 fragment.getResourceProvider()
         );
@@ -38,11 +41,37 @@ public final class FluxGramBadgeBulletin {
                 PorterDuff.Mode.SRC_IN
         ));
         layout.imageView.setAnimatedEmojiDrawable(drawable);
-        layout.titleTextView.setText(badge.getTitle());
-        layout.subtitleTextView.setText(badge.getDescription());
+        layout.setText(badge.getTitle(), badge.getDescription());
 
         BulletinFactory.of(fragment)
                 .create(layout, Bulletin.DURATION_LONG)
+                .wrapContent()
                 .show();
+    }
+
+    private static final class BadgeLayout extends Bulletin.TwoLineBackupLayout {
+        private boolean hasDescription;
+
+        private BadgeLayout(Context context, Theme.ResourcesProvider resourcesProvider) {
+            super(context, resourcesProvider);
+            setWrapWidth();
+            setMinimumHeight(AndroidUtilities.dp(64));
+            titleTextView.setSingleLine(true);
+            titleTextView.setEllipsize(TextUtils.TruncateAt.END);
+        }
+
+        private void setText(String title, String description) {
+            hasDescription = !TextUtils.isEmpty(description);
+            titleTextView.setText(title);
+            subtitleTextView.setText(description);
+            subtitleTextView.setVisibility(hasDescription ? View.VISIBLE : View.GONE);
+        }
+
+        @Override
+        public CharSequence getAccessibilityText() {
+            return hasDescription
+                    ? super.getAccessibilityText()
+                    : titleTextView.getText();
+        }
     }
 }

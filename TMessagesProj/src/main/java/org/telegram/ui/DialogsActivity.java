@@ -272,6 +272,7 @@ import org.telegram.ui.community.CommunityPendingRequestsActivity;
 import org.telegram.ui.community.CommunityUtils;
 import org.telegram.ui.community.cells.CommunityRequestsCell;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
+import org.telegram.ui.fluxgram.appearance.FluxGramDialogStoriesCell;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -5201,7 +5202,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             fragmentSearchField.setupBlurredBackground(iBlur3FactoryLiquidGlass.create(fragmentSearchField, BlurredBackgroundProviderImpl.topPanel(resourceProvider)));
         }
 
-        dialogStoriesCell = new DialogStoriesCell(context, this, currentAccount, isArchive() ? DialogStoriesCell.TYPE_ARCHIVE : DialogStoriesCell.TYPE_DIALOGS) {
+        dialogStoriesCell = new FluxGramDialogStoriesCell(
+                context,
+                this,
+                currentAccount,
+                isArchive() ? DialogStoriesCell.TYPE_ARCHIVE : DialogStoriesCell.TYPE_DIALOGS,
+                usesFluxGramRootDialogsAppearance()
+        ) {
             @Override
             public void onUserLongPressed(View view, long dialogId) {
                 MediaDataController.getInstance(currentAccount).loadHints(true);
@@ -7351,6 +7358,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     viewPage.dialogsAdapter.notifyDataSetChanged();
                 }
             }
+        }
+        if (dialogStoriesCell != null) {
+            dialogStoriesCell.updateItems(false, false);
         }
         updateStoriesVisibility(false);
         updateFloatingButtonVisibility(false);

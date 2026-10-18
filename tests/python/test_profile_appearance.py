@@ -470,7 +470,8 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("setCurrentAccount(account);", search_cell)
         self.assertIn("setCurrentAccount(account);", user_cell)
         self.assertIn("BADGE_SIZE_DP = 16", renderer)
-        self.assertIn("Theme.key_windowBackgroundWhiteBlueText", renderer)
+        self.assertIn("drawable.setColor(color);", renderer)
+        self.assertNotIn("Theme.getColor", renderer)
         self.assertIn("LiteMode.FLAG_PARTICLES", renderer)
         self.assertNotIn("MotionEvent", renderer)
 
@@ -705,6 +706,12 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("account,", bulletin)
         self.assertIn("Theme.key_windowBackgroundWhiteBlueText", bulletin)
         self.assertIn("PorterDuff.Mode.SRC_IN", bulletin)
+        self.assertIn("extends Bulletin.TwoLineBackupLayout", bulletin)
+        self.assertIn("hasDescription = !TextUtils.isEmpty(description);", bulletin)
+        self.assertIn("subtitleTextView.setVisibility(hasDescription ? View.VISIBLE : View.GONE);", bulletin)
+        self.assertIn("setWrapWidth();", bulletin)
+        self.assertIn("setMinimumHeight(AndroidUtilities.dp(64));", bulletin)
+        self.assertIn(".wrapContent()", bulletin)
         self.assertNotIn("UserConfig.selectedAccount", renderer)
         self.assertNotIn("UserConfig.selectedAccount", bulletin)
 

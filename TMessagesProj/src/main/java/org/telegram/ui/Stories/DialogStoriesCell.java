@@ -180,6 +180,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
     private ActionBar actionBar;
     private StoriesUtilities.EnsureStoryFileLoadedObject globalCancelable;
     private float menuItemsOffset;
+    private boolean collapsedHeaderOverrideActive;
 
     public DialogStoriesCell(@NonNull Context context, BaseFragment fragment, int currentAccount, int type) {
         super(context);
@@ -447,6 +448,18 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         updateItems(false, false);
     }
 
+    protected CharSequence getCollapsedHeaderTitleOverride() {
+        return null;
+    }
+
+    protected boolean isCollapsedHeaderTitleCentered() {
+        return false;
+    }
+
+    protected boolean isCollapsedHeaderStatusHidden() {
+        return false;
+    }
+
     public void onMiniListClicked() {
 
     }
@@ -632,6 +645,13 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         } else {
             currentTitle = menuItemsOffset < dp(50) ? null :
                 LocaleController.formatPluralString("Stories", totalCount);
+        }
+
+        CharSequence collapsedHeaderTitle = getCollapsedHeaderTitleOverride();
+        collapsedHeaderOverrideActive = TextUtils.isEmpty(currentTitle)
+                && !TextUtils.isEmpty(collapsedHeaderTitle);
+        if (collapsedHeaderOverrideActive) {
+            currentTitle = collapsedHeaderTitle;
         }
 
         if (!hasOverlayText) {
@@ -938,13 +958,24 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setTranslationY(bottomY + dp(14) - offset + dp(FAKE_TOP_PADDING) - dp(6) * subtitleOverlayContainer.getTotalVisibility());
             int cellWidth = dp(72);
             lastViewRight += -cellWidth + getAvatarRight(cellWidth, collapsedProgress) + dp(12);
-            titleView.setTranslationX(lastViewRight);
-            titleView.getDrawable().setRightPadding(lastViewRight - dp(12) + actionBar.menu.getVisibleItemsMeasuredWidthWithAlpha() * progress);
+            float titleX = lastViewRight;
+            if (collapsedHeaderOverrideActive && isCollapsedHeaderTitleCentered()) {
+                float titleWidth = titleView.getDrawable().getCurrentWidth();
+                float menuWidth = actionBar.menu.getVisibleItemsMeasuredWidthWithAlpha();
+                float centeredX = (getWidth() - titleWidth) / 2f;
+                float maximumX = getWidth() - menuWidth - dp(12) - titleWidth;
+                titleX = Math.max(lastViewRight, Math.min(centeredX, maximumX));
+            }
+            titleView.setTranslationX(titleX);
+            titleView.getDrawable().setRightPadding(titleX - dp(12) + actionBar.menu.getVisibleItemsMeasuredWidthWithAlpha() * progress);
 
             telegramLogoView.setTranslationX(titleView.getTranslationX() + dp(1));
             telegramLogoView.setTranslationY(bottomY + dp(14 + FAKE_TOP_PADDING + 4.333f) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);
 
-            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth());
+            float statusAnchorWidth = collapsedHeaderOverrideActive
+                    ? titleView.getDrawable().getCurrentWidth() + dp(4)
+                    : telegramLogoView.getMeasuredWidth();
+            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + statusAnchorWidth);
             emojiStatusView.setTranslationY(bottomY + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);
 
             subtitleOverlayContainer.setTranslationX(titleView.getTranslationX());
@@ -2211,6 +2242,9 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         final float logoVisibility = 1f - titleVisibility;
         final float titleAlpha = titleVisibility * progress;
         final float logoAlpha = logoVisibility * progress;
+        final float statusAlpha = collapsedHeaderOverrideActive
+                ? (isCollapsedHeaderStatusHidden() ? 0 : titleAlpha)
+                : logoAlpha;
 
         if (titleView != null) {
             titleView.setAlpha(titleAlpha);
@@ -2221,8 +2255,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             telegramLogoView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
         }
         if (emojiStatusView != null) {
-            emojiStatusView.setAlpha(logoAlpha);
-            emojiStatusView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+            emojiStatusView.setAlpha(statusAlpha);
+            emojiStatusView.setVisibility(statusAlpha > 0 ? VISIBLE : GONE);
         }
         if (subtitleOverlayContainer != null) {
             subtitleOverlayContainer.setAlpha(progress);

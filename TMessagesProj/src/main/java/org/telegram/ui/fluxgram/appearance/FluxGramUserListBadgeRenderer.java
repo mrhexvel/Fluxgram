@@ -7,7 +7,6 @@ import android.view.View;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
-import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 
 public final class FluxGramUserListBadgeRenderer {
@@ -87,7 +86,7 @@ public final class FluxGramUserListBadgeRenderer {
         }
 
         int badgeTop = centerY - size / 2;
-        drawable.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+        drawable.setColor(color);
         drawable.setParticles(particlesEnabled(), false);
         drawable.setBounds(badgeLeft, badgeTop, badgeLeft + size, badgeTop + size);
         drawable.draw(canvas);
