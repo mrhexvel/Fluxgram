@@ -12,6 +12,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.fluxgram.EditHistory;
+import org.telegram.messenger.fluxgram.LocalStorageCleanup;
 import org.telegram.messenger.fluxgram.LocalStorageStatistics;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
 import org.telegram.messenger.fluxgram.SavedAttachments;
@@ -36,6 +37,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
     private int storageLimit;
     private int statisticsGeneration;
     private boolean statisticsLoading;
+    private boolean storageClearRunning;
     private LocalStorageStatistics.Result statistics;
     private UniversalRecyclerView list;
 
@@ -200,8 +202,8 @@ public final class FluxGramStealthActivity extends BaseFragment {
         addAction(items, R.string.FluxGramStealthExport, R.drawable.msg_share, true);
         addAction(items, R.string.FluxGramStealthImport, R.drawable.msg_download, false);
         items.add(UItem.asShadow(null));
-        addAction(items, R.string.FluxGramStealthClear, R.drawable.msg_clearcache, false);
-        items.add(UItem.asShadow(null));
+        addClearAction(items);
+        items.add(UItem.asShadow(text(R.string.FluxGramStealthRetentionInfo)));
     }
 
     private void addHeader(ArrayList<UItem> items, int title) {
@@ -416,6 +418,51 @@ public final class FluxGramStealthActivity extends BaseFragment {
         cell.setBackground(Theme.getSelectorDrawable(false));
         cell.setOnClickListener(view -> showPlaceholder());
         items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private void addClearAction(ArrayList<UItem> items) {
+        TextSettingsCell cell = new TextSettingsCell(getParentActivity(), getResourceProvider());
+        cell.setTextAndIcon(text(R.string.FluxGramStealthClear), R.drawable.msg_clearcache, false);
+        cell.setBackground(Theme.getSelectorDrawable(false));
+        cell.setEnabled(!storageClearRunning, null);
+
+        if (!storageClearRunning) {
+            cell.setOnClickListener(view -> showDialog(new AlertDialog.Builder(
+                    getParentActivity(), getResourceProvider())
+                    .setTitle(text(R.string.FluxGramStealthClear))
+                    .setMessage(text(R.string.FluxGramStealthClearInfo))
+                    .setNegativeButton(text(R.string.Cancel), null)
+                    .setPositiveButton(text(R.string.Delete), (dialog, which) -> clearSavedData())
+                    .create()));
+        }
+
+        items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private void clearSavedData() {
+        int account = currentAccount;
+        long owner = UserConfig.getInstance(account).getClientUserId();
+
+        if (storageClearRunning || !activeAccount(account, owner)) {
+            return;
+        }
+
+        storageClearRunning = true;
+        list.adapter.update(false);
+        LocalStorageCleanup.clear(account, success -> {
+            if (!activeAccount(account, owner)) {
+                return;
+            }
+
+            storageClearRunning = false;
+
+            if (success) {
+                loadStatistics();
+            } else {
+                list.adapter.update(false);
+                showError();
+            }
+        });
     }
 
     private void showPlaceholder() {

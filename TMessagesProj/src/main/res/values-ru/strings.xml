@@ -418,6 +418,8 @@
     <string name="FluxGramStealthExport">Экспорт базы данных</string>
     <string name="FluxGramStealthImport">Импорт базы данных</string>
     <string name="FluxGramStealthClear">Очистить сохранённые данные</string>
+    <string name="FluxGramStealthClearInfo">Удалить сохранённую историю изменений, удалённые сообщения и вложения этого аккаунта? Настройки сохранения останутся включёнными.</string>
+    <string name="FluxGramStealthRetentionInfo">История изменений и удалённые сообщения хранятся до явной очистки и не удаляются автоматически.</string>
     <string name="FluxGramStealthComingSoon">Функция появится позже. Сейчас доступен только предпросмотр интерфейса.</string>
     <string name="FluxGramStealthLimit300Mb">300 МБ</string>
     <string name="FluxGramStealthLimit1Gb">1 ГБ</string>

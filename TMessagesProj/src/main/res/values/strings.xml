@@ -11390,6 +11390,8 @@
     <string name="FluxGramStealthExport">Export database</string>
     <string name="FluxGramStealthImport">Import database</string>
     <string name="FluxGramStealthClear">Clear saved data</string>
+    <string name="FluxGramStealthClearInfo">Delete saved edit history, deleted messages and attachments for this account? Recording settings will remain enabled.</string>
+    <string name="FluxGramStealthRetentionInfo">Edit history and deleted messages are kept until you clear them. They are not removed automatically.</string>
     <string name="FluxGramStealthComingSoon">This feature is coming later. Only the interface preview is available for now.</string>
     <string name="FluxGramStealthLimit300Mb">300 MB</string>
     <string name="FluxGramStealthLimit1Gb">1 GB</string>

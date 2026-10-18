@@ -4,6 +4,7 @@ import android.text.TextUtils;
 
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MessagesStorage;
@@ -16,6 +17,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public final class DeletedMessagesArchive {
     private static final int BATCH_SIZE = 200;
@@ -83,6 +85,52 @@ public final class DeletedMessagesArchive {
         } finally {
             cursor.dispose();
         }
+    }
+
+    public void clear(Consumer<Boolean> completed) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+
+        storage.getStorageQueue().postRunnable(() -> {
+            boolean success = false;
+            boolean transaction = false;
+
+            try {
+                if (owner == 0 || owner != UserConfig.getInstance(account).getClientUserId()
+                        || !prepare()) {
+                    throw new IllegalStateException("Deleted message archive is unavailable");
+                }
+
+                SQLiteDatabase db = storage.getDatabase();
+                db.executeFast("SAVEPOINT fg_archive_clear").stepThis().dispose();
+                transaction = true;
+                db.executeFast("INSERT OR IGNORE INTO fg_deleted_attachment_cleanup(uid, mid) SELECT uid, mid FROM fg_deleted_messages").stepThis().dispose();
+                db.executeFast("DELETE FROM fg_deleted_messages").stepThis().dispose();
+                db.executeFast("DELETE FROM fg_deleted_topics").stepThis().dispose();
+                db.executeFast("RELEASE fg_archive_clear").stepThis().dispose();
+                transaction = false;
+                attachmentCleanupComplete = false;
+                resumeAttachmentCleanup();
+                success = true;
+            } catch (Exception error) {
+                FileLog.e(error);
+
+                if (transaction) {
+                    try {
+                        storage.getDatabase().executeFast("ROLLBACK TO fg_archive_clear").stepThis().dispose();
+                        storage.getDatabase().executeFast("RELEASE fg_archive_clear").stepThis().dispose();
+                    } catch (Exception rollbackError) {
+                        FileLog.e(rollbackError);
+                    }
+                }
+            }
+
+            boolean cleared = success;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (owner == UserConfig.getInstance(account).getClientUserId()) {
+                    completed.accept(cleared);
+                }
+            });
+        });
     }
 
     private void prepareTable(SQLiteDatabase db, String original, String archive, String view, boolean topics) throws Exception {
