@@ -16,6 +16,10 @@ public final class GhostModeReadState {
     private static final String TOPIC_PREFIX = "topic_";
     private static final String CONTENT_PREFIX = "content_";
     private static final String HIDDEN_UNREAD_SUFFIX = "_hidden_unread";
+    private static final String RETENTION_VERSION = "retention_version";
+    private static final int CURRENT_RETENTION_VERSION = 1;
+    private static final int CURSOR_LIMIT = 512;
+    private static final int CONTENT_LIMIT = 2048;
 
     private GhostModeReadState() {
     }
@@ -45,7 +49,11 @@ public final class GhostModeReadState {
             return false;
         }
 
-        preferences.edit().putBoolean(contentKey(messageObject.messageOwner), true).apply();
+        String key = contentKey(messageObject.messageOwner);
+        SharedPreferences.Editor editor = preferences.edit();
+        prepareInsert(preferences, editor, key, CONTENT_LIMIT, null, CONTENT_PREFIX);
+        touch(preferences, editor, key);
+        editor.putBoolean(key, true).apply();
 
         return true;
     }
@@ -74,7 +82,7 @@ public final class GhostModeReadState {
 
         for (int messageId : messageIds) {
             if (messageId > 0) {
-                editor.remove(contentKey(scope, messageId));
+                remove(editor, contentKey(scope, messageId), false);
             }
         }
 
@@ -96,10 +104,12 @@ public final class GhostModeReadState {
 
         int currentMaxId = preferences.getInt(key, 0);
         int currentHiddenUnreadCount = preferences.getInt(hiddenUnreadKey(key), 0);
-        preferences.edit()
-                .putInt(key, Math.max(currentMaxId, maxId))
-                .putInt(hiddenUnreadKey(key), currentHiddenUnreadCount + Math.max(hiddenUnreadCount, 0))
-                .apply();
+        putCursor(
+                preferences,
+                key,
+                Math.max(currentMaxId, maxId),
+                currentHiddenUnreadCount + Math.max(hiddenUnreadCount, 0)
+        );
     }
 
     public static synchronized void applyDialog(int account, TLRPC.Dialog dialog, boolean serverData) {
@@ -225,7 +235,7 @@ public final class GhostModeReadState {
         int currentMaxId = preferences.getInt(key, 0);
 
         if (maxId > currentMaxId) {
-            preferences.edit().putInt(key, maxId).apply();
+            putCursor(preferences, key, maxId, preferences.getInt(hiddenUnreadKey(key), 0));
         }
     }
 
@@ -241,7 +251,12 @@ public final class GhostModeReadState {
         }
 
         int currentHiddenUnreadCount = preferences.getInt(hiddenUnreadKey(key), 0);
-        preferences.edit().putInt(hiddenUnreadKey(key), currentHiddenUnreadCount + hiddenUnreadCount).apply();
+        putCursor(
+                preferences,
+                key,
+                preferences.getInt(key, 0),
+                currentHiddenUnreadCount + hiddenUnreadCount
+        );
     }
 
     private static int getMax(int account, String key) {
@@ -279,7 +294,81 @@ public final class GhostModeReadState {
     }
 
     private static void remove(SharedPreferences preferences, String key) {
-        preferences.edit().remove(key).remove(hiddenUnreadKey(key)).apply();
+        SharedPreferences.Editor editor = preferences.edit();
+        remove(editor, key, true);
+        editor.apply();
+    }
+
+    private static void putCursor(
+            SharedPreferences preferences,
+            String key,
+            int maxId,
+            int hiddenUnreadCount
+    ) {
+        SharedPreferences.Editor editor = preferences.edit();
+        prepareInsert(
+                preferences,
+                editor,
+                key,
+                CURSOR_LIMIT,
+                HIDDEN_UNREAD_SUFFIX,
+                DIALOG_PREFIX,
+                TOPIC_PREFIX
+        );
+        touch(preferences, editor, key);
+        editor.putInt(key, maxId);
+
+        if (hiddenUnreadCount > 0) {
+            editor.putInt(hiddenUnreadKey(key), hiddenUnreadCount);
+        } else {
+            editor.remove(hiddenUnreadKey(key));
+        }
+
+        editor.apply();
+    }
+
+    private static void prepareInsert(
+            SharedPreferences preferences,
+            SharedPreferences.Editor editor,
+            String key,
+            int limit,
+            String excludedSuffix,
+            String... prefixes
+    ) {
+        if (preferences.contains(key)) {
+            return;
+        }
+
+        String evicted = GhostModeStateRetention.evictionCandidate(
+                preferences.getAll(),
+                limit,
+                excludedSuffix,
+                prefixes
+        );
+
+        if (evicted != null) {
+            remove(editor, evicted, excludedSuffix != null);
+        }
+    }
+
+    private static void touch(
+            SharedPreferences preferences,
+            SharedPreferences.Editor editor,
+            String key
+    ) {
+        long order = GhostModeStateRetention.nextOrder(
+                preferences.getLong(GhostModeStateRetention.NEXT_ORDER, 0)
+        );
+        editor.putLong(GhostModeStateRetention.NEXT_ORDER, order);
+        editor.putLong(GhostModeStateRetention.orderKey(key), order);
+    }
+
+    private static void remove(SharedPreferences.Editor editor, String key, boolean cursor) {
+        editor.remove(key).remove(GhostModeStateRetention.orderKey(key));
+
+        if (cursor) {
+            editor.remove(hiddenUnreadKey(key));
+        }
     }
 
     private static String hiddenUnreadKey(String key) {
@@ -327,7 +416,38 @@ public final class GhostModeReadState {
             preferences.edit().clear().putLong(OWNER, owner).apply();
         }
 
+        normalizeRetention(preferences);
+
         return preferences;
+    }
+
+    private static void normalizeRetention(SharedPreferences preferences) {
+        if (preferences.getInt(RETENTION_VERSION, 0) >= CURRENT_RETENTION_VERSION) {
+            return;
+        }
+
+        SharedPreferences.Editor editor = preferences.edit();
+
+        for (String key : GhostModeStateRetention.excessEntries(
+                preferences.getAll(),
+                CURSOR_LIMIT,
+                HIDDEN_UNREAD_SUFFIX,
+                DIALOG_PREFIX,
+                TOPIC_PREFIX
+        )) {
+            remove(editor, key, true);
+        }
+
+        for (String key : GhostModeStateRetention.excessEntries(
+                preferences.getAll(),
+                CONTENT_LIMIT,
+                null,
+                CONTENT_PREFIX
+        )) {
+            remove(editor, key, false);
+        }
+
+        editor.putInt(RETENTION_VERSION, CURRENT_RETENTION_VERSION).apply();
     }
 
     private static SharedPreferences preferences(int account) {

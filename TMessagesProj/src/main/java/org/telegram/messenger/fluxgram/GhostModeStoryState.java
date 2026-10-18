@@ -10,6 +10,10 @@ public final class GhostModeStoryState {
     private static final String OWNER = "owner";
     private static final String ACTIVE_PREFIX = "active_";
     private static final String SEEN_PREFIX = "seen_";
+    private static final String RETENTION_VERSION = "retention_version";
+    private static final int CURRENT_RETENTION_VERSION = 1;
+    private static final int ACTIVE_LIMIT = 512;
+    private static final int SEEN_LIMIT = 2048;
 
     private GhostModeStoryState() {
     }
@@ -32,7 +36,9 @@ public final class GhostModeStoryState {
             return false;
         }
 
-        preferences.edit().putInt(key, storyId).apply();
+        preparePut(preferences, key, ACTIVE_LIMIT, ACTIVE_PREFIX)
+                .putInt(key, storyId)
+                .apply();
 
         return true;
     }
@@ -62,7 +68,7 @@ public final class GhostModeStoryState {
         int localMaxId = preferences.getInt(key, 0);
 
         if (localMaxId > 0 && serverMaxId >= localMaxId) {
-            preferences.edit().remove(key).apply();
+            remove(preferences, key);
         }
     }
 
@@ -83,7 +89,9 @@ public final class GhostModeStoryState {
             return false;
         }
 
-        preferences.edit().putBoolean(key, true).apply();
+        preparePut(preferences, key, SEEN_LIMIT, SEEN_PREFIX)
+                .putBoolean(key, true)
+                .apply();
 
         return true;
     }
@@ -106,6 +114,39 @@ public final class GhostModeStoryState {
         return SEEN_PREFIX + dialogId + "_" + storyId;
     }
 
+    private static SharedPreferences.Editor preparePut(
+            SharedPreferences preferences,
+            String key,
+            int limit,
+            String prefix
+    ) {
+        SharedPreferences.Editor editor = preferences.edit();
+        String evicted = preferences.contains(key) ? null : GhostModeStateRetention.evictionCandidate(
+                preferences.getAll(),
+                limit,
+                null,
+                prefix
+        );
+
+        if (evicted != null) {
+            editor.remove(evicted).remove(GhostModeStateRetention.orderKey(evicted));
+        }
+
+        long order = GhostModeStateRetention.nextOrder(
+                preferences.getLong(GhostModeStateRetention.NEXT_ORDER, 0)
+        );
+        editor.putLong(GhostModeStateRetention.NEXT_ORDER, order);
+        editor.putLong(GhostModeStateRetention.orderKey(key), order);
+        return editor;
+    }
+
+    private static void remove(SharedPreferences preferences, String key) {
+        preferences.edit()
+                .remove(key)
+                .remove(GhostModeStateRetention.orderKey(key))
+                .apply();
+    }
+
     private static synchronized SharedPreferences activePreferences(int account) {
         long owner = UserConfig.getInstance(account).getClientUserId();
 
@@ -119,7 +160,37 @@ public final class GhostModeStoryState {
             preferences.edit().clear().putLong(OWNER, owner).apply();
         }
 
+        normalizeRetention(preferences);
+
         return preferences;
+    }
+
+    private static void normalizeRetention(SharedPreferences preferences) {
+        if (preferences.getInt(RETENTION_VERSION, 0) >= CURRENT_RETENTION_VERSION) {
+            return;
+        }
+
+        SharedPreferences.Editor editor = preferences.edit();
+
+        for (String key : GhostModeStateRetention.excessEntries(
+                preferences.getAll(),
+                ACTIVE_LIMIT,
+                null,
+                ACTIVE_PREFIX
+        )) {
+            editor.remove(key).remove(GhostModeStateRetention.orderKey(key));
+        }
+
+        for (String key : GhostModeStateRetention.excessEntries(
+                preferences.getAll(),
+                SEEN_LIMIT,
+                null,
+                SEEN_PREFIX
+        )) {
+            editor.remove(key).remove(GhostModeStateRetention.orderKey(key));
+        }
+
+        editor.putInt(RETENTION_VERSION, CURRENT_RETENTION_VERSION).apply();
     }
 
     private static SharedPreferences preferences(int account) {

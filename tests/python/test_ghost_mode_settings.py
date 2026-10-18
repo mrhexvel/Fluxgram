@@ -477,6 +477,61 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("public static synchronized boolean isSeen", source)
         self.assertIn("GhostModeStoryState.clearAccount(account);", settings)
 
+    def test_persistent_ghost_state_has_bounded_oldest_update_eviction(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        retention = (JAVA / "messenger/fluxgram/GhostModeStateRetention.java").read_text()
+        retention = re.sub(r"^package org\.telegram\..*;\n", "", retention, flags=re.M)
+        fixture = (ROOT / "tests/java/GhostModeStateRetentionCheck.java").read_text()
+
+        with tempfile.TemporaryDirectory() as directory:
+            retention_file = Path(directory) / "GhostModeStateRetention.java"
+            check = Path(directory) / "GhostModeStateRetentionCheck.java"
+            retention_file.write_text(retention)
+            check.write_text(fixture)
+
+            subprocess.run(
+                ["javac", "-d", directory, str(retention_file), str(check)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["java", "-cp", directory, "GhostModeStateRetentionCheck"],
+                check=True,
+                capture_output=True,
+            )
+
+        read_state = (JAVA / "messenger/fluxgram/GhostModeReadState.java").read_text()
+        story_state = (JAVA / "messenger/fluxgram/GhostModeStoryState.java").read_text()
+
+        self.assertIn("CURSOR_LIMIT = 512", read_state)
+        self.assertIn("CONTENT_LIMIT = 2048", read_state)
+        self.assertIn("ACTIVE_LIMIT = 512", story_state)
+        self.assertIn("SEEN_LIMIT = 2048", story_state)
+        self.assertIn("CURRENT_RETENTION_VERSION = 1", read_state)
+        self.assertIn("CURRENT_RETENTION_VERSION = 1", story_state)
+        self.assertIn("GhostModeStateRetention.excessEntries", read_state)
+        self.assertIn("GhostModeStateRetention.excessEntries", story_state)
+
+        content_ack = read_state[
+            read_state.index("    public static synchronized void acknowledgeContent("):
+            read_state.index("    public static synchronized void preserveTopicRead(")
+        ]
+        cursor_ack = read_state[
+            read_state.index("    private static void acknowledge("):
+            read_state.index("    private static int mergeUnreadCount(")
+        ]
+        story_ack = story_state[
+            story_state.index("    public static synchronized void acknowledgeActive("):
+            story_state.index("    public static synchronized boolean recordSeen(")
+        ]
+
+        self.assertIn("remove(editor, contentKey(scope, messageId), false);", content_ack)
+        self.assertIn("remove(preferences, key);", cursor_ack)
+        self.assertIn("remove(preferences, key);", story_ack)
+        self.assertIn("remove(GhostModeStateRetention.orderKey(key))", story_state)
+
     def test_active_story_view_is_hidden_before_telegram_state_and_request(self):
         source = (JAVA / "ui/Stories/StoriesController.java").read_text()
         start = source.index("    public boolean markStoryAsRead(TL_stories.PeerStories")
