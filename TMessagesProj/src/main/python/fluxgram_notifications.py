@@ -30,6 +30,7 @@ class PluginEntry(Plugin):
             unit="с",
             description="Используется, когда выше выбрана длительность «Своя».",
             icon="speed",
+            visible=lambda values: values["duration_mode"] == "custom",
         ),
     )
     SHOW_IN_CURRENT_CHAT = False

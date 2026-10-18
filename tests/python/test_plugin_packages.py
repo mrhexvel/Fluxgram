@@ -24,7 +24,7 @@ MANIFEST = {
     "description": "Пакет для проверки установщика",
     "author": "FluxGram",
     "sdk_version": 2,
-    "min_sdk_minor": 11,
+    "min_sdk_minor": 12,
     "entrypoint": "main:PluginEntry",
     "access": "full",
     "declared_capabilities": [],
@@ -381,7 +381,7 @@ class PluginPackagesTest(unittest.TestCase):
             {"id": "fluxgram.impersonation"},
             {"id": "../escape"},
             {"sdk_version": 3},
-            {"min_sdk_minor": 12},
+            {"min_sdk_minor": 13},
             {"schema_version": "2"},
             {"access": "restricted"},
             {"entrypoint": "missing:PluginEntry"},
@@ -545,7 +545,7 @@ class PluginStoreTest(unittest.TestCase):
         (installed / "java/module.dex").write_bytes(data)
         archive = self.archive(fields=fields, entries=[("java/module.dex", data)])
         (installed / ".fluxgram-source.fgplugin").write_bytes(archive)
-        self.assertEqual(self.store("listcompat"), [f'{MANIFEST["id"]}:false:2:11'])
+        self.assertEqual(self.store("listcompat"), [f'{MANIFEST["id"]}:false:2:12'])
         output = self.store("export", extra=(MANIFEST["id"], str(self.root / "shares")))
         self.assertEqual(Path(output[0]).read_bytes(), archive)
 
@@ -606,7 +606,7 @@ class PluginStoreTest(unittest.TestCase):
         self.store("apply")
         self.assertEqual(
             self.store("listcompat"),
-            [f'{legacy["id"]}:true:2:11'],
+            [f'{legacy["id"]}:true:2:12'],
         )
 
     def test_install_sheet_recognizes_incompatible_update(self):

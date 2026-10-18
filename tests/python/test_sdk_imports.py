@@ -63,7 +63,7 @@ from fluxgram.ui import Bulletins, Navigation, Notifications, UI
 from fluxgram.testing import PluginHarness
 
 assert API_VERSION == 2
-assert API_MINOR_VERSION == 11
+assert API_MINOR_VERSION == 12
 assert fluxgram.ChatInfo is fluxgram.models.ChatInfo
 assert set(fluxgram.ui.__all__) == {"UI", "Bulletins", "Navigation", "Notifications"}
 assert Switch("enabled", "Enabled").default is False
@@ -169,7 +169,7 @@ assert importlib.util.find_spec("fluxgram._bridge") is None
     def test_package_metadata_and_chaquopy_source_set(self):
         metadata = tomllib.loads((SDK / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-plugin")
-        self.assertEqual(metadata["project"]["version"], "2.12.0")
+        self.assertEqual(metadata["project"]["version"], "2.13.0")
         self.assertEqual(metadata["project"]["requires-python"], ">=3.11")
         self.assertTrue((SDK_SOURCE / "fluxgram/py.typed").is_file())
 

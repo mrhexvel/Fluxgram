@@ -22,6 +22,9 @@ public final class PluginSettings {
         public final String label;
         public final String icon;
         public final int iconResId;
+        public final boolean visible;
+        public final boolean enabled;
+        public final boolean dynamic;
         public final Object defaultValue;
         public final List<String> optionValues = new ArrayList<>();
         public final List<String> optionTitles = new ArrayList<>();
@@ -40,6 +43,9 @@ public final class PluginSettings {
             label = object.has("label") ? text(object, "label", 120).trim() : "";
             icon = object.has("icon") ? text(object, "icon", 32) : "";
             iconResId = iconResource(icon);
+            visible = bool(object, "visible", true);
+            enabled = bool(object, "enabled", true);
+            dynamic = bool(object, "dynamic", false);
             defaultValue = object.get("default");
 
             if (!key.matches("[a-z][a-z0-9_]{0,63}") || title.trim().isEmpty()) {
@@ -105,6 +111,20 @@ public final class PluginSettings {
             if (!accepts(defaultValue)) {
                 throw new IllegalArgumentException("Invalid setting type or default");
             }
+        }
+
+        private static boolean bool(JSONObject object, String key, boolean fallback) throws Exception {
+            if (!object.has(key)) {
+                return fallback;
+            }
+
+            Object value = object.get(key);
+
+            if (!(value instanceof Boolean)) {
+                throw new IllegalArgumentException("Invalid setting " + key);
+            }
+
+            return (Boolean) value;
         }
 
         private static int iconResource(String icon) {

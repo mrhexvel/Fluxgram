@@ -65,7 +65,8 @@ class PluginSettingsTest(unittest.TestCase):
     def test_schema_export(self):
         settings = self.sdk.Settings([self.sdk.Switch("key", "Title", True, "Details")])
         self.assertEqual(settings._describe(), [
-            {"key": "key", "title": "Title", "default": True, "description": "Details", "label": "", "type": "switch"}
+            {"key": "key", "title": "Title", "default": True, "description": "Details", "label": "",
+             "visible": True, "enabled": True, "dynamic": False, "type": "switch"}
         ])
 
     def test_label_export_and_whitespace(self):
@@ -289,3 +290,90 @@ class PluginSettingsTest(unittest.TestCase):
                 from dataclasses import replace
 
                 replace(item, on_changed="method_name")
+
+    def test_conditions_use_one_immutable_validated_value_snapshot(self):
+        seen = []
+
+        def visible(values):
+            try:
+                values["mode"] = "changed"
+            except TypeError:
+                pass
+            else:
+                self.fail("Condition values must be immutable")
+
+            seen.append(values)
+            return values["mode"] == "custom" and values["duration"] == 5
+
+        settings = self.sdk.Settings((
+            self.sdk.Select("mode", "Mode", (("fixed", "Fixed"), ("custom", "Custom")), "fixed"),
+            self.sdk.Slider("duration", "Duration", 1, 10, 5, visible=visible),
+            self.sdk.Text("details", "Details", enabled=lambda values: values["mode"] == "custom"),
+        ))
+        settings._bind_runtime(self.host({"mode": "custom", "duration": 99}), 7)
+
+        schema = settings._describe()
+
+        self.assertEqual(schema[1]["visible"], True)
+        self.assertEqual(schema[2]["enabled"], True)
+        self.assertTrue(schema[1]["dynamic"])
+        self.assertTrue(schema[2]["dynamic"])
+        self.assertEqual(dict(seen[0]), {"mode": "custom", "duration": 5, "details": ""})
+
+    def test_condition_failures_are_isolated_and_disable_the_row(self):
+        errors = []
+        settings = self.sdk.Settings((
+            self.sdk.Switch("bad_visible", "Bad visible", visible=lambda values: 1),
+            self.sdk.Switch("bad_enabled", "Bad enabled", enabled=lambda values: 1 / 0),
+            self.sdk.Switch("healthy", "Healthy", visible=False, enabled=False),
+        ))
+        settings._set_condition_error_handler(
+            lambda key, name, error: errors.append((key, name, type(error)))
+        )
+
+        schema = settings._describe()
+
+        self.assertEqual((schema[0]["visible"], schema[0]["enabled"]), (True, False))
+        self.assertEqual((schema[1]["visible"], schema[1]["enabled"]), (True, False))
+        self.assertEqual((schema[2]["visible"], schema[2]["enabled"]), (False, False))
+        self.assertEqual(errors, [
+            ("bad_visible", "visible", TypeError),
+            ("bad_enabled", "enabled", ZeroDivisionError),
+        ])
+
+    def test_invalid_conditions_are_rejected_for_every_setting_type(self):
+        from dataclasses import replace
+
+        for item in self.callback_items(None):
+            for name in ("visible", "enabled"):
+                with self.subTest(setting=type(item).__name__, name=name), self.assertRaises(TypeError):
+                    replace(item, **{name: "condition"})
+
+
+class PluginSettingsHostContractTest(unittest.TestCase):
+    def test_host_parses_strict_presentation_flags(self):
+        source = (PROJECT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/PluginSettings.java").read_text()
+
+        for field, fallback in (("visible", "true"), ("enabled", "true"), ("dynamic", "false")):
+            self.assertIn(f'{field} = bool(object, "{field}", {fallback});', source)
+
+        self.assertIn("if (!(value instanceof Boolean))", source)
+
+    def test_host_rejects_stale_or_non_editable_rows(self):
+        source = (PROJECT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins/PythonPluginAdapter.java").read_text()
+
+        self.assertIn("declared == null || !declared.visible || !declared.enabled", source)
+        self.assertIn("if (setting.dynamic)", source)
+        self.assertIn("lifecycle.isRunning(lifecycle.getGeneration())", source)
+        self.assertIn("&& !settingsDrainQueued", source)
+        self.assertIn("if (!isSettingEditable(key))", source)
+        self.assertIn("bridge.callAttr(\"describe_settings\", instance)", source)
+        self.assertIn("ExternalPlugins.changed();", source)
+
+    def test_ui_hides_rows_and_rechecks_edits(self):
+        source = (PROJECT / "TMessagesProj/src/main/java/org/telegram/ui/PluginSettingsActivity.java").read_text()
+
+        self.assertIn("if (!setting.visible)", source)
+        self.assertIn("adapter.isSettingEditable(key)", source)
+        self.assertIn("cell.setEnabled(canEdit(adapter, setting.key));", source)
+        self.assertIn("if (!canEdit(adapter, setting.key))", source)

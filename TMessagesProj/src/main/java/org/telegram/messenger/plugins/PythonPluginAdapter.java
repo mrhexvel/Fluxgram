@@ -455,7 +455,6 @@ public final class PythonPluginAdapter implements Plugin {
 
                 settingsSchema = parsed;
                 PluginSettings.saveSchema(id, version, schema);
-                ExternalPlugins.changed();
 
                 if (!lifecycle.isCurrent(request)) {
                     return;
@@ -487,6 +486,8 @@ public final class PythonPluginAdapter implements Plugin {
                 if (javaUiStop != null) {
                     javaUiStop.activate();
                 }
+
+                ExternalPlugins.changed();
             }
         } catch (Exception | LinkageError error) {
             handleFailure(request, "Load", error, true);
@@ -746,22 +747,35 @@ public final class PythonPluginAdapter implements Plugin {
         changeSettingValue(key, value);
     }
 
-    public synchronized void changeSettingValue(String key, Object value) {
+    public synchronized boolean isSettingEditable(String key) {
         if (removal != null) {
-            return;
+            return false;
         }
 
-        PluginSettings.Setting declared = null;
+        PluginSettings.Setting declared = findSetting(key);
+
+        if (declared == null || !declared.visible || !declared.enabled) {
+            return false;
+        }
 
         for (PluginSettings.Setting setting : settingsSchema) {
-            if (setting.key.equals(key)) {
-                declared = setting;
-                break;
+            if (setting.dynamic) {
+                return lifecycle.isRunning(lifecycle.getGeneration()) && !settingsDrainQueued;
             }
         }
 
+        return true;
+    }
+
+    public synchronized boolean changeSettingValue(String key, Object value) {
+        PluginSettings.Setting declared = findSetting(key);
+
         if (declared == null) {
             throw new IllegalArgumentException("Unknown setting: " + key);
+        }
+
+        if (!isSettingEditable(key)) {
+            return false;
         }
 
         PluginSettings.setValue(id, declared, value);
@@ -787,6 +801,18 @@ public final class PythonPluginAdapter implements Plugin {
                 }
             }
         }
+
+        return true;
+    }
+
+    private PluginSettings.Setting findSetting(String key) {
+        for (PluginSettings.Setting setting : settingsSchema) {
+            if (setting.key.equals(key)) {
+                return setting;
+            }
+        }
+
+        return null;
     }
 
     private void drainSettings() {
@@ -844,6 +870,27 @@ public final class PythonPluginAdapter implements Plugin {
                     );
                 } catch (Exception | LinkageError error) {
                     Log.e(TAG, "[" + id + "] Setting callback failed", error);
+                }
+
+                if (!lifecycle.isCurrent(pending.generation)
+                        || UserConfig.getInstance(pending.account).getClientUserId() != pending.ownerId) {
+                    continue;
+                }
+
+                try {
+                    String schema = bridge.callAttr("describe_settings", instance).toString();
+                    java.util.List<PluginSettings.Setting> parsed = PluginSettings.parse(schema);
+
+                    if (!lifecycle.isCurrent(pending.generation)
+                            || UserConfig.getInstance(pending.account).getClientUserId() != pending.ownerId) {
+                        continue;
+                    }
+
+                    settingsSchema = parsed;
+                    PluginSettings.saveSchema(id, version, schema);
+                    ExternalPlugins.changed();
+                } catch (Exception | LinkageError error) {
+                    Log.e(TAG, "[" + id + "] Settings refresh failed", error);
                 }
             }
 

@@ -109,14 +109,38 @@ public final class PluginSettingsActivity extends BaseFragment {
         }
 
         List<PluginSettings.Setting> schema = adapter.getSettingsSchema();
+        ArrayList<PluginSettings.Setting> visibleSettings = new ArrayList<>();
+        ArrayList<String> visibleLabels = new ArrayList<>();
+        String pendingLabel = "";
 
-        for (int index = 0; index < schema.size(); index++) {
-            PluginSettings.Setting setting = schema.get(index);
-            boolean divider = index + 1 < schema.size() && schema.get(index + 1).label.isEmpty();
-
+        for (PluginSettings.Setting setting : schema) {
             if (!setting.label.isEmpty()) {
+                pendingLabel = setting.label;
+            }
+
+            if (!setting.visible) {
+                continue;
+            }
+
+            visibleSettings.add(setting);
+            visibleLabels.add(pendingLabel);
+            pendingLabel = "";
+        }
+
+        if (visibleSettings.isEmpty()) {
+            items.add(UItem.asShadow(LocaleController.getString(R.string.FluxGramPluginSettingsEmpty)));
+            return;
+        }
+
+        for (int index = 0; index < visibleSettings.size(); index++) {
+            PluginSettings.Setting setting = visibleSettings.get(index);
+            String labelText = visibleLabels.get(index);
+            boolean divider = index + 1 < visibleSettings.size()
+                    && visibleLabels.get(index + 1).isEmpty();
+
+            if (!labelText.isEmpty()) {
                 HeaderCell label = new HeaderCell(getParentActivity(), 33, getResourceProvider());
-                label.setText(setting.label);
+                label.setText(labelText);
                 items.add(UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT));
             }
 
@@ -135,15 +159,17 @@ public final class PluginSettingsActivity extends BaseFragment {
                     cell.setIcon(setting.iconResId);
                 }
 
-                cell.setEnabled(canEdit(adapter));
+                cell.setEnabled(canEdit(adapter, setting.key));
                 cell.setOnClickListener(view -> {
-                    if (!canEdit(adapter)) {
+                    if (!canEdit(adapter, setting.key)) {
                         return;
                     }
 
                     boolean value = !(Boolean) PluginSettings.getValue(pluginId, setting);
-                    adapter.changeSettingValue(setting.key, value);
-                    cell.setChecked(value);
+
+                    if (adapter.changeSettingValue(setting.key, value)) {
+                        cell.setChecked(value);
+                    }
                 });
                 items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
             } else {
@@ -153,9 +179,11 @@ public final class PluginSettingsActivity extends BaseFragment {
         }
     }
 
-    private boolean canEdit(PythonPluginAdapter adapter) {
+    private boolean canEdit(PythonPluginAdapter adapter, String key) {
         return PluginManager.getInstance().getPlugin(pluginId) == adapter
-                && !adapter.isStoppingForRemoval() && ExternalPlugins.getPending(pluginId) == null;
+                && !adapter.isStoppingForRemoval()
+                && ExternalPlugins.getPending(pluginId) == null
+                && adapter.isSettingEditable(key);
     }
 
     private View createValueCell(
@@ -177,7 +205,7 @@ public final class PluginSettingsActivity extends BaseFragment {
             }
         };
         container.setOrientation(LinearLayout.VERTICAL);
-        container.setAlpha(canEdit(adapter) ? 1f : 0.5f);
+        container.setAlpha(canEdit(adapter, setting.key) ? 1f : 0.5f);
 
         TextSettingsCell title = new TextSettingsCell(getParentActivity(), getResourceProvider());
         Object value = PluginSettings.getValue(pluginId, setting);
@@ -186,10 +214,10 @@ public final class PluginSettingsActivity extends BaseFragment {
         container.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         if (setting.type.equals("select")) {
-            title.setEnabled(canEdit(adapter));
+            title.setEnabled(canEdit(adapter, setting.key));
             title.setBackground(Theme.getSelectorDrawable(false));
             title.setOnClickListener(view -> {
-                if (!canEdit(adapter)) {
+                if (!canEdit(adapter, setting.key)) {
                     return;
                 }
 
@@ -204,20 +232,22 @@ public final class PluginSettingsActivity extends BaseFragment {
                 showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
                         .setTitle(setting.title)
                         .setItems(options, (dialog, index) -> {
-                            if (canEdit(adapter)) {
+                            if (canEdit(adapter, setting.key)) {
                                 String chosen = setting.optionValues.get(index);
-                                adapter.changeSettingValue(setting.key, chosen);
-                                title.setTextAndValue(setting.title, setting.displayValue(chosen), false);
+
+                                if (adapter.changeSettingValue(setting.key, chosen)) {
+                                    title.setTextAndValue(setting.title, setting.displayValue(chosen), false);
+                                }
                             }
                         })
                         .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                         .create());
             });
         } else if (setting.type.equals("text")) {
-            title.setEnabled(canEdit(adapter));
+            title.setEnabled(canEdit(adapter, setting.key));
             title.setBackground(Theme.getSelectorDrawable(false));
             title.setOnClickListener(view -> {
-                if (canEdit(adapter)) {
+                if (canEdit(adapter, setting.key)) {
                     showTextEditor(adapter, setting, title);
                 }
             });
@@ -227,7 +257,7 @@ public final class PluginSettingsActivity extends BaseFragment {
             int steps = (setting.maximum - setting.minimum) / setting.step;
             int[] current = {(Integer) value};
             slider.setProgress((current[0] - setting.minimum) / (float) (setting.maximum - setting.minimum));
-            slider.setEnabled(canEdit(adapter));
+            slider.setEnabled(canEdit(adapter, setting.key));
             slider.setContentDescription(setting.title + ": " + setting.displayValue(value));
             slider.setDelegate(new SeekBarView.SeekBarViewDelegate() {
                 @Override
@@ -236,9 +266,10 @@ public final class PluginSettingsActivity extends BaseFragment {
                     title.setTextAndValue(setting.title, setting.displayValue(current[0]), false);
                     slider.setContentDescription(setting.title + ": " + setting.displayValue(current[0]));
 
-                    if (stop && canEdit(adapter)) {
-                        adapter.changeSettingValue(setting.key, current[0]);
-                        slider.setProgress((current[0] - setting.minimum) / (float) (setting.maximum - setting.minimum));
+                    if (stop && canEdit(adapter, setting.key)
+                            && adapter.changeSettingValue(setting.key, current[0])) {
+                        slider.setProgress((current[0] - setting.minimum)
+                                / (float) (setting.maximum - setting.minimum));
                     }
                 }
 
@@ -316,7 +347,7 @@ public final class PluginSettingsActivity extends BaseFragment {
                 .create();
 
         Runnable save = () -> {
-            if (!canEdit(adapter)) {
+            if (!canEdit(adapter, setting.key)) {
                 dialog.dismiss();
                 return;
             }
@@ -329,7 +360,10 @@ public final class PluginSettingsActivity extends BaseFragment {
             }
 
             if (!value.equals(PluginSettings.getValue(pluginId, setting))) {
-                adapter.changeSettingValue(setting.key, value);
+                if (!adapter.changeSettingValue(setting.key, value)) {
+                    dialog.dismiss();
+                    return;
+                }
             }
 
             cell.setTextAndValue(setting.title, setting.displayValue(value), false);

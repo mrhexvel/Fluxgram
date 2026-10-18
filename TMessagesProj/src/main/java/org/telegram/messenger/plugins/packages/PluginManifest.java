@@ -15,7 +15,7 @@ import java.util.Set;
 public final class PluginManifest {
     public static final int SCHEMA_VERSION = 5;
     public static final int SDK_VERSION = 2;
-    public static final int SDK_MINOR_VERSION = 11;
+    public static final int SDK_MINOR_VERSION = 12;
     public static final int JAVA_API_VERSION = 2;
     public static final int JAVA_API_MINOR_VERSION = 0;
     public static final String HOST_FINGERPRINT =
