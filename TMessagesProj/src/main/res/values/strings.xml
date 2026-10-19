@@ -11381,6 +11381,12 @@
     <string name="FluxGramHideDialogsSearchBar">Hide search bar</string>
     <string name="FluxGramSenderMiniAvatars">Sender mini avatars</string>
     <string name="FluxGramForceSnow">Always show snow</string>
+    <string name="FluxGramAvatarGeometry">Avatars</string>
+    <string name="FluxGramAvatarCornerRadius">Avatar rounding</string>
+    <string name="FluxGramAvatarCornerRadiusValue">Corner radius: %d dp</string>
+    <string name="FluxGramUnifiedAvatarRadius">Use the same shape for all avatars</string>
+    <string name="FluxGramAvatarSquare">Square</string>
+    <string name="FluxGramAvatarCircle">Circle</string>
     <string name="FluxGramChats">Chats</string>
     <string name="FluxGramCategories">Categories</string>
     <string name="FluxGramLinks">Links</string>

@@ -43,6 +43,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Components.FluxGramAvatarGeometryPreviewCell;
 import org.telegram.ui.Components.FluxGramChatListPreviewCell;
 import org.telegram.ui.Components.FluxGramFolderPreviewCell;
 import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
@@ -95,12 +96,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int FOLDER_PRESENTATION = 36;
     private static final int FOLDER_COUNTER = 37;
     private static final int SHOW_ALL_CHATS_FOLDER = 38;
+    private static final int UNIFIED_AVATAR_RADIUS = 39;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
     private UniversalRecyclerView listView;
     private FluxGramFormattingPreviewCell formattingPreview;
     private FluxGramChatListPreviewCell appearancePreview;
+    private FluxGramAvatarGeometryPreviewCell avatarGeometryPreview;
     private FluxGramFolderPreviewCell folderPreview;
     private boolean destroyed;
 
@@ -115,6 +118,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
     };
     private final Runnable rebuildFolderFragments = () -> {
+        if (!destroyed && parentLayout != null) {
+            parentLayout.rebuildFragments(0);
+        }
+    };
+    private final Runnable rebuildAppearanceFragments = () -> {
         if (!destroyed && parentLayout != null) {
             parentLayout.rebuildFragments(0);
         }
@@ -145,6 +153,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
         destroyed = true;
         AndroidUtilities.cancelRunOnUIThread(rebuildFormattingFragments);
         AndroidUtilities.cancelRunOnUIThread(rebuildFolderFragments);
+        AndroidUtilities.cancelRunOnUIThread(rebuildAppearanceFragments);
         ExternalPlugins.removeListener(refresh);
         PluginDeveloperBridge.removeListener(refresh);
         super.onFragmentDestroy();
@@ -188,6 +197,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
         } else if (section == APPEARANCE) {
             appearancePreview = new FluxGramChatListPreviewCell(
                     context, currentAccount, getResourceProvider()
+            );
+            avatarGeometryPreview = new FluxGramAvatarGeometryPreviewCell(
+                    context,
+                    currentAccount,
+                    getResourceProvider(),
+                    this::scheduleAppearanceRebuild
             );
             folderPreview = new FluxGramFolderPreviewCell(
                     context, currentAccount, getResourceProvider()
@@ -389,6 +404,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     FORCE_SNOW,
                     LocaleController.getString(R.string.FluxGramForceSnow)
             ).setChecked(AppearanceSettings.forcesSnow(currentAccount)));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramAvatarGeometry);
+            avatarGeometryPreview.update();
+            items.add(UItem.asCustom(avatarGeometryPreview, 222));
+            items.add(UItem.asCheck(
+                    UNIFIED_AVATAR_RADIUS,
+                    LocaleController.getString(R.string.FluxGramUnifiedAvatarRadius)
+            ).setChecked(AppearanceSettings.usesUnifiedAvatarRadius(currentAccount)));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
             items.add(UItem.asCustomShadow(folderPreview, 58));
@@ -770,6 +793,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 AppearanceSettings.setForcesSnow(currentAccount, forced);
                 ((TextCheckCell) view).setChecked(forced);
                 appearancePreview.update(true);
+            } else if (item.id == UNIFIED_AVATAR_RADIUS) {
+                boolean unified = !AppearanceSettings.usesUnifiedAvatarRadius(currentAccount);
+                AppearanceSettings.setUsesUnifiedAvatarRadius(currentAccount, unified);
+                ((TextCheckCell) view).setChecked(unified);
+                avatarGeometryPreview.update();
+                scheduleAppearanceRebuild();
             }
 
             return;
@@ -983,6 +1012,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
         folderPreview.updateFolders(true);
         AndroidUtilities.cancelRunOnUIThread(rebuildFolderFragments);
         AndroidUtilities.runOnUIThread(rebuildFolderFragments, 250);
+    }
+
+    private void scheduleAppearanceRebuild() {
+        AndroidUtilities.cancelRunOnUIThread(rebuildAppearanceFragments);
+        AndroidUtilities.runOnUIThread(rebuildAppearanceFragments, 250);
     }
 
     private void showAppearanceTitleDialog() {

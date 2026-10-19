@@ -21,6 +21,8 @@ public final class AppearanceSettings {
     private static final String HIDE_DIALOGS_SEARCH_BAR = "hide_dialogs_search_bar";
     private static final String SENDER_MINI_AVATARS = "sender_mini_avatars";
     private static final String FORCE_SNOW = "force_snow";
+    private static final String AVATAR_CORNER_RADIUS = "avatar_corner_radius";
+    private static final String UNIFIED_AVATAR_RADIUS = "unified_avatar_radius";
 
     public static final int TITLE_APP_NAME = 0;
     public static final int TITLE_USERNAME = 1;
@@ -102,6 +104,27 @@ public final class AppearanceSettings {
 
     public static void setForcesSnow(int account, boolean forced) {
         setBoolean(account, FORCE_SNOW, forced);
+    }
+
+    public static int getAvatarCornerRadius(int account) {
+        int radius = getInt(account, AVATAR_CORNER_RADIUS, AvatarGeometry.MAX_CORNER_RADIUS);
+        return Math.max(0, Math.min(AvatarGeometry.MAX_CORNER_RADIUS, radius));
+    }
+
+    public static void setAvatarCornerRadius(int account, int radius) {
+        if (radius < 0 || radius > AvatarGeometry.MAX_CORNER_RADIUS) {
+            return;
+        }
+
+        setInt(account, AVATAR_CORNER_RADIUS, radius);
+    }
+
+    public static boolean usesUnifiedAvatarRadius(int account) {
+        return getBoolean(account, UNIFIED_AVATAR_RADIUS);
+    }
+
+    public static void setUsesUnifiedAvatarRadius(int account, boolean unified) {
+        setBoolean(account, UNIFIED_AVATAR_RADIUS, unified);
     }
 
     public static CharSequence getActionBarTitle(int account) {

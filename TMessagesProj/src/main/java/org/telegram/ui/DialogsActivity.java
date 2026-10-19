@@ -7435,7 +7435,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         boolean enabled = usesFluxGramRootDialogsAppearance();
         adapter.setFluxGramAppearanceOptions(
                 enabled && AppearanceSettings.showsSenderMiniAvatars(currentAccount),
-                enabled && AppearanceSettings.hidesFloatingButton(currentAccount)
+                enabled && AppearanceSettings.hidesFloatingButton(currentAccount),
+                enabled
         );
     }
 

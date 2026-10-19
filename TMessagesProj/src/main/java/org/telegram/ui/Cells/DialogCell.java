@@ -152,6 +152,11 @@ import java.util.Stack;
 import me.vkryl.android.animator.BoolAnimator;
 
 public class DialogCell extends BaseCell implements StoriesListPlaceProvider.AvatarOverlaysView, Theme.Colorable {
+    protected static final int AVATAR_ROLE_USER = 0;
+    protected static final int AVATAR_ROLE_GROUP = 1;
+    protected static final int AVATAR_ROLE_FORUM = 2;
+    protected static final int AVATAR_ROLE_COMMUNITY = 3;
+    protected static final int AVATAR_ROLE_MONOFORUM = 4;
 
     public boolean collapsed;
     public boolean drawArchive = true;
@@ -3272,6 +3277,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             drawMonoforumAvatar = false;
             drawCommunityAvatar = false;
             avatarImage.setRoundRadius(dp(26));
+            storyParams.roundRectRadius = -1;
             drawUnmute = false;
         } else {
             int oldUnreadCount = unreadCount;
@@ -3716,17 +3722,31 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             drawMonoforumAvatar = !isFolderCell() && chat != null && chat.monoforum;
 
             final int avatarRadius;
+            final int avatarRole;
             if (drawMonoforumAvatar) {
                 avatarRadius = 1;
+                avatarRole = AVATAR_ROLE_MONOFORUM;
             } else if (drawCommunityAvatar) {
                 avatarRadius = dp(12);
+                avatarRole = AVATAR_ROLE_COMMUNITY;
             } else if (chat != null && chat.forum && currentDialogFolderId == 0 && !useFromUserAsAvatar || !isSavedDialog && user != null && user.self && MessagesController.getInstance(currentAccount).savedViewAsChats) {
                 avatarRadius = dp(16);
+                avatarRole = AVATAR_ROLE_FORUM;
             } else {
                 avatarRadius = dp(28);
+                avatarRole = chat == null ? AVATAR_ROLE_USER : AVATAR_ROLE_GROUP;
             }
 
-            avatarImage.setRoundRadius(avatarRadius);
+            int resolvedAvatarRadius = resolveAvatarRoundRadius(
+                    avatarRadius,
+                    dp(56),
+                    avatarRole
+            );
+            avatarImage.setRoundRadius(resolvedAvatarRadius);
+            storyParams.roundRectRadius = resolveStoryRoundRectRadius(
+                    resolvedAvatarRadius,
+                    avatarRole
+            );
         }
         if (!isTopic && (getMeasuredWidth() != 0 || getMeasuredHeight() != 0)) {
             rebuildLayout = true;
@@ -3760,6 +3780,14 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
         updatePremiumBlocked(animated);
         return requestLayout;
+    }
+
+    protected int resolveAvatarRoundRadius(int stockRadius, int avatarSize, int avatarRole) {
+        return stockRadius;
+    }
+
+    protected float resolveStoryRoundRectRadius(int avatarRadius, int avatarRole) {
+        return -1;
     }
 
     private int getTopicId() {

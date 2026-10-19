@@ -15,6 +15,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
 import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
@@ -31,6 +32,7 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
     private final FluxGramDialogListAppearanceController controller;
     private final FluxGramUserListBadgeRenderer renderer;
     private boolean senderMiniAvatars;
+    private boolean avatarGeometryEnabled;
     private AvatarSpan messageAvatarSpan;
 
     private FluxGramPeerKey requestedPeer;
@@ -42,12 +44,14 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
             int account,
             Theme.ResourcesProvider resourcesProvider,
             FluxGramDialogListAppearanceController controller,
-            boolean senderMiniAvatars
+            boolean senderMiniAvatars,
+            boolean avatarGeometryEnabled
     ) {
         super(fragment, context, true, false, account, resourcesProvider);
         this.account = account;
         this.controller = controller;
         this.senderMiniAvatars = senderMiniAvatars;
+        this.avatarGeometryEnabled = avatarGeometryEnabled;
         renderer = new FluxGramUserListBadgeRenderer(
                 this,
                 account,
@@ -57,6 +61,28 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
 
     public void setSenderMiniAvatars(boolean shown) {
         senderMiniAvatars = shown;
+    }
+
+    public void setAvatarGeometryEnabled(boolean enabled) {
+        avatarGeometryEnabled = enabled;
+    }
+
+    @Override
+    protected int resolveAvatarRoundRadius(int stockRadius, int avatarSize, int avatarRole) {
+        if (!avatarGeometryEnabled) {
+            return stockRadius;
+        }
+
+        return AvatarGeometry.resolveRadius(account, avatarSize, avatarRole, stockRadius);
+    }
+
+    @Override
+    protected float resolveStoryRoundRectRadius(int avatarRadius, int avatarRole) {
+        if (!avatarGeometryEnabled || AvatarGeometry.usesStockGeometry(account)) {
+            return -1;
+        }
+
+        return avatarRadius;
     }
 
     @Override

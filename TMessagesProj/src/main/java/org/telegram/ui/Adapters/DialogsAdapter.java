@@ -153,6 +153,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
     private FluxGramDialogListAppearanceController fluxGramAppearanceController;
     private boolean fluxGramSenderMiniAvatars;
     private boolean fluxGramHideComposeHints;
+    private boolean fluxGramAvatarGeometry;
     public boolean isEmpty;
     public final long communityId;
 
@@ -184,10 +185,12 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
     public void setFluxGramAppearanceOptions(
             boolean senderMiniAvatars,
-            boolean hideComposeHints
+            boolean hideComposeHints,
+            boolean avatarGeometry
     ) {
         fluxGramSenderMiniAvatars = senderMiniAvatars;
         fluxGramHideComposeHints = hideComposeHints;
+        fluxGramAvatarGeometry = avatarGeometry;
     }
 
     public void setOpenedDialogId(long id) {
@@ -694,7 +697,8 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                                 currentAccount,
                                 null,
                                 fluxGramAppearanceController,
-                                fluxGramSenderMiniAvatars
+                                fluxGramSenderMiniAvatars,
+                                fluxGramAvatarGeometry
                         );
                     } else {
                         dialogCell = new DialogCell(parentFragment, mContext, true, false, currentAccount, null);
@@ -1034,6 +1038,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     DialogCell cell = (DialogCell) holder.itemView;
                     if (cell instanceof FluxGramDialogCell) {
                         ((FluxGramDialogCell) cell).setSenderMiniAvatars(fluxGramSenderMiniAvatars);
+                        ((FluxGramDialogCell) cell).setAvatarGeometryEnabled(fluxGramAvatarGeometry);
                     }
                     cell.isHiddenInCommunity = communityId != 0 && ChatObject.isHiddenInCommunity(currentAccount, dialog.id);
                     cell.useSeparator = false; // nextDialog != null;

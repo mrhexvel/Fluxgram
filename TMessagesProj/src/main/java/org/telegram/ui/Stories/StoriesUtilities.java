@@ -662,10 +662,13 @@ public class StoriesUtilities {
     private static final RectF forumRect = new RectF();
 
     private static void drawCircleInternal(Canvas canvas, View view, AvatarStoryParams params, Paint paint, boolean isForum) {
-        if (isForum) {
+        if (isForum || params.roundRectRadius >= 0) {
             forumRect.set(rectTmp);
             forumRect.inset(dp(0.5f), dp(0.5f));
-            canvas.drawRoundRect(forumRect, dp(18), dp(18), paint);
+            float radius = params.roundRectRadius >= 0
+                    ? getStoryRoundRectRadius(forumRect, params)
+                    : dp(18);
+            canvas.drawRoundRect(forumRect, radius, radius, paint);
             return;
         }
         if (params.progressToArc == 0) {
@@ -680,9 +683,16 @@ public class StoriesUtilities {
     private static final PathMeasure forumRoundRectPathMeasure = new PathMeasure();
     private static final Path forumSegmentPath = new Path();
 
+    private static float getStoryRoundRectRadius(RectF outline, AvatarStoryParams params) {
+        float gap = Math.max(0, (outline.width() - params.originalAvatarRect.width()) / 2f);
+        return Math.max(0, params.roundRectRadius + gap);
+    }
+
     private static void drawSegment(Canvas canvas, RectF rectTmp, Paint paint, float startAngle, float endAngle, AvatarStoryParams params, boolean isForum) {
-        if (isForum) {
-            float r = rectTmp.height() * 0.32f;
+        if (isForum || params.roundRectRadius >= 0) {
+            float r = params.roundRectRadius >= 0
+                    ? getStoryRoundRectRadius(rectTmp, params)
+                    : rectTmp.height() * 0.32f;
             float rotateAngle = (((int)(startAngle)) / 90) * 90 + 90;
             float pathAngleStart = -199 + rotateAngle;
             float percentFrom = (startAngle - pathAngleStart) / 360;
@@ -1227,6 +1237,7 @@ public class StoriesUtilities {
         public float alpha = 1f;
         public boolean drawInside;
         public boolean drawnLive;
+        public float roundRectRadius = -1;
 
         private long dialogId;
         public int currentState;
