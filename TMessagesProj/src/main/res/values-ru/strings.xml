@@ -305,6 +305,8 @@
     <string name="FluxGramNotifications">Уведомления</string>
     <string name="FluxGramNotificationPreviewText">Привет! Это пример уведомления.</string>
     <string name="FluxGramDisableNotificationDelay">Отключить задержку уведомлений</string>
+    <string name="FluxGramDataTransfer">Передача данных</string>
+    <string name="FluxGramIncreaseDownloadSpeed">Ускорять загрузку файлов</string>
     <string name="FluxGramProfile">Профиль</string>
     <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>
     <string name="FluxGramShowProfileIdDc">Показывать ID профиля и DC фотографии</string>

@@ -11310,6 +11310,8 @@
     <string name="FluxGramNotifications">Notifications</string>
     <string name="FluxGramNotificationPreviewText">Hi! This is a notification preview.</string>
     <string name="FluxGramDisableNotificationDelay">Disable notification delay</string>
+    <string name="FluxGramDataTransfer">Data transfer</string>
+    <string name="FluxGramIncreaseDownloadSpeed">Increase download speed</string>
     <string name="FluxGramProfile">Profile</string>
     <string name="FluxGramHideOwnPhone">Hide my phone number</string>
     <string name="FluxGramShowProfileIdDc">Show profile ID and photo DC</string>

@@ -10,6 +10,7 @@ package org.telegram.messenger;
 
 import android.os.SystemClock;
 
+import org.telegram.messenger.fluxgram.TransferSettings;
 import org.telegram.messenger.utils.ImmutableByteArrayOutputStream;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.NativeByteBuffer;
@@ -299,7 +300,11 @@ public class FileLoadOperation {
     }
 
     private void updateParams() {
-        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams) && !forceSmallChunk) {
+        if (TransferSettings.usesExpandedDownloadWindow(
+                preloadPrefixSize > 0,
+                MessagesController.getInstance(currentAccount).getfileExperimentalParams,
+                forceSmallChunk
+        )) {
             downloadChunkSizeBig = 1024 * 512;
             maxDownloadRequests = 8;
             maxDownloadRequestsBig = 8;

@@ -22,6 +22,7 @@ import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
+import org.telegram.messenger.fluxgram.TransferSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginDeveloperBridge;
@@ -78,6 +79,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int IN_APP_VIBRATION = 27;
     private static final int DISABLE_NOTIFICATION_DELAY = 28;
     private static final int FILTER_ZALGO_TEXT = 29;
+    private static final int INCREASE_DOWNLOAD_SPEED = 30;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -268,6 +270,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     DISABLE_NOTIFICATION_DELAY,
                     LocaleController.getString(R.string.FluxGramDisableNotificationDelay)
             ).setChecked(NotificationSettings.isNotificationDelayDisabled(currentAccount)));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramDataTransfer);
+            items.add(UItem.asCheck(
+                    INCREASE_DOWNLOAD_SPEED,
+                    LocaleController.getString(R.string.FluxGramIncreaseDownloadSpeed)
+            ).setChecked(TransferSettings.increasesDownloadSpeed()));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramProfile);
             items.add(UItem.asCheck(
@@ -598,6 +606,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean disabled = !NotificationSettings.isNotificationDelayDisabled(currentAccount);
                 NotificationSettings.setNotificationDelayDisabled(currentAccount, disabled);
                 ((TextCheckCell) view).setChecked(disabled);
+            } else if (item.id == INCREASE_DOWNLOAD_SPEED) {
+                boolean enabled = !TransferSettings.increasesDownloadSpeed();
+                TransferSettings.setIncreasesDownloadSpeed(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
             } else if (item.id == HIDE_OWN_PHONE) {
                 boolean hidden = !ProfileDisplaySettings.hidesOwnPhone();
                 ProfileDisplaySettings.setHidesOwnPhone(hidden);
