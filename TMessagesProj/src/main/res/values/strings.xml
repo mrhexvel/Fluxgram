@@ -11308,6 +11308,7 @@
     <string name="FluxGramFormattingPreviewText">Readable text</string>
     <string name="FluxGramFormattingPreviewOutgoingText">Looks good</string>
     <string name="FluxGramNotifications">Notifications</string>
+    <string name="FluxGramNotificationPreviewText">Hi! This is a notification preview.</string>
     <string name="FluxGramDisableNotificationDelay">Disable notification delay</string>
     <string name="FluxGramProfile">Profile</string>
     <string name="FluxGramHideOwnPhone">Hide my phone number</string>

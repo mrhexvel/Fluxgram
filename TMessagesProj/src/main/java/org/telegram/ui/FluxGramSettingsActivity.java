@@ -37,6 +37,7 @@ import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.FluxGramChatListPreviewCell;
 import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
+import org.telegram.ui.Components.FluxGramNotificationPreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
 import org.telegram.ui.Components.FluxGramSettingsHeaderCell;
 import org.telegram.ui.Components.ItemOptions;
@@ -81,6 +82,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private final int section;
     private UniversalRecyclerView listView;
     private FluxGramFormattingPreviewCell formattingPreview;
+    private FluxGramNotificationPreviewCell notificationPreview;
     private FluxGramChatListPreviewCell appearancePreview;
     private boolean destroyed;
 
@@ -158,6 +160,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
         if (section == GENERAL) {
             formattingPreview = new FluxGramFormattingPreviewCell(
                     context, currentAccount, parentLayout, getResourceProvider()
+            );
+            notificationPreview = new FluxGramNotificationPreviewCell(
+                    context, getResourceProvider()
             );
         } else if (section == APPEARANCE) {
             appearancePreview = new FluxGramChatListPreviewCell(
@@ -254,6 +259,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
             ).setChecked(GeneralSettings.filtersZalgoText()));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramNotifications);
+            items.add(UItem.asCustom(notificationPreview, 112));
             items.add(UItem.asCheck(
                     IN_APP_VIBRATION,
                     LocaleController.getString(R.string.InAppVibrate)
@@ -585,6 +591,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !NotificationSettings.isInAppVibrationEnabled(currentAccount);
                 NotificationSettings.setInAppVibrationEnabled(currentAccount, enabled);
                 ((TextCheckCell) view).setChecked(enabled);
+                if (enabled) {
+                    notificationPreview.previewVibration();
+                }
             } else if (item.id == DISABLE_NOTIFICATION_DELAY) {
                 boolean disabled = !NotificationSettings.isNotificationDelayDisabled(currentAccount);
                 NotificationSettings.setNotificationDelayDisabled(currentAccount, disabled);

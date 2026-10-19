@@ -137,6 +137,33 @@ class GeneralSettingsTest(unittest.TestCase):
         self.assertIn("formattingPreview.updateContent(true, updateHeader, updateMessages);", activity)
         self.assertIn("AndroidUtilities.runOnUIThread(rebuildFormattingFragments, 280L);", activity)
 
+    def test_notifications_section_uses_the_notification_card_preview(self):
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        preview = (JAVA / "ui/Components/FluxGramNotificationPreviewCell.java").read_text()
+        notifications_section = activity.split(
+            "addSectionLabel(items, R.string.FluxGramNotifications);", 1
+        )[1].split(
+            "addSectionLabel(items, R.string.FluxGramProfile);", 1
+        )[0]
+
+        self.assertIn("UItem.asCustom(notificationPreview, 112)", notifications_section)
+        self.assertIn("new BackupImageView(context)", preview)
+        self.assertIn("new LinkSpanDrawable.LinksTextView(context)", preview)
+        self.assertEqual(2, preview.count("new LinkSpanDrawable.LinksTextView(context)"))
+        self.assertIn("card.setBackground(background);", preview)
+        self.assertIn("Theme.key_dialogBackground", preview)
+        self.assertIn("Theme.key_windowBackgroundWhiteBlueText", preview)
+        self.assertIn("imageView.setRoundRadius(AndroidUtilities.dp(24));", preview)
+        self.assertIn("titleTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);", preview)
+        self.assertIn("subtitleTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);", preview)
+        self.assertIn("card.setClickable(false);", preview)
+        self.assertNotIn("NotificationBlurBackground", preview)
+        self.assertNotIn("NotificationCardLayout", preview)
+        self.assertNotIn("Bulletin.make", preview)
+        self.assertIn("HapticFeedbackConstants.CONFIRM", preview)
+        self.assertIn("HapticFeedbackConstants.VIRTUAL_KEY", preview)
+        self.assertIn("notificationPreview.previewVibration();", activity)
+
     def test_locale_aware_formatting_and_persistence(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("java and javac are required")
