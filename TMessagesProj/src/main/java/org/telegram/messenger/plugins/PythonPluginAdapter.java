@@ -13,6 +13,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.plugins.packages.PluginManifest;
 import org.fluxgram.JavaPluginUiResource;
+import org.fluxgram.JavaSettingsBlock;
 import org.fluxgram.JavaMethodHook;
 import org.fluxgram.JavaMethodHookRegistration;
 import org.fluxgram.ChatSelectionAction;
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
 
 public final class PythonPluginAdapter implements Plugin {
     private static final String TAG = "FluxGramPython";
@@ -56,6 +58,7 @@ public final class PythonPluginAdapter implements Plugin {
     private PluginManifest.JavaModule javaModule;
     private JavaPluginLoader javaLoader;
     private JavaPluginUiStop javaUiStop;
+    private volatile PluginSettingsBlocks settingsBlocks;
     private PluginSession pluginSession;
     private volatile Thread workerThread;
     private volatile String loadError;
@@ -181,6 +184,7 @@ public final class PythonPluginAdapter implements Plugin {
     private final LinkedHashMap<String, PendingSetting> pendingSettings = new LinkedHashMap<>();
     private final LinkedHashMap<String, Boolean> observedMessages = new LinkedHashMap<>();
     private boolean settingsDrainQueued;
+    private int settingsBlockActions;
     private PyObject bridge;
     private PyObject instance;
     private FutureTask<Void> removal;
@@ -402,6 +406,11 @@ public final class PythonPluginAdapter implements Plugin {
                     });
 
             if (javaModule != null) {
+                PluginSettingsBlocks nextSettingsBlocks = new PluginSettingsBlocks(
+                        id,
+                        request,
+                        () -> lifecycle.isCurrent(request),
+                        this::enqueueSettingsBlockAction);
                 PluginScope uiScope = pluginSession.openExternalScope("ui");
                 JavaPluginUiResources uiResources = new JavaPluginUiResources(
                         new JavaPluginUiResources.Dispatcher() {
@@ -418,6 +427,7 @@ public final class PythonPluginAdapter implements Plugin {
                         uiScope,
                         error -> Log.e(TAG, "[" + id + "] Java UI resource failed", error));
                 javaUiStop = new JavaPluginUiStop(uiResources, this::executeControl);
+                settingsBlocks = nextSettingsBlocks;
                 javaLoader = JavaPluginLoader.prepare(
                         ApplicationLoader.applicationContext, new File(externalPath), javaModule,
                         pluginSession, javaHost(uiResources));
@@ -600,6 +610,30 @@ public final class PythonPluginAdapter implements Plugin {
             }
 
             @Override
+            public JavaPluginUiResource registerSettingsBlock(long generation,
+                    String blockId, String label, JavaSettingsBlock.Factory factory) {
+                if (!lifecycle.isCurrent(generation)) {
+                    throw new IllegalStateException("Settings block generation is inactive");
+                }
+
+                if (blockId == null || !blockId.matches("[A-Za-z0-9_.-]{1,64}")) {
+                    throw new IllegalArgumentException("Invalid settings block ID");
+                }
+
+                if (label == null || label.length() > 120 || factory == null) {
+                    throw new IllegalArgumentException("Invalid settings block declaration");
+                }
+
+                PluginSettingsBlocks registry = settingsBlocks;
+
+                if (registry == null) {
+                    throw new IllegalStateException("Settings blocks are unavailable");
+                }
+
+                return uiResources.register(() -> registry.register(blockId, label.trim(), factory));
+            }
+
+            @Override
             public JavaPluginUiResource registerLowLevelUiResource(
                     long generation, String extensionId, Object factory) {
                 if (!lifecycle.isCurrent(generation)) {
@@ -729,6 +763,10 @@ public final class PythonPluginAdapter implements Plugin {
 
     public java.util.List<PluginSettings.Setting> getSettingsSchema() {
         return settingsSchema;
+    }
+
+    public PluginSettingsBlocks getSettingsBlocks() {
+        return settingsBlocks;
     }
 
     public boolean readBooleanSetting(String key, boolean fallback) {
@@ -1039,6 +1077,37 @@ public final class PythonPluginAdapter implements Plugin {
         }
     }
 
+    private synchronized boolean enqueueSettingsBlockAction(
+            long generation, BooleanSupplier active, Runnable action) {
+        if (!lifecycle.isRunning(generation) || !active.getAsBoolean()
+                || settingsBlockActions >= 8) {
+            return false;
+        }
+
+        settingsBlockActions++;
+
+        try {
+            executor.execute(() -> {
+                try {
+                    if (lifecycle.isRunning(generation) && active.getAsBoolean()) {
+                        PluginCrashRecovery.runExternal(id, action::run);
+                    }
+                } catch (Throwable error) {
+                    PluginCrashRecovery.handled(error);
+                    Log.e(TAG, "[" + id + "] Settings block action failed", error);
+                } finally {
+                    synchronized (PythonPluginAdapter.this) {
+                        settingsBlockActions--;
+                    }
+                }
+            });
+            return true;
+        } catch (RejectedExecutionException error) {
+            settingsBlockActions--;
+            return false;
+        }
+    }
+
     private boolean unload(long request, boolean disableSelection) {
         try {
             unloadStrict();
@@ -1057,6 +1126,7 @@ public final class PythonPluginAdapter implements Plugin {
             try {
                 javaUiStop.requireSuccess();
                 javaUiStop = null;
+                settingsBlocks = null;
             } catch (Exception error) {
                 failure = error;
             }

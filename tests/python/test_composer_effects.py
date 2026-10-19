@@ -33,6 +33,7 @@ class ComposerEffectsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             sources = [
                 *sorted((ROOT / "tests/java/composer_stubs").rglob("*.java")),
+                ROOT / "tests/java/api_stubs/android/view/View.java",
                 *sorted(API.glob("*.java")),
                 JAVA / "messenger/plugins/ComposerFrameCoordinator.java",
                 JAVA / "messenger/plugins/ComposerMotionSensors.java",
@@ -78,6 +79,8 @@ class ComposerEffectsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             sources = [
                 *sorted(API.glob("*.java")),
+                ROOT / "tests/java/api_stubs/android/content/Context.java",
+                ROOT / "tests/java/api_stubs/android/view/View.java",
                 ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
                 JAVA / "ui/fluxgram/ComposerTextInsertions.java",
                 ROOT / "tests/java/ComposerTextInsertionsCheck.java",

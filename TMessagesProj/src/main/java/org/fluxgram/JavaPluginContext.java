@@ -102,6 +102,28 @@ public interface JavaPluginContext {
     }
 
     /**
+     * Registers a custom block appended to this plugin's settings screen.
+     *
+     * <p>Registration is requested on the plugin worker. Each visible settings screen receives a
+     * separate block instance whose factory and cleanup run on the Android main thread. The host
+     * owns placement, section background, lifecycle, and retry of failed cleanup. Plugin code owns
+     * the block's contents and local interaction policy. Main-thread registration failures, including
+     * duplicate IDs and the block limit, are reported asynchronously and close the returned handle.</p>
+     *
+     * @param id      stable non-empty registration ID of at most 64 ASCII letters, digits, underscore,
+     *                dot, or hyphen; unique within this plugin generation
+     * @param label   optional section label of at most 120 UTF-16 code units; an empty string omits it
+     * @param factory non-null screen-scoped block factory
+     * @return generation-scoped asynchronous UI resource handle
+     * @throws IllegalArgumentException if metadata or factory is invalid
+     * @throws IllegalStateException    if this generation is inactive
+     */
+    default JavaPluginUiResource registerSettingsBlock(
+            String id, String label, JavaSettingsBlock.Factory factory) {
+        throw new UnsupportedOperationException("Settings blocks require Java API 2.1");
+    }
+
+    /**
      * Registers a lifecycle-managed additive composer effect factory.
      *
      * @param factory non-null factory whose surface callbacks follow the composer API contract

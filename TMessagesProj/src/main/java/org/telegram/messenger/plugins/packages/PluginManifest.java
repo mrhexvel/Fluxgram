@@ -17,7 +17,7 @@ public final class PluginManifest {
     public static final int SDK_VERSION = 2;
     public static final int SDK_MINOR_VERSION = 12;
     public static final int JAVA_API_VERSION = 2;
-    public static final int JAVA_API_MINOR_VERSION = 0;
+    public static final int JAVA_API_MINOR_VERSION = 1;
     public static final String HOST_FINGERPRINT =
             "f2ff60d61f95bb4c1587fecde7d32978e38bbd8c4e3aec2b8d0a9bcdd7e98e6b";
     public final int schemaVersion, sdkVersion, minSdkMinor;

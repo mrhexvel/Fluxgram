@@ -9,6 +9,11 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 JAVA = ROOT / "TMessagesProj/src/main/java/org/telegram"
 API = ROOT / "TMessagesProj/src/main/java/org/fluxgram"
+API_ANDROID_STUBS = (
+    ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+    ROOT / "tests/java/api_stubs/android/content/Context.java",
+    ROOT / "tests/java/api_stubs/android/view/View.java",
+)
 
 
 class ComposerTextTest(unittest.TestCase):
@@ -35,7 +40,7 @@ class ComposerTextTest(unittest.TestCase):
         self.assertNotIn("fluxgram.in_app_notifications", adapter)
         manifest = (JAVA / "messenger/plugins/packages/PluginManifest.java").read_text()
         self.assertIn("JAVA_API_VERSION = 2", manifest)
-        self.assertIn("JAVA_API_MINOR_VERSION = 0", manifest)
+        self.assertIn("JAVA_API_MINOR_VERSION = 1", manifest)
         enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
         controller = (JAVA / "ui/fluxgram/FluxGramComposerController.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
@@ -106,7 +111,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -187,7 +192,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -245,7 +250,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -306,7 +311,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -363,7 +368,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -421,7 +426,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -475,7 +480,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -529,7 +534,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -579,7 +584,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -635,7 +640,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -692,7 +697,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -748,7 +753,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(
@@ -791,7 +796,7 @@ class ComposerTextTest(unittest.TestCase):
             module.write_text(source)
             sources = [
                 *sorted(API.glob("*.java")),
-                ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+                *API_ANDROID_STUBS,
                 module,
             ]
             subprocess.run(

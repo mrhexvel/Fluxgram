@@ -377,3 +377,10 @@ class PluginSettingsHostContractTest(unittest.TestCase):
         self.assertIn("adapter.isSettingEditable(key)", source)
         self.assertIn("cell.setEnabled(canEdit(adapter, setting.key));", source)
         self.assertIn("if (!canEdit(adapter, setting.key))", source)
+
+    def test_ui_retries_failed_settings_block_cleanup(self):
+        source = (PROJECT / "TMessagesProj/src/main/java/org/telegram/ui/PluginSettingsActivity.java").read_text()
+
+        self.assertIn("scheduleBlockCleanup();", source)
+        self.assertIn("blockCleanupDelay = Math.min(30_000, blockCleanupDelay * 2);", source)
+        self.assertIn("closeBlockBindings();", source)

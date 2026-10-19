@@ -217,7 +217,7 @@ class PluginPackagesTest(unittest.TestCase):
             self.validate(self.archive(fields=fields, entries=[("java/module.dex", data)]), True)
 
         for key, value in (
-            ("api_version", 1), ("min_api_minor", 1), ("min_api_minor", -1),
+            ("api_version", 1), ("min_api_minor", 2), ("min_api_minor", -1),
             ("path", "../module.dex"), ("path", "module.jar"),
             ("entrypoint", "example.Missing"), ("entrypoint", "bad/class"),
             ("sha256", "abc"), ("unknown", "value"),

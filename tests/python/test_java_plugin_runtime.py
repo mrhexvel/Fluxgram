@@ -8,9 +8,38 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/plugins"
 API = ROOT / "TMessagesProj/src/main/java/org/fluxgram"
+API_CONTEXT_STUB = ROOT / "tests/java/api_stubs/android/content/Context.java"
+API_VIEW_STUB = ROOT / "tests/java/api_stubs/android/view/View.java"
 
 
 class JavaPluginRuntimeTest(unittest.TestCase):
+    def test_settings_blocks_screen_lifecycle_actions_and_retry(self):
+        if not shutil.which("javac") or not shutil.which("java"):
+            self.skipTest("Requires JDK")
+
+        stubs = ROOT / "tests/java/settings_blocks_stubs"
+        sources = [
+            *sorted(stubs.rglob("*.java")),
+            API / "JavaSettingsBlock.java",
+            API / "JavaSettingsBlockContext.java",
+            SOURCE / "PluginSettingsBlocks.java",
+            ROOT / "tests/java/PluginSettingsBlocksCheck.java",
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(
+                ["javac", "--release", "8", "-d", directory, *map(str, sources)],
+                check=True,
+                capture_output=True,
+            )
+            result = subprocess.run(
+                ["java", "-cp", directory,
+                 "org.telegram.messenger.plugins.PluginSettingsBlocksCheck"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_managed_method_hooks_fallback_attribution_and_cleanup(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("Requires JDK")
@@ -126,6 +155,7 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         sources = [
             *sorted(API.glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+            API_CONTEXT_STUB,
             ROOT / "tests/java/composer_stubs/android/os/Looper.java",
             ROOT / "tests/java/e5_stubs/android/graphics/Picture.java",
             ROOT / "tests/java/e5_stubs/android/view/View.java",
@@ -187,6 +217,8 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         sources = [
             *sorted(API.glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+            API_CONTEXT_STUB,
+            API_VIEW_STUB,
             SOURCE / "PluginResourceRegistry.java",
             SOURCE / "PluginScope.java",
             SOURCE / "PluginSession.java",
@@ -214,6 +246,8 @@ class JavaPluginRuntimeTest(unittest.TestCase):
         sources = [
             *sorted(API.glob("*.java")),
             ROOT / "tests/java/composer_stubs/android/graphics/Canvas.java",
+            API_CONTEXT_STUB,
+            API_VIEW_STUB,
             SOURCE / "PluginResourceRegistry.java",
             SOURCE / "PluginScope.java",
             SOURCE / "PluginSession.java",

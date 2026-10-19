@@ -11,12 +11,14 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.messenger.plugins.PluginSettings;
+import org.telegram.messenger.plugins.PluginSettingsBlocks;
 import org.telegram.messenger.plugins.PythonPluginAdapter;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -33,12 +35,19 @@ import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 public final class PluginSettingsActivity extends BaseFragment {
     private final String pluginId;
     private UniversalRecyclerView listView;
-    private boolean destroyed;
+    private volatile boolean destroyed;
+    private volatile boolean blockViewActive;
+    private boolean blockCleanupScheduled;
+    private long blockCleanupDelay = 16;
+    private final LinkedHashMap<PluginSettingsBlocks.Registration,
+            PluginSettingsBlocks.Registration.Binding> blockBindings = new LinkedHashMap<>();
 
     private final Runnable refresh = () -> {
         if (!destroyed && listView != null) {
@@ -59,6 +68,8 @@ public final class PluginSettingsActivity extends BaseFragment {
     @Override
     public void onFragmentDestroy() {
         destroyed = true;
+        blockViewActive = false;
+        closeBlockBindings();
         ExternalPlugins.removeListener(refresh);
 
         super.onFragmentDestroy();
@@ -66,6 +77,8 @@ public final class PluginSettingsActivity extends BaseFragment {
 
     @Override
     public View createView(Context context) {
+        closeBlockBindings();
+        blockViewActive = true;
         Plugin plugin = PluginManager.getInstance().getPlugin(pluginId);
         actionBar.setTitle(plugin == null ? LocaleController.getString(R.string.Settings) : plugin.getName());
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
@@ -93,6 +106,14 @@ public final class PluginSettingsActivity extends BaseFragment {
         return fragmentView;
     }
 
+    @Override
+    public void clearViews() {
+        blockViewActive = false;
+        closeBlockBindings();
+        listView = null;
+        super.clearViews();
+    }
+
     private void fillItems(ArrayList<UItem> items) {
         Plugin plugin = PluginManager.getInstance().getPlugin(pluginId);
 
@@ -102,8 +123,12 @@ public final class PluginSettingsActivity extends BaseFragment {
         }
 
         PythonPluginAdapter adapter = (PythonPluginAdapter) plugin;
+        PluginSettingsBlocks registry = adapter.getSettingsBlocks();
+        List<PluginSettingsBlocks.Registration> registrations = registry == null
+                ? java.util.Collections.emptyList() : registry.snapshot();
+        reconcileBlockBindings(registrations);
 
-        if (adapter.getSettingsSchema().isEmpty()) {
+        if (adapter.getSettingsSchema().isEmpty() && registrations.isEmpty()) {
             items.add(UItem.asShadow(LocaleController.getString(R.string.FluxGramPluginSettingsEmpty)));
             return;
         }
@@ -127,7 +152,7 @@ public final class PluginSettingsActivity extends BaseFragment {
             pendingLabel = "";
         }
 
-        if (visibleSettings.isEmpty()) {
+        if (visibleSettings.isEmpty() && registrations.isEmpty()) {
             items.add(UItem.asShadow(LocaleController.getString(R.string.FluxGramPluginSettingsEmpty)));
             return;
         }
@@ -177,6 +202,100 @@ public final class PluginSettingsActivity extends BaseFragment {
                         createValueCell(adapter, setting, divider), LayoutHelper.WRAP_CONTENT));
             }
         }
+
+        for (PluginSettingsBlocks.Registration registration : registrations) {
+            PluginSettingsBlocks.Registration.Binding binding = blockBindings.get(registration);
+
+            if (binding == null || !binding.isActive()) {
+                continue;
+            }
+
+            if (!items.isEmpty()) {
+                items.add(UItem.asShadow(null));
+            }
+
+            if (!registration.getLabel().isEmpty()) {
+                HeaderCell label = new HeaderCell(getParentActivity(), 33, getResourceProvider());
+                label.setText(registration.getLabel());
+                items.add(UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT));
+            }
+
+            items.add(UItem.asCustom(binding.getView(), LayoutHelper.WRAP_CONTENT));
+        }
+    }
+
+    private void reconcileBlockBindings(List<PluginSettingsBlocks.Registration> registrations) {
+        HashSet<PluginSettingsBlocks.Registration> current = new HashSet<>(registrations);
+
+        for (PluginSettingsBlocks.Registration registration
+                : new ArrayList<>(blockBindings.keySet())) {
+            if (!current.contains(registration)) {
+                closeBlockBinding(registration);
+            }
+        }
+
+        if (!blockViewActive) {
+            return;
+        }
+
+        for (PluginSettingsBlocks.Registration registration : registrations) {
+            if (blockBindings.containsKey(registration)) {
+                continue;
+            }
+
+            try {
+                blockBindings.put(
+                        registration,
+                        registration.bind(
+                                getParentActivity(),
+                                getResourceProvider(),
+                                () -> blockViewActive && !destroyed));
+            } catch (Exception | LinkageError | AssertionError error) {
+                FileLog.e(error);
+            }
+        }
+    }
+
+    private void closeBlockBinding(PluginSettingsBlocks.Registration registration) {
+        PluginSettingsBlocks.Registration.Binding binding = blockBindings.get(registration);
+
+        if (binding == null) {
+            return;
+        }
+
+        try {
+            binding.close();
+            blockBindings.remove(registration);
+            blockCleanupDelay = 16;
+        } catch (Exception | LinkageError | AssertionError error) {
+            FileLog.e(error);
+            scheduleBlockCleanup();
+        }
+    }
+
+    private void closeBlockBindings() {
+        for (PluginSettingsBlocks.Registration registration
+                : new ArrayList<>(blockBindings.keySet())) {
+            closeBlockBinding(registration);
+        }
+    }
+
+    private void scheduleBlockCleanup() {
+        if (blockCleanupScheduled) {
+            return;
+        }
+
+        blockCleanupScheduled = true;
+        long delay = blockCleanupDelay;
+        blockCleanupDelay = Math.min(30_000, blockCleanupDelay * 2);
+        AndroidUtilities.runOnUIThread(() -> {
+            blockCleanupScheduled = false;
+            closeBlockBindings();
+
+            if (blockBindings.isEmpty() && blockViewActive && !destroyed && listView != null) {
+                listView.adapter.update(false);
+            }
+        }, delay);
     }
 
     private boolean canEdit(PythonPluginAdapter adapter, String key) {

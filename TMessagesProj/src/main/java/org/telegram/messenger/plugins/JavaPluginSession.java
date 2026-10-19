@@ -3,6 +3,7 @@ package org.telegram.messenger.plugins;
 import org.fluxgram.JavaPluginContext;
 import org.fluxgram.JavaPluginModule;
 import org.fluxgram.JavaPluginUiResource;
+import org.fluxgram.JavaSettingsBlock;
 import org.fluxgram.JavaMethodHook;
 import org.fluxgram.JavaMethodHookRegistration;
 import org.fluxgram.ChatSelectionAction;
@@ -43,6 +44,11 @@ final class JavaPluginSession implements AutoCloseable {
 
         default JavaPluginUiResource registerUiResource(long generation, JavaPluginUiResource.Factory factory) {
             throw new UnsupportedOperationException("Java UI resources are unavailable");
+        }
+
+        default JavaPluginUiResource registerSettingsBlock(long generation,
+                String id, String label, JavaSettingsBlock.Factory factory) {
+            throw new UnsupportedOperationException("Settings blocks are unavailable");
         }
 
         default JavaPluginUiResource registerComposerEffect(long generation, ComposerEffect.Factory factory) {
@@ -272,6 +278,13 @@ final class JavaPluginSession implements AutoCloseable {
         public JavaPluginUiResource registerUiResource(JavaPluginUiResource.Factory factory) {
             requireActive();
             return host.registerUiResource(session.getGeneration(), factory);
+        }
+
+        @Override
+        public JavaPluginUiResource registerSettingsBlock(
+                String id, String label, JavaSettingsBlock.Factory factory) {
+            requireActive();
+            return host.registerSettingsBlock(session.getGeneration(), id, label, factory);
         }
 
         @Override

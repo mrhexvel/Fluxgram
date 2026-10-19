@@ -58,6 +58,8 @@ class PluginDevkitContractTest(unittest.TestCase):
         self.assertTrue(classes)
         self.assertTrue(all(name.startswith("org/fluxgram/") for name in classes))
         self.assertIn("org/fluxgram/JavaPluginModule.class", classes)
+        self.assertIn("org/fluxgram/JavaSettingsBlock.class", classes)
+        self.assertIn("org/fluxgram/JavaSettingsBlockContext.class", classes)
         self.assertIn("org/fluxgram/ComposerSurface.class", classes)
 
         with zipfile.ZipFile(sources_artifact) as archive:
@@ -80,10 +82,15 @@ class PluginDevkitContractTest(unittest.TestCase):
 
     def test_host_stubs_artifact_matches_manifest_fingerprint(self):
         metadata = json.loads((ARTIFACTS / "host-stubs.json").read_text())
+        api_metadata = json.loads((ARTIFACTS / "api.json").read_text())
         manifest = MANIFEST_SOURCE.read_text()
         fingerprint = re.search(r'HOST_FINGERPRINT\s*=\s*\n\s*"([a-f0-9]{64})"', manifest)
         self.assertIsNotNone(fingerprint)
         self.assertEqual(metadata["host_fingerprint"], fingerprint.group(1))
+        self.assertEqual(
+            metadata["stable_api"],
+            f'{api_metadata["api_version"]}.{api_metadata["api_minor"]}',
+        )
 
         artifact = ARTIFACTS / "fluxgram-host-stubs.jar"
         self.assertEqual(metadata["jar_sha256"], hashlib.sha256(artifact.read_bytes()).hexdigest())
