@@ -24,6 +24,18 @@ class TransferSettingsTest(unittest.TestCase):
         self.assertIn("addSectionLabel(items, R.string.FluxGramDataTransfer);", activity)
         self.assertIn("TransferSettings.setIncreasesDownloadSpeed(enabled);", activity)
 
+    def test_upload_policy_has_one_bounded_integration(self):
+        operation = (JAVA / "messenger/FileUploadOperation.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertEqual(1, operation.count("TransferSettings.resolveMinimumUploadChunkSize("))
+        self.assertIn("slowNetwork ? minUploadChunkSlowNetworkSize : minUploadChunkSize", operation)
+        self.assertIn("maxUploadingKBytes", operation)
+        self.assertIn("initialRequestsCount", operation)
+        self.assertIn("slowNetwork ? maxUploadingSlowNetworkKBytes : maxUploadingKBytes", operation)
+        self.assertIn("if (isEncrypted)", operation)
+        self.assertIn("TransferSettings.setIncreasesUploadSpeed(enabled);", activity)
+
     def test_policy_preserves_existing_gates_and_persistence(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("java and javac are required")
@@ -119,6 +131,26 @@ class TransferSettingsTest(unittest.TestCase):
                         }
                         if (TransferSettings.usesExpandedDownloadWindow(false, false, true)) {
                             throw new AssertionError("setting bypassed the small chunk gate");
+                        }
+                        if (TransferSettings.increasesUploadSpeed()) {
+                            throw new AssertionError("upload default must be disabled");
+                        }
+                        if (TransferSettings.resolveMinimumUploadChunkSize(false, 128, 2048, 8) != 128) {
+                            throw new AssertionError("disabled upload policy changed the chunk size");
+                        }
+
+                        TransferSettings.setIncreasesUploadSpeed(true);
+                        if (!TransferSettings.increasesUploadSpeed()) {
+                            throw new AssertionError("upload value was not retained");
+                        }
+                        if (TransferSettings.resolveMinimumUploadChunkSize(false, 128, 2048, 8) != 256) {
+                            throw new AssertionError("upload window was not filled");
+                        }
+                        if (TransferSettings.resolveMinimumUploadChunkSize(true, 32, 2048, 8) != 32) {
+                            throw new AssertionError("slow network policy changed");
+                        }
+                        if (!TransferSettings.increasesDownloadSpeed()) {
+                            throw new AssertionError("upload setting changed download setting");
                         }
                     }
                 }

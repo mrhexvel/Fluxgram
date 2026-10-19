@@ -80,6 +80,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int DISABLE_NOTIFICATION_DELAY = 28;
     private static final int FILTER_ZALGO_TEXT = 29;
     private static final int INCREASE_DOWNLOAD_SPEED = 30;
+    private static final int INCREASE_UPLOAD_SPEED = 31;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -276,6 +277,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     INCREASE_DOWNLOAD_SPEED,
                     LocaleController.getString(R.string.FluxGramIncreaseDownloadSpeed)
             ).setChecked(TransferSettings.increasesDownloadSpeed()));
+            items.add(UItem.asCheck(
+                    INCREASE_UPLOAD_SPEED,
+                    LocaleController.getString(R.string.FluxGramIncreaseUploadSpeed)
+            ).setChecked(TransferSettings.increasesUploadSpeed()));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramProfile);
             items.add(UItem.asCheck(
@@ -609,6 +614,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
             } else if (item.id == INCREASE_DOWNLOAD_SPEED) {
                 boolean enabled = !TransferSettings.increasesDownloadSpeed();
                 TransferSettings.setIncreasesDownloadSpeed(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+            } else if (item.id == INCREASE_UPLOAD_SPEED) {
+                boolean enabled = !TransferSettings.increasesUploadSpeed();
+                TransferSettings.setIncreasesUploadSpeed(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
             } else if (item.id == HIDE_OWN_PHONE) {
                 boolean hidden = !ProfileDisplaySettings.hidesOwnPhone();
