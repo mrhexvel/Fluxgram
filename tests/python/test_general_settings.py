@@ -95,6 +95,48 @@ class GeneralSettingsTest(unittest.TestCase):
         self.assertEqual(1, formatting_section.count("UItem.asShadow(null)"))
         self.assertIn("GeneralSettings.setFiltersZalgoText(enabled);", activity)
 
+    def test_formatting_section_uses_a_reactive_chat_preview(self):
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        preview = (JAVA / "ui/Components/FluxGramFormattingPreviewCell.java").read_text()
+        formatting_section = activity.split(
+            "addSectionLabel(items, R.string.FluxGramFormatting);", 1
+        )[1].split(
+            "addSectionLabel(items, R.string.FluxGramNotifications);", 1
+        )[0]
+
+        self.assertIn("UItem.asCustom(formattingPreview, 247)", formatting_section)
+        self.assertIn("LocaleController.formatShortNumber(12345, null)", preview)
+        self.assertIn("LocaleController.formatDateOnline", preview)
+        self.assertIn("GeneralSettings.usesRelativeLastSeen()", preview)
+        self.assertIn("LocaleController.formatRelativeDate(300L)", preview)
+        self.assertIn("ZalgoDisplayFilter.filter(sample)", preview)
+        self.assertIn("extends ThemePreviewMessagesCell", preview)
+        self.assertIn("new ChatAvatarContainer(context, null, false, resourcesProvider)", preview)
+        self.assertIn("avatarContainer.setSubtitle(status);", preview)
+        self.assertNotIn("protected boolean useAnimatedSubtitle()", preview)
+        self.assertNotIn("avatarContainer.setTitleColors", preview)
+        self.assertEqual(
+            2,
+            preview.count("LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f)"),
+        )
+        self.assertNotIn("headerShadow", preview)
+        self.assertIn("ChatMessageCell[] cells = getCells()", preview)
+        self.assertIn("message.flags |= TLRPC.MESSAGE_FLAG_HAS_VIEWS;", preview)
+        self.assertIn("message.views = 12345;", preview)
+        self.assertIn("new MessageObject(account, message, true, false)", preview)
+        self.assertIn("LiteMode.isPowerSaverApplied()", preview)
+        self.assertIn("captureContent(updateHeader, updateMessages)", preview)
+        self.assertIn("if (updateHeader)", preview)
+        self.assertIn("if (updateMessages)", preview)
+        self.assertIn("getOverlay().add(transitionDrawable);", preview)
+        self.assertIn("contentAnimator.setDuration(220L);", preview)
+        self.assertNotIn("getTransitionParams().animateChange()", preview)
+        self.assertNotIn(".alpha(0.35f)", preview)
+        self.assertIn("updateFormattingPreview(true, false);", activity)
+        self.assertEqual(3, activity.count("updateFormattingPreview(false, true);"))
+        self.assertIn("formattingPreview.updateContent(true, updateHeader, updateMessages);", activity)
+        self.assertIn("AndroidUtilities.runOnUIThread(rebuildFormattingFragments, 280L);", activity)
+
     def test_locale_aware_formatting_and_persistence(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("java and javac are required")

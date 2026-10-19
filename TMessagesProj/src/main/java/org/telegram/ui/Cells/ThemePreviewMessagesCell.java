@@ -83,9 +83,12 @@ public class ThemePreviewMessagesCell extends LinearLayout {
 
     @SuppressLint("ClickableViewAccessibility")
     public ThemePreviewMessagesCell(Context context, INavigationLayout layout, int type, long dialogId, Theme.ResourcesProvider resourcesProvider) {
+        this(context, layout, type, dialogId, UserConfig.selectedAccount, resourcesProvider);
+    }
+
+    public ThemePreviewMessagesCell(Context context, INavigationLayout layout, int type, long dialogId, int currentAccount, Theme.ResourcesProvider resourcesProvider) {
         super(context);
         this.type = type;
-        int currentAccount = UserConfig.selectedAccount;
         parentLayout = layout;
 
         setWillNotDraw(false);
@@ -107,7 +110,7 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message.reply_to.flags |= 1;
             if (dialogId == 0) {
                 message.reply_to.reply_to_peer_id = new TLRPC.TL_peerUser();
-                message.reply_to.reply_to_peer_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+                message.reply_to.reply_to_peer_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
             } else {
                 message.reply_to.reply_to_peer_id = new TLRPC.TL_peerChannel();
                 message.reply_to.reply_to_peer_id.channel_id = -dialogId;
@@ -116,9 +119,9 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message.replyMessage.media = new TLRPC.TL_messageMediaEmpty();
             if (dialogId == 0) {
                 message.replyMessage.from_id = new TLRPC.TL_peerUser();
-                message.replyMessage.from_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+                message.replyMessage.from_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
                 message.replyMessage.peer_id = new TLRPC.TL_peerUser();
-                message.replyMessage.peer_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+                message.replyMessage.peer_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
             } else {
                 message.replyMessage.from_id = new TLRPC.TL_peerChannel();
                 message.replyMessage.from_id.channel_id = -dialogId;
@@ -140,7 +143,7 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message.flags = 259;
             if (dialogId == 0) {
                 message.from_id = new TLRPC.TL_peerUser();
-                message.from_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+                message.from_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
             } else {
                 message.from_id = new TLRPC.TL_peerChannel();
                 message.from_id.channel_id = -dialogId;
@@ -155,7 +158,7 @@ public class ThemePreviewMessagesCell extends LinearLayout {
                 message.peer_id.channel_id = -dialogId;
             }
 
-            message1 = new MessageObject(UserConfig.selectedAccount, message, true, false);
+            message1 = new MessageObject(currentAccount, message, true, false);
             message1.notime = true;
             message1.forceAvatar = true;
             message1.resetLayout();
@@ -167,14 +170,14 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message.dialog_id = 1;
             message.flags = 259;
             message.from_id = new TLRPC.TL_peerUser();
-            message.from_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+            message.from_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
             message.id = 1;
             message.media = new TLRPC.TL_messageMediaEmpty();
             message.out = false;
             message.peer_id = new TLRPC.TL_peerUser();
             message.peer_id.user_id = 0;
 
-            message1 = new MessageObject(UserConfig.selectedAccount, message, true, false);
+            message1 = new MessageObject(currentAccount, message, true, false);
             message1.resetLayout();
             message1.eventId = 1;
             message1.customName = LocaleController.getString(R.string.DoubleTapPreviewSenderName);
@@ -201,13 +204,13 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message.dialog_id = 1;
             message.flags = 259;
             message.from_id = new TLRPC.TL_peerUser();
-            message.from_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+            message.from_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
             message.id = 1;
             message.media = new TLRPC.TL_messageMediaEmpty();
             message.out = true;
             message.peer_id = new TLRPC.TL_peerUser();
             message.peer_id.user_id = 0;
-            MessageObject replyMessageObject = new MessageObject(UserConfig.selectedAccount, message, true, false);
+            MessageObject replyMessageObject = new MessageObject(currentAccount, message, true, false);
 
             message = new TLRPC.TL_message();
             if (type == 0) {
@@ -241,13 +244,13 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message.dialog_id = 1;
             message.flags = 259;
             message.from_id = new TLRPC.TL_peerUser();
-            message.from_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+            message.from_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
             message.id = 1;
             message.media = new TLRPC.TL_messageMediaEmpty();
             message.out = true;
             message.peer_id = new TLRPC.TL_peerUser();
             message.peer_id.user_id = 0;
-            message1 = new MessageObject(UserConfig.selectedAccount, message, true, false);
+            message1 = new MessageObject(currentAccount, message, true, false);
             message1.resetLayout();
             message1.overrideLinkColor = 5;
             message1.overrideLinkEmoji = 0;
@@ -270,8 +273,8 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message.media = new TLRPC.TL_messageMediaEmpty();
             message.out = false;
             message.peer_id = new TLRPC.TL_peerUser();
-            message.peer_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-            message2 = new MessageObject(UserConfig.selectedAccount, message, true, false);
+            message.peer_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId();
+            message2 = new MessageObject(currentAccount, message, true, false);
             if (type == 0) {
 //                message2.customReplyName = LocaleController.getString(R.string.FontSizePreviewName);
             } else {
@@ -353,7 +356,7 @@ public class ThemePreviewMessagesCell extends LinearLayout {
                         final int colorId = getMessageObject().overrideLinkColor;
                         final int color1, color2;
                         if (colorId >= 14) {
-                            MessagesController messagesController = MessagesController.getInstance(UserConfig.selectedAccount);
+                            MessagesController messagesController = MessagesController.getInstance(currentAccount);
                             MessagesController.PeerColors peerColors = messagesController != null ? messagesController.peerColors : null;
                             MessagesController.PeerColor peerColor = peerColors != null ? peerColors.getColor(colorId) : null;
                             if (peerColor != null) {

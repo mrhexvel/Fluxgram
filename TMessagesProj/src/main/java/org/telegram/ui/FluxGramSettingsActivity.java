@@ -9,6 +9,7 @@ import android.widget.FrameLayout;
 
 import androidx.core.content.FileProvider;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.LocaleController;
@@ -35,6 +36,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.FluxGramChatListPreviewCell;
+import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
 import org.telegram.ui.Components.FluxGramSettingsHeaderCell;
 import org.telegram.ui.Components.ItemOptions;
@@ -78,12 +80,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
     private final int section;
     private UniversalRecyclerView listView;
+    private FluxGramFormattingPreviewCell formattingPreview;
     private FluxGramChatListPreviewCell appearancePreview;
     private boolean destroyed;
 
     private final Runnable refresh = () -> {
         if (listView != null && !destroyed) {
             listView.adapter.update(false);
+        }
+    };
+    private final Runnable rebuildFormattingFragments = () -> {
+        if (!destroyed && parentLayout != null) {
+            parentLayout.rebuildFragments(0);
         }
     };
 
@@ -110,6 +118,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     @Override
     public void onFragmentDestroy() {
         destroyed = true;
+        AndroidUtilities.cancelRunOnUIThread(rebuildFormattingFragments);
         ExternalPlugins.removeListener(refresh);
         PluginDeveloperBridge.removeListener(refresh);
         super.onFragmentDestroy();
@@ -146,7 +155,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
         content.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
         fragmentView = content;
 
-        if (section == APPEARANCE) {
+        if (section == GENERAL) {
+            formattingPreview = new FluxGramFormattingPreviewCell(
+                    context, currentAccount, parentLayout, getResourceProvider()
+            );
+        } else if (section == APPEARANCE) {
             appearancePreview = new FluxGramChatListPreviewCell(
                     context, currentAccount, getResourceProvider()
             );
@@ -222,6 +235,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
         if (section == GENERAL) {
             addSectionLabel(items, R.string.FluxGramFormatting);
+            items.add(UItem.asCustom(formattingPreview, 247));
             items.add(UItem.asCheck(
                     FULL_NUMBER_FORMAT,
                     LocaleController.getString(R.string.FluxGramFullNumberFormat)
@@ -550,23 +564,23 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !GeneralSettings.usesFullNumberFormat();
                 GeneralSettings.setUsesFullNumberFormat(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
-                parentLayout.rebuildFragments(0);
+                updateFormattingPreview(false, true);
             } else if (item.id == SHOW_TIME_SECONDS) {
                 boolean enabled = !GeneralSettings.showsTimeSeconds();
                 GeneralSettings.setShowsTimeSeconds(enabled);
                 LocaleController.getInstance().recreateFormatters();
                 ((TextCheckCell) view).setChecked(enabled);
-                parentLayout.rebuildFragments(0);
+                updateFormattingPreview(false, true);
             } else if (item.id == RELATIVE_LAST_SEEN) {
                 boolean enabled = !GeneralSettings.usesRelativeLastSeen();
                 GeneralSettings.setUsesRelativeLastSeen(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
-                parentLayout.rebuildFragments(0);
+                updateFormattingPreview(true, false);
             } else if (item.id == FILTER_ZALGO_TEXT) {
                 boolean enabled = !GeneralSettings.filtersZalgoText();
                 GeneralSettings.setFiltersZalgoText(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
-                parentLayout.rebuildFragments(0);
+                updateFormattingPreview(false, true);
             } else if (item.id == IN_APP_VIBRATION) {
                 boolean enabled = !NotificationSettings.isInAppVibrationEnabled(currentAccount);
                 NotificationSettings.setInAppVibrationEnabled(currentAccount, enabled);
@@ -667,6 +681,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 }
             }
         }
+    }
+
+    private void updateFormattingPreview(boolean updateHeader, boolean updateMessages) {
+        formattingPreview.updateContent(true, updateHeader, updateMessages);
+        AndroidUtilities.cancelRunOnUIThread(rebuildFormattingFragments);
+        AndroidUtilities.runOnUIThread(rebuildFormattingFragments, 280L);
     }
 
     private void showInfo(String title, String message) {
