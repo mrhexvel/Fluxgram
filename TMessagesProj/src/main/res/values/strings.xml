@@ -11308,7 +11308,6 @@
     <string name="FluxGramFormattingPreviewText">Readable text</string>
     <string name="FluxGramFormattingPreviewOutgoingText">Looks good</string>
     <string name="FluxGramNotifications">Notifications</string>
-    <string name="FluxGramNotificationPreviewText">Hi! This is a notification preview.</string>
     <string name="FluxGramDisableNotificationDelay">Disable notification delay</string>
     <string name="FluxGramDataTransfer">Data transfer</string>
     <string name="FluxGramIncreaseDownloadSpeed">Increase download speed</string>

@@ -303,7 +303,6 @@
     <string name="FluxGramFormattingPreviewText">Читаемый текст</string>
     <string name="FluxGramFormattingPreviewOutgoingText">Выглядит хорошо</string>
     <string name="FluxGramNotifications">Уведомления</string>
-    <string name="FluxGramNotificationPreviewText">Привет! Это пример уведомления.</string>
     <string name="FluxGramDisableNotificationDelay">Отключить задержку уведомлений</string>
     <string name="FluxGramDataTransfer">Передача данных</string>
     <string name="FluxGramIncreaseDownloadSpeed">Ускорять загрузку файлов</string>
