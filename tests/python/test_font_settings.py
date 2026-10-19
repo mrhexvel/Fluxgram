@@ -65,7 +65,7 @@ class FontSettingsTest(unittest.TestCase):
     def test_fonts_section_precedes_chat_list(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
 
-        fonts = activity.index("addSectionLabel(items, R.string.FluxGramFonts);")
+        fonts = activity.index("addSectionLabel(items, R.string.FluxGramFontsAndEmoji);")
         chat_list = activity.index("addSectionLabel(items, R.string.FluxGramChatList);")
         self.assertLess(fonts, chat_list)
         self.assertIn("presentFragment(new FluxGramFontSettingsActivity())", activity)
