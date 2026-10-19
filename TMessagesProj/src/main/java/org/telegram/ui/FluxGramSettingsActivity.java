@@ -89,6 +89,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SAVE_FILES_DIRECTORY = 32;
     private static final int HIDE_ARCHIVE_ABOVE_LIST = 33;
     private static final int REVEAL_ARCHIVE_ON_PULL = 34;
+    private static final int DISABLE_UNARCHIVE_SWIPE = 35;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -382,6 +383,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     REVEAL_ARCHIVE_ON_PULL,
                     LocaleController.getString(R.string.FluxGramRevealArchiveOnPull)
             ).setChecked(ArchiveSettings.revealsOnPull()));
+            items.add(UItem.asCheck(
+                    DISABLE_UNARCHIVE_SWIPE,
+                    LocaleController.getString(R.string.FluxGramDisableUnarchiveSwipe)
+            ).setChecked(ArchiveSettings.disablesUnarchiveSwipe()));
             items.add(UItem.asShadow(null));
             items.add(UItem.asButton(
                     STEALTH,
@@ -673,6 +678,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ArchiveSettings.setRevealsOnPull(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == DISABLE_UNARCHIVE_SWIPE) {
+                boolean disabled = !ArchiveSettings.disablesUnarchiveSwipe();
+                ArchiveSettings.setDisablesUnarchiveSwipe(disabled);
+                ((TextCheckCell) view).setChecked(disabled);
             } else if (item.id == STEALTH) {
                 presentFragment(new FluxGramStealthActivity());
             }

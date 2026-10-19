@@ -2447,6 +2447,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     swipeFolderBack = false;
                     return makeMovementFlags(ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0);
                 } else {
+                    if (folderId == 1 && ArchiveSettings.disablesUnarchiveSwipe()) {
+                        return 0;
+                    }
                     int currentDialogsType = initialDialogsType;
                     try {
                         currentDialogsType = parentPage.dialogsAdapter.getDialogsType();
@@ -2521,6 +2524,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 long dialogId = dialogCell.getDialogId();
                 if (DialogObject.isFolderDialogId(dialogId)) {
                     parentPage.listView.toggleArchiveHidden(false, dialogCell);
+                    return;
+                }
+                if (folderId == 1 && ArchiveSettings.disablesUnarchiveSwipe()) {
+                    int position = viewHolder.getAdapterPosition();
+                    if (position != RecyclerView.NO_POSITION) {
+                        parentPage.dialogsAdapter.notifyItemChanged(position);
+                    }
                     return;
                 }
                 TLRPC.Dialog dialog = getMessagesController().dialogs_dict.get(dialogId);

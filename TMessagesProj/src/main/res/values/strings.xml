@@ -11316,6 +11316,7 @@
     <string name="FluxGramDefaultDownloads">Downloads</string>
     <string name="FluxGramSelectedFolder">Selected folder</string>
     <string name="FluxGramRevealArchiveOnPull">Reveal archive by pulling down</string>
+    <string name="FluxGramDisableUnarchiveSwipe">Disable swipe to unarchive</string>
     <string name="FluxGramChooseFolder">Choose another folder</string>
     <string name="FluxGramUseDefaultFolder">Use Downloads folder</string>
     <string name="FluxGramFolderAccessError">FluxGram could not access this folder.</string>

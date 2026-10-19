@@ -60,6 +60,51 @@ class ArchiveSettingsTest(unittest.TestCase):
         self.assertEqual(5, dialogs.count("ArchiveSettings.revealsOnPull()"))
         self.assertIn("setStoriesOvercroll(viewPage, newOverScroll)", dialogs)
 
+    def test_unarchive_swipe_setting_defaults_to_telegram_behavior(self):
+        settings = (JAVA / "messenger/fluxgram/ArchiveSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertIn('"fluxgram_disable_unarchive_swipe"', settings)
+        self.assertIn(
+            "preferences.getBoolean(DISABLE_UNARCHIVE_SWIPE, false)",
+            settings,
+        )
+        self.assertIn("ArchiveSettings.setDisablesUnarchiveSwipe(disabled);", activity)
+        self.assertIn(
+            ".setChecked(ArchiveSettings.disablesUnarchiveSwipe())",
+            activity,
+        )
+
+    def test_unarchive_swipe_is_checked_before_gesture_and_action(self):
+        dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
+        swipe_controller = dialogs.split("private class SwipeController", 1)[1]
+        movement = swipe_controller.split("public int getMovementFlags", 1)[1].split(
+            "public boolean onMove", 1
+        )[0]
+        action = swipe_controller.split("public void onSwiped", 1)[1].split(
+            "TLRPC.Dialog dialog", 1
+        )[0]
+
+        self.assertIn("if (actionBar.isActionModeShowed(null))", movement)
+        self.assertIn(
+            "folderId == 1 && ArchiveSettings.disablesUnarchiveSwipe()",
+            movement,
+        )
+        self.assertGreater(
+            movement.index("if (actionBar.isActionModeShowed(null))"),
+            movement.index("long dialogId = dialogCell.getDialogId();"),
+        )
+        self.assertGreater(
+            movement.index("folderId == 1 && ArchiveSettings.disablesUnarchiveSwipe()"),
+            movement.index("} else {"),
+        )
+        self.assertIn(
+            "folderId == 1 && ArchiveSettings.disablesUnarchiveSwipe()",
+            action,
+        )
+        self.assertIn("parentPage.dialogsAdapter.notifyItemChanged(position);", action)
+        self.assertEqual(2, dialogs.count("ArchiveSettings.disablesUnarchiveSwipe()"))
+
 
 if __name__ == "__main__":
     unittest.main()
