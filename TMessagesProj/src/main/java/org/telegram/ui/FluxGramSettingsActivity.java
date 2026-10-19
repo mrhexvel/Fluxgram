@@ -21,6 +21,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
@@ -87,6 +88,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int INCREASE_UPLOAD_SPEED = 31;
     private static final int SAVE_FILES_DIRECTORY = 32;
     private static final int HIDE_ARCHIVE_ABOVE_LIST = 33;
+    private static final int REVEAL_ARCHIVE_ON_PULL = 34;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -376,6 +378,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     HIDE_ARCHIVE_ABOVE_LIST,
                     LocaleController.getString(R.string.HideAboveTheList)
             ).setChecked(SharedConfig.archiveHidden));
+            items.add(UItem.asCheck(
+                    REVEAL_ARCHIVE_ON_PULL,
+                    LocaleController.getString(R.string.FluxGramRevealArchiveOnPull)
+            ).setChecked(ArchiveSettings.revealsOnPull()));
             items.add(UItem.asShadow(null));
             items.add(UItem.asButton(
                     STEALTH,
@@ -661,6 +667,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
             if (item.id == HIDE_ARCHIVE_ABOVE_LIST) {
                 SharedConfig.toggleArchiveHidden();
                 ((TextCheckCell) view).setChecked(SharedConfig.archiveHidden);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == REVEAL_ARCHIVE_ON_PULL) {
+                boolean enabled = !ArchiveSettings.revealsOnPull();
+                ArchiveSettings.setRevealsOnPull(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
                 parentLayout.rebuildFragments(0);
             } else if (item.id == STEALTH) {
                 presentFragment(new FluxGramStealthActivity());

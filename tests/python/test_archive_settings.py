@@ -32,6 +32,34 @@ class ArchiveSettingsTest(unittest.TestCase):
         self.assertIn("public int getMovementFlags", dialogs)
         self.assertIn("public void onSwiped", dialogs)
 
+    def test_pull_setting_defaults_to_telegram_behavior(self):
+        settings = (JAVA / "messenger/fluxgram/ArchiveSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertIn('"fluxgram_archive_reveal_on_pull"', settings)
+        self.assertIn("preferences.getBoolean(REVEAL_ON_PULL, true)", settings)
+        self.assertIn("ArchiveSettings.setRevealsOnPull(enabled);", activity)
+        self.assertIn(".setChecked(ArchiveSettings.revealsOnPull())", activity)
+
+    def test_pull_setting_gates_only_archive_reveal_transitions(self):
+        dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
+
+        self.assertIn(
+            "if (!ArchiveSettings.revealsOnPull() || diff < height",
+            dialogs,
+        )
+        self.assertIn(
+            "boolean canShowInternal = ArchiveSettings.revealsOnPull()",
+            dialogs,
+        )
+        self.assertIn(
+            "viewPage.archivePullViewState == ARCHIVE_ITEM_STATE_HIDDEN\n"
+            "                                && ArchiveSettings.revealsOnPull()",
+            dialogs,
+        )
+        self.assertEqual(5, dialogs.count("ArchiveSettings.revealsOnPull()"))
+        self.assertIn("setStoriesOvercroll(viewPage, newOverScroll)", dialogs)
+
 
 if __name__ == "__main__":
     unittest.main()

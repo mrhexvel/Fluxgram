@@ -130,6 +130,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.XiaomiUtilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.FBool;
@@ -2176,7 +2177,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         private void updatePullState() {
             parentPage.archivePullViewState = SharedConfig.archiveHidden ? ARCHIVE_ITEM_STATE_HIDDEN : ARCHIVE_ITEM_STATE_PINNED;
             if (parentPage.pullForegroundDrawable != null) {
-                parentPage.pullForegroundDrawable.setWillDraw(parentPage.archivePullViewState != ARCHIVE_ITEM_STATE_PINNED);
+                parentPage.pullForegroundDrawable.setWillDraw(
+                        parentPage.archivePullViewState != ARCHIVE_ITEM_STATE_PINNED
+                                && ArchiveSettings.revealsOnPull()
+                );
             }
         }
 
@@ -2257,7 +2261,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         int diff = (view.getTop() - pTop) + view.getMeasuredHeight();
 
                         long pullingTime = System.currentTimeMillis() - startArchivePullingTime;
-                        if (diff < height || pullingTime < PullForegroundDrawable.minPullingTime) {
+                        if (!ArchiveSettings.revealsOnPull() || diff < height || pullingTime < PullForegroundDrawable.minPullingTime) {
                             disableActionBarScrolling = true;
                             smoothScrollBy(0, diff, CubicBezierInterpolator.EASE_OUT_QUINT);
                             parentPage.archivePullViewState = ARCHIVE_ITEM_STATE_HIDDEN;
@@ -4136,7 +4140,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         if (v != null) {
                             v.invalidate();
                         }
-                        if (viewPage.archivePullViewState == ARCHIVE_ITEM_STATE_HIDDEN) {
+                        if (viewPage.archivePullViewState == ARCHIVE_ITEM_STATE_HIDDEN
+                                && ArchiveSettings.revealsOnPull()) {
                             viewPage.archivePullViewState = ARCHIVE_ITEM_STATE_SHOWED;
                         }
                         if (viewPage.pullForegroundDrawable != null) {
@@ -4342,7 +4347,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                 k = 1f;
                             }
                             long pullingTime = System.currentTimeMillis() - startArchivePullingTime;
-                            boolean canShowInternal = k > PullForegroundDrawable.SNAP_HEIGHT && pullingTime > PullForegroundDrawable.minPullingTime + 20;
+                            boolean canShowInternal = ArchiveSettings.revealsOnPull()
+                                    && k > PullForegroundDrawable.SNAP_HEIGHT
+                                    && pullingTime > PullForegroundDrawable.minPullingTime + 20;
                             if (canShowHiddenArchive != canShowInternal) {
                                 canShowHiddenArchive = canShowInternal;
                                 if (viewPage.archivePullViewState == ARCHIVE_ITEM_STATE_HIDDEN) {
@@ -4680,7 +4687,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 } else {
                     viewPage.pullForegroundDrawable.doNotShow();
                 }
-                viewPage.pullForegroundDrawable.setWillDraw(viewPage.archivePullViewState != ARCHIVE_ITEM_STATE_PINNED);
+                viewPage.pullForegroundDrawable.setWillDraw(
+                        viewPage.archivePullViewState != ARCHIVE_ITEM_STATE_PINNED
+                                && ArchiveSettings.revealsOnPull()
+                );
             }
 
             viewPage.dialogsAdapter = new DialogsAdapter(this, context, viewPage.dialogsType, folderId, onlySelect, selectedDialogs, currentAccount, requestPeerType) {

@@ -313,6 +313,7 @@
     <string name="FluxGramChooseFolder">Выбрать другую папку</string>
     <string name="FluxGramUseDefaultFolder">Использовать папку «Загрузки»</string>
     <string name="FluxGramFolderAccessError">FluxGram не удалось получить доступ к этой папке.</string>
+    <string name="FluxGramRevealArchiveOnPull">Показывать архив свайпом вниз</string>
     <string name="FluxGramProfile">Профиль</string>
     <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>
     <string name="FluxGramShowProfileIdDc">Показывать ID профиля и DC фотографии</string>
