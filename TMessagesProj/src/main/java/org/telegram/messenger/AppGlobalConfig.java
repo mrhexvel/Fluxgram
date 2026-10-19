@@ -110,7 +110,7 @@ public class AppGlobalConfig {
 
     public final ConfigStringSet botAllowedSuffixes = ofStringSet("bot_allowed_suffixes", Collections.singleton("bot"));
 
-    public final ConfigBoolean walletAvailable = ofBoolean("wallet_available", BuildVars.DEBUG_VERSION);
+    public final ConfigBoolean walletAvailable = ofBoolean("wallet_available", BuildVars.DEBUG_VERSION, true);
     public final ConfigBoolean walletPaidMessageRecipientMessageAmountCheck = ofBoolean("wallet_paid_message_recipient_message_amount_check", true);
     public final ConfigLong walletTransferMinNanos = ofLong("wallet_transfer_min_nanos", 100_000_000);
     public final ConfigLong walletGaslessMinNanos = ofLong("wallet_gasless_min_nanos", 100_000_000);
@@ -371,13 +371,19 @@ public class AppGlobalConfig {
 
     public static class ConfigBoolean {
         private final Internal handler;
+        private final boolean forceEnabled;
 
         private ConfigBoolean(String name, boolean defaultValue) {
+            this(name, defaultValue, false);
+        }
+
+        private ConfigBoolean(String name, boolean defaultValue, boolean forceEnabled) {
             this.handler = new Internal(name, defaultValue);
+            this.forceEnabled = forceEnabled;
         }
 
         public boolean get() {
-            return handler.value;
+            return forceEnabled || handler.value;
         }
 
         private static class Internal implements ConfigInternal {
@@ -446,7 +452,11 @@ public class AppGlobalConfig {
     }
 
     private ConfigBoolean ofBoolean(String name, boolean defaultValue) {
-        ConfigBoolean configBoolean = new ConfigBoolean(name, defaultValue);
+        return ofBoolean(name, defaultValue, false);
+    }
+
+    private ConfigBoolean ofBoolean(String name, boolean defaultValue, boolean forceEnabled) {
+        ConfigBoolean configBoolean = new ConfigBoolean(name, defaultValue, forceEnabled);
         map.put(name, configBoolean.handler);
 
         return configBoolean;
