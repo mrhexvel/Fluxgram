@@ -11304,6 +11304,8 @@
     <string name="FluxGramFullNumberFormat">Show full numbers</string>
     <string name="FluxGramShowTimeSeconds">Show seconds in time</string>
     <string name="FluxGramRelativeLastSeen">Show relative last seen</string>
+    <string name="FluxGramNotifications">Notifications</string>
+    <string name="FluxGramDisableNotificationDelay">Disable notification delay</string>
     <string name="FluxGramProfile">Profile</string>
     <string name="FluxGramHideOwnPhone">Hide my phone number</string>
     <string name="FluxGramShowProfileIdDc">Show profile ID and photo DC</string>

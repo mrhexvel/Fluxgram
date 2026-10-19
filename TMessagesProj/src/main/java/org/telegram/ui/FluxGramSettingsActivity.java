@@ -19,6 +19,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
+import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
@@ -71,6 +72,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int RELATIVE_LAST_SEEN = 24;
     private static final int HIDE_OWN_PHONE = 25;
     private static final int SHOW_PROFILE_ID_DC = 26;
+    private static final int IN_APP_VIBRATION = 27;
+    private static final int DISABLE_NOTIFICATION_DELAY = 28;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -230,6 +233,16 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     RELATIVE_LAST_SEEN,
                     LocaleController.getString(R.string.FluxGramRelativeLastSeen)
             ).setChecked(GeneralSettings.usesRelativeLastSeen()));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramNotifications);
+            items.add(UItem.asCheck(
+                    IN_APP_VIBRATION,
+                    LocaleController.getString(R.string.InAppVibrate)
+            ).setChecked(NotificationSettings.isInAppVibrationEnabled(currentAccount)));
+            items.add(UItem.asCheck(
+                    DISABLE_NOTIFICATION_DELAY,
+                    LocaleController.getString(R.string.FluxGramDisableNotificationDelay)
+            ).setChecked(NotificationSettings.isNotificationDelayDisabled(currentAccount)));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramProfile);
             items.add(UItem.asCheck(
@@ -544,6 +557,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 GeneralSettings.setUsesRelativeLastSeen(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == IN_APP_VIBRATION) {
+                boolean enabled = !NotificationSettings.isInAppVibrationEnabled(currentAccount);
+                NotificationSettings.setInAppVibrationEnabled(currentAccount, enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+            } else if (item.id == DISABLE_NOTIFICATION_DELAY) {
+                boolean disabled = !NotificationSettings.isNotificationDelayDisabled(currentAccount);
+                NotificationSettings.setNotificationDelayDisabled(currentAccount, disabled);
+                ((TextCheckCell) view).setChecked(disabled);
             } else if (item.id == HIDE_OWN_PHONE) {
                 boolean hidden = !ProfileDisplaySettings.hidesOwnPhone();
                 ProfileDisplaySettings.setHidesOwnPhone(hidden);

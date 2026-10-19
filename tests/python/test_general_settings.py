@@ -33,7 +33,7 @@ class GeneralSettingsTest(unittest.TestCase):
         formatting_section = activity.split(
             "addSectionLabel(items, R.string.FluxGramFormatting);", 1
         )[1].split(
-            "addSectionLabel(items, R.string.FluxGramProfile);", 1
+            "addSectionLabel(items, R.string.FluxGramNotifications);", 1
         )[0]
 
         self.assertIn('SHOW_TIME_SECONDS = "fluxgram_show_time_seconds"', settings)
@@ -60,7 +60,7 @@ class GeneralSettingsTest(unittest.TestCase):
         formatting_section = activity.split(
             "addSectionLabel(items, R.string.FluxGramFormatting);", 1
         )[1].split(
-            "addSectionLabel(items, R.string.FluxGramProfile);", 1
+            "addSectionLabel(items, R.string.FluxGramNotifications);", 1
         )[0]
 
         self.assertIn('RELATIVE_LAST_SEEN = "fluxgram_relative_last_seen"', settings)

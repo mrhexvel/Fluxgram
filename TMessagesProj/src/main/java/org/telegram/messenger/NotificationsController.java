@@ -67,6 +67,7 @@ import androidx.core.graphics.drawable.IconCompat;
 
 import com.google.common.collect.Lists;
 
+import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.messenger.plugins.PluginNotifications;
 import org.telegram.messenger.utils.tlutils.TLKeyboardHelper;
@@ -3460,8 +3461,14 @@ public class NotificationsController extends BaseController implements Notificat
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("delay notification start, onlineReason = " + onlineReason);
             }
-            notificationDelayWakelock.acquire(10000);
             notificationsQueue.cancelRunnable(notificationDelayRunnable);
+
+            if (NotificationSettings.isNotificationDelayDisabled(currentAccount)) {
+                notificationDelayRunnable.run();
+                return;
+            }
+
+            notificationDelayWakelock.acquire(10000);
             notificationsQueue.postRunnable(notificationDelayRunnable, (onlineReason ? 3 * 1000 : 1000));
         } catch (Exception e) {
             FileLog.e(e);
