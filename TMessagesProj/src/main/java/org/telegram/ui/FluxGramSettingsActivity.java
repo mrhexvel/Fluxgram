@@ -2,8 +2,10 @@ package org.telegram.ui;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.view.View;
 import android.widget.FrameLayout;
 
@@ -18,6 +20,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
+import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
@@ -81,6 +84,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int FILTER_ZALGO_TEXT = 29;
     private static final int INCREASE_DOWNLOAD_SPEED = 30;
     private static final int INCREASE_UPLOAD_SPEED = 31;
+    private static final int SAVE_FILES_DIRECTORY = 32;
+    private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -281,6 +286,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     INCREASE_UPLOAD_SPEED,
                     LocaleController.getString(R.string.FluxGramIncreaseUploadSpeed)
             ).setChecked(TransferSettings.increasesUploadSpeed()));
+            items.add(UItem.asButton(
+                    SAVE_FILES_DIRECTORY,
+                    R.drawable.msg_filled_sdcard,
+                    LocaleController.getString(R.string.FluxGramSaveFilesDirectory),
+                    LocaleController.getString(ExportDestinationSettings.hasCustomDownloadsDirectory()
+                            ? R.string.FluxGramSelectedFolder
+                            : R.string.FluxGramDefaultDownloads)
+            ));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramProfile);
             items.add(UItem.asCheck(
@@ -619,6 +632,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !TransferSettings.increasesUploadSpeed();
                 TransferSettings.setIncreasesUploadSpeed(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
+            } else if (item.id == SAVE_FILES_DIRECTORY) {
+                showDownloadsDirectoryOptions(view);
             } else if (item.id == HIDE_OWN_PHONE) {
                 boolean hidden = !ProfileDisplaySettings.hidesOwnPhone();
                 ProfileDisplaySettings.setHidesOwnPhone(hidden);
@@ -711,6 +726,75 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 }
             }
         }
+    }
+
+    private void showDownloadsDirectoryOptions(View anchor) {
+        if (!ExportDestinationSettings.hasCustomDownloadsDirectory()) {
+            selectDownloadsDirectory();
+
+            return;
+        }
+
+        ItemOptions.makeOptions(this, anchor)
+                .add(
+                        R.drawable.msg_edit,
+                        LocaleController.getString(R.string.FluxGramChooseFolder),
+                        this::selectDownloadsDirectory
+                )
+                .add(
+                        R.drawable.msg_removefolder,
+                        LocaleController.getString(R.string.FluxGramUseDefaultFolder),
+                        () -> {
+                            ExportDestinationSettings.clearDownloadsTreeUri();
+                            listView.adapter.update(true);
+                        }
+                )
+                .show();
+    }
+
+    private void selectDownloadsDirectory() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                            | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            );
+            startActivityForResult(intent, DOWNLOADS_DIRECTORY_REQUEST);
+        } catch (RuntimeException error) {
+            showDownloadsDirectoryError();
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (requestCode != DOWNLOADS_DIRECTORY_REQUEST) {
+            return;
+        }
+
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            return;
+        }
+
+        Uri uri = data.getData();
+        if (!ExportDestinationSettings.setDownloadsTreeUri(uri, data.getFlags())) {
+            showDownloadsDirectoryError();
+
+            return;
+        }
+
+        if (listView != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    private void showDownloadsDirectoryError() {
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramAppName))
+                .setMessage(LocaleController.getString(R.string.FluxGramFolderAccessError))
+                .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                .create());
     }
 
     private void updateFormattingPreview(boolean updateHeader, boolean updateMessages) {

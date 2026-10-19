@@ -308,6 +308,12 @@
     <string name="FluxGramDataTransfer">Передача данных</string>
     <string name="FluxGramIncreaseDownloadSpeed">Ускорять загрузку файлов</string>
     <string name="FluxGramIncreaseUploadSpeed">Ускорять отправку файлов</string>
+    <string name="FluxGramSaveFilesDirectory">Сохранять файлы в</string>
+    <string name="FluxGramDefaultDownloads">Загрузки</string>
+    <string name="FluxGramSelectedFolder">Выбранную папку</string>
+    <string name="FluxGramChooseFolder">Выбрать другую папку</string>
+    <string name="FluxGramUseDefaultFolder">Использовать папку «Загрузки»</string>
+    <string name="FluxGramFolderAccessError">FluxGram не удалось получить доступ к этой папке.</string>
     <string name="FluxGramProfile">Профиль</string>
     <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>
     <string name="FluxGramShowProfileIdDc">Показывать ID профиля и DC фотографии</string>

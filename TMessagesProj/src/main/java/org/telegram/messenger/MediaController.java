@@ -79,6 +79,7 @@ import androidx.media3.common.Player;
 import androidx.media3.extractor.jpeg.MotionPhotoDescription;
 import androidx.media3.extractor.jpeg.XmpMotionPhotoDescriptionParser;
 
+import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.ui.AspectRatioFrameLayout;
 import com.google.android.gms.cast.MediaMetadata;
 import com.google.android.gms.common.images.WebImage;
@@ -5097,8 +5098,17 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                 FileLog.d("saving file: correcting path from " + path + " to " + (sourceFile == null ? null : sourceFile.getAbsolutePath()));
                             }
                             if (sourceFile != null && sourceFile.exists()) {
-                                saveFileInternal(isMusic ? 3 : 2, sourceFile, name);
-                                copiedFiles++;
+                                Uri savedUri = isMusic ? null : ExportDestinationSettings.saveDownload(
+                                        sourceFile,
+                                        name,
+                                        message.getMimeType()
+                                );
+                                if (savedUri == null) {
+                                    savedUri = saveFileInternal(isMusic ? 3 : 2, sourceFile, name);
+                                }
+                                if (savedUri != null) {
+                                    copiedFiles++;
+                                }
                             }
                         }
                     } else {
@@ -5119,25 +5129,6 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                 document = message.qualityToSave;
                             }
                             String name = FileLoader.getDocumentFileName(document);
-                            File destFile = new File(dir, name);
-                            if (destFile.exists()) {
-                                int idx = name.lastIndexOf('.');
-                                for (int a = 0; a < 10; a++) {
-                                    String newName;
-                                    if (idx != -1) {
-                                        newName = name.substring(0, idx) + "(" + (a + 1) + ")" + name.substring(idx);
-                                    } else {
-                                        newName = name + "(" + (a + 1) + ")";
-                                    }
-                                    destFile = new File(dir, newName);
-                                    if (!destFile.exists()) {
-                                        break;
-                                    }
-                                }
-                            }
-                            if (!destFile.exists()) {
-                                destFile.createNewFile();
-                            }
                             String path = message.messageOwner.attachPath;
                             if (message.qualityToSave != null) {
                                 path = null;
@@ -5163,6 +5154,35 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                 waitingForFile.await();
                             }
                             if (sourceFile.exists()) {
+                                Uri savedUri = isMusic ? null : ExportDestinationSettings.saveDownload(
+                                        sourceFile,
+                                        name,
+                                        message.getMimeType()
+                                );
+                                if (savedUri != null) {
+                                    copiedFiles++;
+                                    continue;
+                                }
+
+                                File destFile = new File(dir, name);
+                                if (destFile.exists()) {
+                                    int idx = name.lastIndexOf('.');
+                                    for (int a = 0; a < 10; a++) {
+                                        String newName;
+                                        if (idx != -1) {
+                                            newName = name.substring(0, idx) + "(" + (a + 1) + ")" + name.substring(idx);
+                                        } else {
+                                            newName = name + "(" + (a + 1) + ")";
+                                        }
+                                        destFile = new File(dir, newName);
+                                        if (!destFile.exists()) {
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (!destFile.exists()) {
+                                    destFile.createNewFile();
+                                }
                                 copyFile(sourceFile, destFile, message.getMimeType());
                                 copiedFiles++;
                             }
@@ -5498,7 +5518,14 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 try {
                     Uri uri;
                     boolean result = true;
-                    if (Build.VERSION.SDK_INT >= 29) {
+                    Uri customUri = type == 2 ? ExportDestinationSettings.saveDownload(
+                            sourceFile,
+                            name,
+                            mime
+                    ) : null;
+                    if (customUri != null) {
+                        uri = customUri;
+                    } else if (Build.VERSION.SDK_INT >= 29) {
                         uri = saveFileInternal(type, sourceFile, null);
                         result = uri != null;
                     } else {

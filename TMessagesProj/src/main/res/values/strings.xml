@@ -11313,6 +11313,12 @@
     <string name="FluxGramDataTransfer">Data transfer</string>
     <string name="FluxGramIncreaseDownloadSpeed">Increase download speed</string>
     <string name="FluxGramIncreaseUploadSpeed">Increase upload speed</string>
+    <string name="FluxGramSaveFilesDirectory">Save files to</string>
+    <string name="FluxGramDefaultDownloads">Downloads</string>
+    <string name="FluxGramSelectedFolder">Selected folder</string>
+    <string name="FluxGramChooseFolder">Choose another folder</string>
+    <string name="FluxGramUseDefaultFolder">Use Downloads folder</string>
+    <string name="FluxGramFolderAccessError">FluxGram could not access this folder.</string>
     <string name="FluxGramProfile">Profile</string>
     <string name="FluxGramHideOwnPhone">Hide my phone number</string>
     <string name="FluxGramShowProfileIdDc">Show profile ID and photo DC</string>
