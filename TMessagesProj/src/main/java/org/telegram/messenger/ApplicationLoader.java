@@ -43,6 +43,7 @@ import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.messenger.plugins.PluginCrashRecovery;
 import org.telegram.messenger.plugins.PluginStorageMaintenance;
+import org.telegram.messenger.utils.Choreographer60FpsContent;
 import org.telegram.messenger.voip.VideoCapturerDevice;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
