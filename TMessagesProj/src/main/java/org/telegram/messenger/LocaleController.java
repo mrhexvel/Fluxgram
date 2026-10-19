@@ -2968,6 +2968,12 @@ public class LocaleController {
                 } else if (user.status.expires == -102 || user.status.expires == -1002) {
                     return getString("WithinAMonth", R.string.WithinAMonth);
                 } else {
+                    if (GeneralSettings.usesRelativeLastSeen()) {
+                        long elapsed = Math.max(0L, (long) currentTime - user.status.expires);
+
+                        return formatString(R.string.LastSeenFormatted, formatRelativeDate(elapsed));
+                    }
+
                     return formatDateOnline(user.status.expires, madeShorter);
                 }
             }

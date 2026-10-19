@@ -298,6 +298,7 @@
     <string name="FluxGramFormatting">Форматирование</string>
     <string name="FluxGramFullNumberFormat">Показывать числа полностью</string>
     <string name="FluxGramShowTimeSeconds">Показывать секунды во времени</string>
+    <string name="FluxGramRelativeLastSeen">Относительное время последнего посещения</string>
     <string name="FluxGramAppearance">Внешний вид</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Шрифты</string>

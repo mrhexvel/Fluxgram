@@ -49,6 +49,37 @@ class GeneralSettingsTest(unittest.TestCase):
         self.assertIn("GeneralSettings.setShowsTimeSeconds(enabled);", activity)
         self.assertIn("LocaleController.getInstance().recreateFormatters();", activity)
 
+    def test_relative_last_seen_preserves_online_and_privacy_statuses(self):
+        settings = (JAVA / "messenger/fluxgram/GeneralSettings.java").read_text()
+        locale = (JAVA / "messenger/LocaleController.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        user_status = locale.split(
+            "public static String formatUserStatus(int currentAccount, TLRPC.User user, boolean[] isOnline, boolean[] madeShorter)",
+            1,
+        )[1].split("private String escapeString", 1)[0]
+        formatting_section = activity.split(
+            "addSectionLabel(items, R.string.FluxGramFormatting);", 1
+        )[1].split(
+            "items.add(UItem.asButton(\n                    GHOST_MODE", 1
+        )[0]
+
+        self.assertIn('RELATIVE_LAST_SEEN = "fluxgram_relative_last_seen"', settings)
+        self.assertIn("getBoolean(RELATIVE_LAST_SEEN, false)", settings)
+        self.assertEqual(1, locale.count("GeneralSettings.usesRelativeLastSeen()"))
+        self.assertLess(
+            user_status.index("user.status.expires == -102"),
+            user_status.index("GeneralSettings.usesRelativeLastSeen()"),
+        )
+        self.assertLess(
+            user_status.index("GeneralSettings.usesRelativeLastSeen()"),
+            user_status.index("return formatDateOnline(user.status.expires, madeShorter);"),
+        )
+        self.assertIn("(long) currentTime - user.status.expires", user_status)
+        self.assertIn("formatRelativeDate(elapsed)", user_status)
+        self.assertIn("UItem.asCheck(\n                    RELATIVE_LAST_SEEN", formatting_section)
+        self.assertEqual(1, formatting_section.count("UItem.asShadow(null)"))
+        self.assertIn("GeneralSettings.setUsesRelativeLastSeen(enabled);", activity)
+
     def test_locale_aware_formatting_and_persistence(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("java and javac are required")
@@ -137,6 +168,16 @@ class GeneralSettingsTest(unittest.TestCase):
                         }
                         if (!GeneralSettings.usesFullNumberFormat()) {
                             throw new AssertionError("time setting changed number setting");
+                        }
+                        if (GeneralSettings.usesRelativeLastSeen()) {
+                            throw new AssertionError("time setting changed last seen setting");
+                        }
+                        GeneralSettings.setUsesRelativeLastSeen(true);
+                        if (!GeneralSettings.usesRelativeLastSeen()) {
+                            throw new AssertionError("last seen setting was not retained");
+                        }
+                        if (!GeneralSettings.usesFullNumberFormat() || !GeneralSettings.showsTimeSeconds()) {
+                            throw new AssertionError("last seen setting changed another setting");
                         }
                         int[] rounded = new int[1];
                         if (!"1,234,567".equals(GeneralSettings.formatFullNumber(1234567, rounded, Locale.US))) {
