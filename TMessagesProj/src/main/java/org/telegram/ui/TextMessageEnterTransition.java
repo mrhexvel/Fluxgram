@@ -40,6 +40,7 @@ import org.telegram.messenger.Emoji;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.fluxgram.ZalgoDisplayFilter;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.MessageDrawable;
 import org.telegram.ui.ActionBar.SimpleTextView;
@@ -206,6 +207,9 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             }
             text = AnimatedEmojiSpan.cloneSpans(text);
             text = Emoji.replaceEmoji(editText, textPaint.getFontMetricsInt(), false);
+        }
+        if (!containsSpans) {
+            text = ZalgoDisplayFilter.filter(text);
         }
 
         scaleFrom = chatActivityEnterView.getEditField().getTextSize() / textPaint.getTextSize();

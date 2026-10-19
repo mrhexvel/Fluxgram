@@ -74,6 +74,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_PROFILE_ID_DC = 26;
     private static final int IN_APP_VIBRATION = 27;
     private static final int DISABLE_NOTIFICATION_DELAY = 28;
+    private static final int FILTER_ZALGO_TEXT = 29;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -233,6 +234,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     RELATIVE_LAST_SEEN,
                     LocaleController.getString(R.string.FluxGramRelativeLastSeen)
             ).setChecked(GeneralSettings.usesRelativeLastSeen()));
+            items.add(UItem.asCheck(
+                    FILTER_ZALGO_TEXT,
+                    LocaleController.getString(R.string.FluxGramFilterZalgoText)
+            ).setChecked(GeneralSettings.filtersZalgoText()));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramNotifications);
             items.add(UItem.asCheck(
@@ -555,6 +560,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
             } else if (item.id == RELATIVE_LAST_SEEN) {
                 boolean enabled = !GeneralSettings.usesRelativeLastSeen();
                 GeneralSettings.setUsesRelativeLastSeen(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == FILTER_ZALGO_TEXT) {
+                boolean enabled = !GeneralSettings.filtersZalgoText();
+                GeneralSettings.setFiltersZalgoText(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
                 parentLayout.rebuildFragments(0);
             } else if (item.id == IN_APP_VIBRATION) {

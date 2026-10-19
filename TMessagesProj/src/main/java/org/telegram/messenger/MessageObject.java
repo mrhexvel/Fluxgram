@@ -52,6 +52,7 @@ import androidx.core.graphics.ColorUtils;
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.fluxgram.GhostModeReadState;
+import org.telegram.messenger.fluxgram.ZalgoDisplayFilter;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.ringtone.RingtoneDataStore;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
@@ -8753,7 +8754,7 @@ public class MessageObject {
             paint = Theme.chat_msgTextPaint;
         }
 
-        CharSequence text = messageText;
+        CharSequence text = ZalgoDisplayFilter.filter(messageText);
         try {
             textLayoutOriginalWidth = maxWidth;
             textLayout = makeStaticLayout(text, paint, maxWidth, 1f, totalAnimatedEmojiCount >= 4 ? -1 : 0, emojiOnlyCount > 0);

@@ -299,6 +299,7 @@
     <string name="FluxGramFullNumberFormat">Показывать числа полностью</string>
     <string name="FluxGramShowTimeSeconds">Показывать секунды во времени</string>
     <string name="FluxGramRelativeLastSeen">Относительное время последнего посещения</string>
+    <string name="FluxGramFilterZalgoText">Ограничивать чрезмерные украшения текста</string>
     <string name="FluxGramNotifications">Уведомления</string>
     <string name="FluxGramDisableNotificationDelay">Отключить задержку уведомлений</string>
     <string name="FluxGramProfile">Профиль</string>

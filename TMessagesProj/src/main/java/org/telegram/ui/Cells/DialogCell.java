@@ -65,7 +65,6 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.ChatThemeController;
-import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.DownloadController;
@@ -84,6 +83,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.fluxgram.ZalgoDisplayFilter;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.utils.DrawableUtils;
@@ -136,6 +136,7 @@ import org.telegram.ui.Stars.StarsIntroActivity;
 import org.telegram.ui.Stories.StoriesListPlaceProvider;
 import org.telegram.ui.Stories.StoriesUtilities;
 import org.telegram.ui.Stories.StoryViewer;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.ui.community.CommunityArrowDrawable;
 import org.telegram.ui.community.CommunitySheet;
 
@@ -2769,6 +2770,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
 
         try {
             CharSequence messageStringFinal;
+            messageString = ZalgoDisplayFilter.filter(messageString);
             // Removing links and bold spans to get rid of underlining and boldness
             if (messageString instanceof Spannable) {
                 Spannable messageStringSpannable = (Spannable) messageString;

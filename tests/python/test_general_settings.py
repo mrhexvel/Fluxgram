@@ -80,6 +80,21 @@ class GeneralSettingsTest(unittest.TestCase):
         self.assertEqual(1, formatting_section.count("UItem.asShadow(null)"))
         self.assertIn("GeneralSettings.setUsesRelativeLastSeen(enabled);", activity)
 
+    def test_zalgo_filter_setting_is_global_and_disabled_by_default(self):
+        settings = (JAVA / "messenger/fluxgram/GeneralSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        formatting_section = activity.split(
+            "addSectionLabel(items, R.string.FluxGramFormatting);", 1
+        )[1].split(
+            "addSectionLabel(items, R.string.FluxGramNotifications);", 1
+        )[0]
+
+        self.assertIn('FILTER_ZALGO_TEXT = "fluxgram_filter_zalgo_text"', settings)
+        self.assertIn("getBoolean(FILTER_ZALGO_TEXT, false)", settings)
+        self.assertIn("UItem.asCheck(\n                    FILTER_ZALGO_TEXT", formatting_section)
+        self.assertEqual(1, formatting_section.count("UItem.asShadow(null)"))
+        self.assertIn("GeneralSettings.setFiltersZalgoText(enabled);", activity)
+
     def test_locale_aware_formatting_and_persistence(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("java and javac are required")
@@ -178,6 +193,16 @@ class GeneralSettingsTest(unittest.TestCase):
                         }
                         if (!GeneralSettings.usesFullNumberFormat() || !GeneralSettings.showsTimeSeconds()) {
                             throw new AssertionError("last seen setting changed another setting");
+                        }
+                        if (GeneralSettings.filtersZalgoText()) {
+                            throw new AssertionError("Zalgo filter default must be disabled");
+                        }
+                        GeneralSettings.setFiltersZalgoText(true);
+                        if (!GeneralSettings.filtersZalgoText()) {
+                            throw new AssertionError("Zalgo filter value was not retained");
+                        }
+                        if (!GeneralSettings.usesRelativeLastSeen()) {
+                            throw new AssertionError("Zalgo setting changed another setting");
                         }
                         int[] rounded = new int[1];
                         if (!"1,234,567".equals(GeneralSettings.formatFullNumber(1234567, rounded, Locale.US))) {

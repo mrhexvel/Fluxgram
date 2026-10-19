@@ -11,11 +11,13 @@ public final class GeneralSettings {
     private static final String FULL_NUMBER_FORMAT = "fluxgram_full_number_format";
     private static final String SHOW_TIME_SECONDS = "fluxgram_show_time_seconds";
     private static final String RELATIVE_LAST_SEEN = "fluxgram_relative_last_seen";
+    private static final String FILTER_ZALGO_TEXT = "fluxgram_filter_zalgo_text";
 
     private static volatile boolean loaded;
     private static volatile boolean fullNumberFormat;
     private static volatile boolean showTimeSeconds;
     private static volatile boolean relativeLastSeen;
+    private static volatile boolean filterZalgoText;
 
     public static boolean usesFullNumberFormat() {
         ensureLoaded();
@@ -68,6 +70,23 @@ public final class GeneralSettings {
         relativeLastSeen = enabled;
     }
 
+    public static boolean filtersZalgoText() {
+        ensureLoaded();
+
+        return filterZalgoText;
+    }
+
+    public static synchronized void setFiltersZalgoText(boolean enabled) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(FILTER_ZALGO_TEXT, enabled)
+                .apply();
+
+        filterZalgoText = enabled;
+    }
+
     public static String formatFullNumber(int number, int[] rounded, Locale locale) {
         if (rounded != null) {
             rounded[0] = number;
@@ -94,6 +113,7 @@ public final class GeneralSettings {
             fullNumberFormat = preferences.getBoolean(FULL_NUMBER_FORMAT, false);
             showTimeSeconds = preferences.getBoolean(SHOW_TIME_SECONDS, false);
             relativeLastSeen = preferences.getBoolean(RELATIVE_LAST_SEEN, false);
+            filterZalgoText = preferences.getBoolean(FILTER_ZALGO_TEXT, false);
             loaded = true;
         }
     }
