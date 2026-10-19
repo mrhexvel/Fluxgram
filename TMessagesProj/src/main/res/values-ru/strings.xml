@@ -315,6 +315,11 @@
     <string name="FluxGramFolderAccessError">FluxGram не удалось получить доступ к этой папке.</string>
     <string name="FluxGramRevealArchiveOnPull">Показывать архив свайпом вниз</string>
     <string name="FluxGramDisableUnarchiveSwipe">Запретить разархивацию свайпом</string>
+    <string name="FluxGramFolderPresentation">Вид папок</string>
+    <string name="FluxGramFolderPresentationTitleAndIcon">Название и иконка</string>
+    <string name="FluxGramFolderPresentationTitle">Только название</string>
+    <string name="FluxGramFolderPresentationIcon">Только иконка</string>
+    <string name="FluxGramPrivacy">Скрытность</string>
     <string name="FluxGramProfile">Профиль</string>
     <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>
     <string name="FluxGramShowProfileIdDc">Показывать ID профиля и DC фотографии</string>

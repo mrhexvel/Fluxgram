@@ -53,6 +53,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
@@ -80,6 +81,7 @@ import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceColor;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.glass.GlassTabView;
+import org.telegram.ui.fluxgram.FolderPresentation;
 import org.telegram.ui.Stories.recorder.HintView2;
 import org.telegram.ui.Wallet.WalletActivity;
 
@@ -467,11 +469,15 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (filters == null || filters.size() <= 1) return false;
 
         final ItemOptions o = ItemOptions.makeOptions(this, anchor);
+        final FolderSettings.Policy folderPolicy = FolderSettings.getPolicy(currentAccount);
         for (int i = 0; i < filters.size(); i++) {
             final MessagesController.DialogFilter folder = filters.get(i);
             final ActionBarMenuSubItem folderItem = new ActionBarMenuSubItem(getParentActivity(), 2, false, false, getResourceProvider());
             folderItem.setPadding(dp(18), 0, dp(18), 0);
-            CharSequence title = folder.isDefault() ? getString(R.string.FilterAllChats) : folder.name;
+            CharSequence accessibleTitle = folder.isDefault() ? getString(R.string.FilterAllChats) : folder.name;
+            CharSequence title = folderPolicy.getPresentationMode() == FolderSettings.MODE_ICON
+                    ? ""
+                    : accessibleTitle;
             title = Emoji.replaceEmoji(title, folderItem.getTextView().getPaint().getFontMetricsInt(), false);
             if (!folder.isDefault()) {
                 title = MessageObject.replaceAnimatedEmoji(title, folder.entities, folderItem.getTextView().getPaint().getFontMetricsInt());
@@ -490,17 +496,20 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
                 title = titleWithCounter;
-                folderItem.setContentDescription(
-                        TextUtils.concat(
-                                folder.isDefault() ? getString(R.string.FilterAllChats) : folder.name,
-                                "\n",
-                                LocaleController.formatPluralString("AccDescrUnreadCount", unreadCount)
-                        )
-                );
             }
+            folderItem.setContentDescription(unreadCount > 0
+                    ? TextUtils.concat(
+                            accessibleTitle,
+                            "\n",
+                            LocaleController.formatPluralString("AccDescrUnreadCount", unreadCount)
+                    )
+                    : accessibleTitle);
             folderItem.setEmojiCacheType(folder.title_noanimate ? AnimatedEmojiDrawable.CACHE_TYPE_NOANIMATE_FOLDER : AnimatedEmojiDrawable.CACHE_TYPE_MESSAGES);
             final int color = getMessagesController().folderTags ? folder.color : -1;
-            folderItem.setTextAndIcon(title, 0, new FolderDrawable(getContext(), R.drawable.msg_folders, color));
+            FolderDrawable icon = folderPolicy.getPresentationMode() == FolderSettings.MODE_TITLE
+                    ? null
+                    : new FolderDrawable(getContext(), FolderPresentation.resolveIcon(folder), color);
+            folderItem.setTextAndIcon(title, 0, icon);
             folderItem.getTextView().setEmojiColor(getThemedColor(Theme.key_featuredStickers_addButton));
             folderItem.setMinimumWidth(160);
             folderItem.setOnClickListener(e -> {

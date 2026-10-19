@@ -171,6 +171,15 @@ public class FilterTabsView extends FrameLayout {
             this.noanimate = noanimate;
             return true;
         }
+
+        public boolean setTitle(CharSequence newTitle, boolean noanimate) {
+            if (TextUtils.equals(title, newTitle)) {
+                return false;
+            }
+            title = newTitle;
+            this.noanimate = noanimate;
+            return true;
+        }
     }
 
     private static final float TAB_PADDING_WIDTH = 24;
@@ -1545,9 +1554,9 @@ public class FilterTabsView extends FrameLayout {
             final int width = MeasureSpec.getSize(widthMeasureSpec) - listViewPaddingH * 2;
             Tab firstTab = findDefaultTab();
             if (firstTab != null) {
-                firstTab.setTitle(LocaleController.getString(R.string.FilterAllChats), null, false);
+                firstTab.setTitle(getDefaultTabTitle(false), false);
                 int tabWidth = firstTab.getWidth(false);
-                firstTab.setTitle(allTabsWidth > width ? LocaleController.getString(R.string.FilterAllChatsShort) : LocaleController.getString(R.string.FilterAllChats), null, false);
+                firstTab.setTitle(getDefaultTabTitle(allTabsWidth > width), false);
                 int trueTabsWidth = allTabsWidth - tabWidth;
                 trueTabsWidth += firstTab.getWidth(false);
                 int prevWidth = additionalTabWidth;
@@ -1574,6 +1583,10 @@ public class FilterTabsView extends FrameLayout {
             }
         }
         return null;
+    }
+
+    protected CharSequence getDefaultTabTitle(boolean compact) {
+        return LocaleController.getString(compact ? R.string.FilterAllChatsShort : R.string.FilterAllChats);
     }
 
     @Override
@@ -1718,7 +1731,7 @@ public class FilterTabsView extends FrameLayout {
                 allTabsWidth = 0;
                 final FilterTabsView.Tab defaultTab = findDefaultTab();
                 if (defaultTab != null) {
-                    defaultTab.setTitle(LocaleController.getString(R.string.FilterAllChats), null, false);
+                    defaultTab.setTitle(getDefaultTabTitle(false), false);
                 }
                 for (int b = 0; b < N; b++) {
                     allTabsWidth += tabs.get(b).getWidth(true) + dp(TAB_PADDING_WIDTH);
@@ -1754,7 +1767,7 @@ public class FilterTabsView extends FrameLayout {
             allTabsWidth = 0;
             final FilterTabsView.Tab defaultTab = findDefaultTab();
             if (defaultTab != null) {
-                defaultTab.setTitle(LocaleController.getString(R.string.FilterAllChats), null, false);
+                defaultTab.setTitle(getDefaultTabTitle(false), false);
             }
             for (int b = 0, N = tabs.size(); b < N; b++) {
                 allTabsWidth += tabs.get(b).getWidth(true) + dp(TAB_PADDING_WIDTH);

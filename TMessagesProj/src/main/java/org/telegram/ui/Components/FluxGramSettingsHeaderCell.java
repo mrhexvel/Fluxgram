@@ -21,22 +21,22 @@ public final class FluxGramSettingsHeaderCell extends FrameLayout {
         super(context);
 
         BackupImageView icon = new BackupImageView(context);
-        icon.setRoundRadius(dp(26));
+        icon.setRoundRadius(dp(24));
         icon.setImageDrawable(context.getApplicationInfo().loadIcon(context.getPackageManager()));
         icon.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         addView(icon, LayoutHelper.createFrame(
-                104, 104, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 20, 0, 0
+                96, 96, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 14, 0, 0
         ));
 
         SimpleTextView name = text(
                 context,
                 "FluxGram",
-                27,
+                25,
                 Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider)
         );
         name.setTypeface(AndroidUtilities.bold());
         addView(name, LayoutHelper.createFrame(
-                -1, 40, Gravity.TOP, 24, 137, 24, 0
+                -1, 38, Gravity.TOP, 24, 125, 24, 0
         ));
 
         SimpleTextView version = text(
@@ -46,7 +46,7 @@ public final class FluxGramSettingsHeaderCell extends FrameLayout {
                 Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider)
         );
         addView(version, LayoutHelper.createFrame(
-                -1, 24, Gravity.TOP, 24, 178, 24, 0
+                -1, 24, Gravity.TOP, 24, 165, 24, 0
         ));
     }
 

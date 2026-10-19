@@ -25,6 +25,7 @@ import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
+import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
@@ -90,6 +91,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int HIDE_ARCHIVE_ABOVE_LIST = 33;
     private static final int REVEAL_ARCHIVE_ON_PULL = 34;
     private static final int DISABLE_UNARCHIVE_SWIPE = 35;
+    private static final int FOLDER_PRESENTATION = 36;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -206,7 +208,19 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private void fillItems(ArrayList<UItem> items) {
         if (section == HOME) {
             items.add(UItem.asCustomShadow(new FluxGramSettingsHeaderCell(
-                    getParentActivity(), getResourceProvider()), 232));
+                    getParentActivity(), getResourceProvider()), 220));
+            addSectionLabel(items, R.string.FluxGramPrivacy);
+            items.add(UItem.asButton(
+                    GHOST_MODE,
+                    R.drawable.settings_privacy,
+                    LocaleController.getString(R.string.FluxGramGhostMode)
+            ));
+            items.add(UItem.asButton(
+                    STEALTH,
+                    R.drawable.msg_archive,
+                    LocaleController.getString(R.string.FluxGramStealth)
+            ));
+            items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramCategories);
             items.add(UItem.asButton(
                     GENERAL,
@@ -305,12 +319,6 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramShowProfileIdDc)
             ).setChecked(ProfileDisplaySettings.showsIdAndDc()));
             items.add(UItem.asShadow(null));
-            items.add(UItem.asButton(
-                    GHOST_MODE,
-                    R.drawable.settings_privacy,
-                    LocaleController.getString(R.string.FluxGramGhostMode)
-            ));
-            items.add(UItem.asShadow(null));
 
             return;
         }
@@ -369,6 +377,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramForceSnow)
             ).setChecked(AppearanceSettings.forcesSnow(currentAccount)));
             items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.Filters);
+            items.add(UItem.asButton(
+                    FOLDER_PRESENTATION,
+                    LocaleController.getString(R.string.FluxGramFolderPresentation),
+                    folderPresentationOption(FolderSettings.getPolicy(currentAccount).getPresentationMode())
+            ));
+            items.add(UItem.asShadow(null));
 
             return;
         }
@@ -387,12 +402,6 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     DISABLE_UNARCHIVE_SWIPE,
                     LocaleController.getString(R.string.FluxGramDisableUnarchiveSwipe)
             ).setChecked(ArchiveSettings.disablesUnarchiveSwipe()));
-            items.add(UItem.asShadow(null));
-            items.add(UItem.asButton(
-                    STEALTH,
-                    R.drawable.msg_archive,
-                    LocaleController.getString(R.string.FluxGramStealth)
-            ));
             items.add(UItem.asShadow(null));
 
             return;
@@ -596,6 +605,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 presentFragment(new FluxGramSettingsActivity(APPEARANCE));
             } else if (item.id == CHATS) {
                 presentFragment(new FluxGramSettingsActivity(CHATS));
+            } else if (item.id == GHOST_MODE) {
+                presentFragment(new FluxGramGhostModeActivity());
+            } else if (item.id == STEALTH) {
+                presentFragment(new FluxGramStealthActivity());
             } else if (item.id == CHANNEL_LINK) {
                 Browser.openUrl(getParentActivity(), "https://t.me/FluxGramTG");
             } else if (item.id == CHATS_LINK) {
@@ -661,8 +674,6 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ProfileDisplaySettings.setShowsIdAndDc(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
-            } else if (item.id == GHOST_MODE) {
-                presentFragment(new FluxGramGhostModeActivity());
             }
 
             return;
@@ -682,8 +693,6 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean disabled = !ArchiveSettings.disablesUnarchiveSwipe();
                 ArchiveSettings.setDisablesUnarchiveSwipe(disabled);
                 ((TextCheckCell) view).setChecked(disabled);
-            } else if (item.id == STEALTH) {
-                presentFragment(new FluxGramStealthActivity());
             }
 
             return;
@@ -698,6 +707,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 parentLayout.rebuildFragments(0);
             } else if (item.id == ACTION_BAR_TITLE) {
                 showAppearanceTitleDialog();
+            } else if (item.id == FOLDER_PRESENTATION) {
+                showFolderPresentationDialog();
             } else if (item.id == HIDE_ACTION_BAR_STATUS) {
                 boolean hidden = !AppearanceSettings.hidesActionBarStatus(currentAccount);
                 AppearanceSettings.setHidesActionBarStatus(currentAccount, hidden);
@@ -866,6 +877,41 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         return LocaleController.getString(R.string.FluxGramFontTelegram);
+    }
+
+    private CharSequence folderPresentationOption(int mode) {
+        if (mode == FolderSettings.MODE_TITLE) {
+            return LocaleController.getString(R.string.FluxGramFolderPresentationTitle);
+        }
+        if (mode == FolderSettings.MODE_ICON) {
+            return LocaleController.getString(R.string.FluxGramFolderPresentationIcon);
+        }
+
+        return LocaleController.getString(R.string.FluxGramFolderPresentationTitleAndIcon);
+    }
+
+    private void showFolderPresentationDialog() {
+        CharSequence[] options = {
+                folderPresentationOption(FolderSettings.MODE_TITLE_AND_ICON),
+                folderPresentationOption(FolderSettings.MODE_TITLE),
+                folderPresentationOption(FolderSettings.MODE_ICON)
+        };
+        int selected = FolderSettings.getPolicy(currentAccount).getPresentationMode();
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramFolderPresentation))
+                .setItems(options, (dialog, index) -> {
+                    FolderSettings.setPresentationMode(currentAccount, index);
+                    parentLayout.rebuildFragments(0);
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
     }
 
     private void showAppearanceTitleDialog() {

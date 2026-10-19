@@ -132,6 +132,7 @@ import org.telegram.messenger.XiaomiUtilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
+import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.FBool;
 import org.telegram.messenger.utils.GradientProtectionDrawable;
@@ -275,6 +276,7 @@ import org.telegram.ui.community.CommunityUtils;
 import org.telegram.ui.community.cells.CommunityRequestsCell;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogStoriesCell;
+import org.telegram.ui.fluxgram.FolderPresentation;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -3625,6 +3627,20 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                             showDoneItem(false);
                         }).show(true);
                     }
+                }
+
+                @Override
+                protected CharSequence getDefaultTabTitle(boolean compact) {
+                    CharSequence title = super.getDefaultTabTitle(compact);
+                    if (!usesFluxGramRootDialogsAppearance()) {
+                        return title;
+                    }
+
+                    return FolderPresentation.createTitle(
+                            title,
+                            null,
+                            FolderSettings.getPolicy(currentAccount)
+                    );
                 }
             };
             filterTabsView.setVisibility(View.GONE);
@@ -6986,12 +7002,23 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     selectWithStableId = true;
                 }
                 filterTabsView.removeTabs();
+                FolderSettings.Policy folderPolicy = FolderSettings.getPolicy(currentAccount);
                 for (int a = 0, N = filters.size(); a < N; a++) {
                     if (filters.get(a).isDefault()) {
-                        filterTabsView.addTab(a, 0, LocaleController.getString(R.string.FilterAllChats), null, false, true, filters.get(a).locked);
+                        CharSequence title = LocaleController.getString(R.string.FilterAllChats);
+                        if (usesFluxGramRootDialogsAppearance()) {
+                            title = FolderPresentation.createTitle(title, null, folderPolicy);
+                        }
+                        filterTabsView.addTab(a, 0, title, false, true, filters.get(a).locked);
                     } else {
                         final MessagesController.DialogFilter filter = filters.get(a);
-                        filterTabsView.addTab(a, filter.localId, filter.name, filter.entities, filter.title_noanimate, false, filters.get(a).locked);
+                        if (usesFluxGramRootDialogsAppearance()) {
+                            CharSequence title = filterTabsView.text(filter.name, filter.entities);
+                            title = FolderPresentation.createTitle(title, filter, folderPolicy);
+                            filterTabsView.addTab(a, filter.localId, title, filter.title_noanimate, false, filter.locked);
+                        } else {
+                            filterTabsView.addTab(a, filter.localId, filter.name, filter.entities, filter.title_noanimate, false, filter.locked);
+                        }
                     }
                 }
                 if (stableId >= 0) {
