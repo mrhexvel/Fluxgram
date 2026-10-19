@@ -71,6 +71,7 @@ public class RadialProgress {
     private Paint overridePaint = null;
     private boolean disableUpdate;
     private boolean roundRectProgress;
+    private float roundRectProgressRadius = -1;
 
     public float getAnimatedProgress() {
         return animatedProgressValue;
@@ -550,8 +551,8 @@ public class RadialProgress {
     private final Path roundRectProgressPath = new Path();
 
     private void drawArc(Canvas canvas, RectF oval, float startAngle, float sweepAngle, boolean useCenter, Paint paint) {
-        if (roundRectProgress) {
-            float r = oval.height() * 0.32f;
+        if (roundRectProgress || roundRectProgressRadius >= 0) {
+            float r = roundRectProgressRadius >= 0 ? roundRectProgressRadius : oval.height() * 0.32f;
             if (Math.abs(sweepAngle) == 360) {
                 canvas.drawRoundRect(oval, r, r, paint);
                 return;
@@ -590,5 +591,9 @@ public class RadialProgress {
 
     public void setRoundRectProgress(boolean roundRectProgress) {
         this.roundRectProgress = roundRectProgress;
+    }
+
+    public void setRoundRectProgressRadius(float roundRectProgressRadius) {
+        this.roundRectProgressRadius = roundRectProgressRadius;
     }
 }

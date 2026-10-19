@@ -167,6 +167,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
@@ -5751,6 +5752,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         avatarContainer2.addView(mediaCounterTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109.33f, -2, 8, 0));
         storyView = new ProfileStoriesView(context, currentAccount, getDialogId(), isTopic, avatarContainer, avatarImage, resourcesProvider) {
             @Override
+            protected float getMainAvatarRoundRectRadius() {
+                if (!isFluxGramAvatarGeometryEligible()
+                        || AvatarGeometry.usesStockGeometry(currentAccount)) {
+                    return -1;
+                }
+
+                return avatarImage.getRoundRadiusForExpand();
+            }
+
+            @Override
             protected void onTap(StoryViewer.PlaceProvider provider) {
                 long did = getDialogId();
                 StoriesController storiesController = getMessagesController().getStoriesController();
@@ -6506,16 +6517,47 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private int getSmallAvatarRoundRadius() {
+        int stockRadius;
         if (isTopic) {
-            return 0;
-        }
-        if (chatId != 0) {
+            stockRadius = 0;
+        } else if (chatId != 0) {
             TLRPC.Chat chatLocal = getMessagesController().getChat(chatId);
             if (ChatObject.isForum(chatLocal)) {
-                return dp(needInsetForStories() ? 24 : 38);
+                stockRadius = dp(needInsetForStories() ? 24 : 38);
+            } else {
+                stockRadius = dp(50);
             }
+        } else {
+            stockRadius = dp(50);
         }
-        return dp(50);
+
+        if (!isFluxGramAvatarGeometryEligible()) {
+            return stockRadius;
+        }
+
+        return AvatarGeometry.resolveRadius(
+                currentAccount,
+                dp(100),
+                AvatarGeometry.ROLE_PROFILE,
+                stockRadius
+        );
+    }
+
+    private boolean isFluxGramAvatarGeometryEligible() {
+        if (isTopic) {
+            return false;
+        }
+        if (userId != 0) {
+            return true;
+        }
+
+        return currentChat != null
+                && !ChatObject.isCommunity(currentChat)
+                && !ChatObject.isChannelAndNotMegaGroup(currentChat)
+                && !ChatObject.isForum(currentChat)
+                && !ChatObject.isMonoForum(currentChat)
+                && !currentChat.gigagroup
+                && !currentChat.broadcast;
     }
 
     private void updateTtlIcon() {

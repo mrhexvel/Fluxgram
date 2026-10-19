@@ -201,6 +201,28 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("if (!avatarGeometryEnabled)", cell)
         self.assertIn("AvatarGeometry.resolveRadius(account", cell)
 
+    def test_avatar_geometry_profile_surface_is_fail_closed(self):
+        profile = (JAVA / "ui/ProfileActivity.java").read_text()
+        stories = (JAVA / "ui/Stories/ProfileStoriesView.java").read_text()
+        radial_progress = (JAVA / "ui/Components/RadialProgress.java").read_text()
+
+        eligibility = profile.split(
+            "private boolean isFluxGramAvatarGeometryEligible()", 1
+        )[1].split("private void updateTtlIcon()", 1)[0]
+        self.assertIn("if (isTopic)", eligibility)
+        self.assertIn("if (userId != 0)", eligibility)
+        self.assertIn("!ChatObject.isCommunity(currentChat)", eligibility)
+        self.assertIn("!ChatObject.isChannelAndNotMegaGroup(currentChat)", eligibility)
+        self.assertIn("!ChatObject.isForum(currentChat)", eligibility)
+        self.assertIn("!ChatObject.isMonoForum(currentChat)", eligibility)
+        self.assertIn("!currentChat.gigagroup", eligibility)
+        self.assertIn("!currentChat.broadcast", eligibility)
+        self.assertIn("AvatarGeometry.ROLE_PROFILE", profile)
+        self.assertIn("AvatarGeometry.usesStockGeometry(currentAccount)", profile)
+        self.assertIn("protected float getMainAvatarRoundRectRadius()", stories)
+        self.assertIn("setRoundRectProgressRadius(resolveMainAvatarRoundRectRadius(rect2))", stories)
+        self.assertIn("private float roundRectProgressRadius = -1;", radial_progress)
+
     def test_avatar_geometry_preview_uses_shared_resolver(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         preview = (

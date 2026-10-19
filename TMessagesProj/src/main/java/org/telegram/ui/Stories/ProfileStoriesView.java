@@ -555,7 +555,6 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
             if (radialProgress == null) {
                 radialProgress = new RadialProgress(this);
                 radialProgress.setBackground(null, true, false);
-                radialProgress.setRoundRectProgress(ChatObject.isForum(UserConfig.selectedAccount, dialogId));
             }
             float uploadingProgress = 0;
             if (!storiesController.hasUploadingStories(dialogId) || storiesController.isLastUploadingFailed(dialogId)) {
@@ -580,6 +579,7 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
             unreadPaint.setStrokeWidth(dpf2(2.33f));
             radialProgress.setPaint(unreadPaint);
             radialProgress.setProgressRect((int) rect2.left, (int) rect2.top, (int) rect2.right, (int) rect2.bottom);
+            radialProgress.setRoundRectProgressRadius(resolveMainAvatarRoundRectRadius(rect2));
             radialProgress.setProgress(Utilities.clamp(uploadingProgress, 1f, 0), true);
             if (avatarImage.drawAvatar) {
                 radialProgress.draw(canvas);
@@ -607,13 +607,7 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
                 final Paint paint = StoriesUtilities.getErrorPaint(rect2);
                 paint.setStrokeWidth(AndroidUtilities.dp(2));
                 paint.setAlpha((int) (255 * segmentsAlpha));
-                boolean isForum = ChatObject.isForum(UserConfig.selectedAccount, dialogId);
-                if (isForum) {
-                    float r = rect2.height() * 0.32f;
-                    canvas.drawRoundRect(rect2, r, r, paint);
-                } else {
-                    canvas.drawCircle(rect2.centerX(), rect2.centerY(), rect2.width() / 2f, paint);
-                }
+                drawMainAvatarArc(canvas, rect2, 0, 360, false, paint);
             } else if ((mainCircle != null || uploadingStoriesCount > 0) && segmentsAlpha > 0) {
                 rect2.set(rect1);
                 rect2.inset(-dpf2(2.66f + 2.23f / 2), -dpf2(2.66f + 2.23f / 2));
@@ -662,7 +656,7 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
                     AndroidUtilities.rectTmp.set(rect3);
                     AndroidUtilities.rectTmp.inset(-dp(3), -dp(3));
                     livePaint.setStrokeWidth(dpf2(2.5f));
-                    drawArc(canvas, rect3, 0, 360, false, livePaint);
+                    drawMainAvatarArc(canvas, rect3, 0, 360, false, livePaint);
                     livePaint.setAlpha(wasAlpha);
 
                     if (bounceScale != 1) {
@@ -689,7 +683,7 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
                         final int wasAlpha = paint.getAlpha();
                         paint.setAlpha((int) (wasAlpha * (1f - read) * segmentsAlpha));
                         paint.setStrokeWidth(dpf2(isLive ? 3 : 2.33f));
-                        drawArc(canvas, rect2, a, -widthAngle * appear, false, paint);
+                        drawMainAvatarArc(canvas, rect2, a, -widthAngle * appear, false, paint);
                         paint.setAlpha(wasAlpha);
                     }
 
@@ -698,7 +692,7 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
                         final int wasAlpha = paint.getAlpha();
                         paint.setAlpha((int) (wasAlpha * read * segmentsAlpha));
                         paint.setStrokeWidth(dpf2(isLive ? 3 : 1.5f));
-                        drawArc(canvas, rect3, a, -widthAngle * appear, false, paint);
+                        drawMainAvatarArc(canvas, rect3, a, -widthAngle * appear, false, paint);
                         paint.setAlpha(wasAlpha);
                     }
 
@@ -900,9 +894,17 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
     private final Path forumSegmentPath = new Path();
 
     private void drawArc(Canvas canvas, RectF oval, float startAngle, float sweepAngle, boolean useCenter, Paint paint) {
-        boolean isForum = ChatObject.isForum(UserConfig.selectedAccount, dialogId);
-        if (isForum) {
-            float r = oval.height() * 0.32f;
+        drawArc(canvas, oval, startAngle, sweepAngle, useCenter, paint, -1);
+    }
+
+    private void drawMainAvatarArc(Canvas canvas, RectF oval, float startAngle, float sweepAngle, boolean useCenter, Paint paint) {
+        drawArc(canvas, oval, startAngle, sweepAngle, useCenter, paint, resolveMainAvatarRoundRectRadius(oval));
+    }
+
+    private void drawArc(Canvas canvas, RectF oval, float startAngle, float sweepAngle, boolean useCenter, Paint paint, float roundRectRadius) {
+        boolean isForum = ChatObject.isForum(currentAccount, dialogId);
+        if (isForum || roundRectRadius >= 0) {
+            float r = roundRectRadius >= 0 ? roundRectRadius : oval.height() * 0.32f;
             if (Math.abs(sweepAngle) == 360) {
                 canvas.drawRoundRect(oval, r, r, paint);
                 return;
@@ -930,6 +932,24 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
         } else {
             canvas.drawArc(oval, startAngle, sweepAngle, useCenter, paint);
         }
+    }
+
+    private float resolveMainAvatarRoundRectRadius(RectF outline) {
+        if (ChatObject.isForum(currentAccount, dialogId)) {
+            return outline.height() * 0.32f;
+        }
+
+        float avatarRadius = getMainAvatarRoundRectRadius();
+        if (avatarRadius < 0) {
+            return -1;
+        }
+
+        float gap = Math.max(0, (outline.width() - rect1.width()) / 2f);
+        return avatarRadius + gap;
+    }
+
+    protected float getMainAvatarRoundRectRadius() {
+        return -1;
     }
 
     private void drawArcs(Canvas canvas, StoryCircle A, StoryCircle B, StoryCircle C, Paint paint) {
