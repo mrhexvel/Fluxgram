@@ -37,6 +37,7 @@ import androidx.annotation.StringRes;
 
 import org.telegram.utils.localization.Localization;
 import org.telegram.localization.LocalizationUtils;
+import org.telegram.messenger.fluxgram.GeneralSettings;
 import org.telegram.messenger.time.FastDateFormat;
 import org.telegram.tgnet.Vector;
 import org.telegram.ui.Components.TypefaceSpan;
@@ -2856,6 +2857,12 @@ public class LocaleController {
     }
 
     public static String formatShortNumber(int number, int[] rounded) {
+        if (GeneralSettings.usesFullNumberFormat()) {
+            Locale locale = getInstance().currentLocale;
+
+            return GeneralSettings.formatFullNumber(number, rounded, locale);
+        }
+
         StringBuilder K = new StringBuilder();
         int lastDec = 0;
         int KCount = 0;

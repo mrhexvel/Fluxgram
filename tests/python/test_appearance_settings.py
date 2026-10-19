@@ -50,6 +50,13 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("UItem.asCheck(\n                    HIDE_DIALOGS_SEARCH_BAR", activity)
         self.assertIn("UItem.asCheck(\n                    SENDER_MINI_AVATARS", activity)
         self.assertIn("UItem.asCheck(\n                    FORCE_SNOW", activity)
+        self.assertIn("addSectionLabel(items, R.string.FluxGramFontsAndEmoji);", activity)
+        fonts_and_emoji = activity.split(
+            "addSectionLabel(items, R.string.FluxGramFontsAndEmoji);", 1
+        )[1].split("addSectionLabel(items, R.string.FluxGramChatList);", 1)[0]
+        self.assertIn("UItem.asButton(\n                    FONTS", fonts_and_emoji)
+        self.assertIn("UItem.asCheck(\n                    USE_SYSTEM_EMOJI", fonts_and_emoji)
+        self.assertEqual(1, fonts_and_emoji.count("UItem.asShadow(null)"))
         self.assertIn("addSectionLabel(items, R.string.FluxGramChatList);", activity)
         self.assertIn("UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT)", activity)
         self.assertNotIn("UItem.asHeader", activity)

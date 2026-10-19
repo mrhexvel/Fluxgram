@@ -18,6 +18,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
+import org.telegram.messenger.fluxgram.GeneralSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginDeveloperBridge;
@@ -64,6 +65,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int FONTS = 19;
     private static final int PLUGIN_DEVELOPER_ACCESS = 20;
     private static final int USE_SYSTEM_EMOJI = 21;
+    private static final int FULL_NUMBER_FORMAT = 22;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -210,6 +212,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         if (section == GENERAL) {
+            addSectionLabel(items, R.string.FluxGramNumberFormatting);
+            items.add(UItem.asCheck(
+                    FULL_NUMBER_FORMAT,
+                    LocaleController.getString(R.string.FluxGramFullNumberFormat)
+            ).setChecked(GeneralSettings.usesFullNumberFormat()));
+            items.add(UItem.asShadow(null));
             items.add(UItem.asButton(
                     GHOST_MODE,
                     R.drawable.settings_privacy,
@@ -222,15 +230,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
         if (section == APPEARANCE) {
             appearancePreview.update(false);
-            addSectionLabel(items, R.string.FluxGramFonts);
+            addSectionLabel(items, R.string.FluxGramFontsAndEmoji);
             items.add(UItem.asButton(
                     FONTS,
                     R.drawable.msg_text_outlined,
                     LocaleController.getString(R.string.FluxGramFonts),
                     fontModeOption(FontSettings.getMode())
             ));
-            items.add(UItem.asShadow(null));
-            addSectionLabel(items, R.string.FluxGramEmoji);
             items.add(UItem.asCheck(
                     USE_SYSTEM_EMOJI,
                     LocaleController.getString(R.string.FluxGramUseSystemEmoji)
@@ -498,8 +504,15 @@ public class FluxGramSettingsActivity extends BaseFragment {
             return;
         }
 
-        if (section == GENERAL && item.id == GHOST_MODE) {
-            presentFragment(new FluxGramGhostModeActivity());
+        if (section == GENERAL) {
+            if (item.id == FULL_NUMBER_FORMAT) {
+                boolean enabled = !GeneralSettings.usesFullNumberFormat();
+                GeneralSettings.setUsesFullNumberFormat(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == GHOST_MODE) {
+                presentFragment(new FluxGramGhostModeActivity());
+            }
 
             return;
         }
