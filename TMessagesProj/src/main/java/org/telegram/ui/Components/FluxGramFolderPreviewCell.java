@@ -118,21 +118,39 @@ public final class FluxGramFolderPreviewCell extends FrameLayout implements Noti
     }
 
     public void updateFolders() {
-        ArrayList<MessagesController.DialogFilter> filters = MessagesController.getInstance(account).getDialogFilters();
+        ArrayList<MessagesController.DialogFilter> filters = getVisibleFolders();
         if (hasSameFolders(filters)) {
             updateExistingFolders(filters, false);
         } else {
-            rebuildFolders(filters);
+            rebuildFolders(filters, false);
         }
     }
 
     public void updateFolders(boolean animated) {
-        ArrayList<MessagesController.DialogFilter> filters = MessagesController.getInstance(account).getDialogFilters();
+        ArrayList<MessagesController.DialogFilter> filters = getVisibleFolders();
         if (hasSameFolders(filters)) {
             updateExistingFolders(filters, animated);
         } else {
-            rebuildFolders(filters);
+            rebuildFolders(filters, animated);
         }
+    }
+
+    private ArrayList<MessagesController.DialogFilter> getVisibleFolders() {
+        ArrayList<MessagesController.DialogFilter> filters = MessagesController.getInstance(account).getDialogFilters();
+        FolderSettings.Policy policy = FolderSettings.getPolicy(account);
+        if (FolderSettings.isAllChatsVisible(policy, filters)) {
+            return filters;
+        }
+
+        ArrayList<MessagesController.DialogFilter> visible = new ArrayList<>(filters.size() - 1);
+        for (int index = 0; index < filters.size(); index++) {
+            MessagesController.DialogFilter filter = filters.get(index);
+            if (!filter.isDefault()) {
+                visible.add(filter);
+            }
+        }
+
+        return visible;
     }
 
     private boolean hasSameFolders(ArrayList<MessagesController.DialogFilter> filters) {
@@ -165,7 +183,10 @@ public final class FluxGramFolderPreviewCell extends FrameLayout implements Noti
         tabsView.refreshTabs(animated);
     }
 
-    private void rebuildFolders(ArrayList<MessagesController.DialogFilter> filters) {
+    private void rebuildFolders(
+            ArrayList<MessagesController.DialogFilter> filters,
+            boolean animated
+    ) {
         FolderSettings.Policy policy = FolderSettings.getPolicy(account);
 
         tabsView.removeTabs();
@@ -186,7 +207,7 @@ public final class FluxGramFolderPreviewCell extends FrameLayout implements Noti
             );
         }
 
-        tabsView.finishAddingTabs(false);
+        tabsView.finishAddingTabs(animated);
     }
 
     private CharSequence createTitle(

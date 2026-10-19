@@ -4,12 +4,16 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
+
+import java.util.ArrayList;
 
 public final class FolderSettings {
     private static final String OWNER = "owner";
     private static final String PRESENTATION_MODE = "presentation_mode";
     private static final String COUNTER_MODE = "counter_mode";
+    private static final String SHOW_ALL_CHATS = "show_all_chats";
 
     public static final int MODE_TITLE_AND_ICON = 0;
     public static final int MODE_TITLE = 1;
@@ -22,10 +26,12 @@ public final class FolderSettings {
     public static final class Policy {
         private final int presentationMode;
         private final int counterMode;
+        private final boolean showAllChats;
 
-        private Policy(int presentationMode, int counterMode) {
+        private Policy(int presentationMode, int counterMode, boolean showAllChats) {
             this.presentationMode = presentationMode;
             this.counterMode = counterMode;
+            this.showAllChats = showAllChats;
         }
 
         public int getPresentationMode() {
@@ -34,6 +40,10 @@ public final class FolderSettings {
 
         public int getCounterMode() {
             return counterMode;
+        }
+
+        public boolean showsAllChats() {
+            return showAllChats;
         }
     }
 
@@ -45,10 +55,13 @@ public final class FolderSettings {
         int counterMode = preferences == null
                 ? COUNTER_ALL
                 : preferences.getInt(COUNTER_MODE, COUNTER_ALL);
+        boolean showAllChats = preferences == null
+                || preferences.getBoolean(SHOW_ALL_CHATS, true);
 
         return new Policy(
                 validatePresentationMode(mode),
-                validateCounterMode(counterMode)
+                validateCounterMode(counterMode),
+                showAllChats
         );
     }
 
@@ -68,6 +81,31 @@ public final class FolderSettings {
         }
 
         preferences.edit().putInt(COUNTER_MODE, mode).apply();
+    }
+
+    public static void setShowsAllChats(int account, boolean show) {
+        SharedPreferences preferences = activePreferences(account);
+        if (preferences != null) {
+            preferences.edit().putBoolean(SHOW_ALL_CHATS, show).apply();
+        }
+    }
+
+    public static boolean isAllChatsVisible(
+            Policy policy,
+            ArrayList<MessagesController.DialogFilter> filters
+    ) {
+        return policy.showsAllChats() || findFallbackFilter(filters) < 0;
+    }
+
+    public static int findFallbackFilter(ArrayList<MessagesController.DialogFilter> filters) {
+        for (int index = 0; index < filters.size(); index++) {
+            MessagesController.DialogFilter filter = filters.get(index);
+            if (!filter.isDefault() && !filter.locked) {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private static int validatePresentationMode(int mode) {

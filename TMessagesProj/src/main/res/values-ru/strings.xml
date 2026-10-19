@@ -323,6 +323,7 @@
     <string name="FluxGramFolderCounterAll">Все непрочитанные чаты</string>
     <string name="FluxGramFolderCounterUnmuted">Без заглушённых</string>
     <string name="FluxGramFolderCounterHidden">Скрыты</string>
+    <string name="FluxGramShowAllChatsFolder">Показывать папку «Все чаты»</string>
     <string name="FluxGramPrivacy">Скрытность</string>
     <string name="FluxGramProfile">Профиль</string>
     <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>

@@ -85,6 +85,10 @@ public class FilterTabsView extends FrameLayout {
         return positionToStableId.get(selectedType, -1);
     }
 
+    public int getTabPosition(int id) {
+        return idToPosition.get(id, -1);
+    }
+
     public boolean selectTabWithStableId(int stableId) {
         for (int i = 0; i < tabs.size(); i++) {
             if (positionToStableId.get(i, -1) == stableId) {
@@ -1563,26 +1567,26 @@ public class FilterTabsView extends FrameLayout {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (!tabs.isEmpty()) {
             final int width = MeasureSpec.getSize(widthMeasureSpec) - listViewPaddingH * 2;
-            Tab firstTab = findDefaultTab();
-            if (firstTab != null) {
-                firstTab.setTitle(getDefaultTabTitle(false), false);
-                int tabWidth = firstTab.getWidth(false);
-                firstTab.setTitle(getDefaultTabTitle(allTabsWidth > width), false);
-                int trueTabsWidth = allTabsWidth - tabWidth;
-                trueTabsWidth += firstTab.getWidth(false);
-                int prevWidth = additionalTabWidth;
-                additionalTabWidth = trueTabsWidth < width ? (width - trueTabsWidth) / tabs.size() : 0;
-                if (prevWidth != additionalTabWidth) {
-                    ignoreLayout = true;
-                    RecyclerView.ItemAnimator animator = listView.getItemAnimator();
-                    listView.setItemAnimator(null);
-                    adapter.notifyDataSetChanged();
-                    listView.setItemAnimator(animator);
-                    ignoreLayout = false;
-                }
-                updateTabsWidths();
-                invalidated = false;
+            int trueTabsWidth = allTabsWidth;
+            Tab defaultTab = findDefaultTab();
+            if (defaultTab != null) {
+                defaultTab.setTitle(getDefaultTabTitle(false), false);
+                int tabWidth = defaultTab.getWidth(false);
+                defaultTab.setTitle(getDefaultTabTitle(allTabsWidth > width), false);
+                trueTabsWidth = allTabsWidth - tabWidth + defaultTab.getWidth(false);
             }
+            int prevWidth = additionalTabWidth;
+            additionalTabWidth = trueTabsWidth < width ? (width - trueTabsWidth) / tabs.size() : 0;
+            if (prevWidth != additionalTabWidth) {
+                ignoreLayout = true;
+                RecyclerView.ItemAnimator animator = listView.getItemAnimator();
+                listView.setItemAnimator(null);
+                adapter.notifyDataSetChanged();
+                listView.setItemAnimator(animator);
+                ignoreLayout = false;
+            }
+            updateTabsWidths();
+            invalidated = false;
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
@@ -1831,23 +1835,21 @@ public class FilterTabsView extends FrameLayout {
         }
 
         public void swapElements(int fromIndex, int toIndex) {
-            int idx1 = fromIndex;
-            int idx2 = toIndex;
             int count = tabs.size();
-            if (idx1 < 0 || idx2 < 0 || idx1 >= count || idx2 >= count) {
+            if (fromIndex < 0 || toIndex < 0 || fromIndex >= count || toIndex >= count) {
                 return;
             }
             ArrayList<MessagesController.DialogFilter> filters = MessagesController.getInstance(UserConfig.selectedAccount).getDialogFilters();
-            MessagesController.DialogFilter filter1 = filters.get(idx1);
-            MessagesController.DialogFilter filter2 = filters.get(idx2);
+            Tab tab1 = tabs.get(fromIndex);
+            Tab tab2 = tabs.get(toIndex);
+            MessagesController.DialogFilter filter1 = filters.get(tab1.id);
+            MessagesController.DialogFilter filter2 = filters.get(tab2.id);
             int temp = filter1.order;
             filter1.order = filter2.order;
             filter2.order = temp;
-            filters.set(idx1, filter2);
-            filters.set(idx2, filter1);
+            filters.set(tab1.id, filter2);
+            filters.set(tab2.id, filter1);
 
-            Tab tab1 = tabs.get(fromIndex);
-            Tab tab2 = tabs.get(toIndex);
             temp = tab1.id;
             tab1.id = tab2.id;
             tab2.id = temp;
@@ -1936,7 +1938,9 @@ public class FilterTabsView extends FrameLayout {
 
         @Override
         public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-            if (MessagesController.getInstance(UserConfig.selectedAccount).premiumFeaturesBlocked() && (!isEditing || (viewHolder.getAdapterPosition() == 0 && tabs.get(0).isDefault && !UserConfig.getInstance(UserConfig.selectedAccount).isPremium()))) {
+            int position = viewHolder.getAdapterPosition();
+            boolean defaultTab = position >= 0 && position < tabs.size() && tabs.get(position).isDefault;
+            if (MessagesController.getInstance(UserConfig.selectedAccount).premiumFeaturesBlocked() && (!isEditing || (defaultTab && !UserConfig.getInstance(UserConfig.selectedAccount).isPremium()))) {
                 return makeMovementFlags(0, 0);
             }
             return makeMovementFlags(ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT, 0);
@@ -1944,10 +1948,18 @@ public class FilterTabsView extends FrameLayout {
 
         @Override
         public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder source, @NonNull RecyclerView.ViewHolder target) {
-            if (MessagesController.getInstance(UserConfig.selectedAccount).premiumFeaturesBlocked() && ((source.getAdapterPosition() == 0 || target.getAdapterPosition() == 0) && !UserConfig.getInstance(UserConfig.selectedAccount).isPremium())) {
+            int sourcePosition = source.getAdapterPosition();
+            int targetPosition = target.getAdapterPosition();
+            boolean movesDefault = (sourcePosition >= 0
+                    && sourcePosition < tabs.size()
+                    && tabs.get(sourcePosition).isDefault)
+                    || (targetPosition >= 0
+                    && targetPosition < tabs.size()
+                    && tabs.get(targetPosition).isDefault);
+            if (MessagesController.getInstance(UserConfig.selectedAccount).premiumFeaturesBlocked() && movesDefault && !UserConfig.getInstance(UserConfig.selectedAccount).isPremium()) {
                 return false;
             }
-            adapter.swapElements(source.getAdapterPosition(), target.getAdapterPosition());
+            adapter.swapElements(sourcePosition, targetPosition);
             return true;
         }
 

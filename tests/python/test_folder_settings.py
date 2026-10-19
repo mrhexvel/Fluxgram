@@ -13,12 +13,14 @@ class FolderSettingsTest(unittest.TestCase):
         self.assertIn("public static final class Policy", source)
         self.assertIn("private final int presentationMode;", source)
         self.assertIn("private final int counterMode;", source)
+        self.assertIn("private final boolean showAllChats;", source)
         self.assertIn('"fluxgram_folders_" + account', source)
         self.assertIn("preferences.getLong(OWNER, 0) != owner", source)
         self.assertIn("? MODE_TITLE_AND_ICON", source)
         self.assertIn("? COUNTER_ALL", source)
         self.assertIn("validatePresentationMode(mode)", source)
         self.assertIn("validateCounterMode(counterMode)", source)
+        self.assertIn("preferences.getBoolean(SHOW_ALL_CHATS, true)", source)
 
     def test_semantic_icons_use_existing_telegram_assets(self):
         source = (JAVA / "ui/fluxgram/FolderPresentation.java").read_text()
@@ -61,6 +63,7 @@ class FolderSettingsTest(unittest.TestCase):
         self.assertIn("folderPolicy.getPresentationMode() == FolderSettings.MODE_ICON", source)
         self.assertIn("folderPolicy.getPresentationMode() == FolderSettings.MODE_TITLE", source)
         self.assertIn("FolderUnreadCounter.resolve(currentAccount, folder, folderPolicy)", source)
+        self.assertIn("FolderSettings.isAllChatsVisible(folderPolicy, filters)", source)
 
     def test_counter_modes_use_storage_backed_aggregates(self):
         settings = (JAVA / "messenger/fluxgram/FolderSettings.java").read_text()
@@ -102,6 +105,24 @@ class FolderSettingsTest(unittest.TestCase):
         self.assertIn("background.setPadding(dp(6.666f));", preview)
         self.assertIn("tabsView.refreshTabs(animated);", preview)
         self.assertIn("items.add(UItem.asCustomShadow(folderPreview, 58));", settings)
+
+    def test_all_chats_visibility_uses_an_unlocked_fallback(self):
+        policy = (JAVA / "messenger/fluxgram/FolderSettings.java").read_text()
+        dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
+        tabs = (JAVA / "ui/Components/FilterTabsView.java").read_text()
+        preview = (JAVA / "ui/Components/FluxGramFolderPreviewCell.java").read_text()
+        settings = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertIn("!filter.isDefault() && !filter.locked", policy)
+        self.assertIn("policy.showsAllChats() || findFallbackFilter(filters) < 0", policy)
+        self.assertIn("FolderSettings.setShowsAllChats(currentAccount, shown)", settings)
+        self.assertIn("FolderSettings.findFallbackFilter(filters)", dialogs)
+        self.assertIn("if (!showAllChats)", dialogs)
+        self.assertIn("viewPages[a].selectedType = fallbackFilter;", dialogs)
+        self.assertIn("filterTabsView.getTabPosition(index)", dialogs)
+        self.assertIn("public int getTabPosition(int id)", tabs)
+        self.assertIn("MessagesController.DialogFilter filter1 = filters.get(tab1.id);", tabs)
+        self.assertIn("FolderSettings.isAllChatsVisible(policy, filters)", preview)
 
 
 if __name__ == "__main__":

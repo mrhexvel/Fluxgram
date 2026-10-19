@@ -11325,6 +11325,7 @@
     <string name="FluxGramFolderCounterAll">All unread chats</string>
     <string name="FluxGramFolderCounterUnmuted">Unmuted only</string>
     <string name="FluxGramFolderCounterHidden">Hidden</string>
+    <string name="FluxGramShowAllChatsFolder">Show All Chats folder</string>
     <string name="FluxGramPrivacy">Privacy</string>
     <string name="FluxGramChooseFolder">Choose another folder</string>
     <string name="FluxGramUseDefaultFolder">Use Downloads folder</string>

@@ -6925,7 +6925,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 return;
             }
         }
-        int index = filterTabsView.getTabsCount() - 1;
+        int index = -1;
         ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
         for (int i = 0; i < filters.size(); ++i) {
             if (filters.get(i).id == fid) {
@@ -6934,12 +6934,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
-        FilterTabsView.Tab tab = filterTabsView.getTab(index);
+        int position = filterTabsView.getTabPosition(index);
+        if (position < 0 && index >= 0 && filters.get(index).isDefault()) {
+            index = FolderSettings.findFallbackFilter(filters);
+            position = filterTabsView.getTabPosition(index);
+        }
+        FilterTabsView.Tab tab = filterTabsView.getTab(position);
         if (tab != null) {
             if (viewPages != null && viewPages.length > 0 && viewPages[0].selectedType == tab.id) {
                 return;
             }
-            filterTabsView.scrollToTab(tab, index);
+            filterTabsView.scrollToTab(tab, position);
         } else {
             filterTabsView.selectLastTab();
         }
@@ -7015,14 +7020,26 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 int id = filterTabsView.getCurrentTabId();
                 int stableId = filterTabsView.getCurrentTabStableId();
                 boolean selectWithStableId = false;
+                FolderSettings.Policy folderPolicy = FolderSettings.getPolicy(currentAccount);
+                int fallbackFilter = FolderSettings.findFallbackFilter(filters);
+                boolean showAllChats = !usesFluxGramRootDialogsAppearance()
+                        || FolderSettings.isAllChatsVisible(folderPolicy, filters);
+                boolean selectFallback = !showAllChats
+                        && (id < 0
+                        || id >= filters.size()
+                        || filters.get(id).isDefault()
+                        || filters.get(id).locked);
                 if (id != filterTabsView.getDefaultTabId() && id >= filters.size()) {
                     filterTabsView.resetTabId();
                     selectWithStableId = true;
                 }
                 filterTabsView.removeTabs();
-                FolderSettings.Policy folderPolicy = FolderSettings.getPolicy(currentAccount);
                 for (int a = 0, N = filters.size(); a < N; a++) {
                     if (filters.get(a).isDefault()) {
+                        if (!showAllChats) {
+                            continue;
+                        }
+
                         CharSequence title = LocaleController.getString(R.string.FilterAllChats);
                         if (usesFluxGramRootDialogsAppearance()) {
                             title = FolderPresentation.createTitle(title, null, folderPolicy);
@@ -7039,18 +7056,30 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         }
                     }
                 }
+                if (selectFallback) {
+                    stableId = filters.get(fallbackFilter).localId;
+                    id = fallbackFilter;
+                    filterTabsView.selectTabWithStableId(stableId);
+                    updateCurrentTab = true;
+                    viewPages[0].selectedType = id;
+                }
                 if (stableId >= 0) {
                     if (selectWithStableId) {
                         if (!filterTabsView.selectTabWithStableId(stableId)) {
-                            while (id >= 0 && !filterTabsView.selectTabWithStableId(filterTabsView.getStableId(id))) {
+                            int position = filterTabsView.getTabPosition(id);
+                            while (id >= 0 && (position < 0
+                                    || !filterTabsView.selectTabWithStableId(filterTabsView.getStableId(position)))) {
                                 id--;
+                                position = filterTabsView.getTabPosition(id);
                             }
                             if (id < 0) {
-                                id = 0;
+                                filterTabsView.selectTabWithStableId(filterTabsView.getStableId(0));
+                                id = filterTabsView.getCurrentTabId();
                             }
                         }
                     }
-                    if (filterTabsView.getStableId(viewPages[0].selectedType) != stableId) {
+                    int selectedPosition = filterTabsView.getTabPosition(viewPages[0].selectedType);
+                    if (selectedPosition < 0 || filterTabsView.getStableId(selectedPosition) != stableId) {
                         updateCurrentTab = true;
                         viewPages[0].selectedType = id;
                     }
@@ -7058,6 +7087,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 for (int a = 0; a < viewPages.length; a++) {
                     if (viewPages[a].selectedType >= filters.size()) {
                         viewPages[a].selectedType = filters.size() - 1;
+                    }
+                    if (!showAllChats && filters.get(viewPages[a].selectedType).isDefault()) {
+                        viewPages[a].selectedType = fallbackFilter;
                     }
                     viewPages[a].listView.setScrollingTouchSlop(RecyclerView.TOUCH_SLOP_PAGING);
                 }

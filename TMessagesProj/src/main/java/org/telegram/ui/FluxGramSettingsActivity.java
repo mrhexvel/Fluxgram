@@ -94,6 +94,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int DISABLE_UNARCHIVE_SWIPE = 35;
     private static final int FOLDER_PRESENTATION = 36;
     private static final int FOLDER_COUNTER = 37;
+    private static final int SHOW_ALL_CHATS_FOLDER = 38;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -401,6 +402,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramFolderCounter),
                     folderCounterOption(FolderSettings.getPolicy(currentAccount).getCounterMode())
             ));
+            items.add(UItem.asCheck(
+                    SHOW_ALL_CHATS_FOLDER,
+                    LocaleController.getString(R.string.FluxGramShowAllChatsFolder)
+            ).setChecked(FolderSettings.getPolicy(currentAccount).showsAllChats()));
             items.add(UItem.asShadow(null));
 
             return;
@@ -729,6 +734,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 showFolderPresentationDialog();
             } else if (item.id == FOLDER_COUNTER) {
                 showFolderCounterDialog();
+            } else if (item.id == SHOW_ALL_CHATS_FOLDER) {
+                boolean shown = !FolderSettings.getPolicy(currentAccount).showsAllChats();
+                FolderSettings.setShowsAllChats(currentAccount, shown);
+                ((TextCheckCell) view).setChecked(shown);
+                updateFolderPreview();
             } else if (item.id == HIDE_ACTION_BAR_STATUS) {
                 boolean hidden = !AppearanceSettings.hidesActionBarStatus(currentAccount);
                 AppearanceSettings.setHidesActionBarStatus(currentAccount, hidden);
