@@ -66,6 +66,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int PLUGIN_DEVELOPER_ACCESS = 20;
     private static final int USE_SYSTEM_EMOJI = 21;
     private static final int FULL_NUMBER_FORMAT = 22;
+    private static final int SHOW_TIME_SECONDS = 23;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -212,11 +213,15 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         if (section == GENERAL) {
-            addSectionLabel(items, R.string.FluxGramNumberFormatting);
+            addSectionLabel(items, R.string.FluxGramFormatting);
             items.add(UItem.asCheck(
                     FULL_NUMBER_FORMAT,
                     LocaleController.getString(R.string.FluxGramFullNumberFormat)
             ).setChecked(GeneralSettings.usesFullNumberFormat()));
+            items.add(UItem.asCheck(
+                    SHOW_TIME_SECONDS,
+                    LocaleController.getString(R.string.FluxGramShowTimeSeconds)
+            ).setChecked(GeneralSettings.showsTimeSeconds()));
             items.add(UItem.asShadow(null));
             items.add(UItem.asButton(
                     GHOST_MODE,
@@ -508,6 +513,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
             if (item.id == FULL_NUMBER_FORMAT) {
                 boolean enabled = !GeneralSettings.usesFullNumberFormat();
                 GeneralSettings.setUsesFullNumberFormat(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_TIME_SECONDS) {
+                boolean enabled = !GeneralSettings.showsTimeSeconds();
+                GeneralSettings.setShowsTimeSeconds(enabled);
+                LocaleController.getInstance().recreateFormatters();
                 ((TextCheckCell) view).setChecked(enabled);
                 parentLayout.rebuildFragments(0);
             } else if (item.id == GHOST_MODE) {

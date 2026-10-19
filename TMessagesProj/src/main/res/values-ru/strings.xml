@@ -295,8 +295,9 @@
     <string name="FluxGramPluginAlreadyInstalled">Эта версия плагина уже установлена.</string>
     <string name="FluxGramGeneral">Основные</string>
     <string name="FluxGramGeneralEmpty">В этом разделе пока нет настроек.</string>
-    <string name="FluxGramNumberFormatting">Формат чисел</string>
+    <string name="FluxGramFormatting">Форматирование</string>
     <string name="FluxGramFullNumberFormat">Показывать числа полностью</string>
+    <string name="FluxGramShowTimeSeconds">Показывать секунды во времени</string>
     <string name="FluxGramAppearance">Внешний вид</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Шрифты</string>

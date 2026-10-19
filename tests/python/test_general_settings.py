@@ -22,9 +22,32 @@ class GeneralSettingsTest(unittest.TestCase):
         self.assertEqual(1, locale.count("GeneralSettings.usesFullNumberFormat()"))
         self.assertIn("rounded[0] = number;", settings)
         self.assertIn("return GeneralSettings.formatFullNumber(number, rounded, locale);", locale)
-        self.assertIn("addSectionLabel(items, R.string.FluxGramNumberFormatting);", activity)
+        self.assertIn("addSectionLabel(items, R.string.FluxGramFormatting);", activity)
         self.assertIn(".setChecked(GeneralSettings.usesFullNumberFormat())", activity)
         self.assertIn("GeneralSettings.setUsesFullNumberFormat(enabled);", activity)
+
+    def test_time_seconds_reuses_time_of_day_formatter(self):
+        settings = (JAVA / "messenger/fluxgram/GeneralSettings.java").read_text()
+        locale = (JAVA / "messenger/LocaleController.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        formatting_section = activity.split(
+            "addSectionLabel(items, R.string.FluxGramFormatting);", 1
+        )[1].split(
+            "items.add(UItem.asButton(\n                    GHOST_MODE", 1
+        )[0]
+
+        self.assertIn('SHOW_TIME_SECONDS = "fluxgram_show_time_seconds"', settings)
+        self.assertIn("getBoolean(SHOW_TIME_SECONDS, false)", settings)
+        self.assertEqual(1, locale.count("GeneralSettings.showsTimeSeconds()"))
+        formatter_day = locale.split("public FastDateFormat getFormatterDay()", 1)[1].split(
+            "private volatile FastDateFormat formatterDayWithSeconds", 1
+        )[0]
+        self.assertIn("return getFormatterDayWithSeconds();", formatter_day)
+        self.assertIn("UItem.asCheck(\n                    FULL_NUMBER_FORMAT", formatting_section)
+        self.assertIn("UItem.asCheck(\n                    SHOW_TIME_SECONDS", formatting_section)
+        self.assertEqual(1, formatting_section.count("UItem.asShadow(null)"))
+        self.assertIn("GeneralSettings.setShowsTimeSeconds(enabled);", activity)
+        self.assertIn("LocaleController.getInstance().recreateFormatters();", activity)
 
     def test_locale_aware_formatting_and_persistence(self):
         if not shutil.which("javac") or not shutil.which("java"):
@@ -56,6 +79,8 @@ class GeneralSettingsTest(unittest.TestCase):
                 package org.telegram.messenger;
 
                 import android.content.SharedPreferences;
+                import java.util.HashMap;
+                import java.util.Map;
 
                 public final class MessagesController {
                     private static final Preferences PREFERENCES = new Preferences();
@@ -65,11 +90,11 @@ class GeneralSettingsTest(unittest.TestCase):
                     }
 
                     private static final class Preferences implements SharedPreferences, SharedPreferences.Editor {
-                        private boolean value;
+                        private final Map<String, Boolean> values = new HashMap<>();
 
                         @Override
                         public boolean getBoolean(String key, boolean fallback) {
-                            return value;
+                            return values.containsKey(key) ? values.get(key) : fallback;
                         }
 
                         @Override
@@ -79,7 +104,7 @@ class GeneralSettingsTest(unittest.TestCase):
 
                         @Override
                         public SharedPreferences.Editor putBoolean(String key, boolean value) {
-                            this.value = value;
+                            values.put(key, value);
                             return this;
                         }
 
@@ -102,6 +127,16 @@ class GeneralSettingsTest(unittest.TestCase):
                         GeneralSettings.setUsesFullNumberFormat(true);
                         if (!GeneralSettings.usesFullNumberFormat()) {
                             throw new AssertionError("enabled value was not retained");
+                        }
+                        if (GeneralSettings.showsTimeSeconds()) {
+                            throw new AssertionError("number setting changed time setting");
+                        }
+                        GeneralSettings.setShowsTimeSeconds(true);
+                        if (!GeneralSettings.showsTimeSeconds()) {
+                            throw new AssertionError("time setting was not retained");
+                        }
+                        if (!GeneralSettings.usesFullNumberFormat()) {
+                            throw new AssertionError("time setting changed number setting");
                         }
                         int[] rounded = new int[1];
                         if (!"1,234,567".equals(GeneralSettings.formatFullNumber(1234567, rounded, Locale.US))) {

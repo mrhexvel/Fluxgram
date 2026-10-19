@@ -11267,8 +11267,9 @@
     <string name="FluxGramPluginAlreadyInstalled">This version is already installed.</string>
     <string name="FluxGramGeneral">General</string>
     <string name="FluxGramGeneralEmpty">There are no general settings yet.</string>
-    <string name="FluxGramNumberFormatting">Number formatting</string>
+    <string name="FluxGramFormatting">Formatting</string>
     <string name="FluxGramFullNumberFormat">Show full numbers</string>
+    <string name="FluxGramShowTimeSeconds">Show seconds in time</string>
     <string name="FluxGramAppearance">Appearance</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Fonts</string>

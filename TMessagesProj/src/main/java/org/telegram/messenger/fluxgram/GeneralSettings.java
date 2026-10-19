@@ -9,9 +9,11 @@ import java.util.Locale;
 
 public final class GeneralSettings {
     private static final String FULL_NUMBER_FORMAT = "fluxgram_full_number_format";
+    private static final String SHOW_TIME_SECONDS = "fluxgram_show_time_seconds";
 
     private static volatile boolean loaded;
     private static volatile boolean fullNumberFormat;
+    private static volatile boolean showTimeSeconds;
 
     public static boolean usesFullNumberFormat() {
         ensureLoaded();
@@ -20,13 +22,31 @@ public final class GeneralSettings {
     }
 
     public static synchronized void setUsesFullNumberFormat(boolean enabled) {
+        ensureLoaded();
+
         MessagesController.getGlobalMainSettings()
                 .edit()
                 .putBoolean(FULL_NUMBER_FORMAT, enabled)
                 .apply();
 
         fullNumberFormat = enabled;
-        loaded = true;
+    }
+
+    public static boolean showsTimeSeconds() {
+        ensureLoaded();
+
+        return showTimeSeconds;
+    }
+
+    public static synchronized void setShowsTimeSeconds(boolean enabled) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_TIME_SECONDS, enabled)
+                .apply();
+
+        showTimeSeconds = enabled;
     }
 
     public static String formatFullNumber(int number, int[] rounded, Locale locale) {
@@ -53,6 +73,7 @@ public final class GeneralSettings {
 
             SharedPreferences preferences = MessagesController.getGlobalMainSettings();
             fullNumberFormat = preferences.getBoolean(FULL_NUMBER_FORMAT, false);
+            showTimeSeconds = preferences.getBoolean(SHOW_TIME_SECONDS, false);
             loaded = true;
         }
     }
