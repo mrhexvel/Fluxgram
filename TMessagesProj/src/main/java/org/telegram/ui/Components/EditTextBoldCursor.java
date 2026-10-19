@@ -1049,7 +1049,7 @@ public class EditTextBoldCursor extends EditTextEffects {
 
             try {
                 target.translate(offsetX, offsetY);
-                gradientDrawable.draw(target);
+                drawCursor(target, gradientDrawable);
             } finally {
                 target.restoreToCount(save);
             }
@@ -1059,6 +1059,10 @@ public class EditTextBoldCursor extends EditTextEffects {
     protected void drawCursor(Canvas canvas, Rect bounds, int line, float baseline,
             boolean rtl, Consumer<Canvas> nativeDraw) {
         nativeDraw.accept(canvas);
+    }
+
+    protected void drawCursor(Canvas canvas, GradientDrawable drawable) {
+        drawable.draw(canvas);
     }
 
     public void setWindowView(View view) {
