@@ -1298,6 +1298,8 @@ public class MessagesController extends BaseController implements NotificationCe
         public ArrayList<TLRPC.MessageEntity> entities = new ArrayList<>();
         public int unreadCount;
         public volatile int pendingUnreadCount;
+        public int unmutedUnreadCount;
+        public volatile int pendingUnmutedUnreadCount;
         public int order;
         public int flags;
         public ArrayList<Long> alwaysShow = new ArrayList<>();

@@ -112,6 +112,10 @@ public class MessagesStorage extends BaseController {
     private int archiveUnreadCount;
     private volatile int pendingMainUnreadCount;
     private volatile int pendingArchiveUnreadCount;
+    private int mainAllUnreadCount;
+    private int mainUnmutedUnreadCount;
+    private volatile int pendingMainAllUnreadCount;
+    private volatile int pendingMainUnmutedUnreadCount;
     private boolean databaseCreated;
 
     private final CountDownLatch openSync = new CountDownLatch(1);
@@ -178,6 +182,14 @@ public class MessagesStorage extends BaseController {
 
     public int getArchiveUnreadCount() {
         return archiveUnreadCount;
+    }
+
+    public int getMainAllUnreadCount() {
+        return mainAllUnreadCount;
+    }
+
+    public int getMainUnmutedUnreadCount() {
+        return mainUnmutedUnreadCount;
     }
 
     public void setLastPtsValue(int value) {
@@ -2600,6 +2612,7 @@ public class MessagesStorage extends BaseController {
                     filter.id = filtersCursor.intValue(0);
                     filter.order = filtersCursor.intValue(1);
                     filter.pendingUnreadCount = filter.unreadCount = -1;//filtersCursor.intValue(2);
+                    filter.pendingUnmutedUnreadCount = filter.unmutedUnreadCount = -1;
                     filter.flags = filtersCursor.intValue(3);
                     filter.name = filtersCursor.stringValue(4);
                     filter.color = filtersCursor.intValue(5);
@@ -2945,24 +2958,37 @@ public class MessagesStorage extends BaseController {
                     FileLog.d("bots = " + bots[b][0] + ", " + bots[b][1]);
                 }
             }*/
-            for (int a = 0, N = dialogFilters.size(); a < N + 2; a++) {
+            int counterStride = dialogFilters.size() + 2;
+            for (int counterIndex = 0; counterIndex < counterStride * 3; counterIndex++) {
+                int counterVariant = counterIndex / counterStride;
+                int a = counterIndex % counterStride;
+                int N = dialogFilters.size();
                 final boolean isFilter = a < N;
                 final boolean isMain = a == N;
                 final boolean isArchive = a == N + 1;
+
+                if (counterVariant == 1 && !isMain || counterVariant == 2 && isArchive) {
+                    continue;
+                }
 
                 MessagesController.DialogFilter filter;
                 int flags;
                 if (a < N) {
                     filter = dialogFilters.get(a);
-                    if (filter.pendingUnreadCount >= 0) {
+                    if (counterVariant == 0 && filter.pendingUnreadCount >= 0
+                            || counterVariant == 2 && filter.pendingUnmutedUnreadCount >= 0) {
                         continue;
                     }
                     flags = filter.flags;
+                    if (counterVariant == 2) {
+                        flags |= MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_MUTED;
+                    }
                 } else {
                     filter = null;
                     flags = MessagesController.DIALOG_FILTER_FLAG_ALL_CHATS;
                     if (a == N) {
-                        if (!getNotificationsController().showBadgeMuted) {
+                        if (counterVariant == 2
+                                || counterVariant == 0 && !getNotificationsController().showBadgeMuted) {
                             flags |= MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_MUTED;
                         }
                         flags |= MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_ARCHIVED;
@@ -3154,17 +3180,37 @@ public class MessagesStorage extends BaseController {
                             }
                         }
                     }
-                    filter.pendingUnreadCount = unreadCount;
+                    if (counterVariant == 0) {
+                        filter.pendingUnreadCount = unreadCount;
+                    } else {
+                        filter.pendingUnmutedUnreadCount = unreadCount;
+                    }
                     /*if (BuildVars.DEBUG_VERSION) {
                         FileLog.d("filter " + filter.name + " flags = " + filter.flags + " unread count = " + filter.pendingUnreadCount);
                     }*/
                     if (apply) {
-                        filter.unreadCount = unreadCount;
+                        if (counterVariant == 0) {
+                            filter.unreadCount = unreadCount;
+                        } else {
+                            filter.unmutedUnreadCount = unreadCount;
+                        }
                     }
                 } else if (isMain) {
-                    pendingMainUnreadCount = unreadCount;
-                    if (apply) {
-                        mainUnreadCount = unreadCount;
+                    if (counterVariant == 0) {
+                        pendingMainUnreadCount = unreadCount;
+                        if (apply) {
+                            mainUnreadCount = unreadCount;
+                        }
+                    } else if (counterVariant == 1) {
+                        pendingMainAllUnreadCount = unreadCount;
+                        if (apply) {
+                            mainAllUnreadCount = unreadCount;
+                        }
+                    } else {
+                        pendingMainUnmutedUnreadCount = unreadCount;
+                        if (apply) {
+                            mainUnmutedUnreadCount = unreadCount;
+                        }
                     }
                 } else if (isArchive) {
                     pendingArchiveUnreadCount = unreadCount;
@@ -3499,6 +3545,7 @@ public class MessagesStorage extends BaseController {
                         filter.title_noanimate = newFilter.title_noanimate;
                         filter.color = (newFilter.flags & 134217728) != 0 ? newFilter.color : -1;
                         filter.pendingUnreadCount = -1;
+                        filter.pendingUnmutedUnreadCount = -1;
                         for (int c = 0; c < 2; c++) {
                             if (c == 0) {
                                 for (int b = 0, N2 = newFilter.pinned_peers.size(); b < N2; b++) {
@@ -3600,6 +3647,7 @@ public class MessagesStorage extends BaseController {
                 continue;
             }
             filter.pendingUnreadCount = -1;
+            filter.pendingUnmutedUnreadCount = -1;
         }
         for (HashMap.Entry<Integer, HashSet<Long>> entry : filterDialogRemovals.entrySet()) {
             MessagesController.DialogFilter filter = dialogFiltersMap.get(entry.getKey());
@@ -3670,9 +3718,12 @@ public class MessagesStorage extends BaseController {
                 ArrayList<MessagesController.DialogFilter> filters = getMessagesController().dialogFilters;
                 for (int a = 0, N = filters.size(); a < N; a++) {
                     filters.get(a).unreadCount = filters.get(a).pendingUnreadCount;
+                    filters.get(a).unmutedUnreadCount = filters.get(a).pendingUnmutedUnreadCount;
                 }
                 mainUnreadCount = pendingMainUnreadCount;
                 archiveUnreadCount = pendingArchiveUnreadCount;
+                mainAllUnreadCount = pendingMainAllUnreadCount;
+                mainUnmutedUnreadCount = pendingMainUnmutedUnreadCount;
                 getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_READ_DIALOG_MESSAGE);
             });
         });
@@ -6272,28 +6323,49 @@ public class MessagesStorage extends BaseController {
             }
         }*/
 
-        for (int a = 0, N = dialogFilters.size(); a < N + 2; a++) {
+        int counterStride = dialogFilters.size() + 2;
+        for (int counterIndex = 0; counterIndex < counterStride * 3; counterIndex++) {
+            int counterVariant = counterIndex / counterStride;
+            int a = counterIndex % counterStride;
+            int N = dialogFilters.size();
             final boolean isFilter = a < N;
             final boolean isMain = a == N;
             final boolean isArchive = a == N + 1;
+
+            if (counterVariant == 1 && !isMain || counterVariant == 2 && isArchive) {
+                continue;
+            }
 
             int unreadCount;
             MessagesController.DialogFilter filter;
             int flags;
             if (a < N) {
                 filter = dialogFilters.get(a);
-                if (filter.pendingUnreadCount < 0) {
+                if (counterVariant == 0 && filter.pendingUnreadCount < 0
+                        || counterVariant == 2 && filter.pendingUnmutedUnreadCount < 0) {
                     continue;
                 }
-                unreadCount = filter.pendingUnreadCount;
+                unreadCount = counterVariant == 0
+                        ? filter.pendingUnreadCount
+                        : filter.pendingUnmutedUnreadCount;
                 flags = filter.flags;
+                if (counterVariant == 2) {
+                    flags |= MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_MUTED;
+                }
             } else {
                 filter = null;
                 flags = MessagesController.DIALOG_FILTER_FLAG_ALL_CHATS;
                 if (a == N) {
-                    unreadCount = pendingMainUnreadCount;
+                    if (counterVariant == 0) {
+                        unreadCount = pendingMainUnreadCount;
+                    } else if (counterVariant == 1) {
+                        unreadCount = pendingMainAllUnreadCount;
+                    } else {
+                        unreadCount = pendingMainUnmutedUnreadCount;
+                    }
                     flags |= MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_ARCHIVED;
-                    if (!getNotificationsController().showBadgeMuted) {
+                    if (counterVariant == 2
+                            || counterVariant == 0 && !getNotificationsController().showBadgeMuted) {
                         flags |= MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_MUTED;
                     }
                 } else {
@@ -6697,12 +6769,22 @@ public class MessagesStorage extends BaseController {
                 }
             }
             if (filter != null) {
-                filter.pendingUnreadCount = unreadCount;
+                if (counterVariant == 0) {
+                    filter.pendingUnreadCount = unreadCount;
+                } else {
+                    filter.pendingUnmutedUnreadCount = unreadCount;
+                }
                 /*if (BuildVars.DEBUG_VERSION) {
                     FileLog.d("filter " + filter.name + " flags = " + flags + " read = " + read + " unread count = " + filter.pendingUnreadCount);
                 }*/
             } else if (a == N) {
-                pendingMainUnreadCount = unreadCount;
+                if (counterVariant == 0) {
+                    pendingMainUnreadCount = unreadCount;
+                } else if (counterVariant == 1) {
+                    pendingMainAllUnreadCount = unreadCount;
+                } else {
+                    pendingMainUnmutedUnreadCount = unreadCount;
+                }
             } else if (isArchive) {
                 pendingArchiveUnreadCount = unreadCount;
             }
@@ -6711,9 +6793,12 @@ public class MessagesStorage extends BaseController {
             ArrayList<MessagesController.DialogFilter> filters = getMessagesController().dialogFilters;
             for (int a = 0, N = filters.size(); a < N; a++) {
                 filters.get(a).unreadCount = filters.get(a).pendingUnreadCount;
+                filters.get(a).unmutedUnreadCount = filters.get(a).pendingUnmutedUnreadCount;
             }
             mainUnreadCount = pendingMainUnreadCount;
             archiveUnreadCount = pendingArchiveUnreadCount;
+            mainAllUnreadCount = pendingMainAllUnreadCount;
+            mainUnmutedUnreadCount = pendingMainUnmutedUnreadCount;
         });
     }
 
@@ -17945,8 +18030,10 @@ public class MessagesStorage extends BaseController {
                 if ((filter.flags & MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_MUTED) != 0) {
                     filter.pendingUnreadCount = -1;
                 }
+                filter.pendingUnmutedUnreadCount = -1;
             } else {
                 filter.pendingUnreadCount = -1;
+                filter.pendingUnmutedUnreadCount = -1;
             }
         }
         calcUnreadCounters(false);
@@ -17954,9 +18041,12 @@ public class MessagesStorage extends BaseController {
             ArrayList<MessagesController.DialogFilter> filters = getMessagesController().dialogFilters;
             for (int a = 0, N = filters.size(); a < N; a++) {
                 filters.get(a).unreadCount = filters.get(a).pendingUnreadCount;
+                filters.get(a).unmutedUnreadCount = filters.get(a).pendingUnmutedUnreadCount;
             }
             mainUnreadCount = pendingMainUnreadCount;
             archiveUnreadCount = pendingArchiveUnreadCount;
+            mainAllUnreadCount = pendingMainAllUnreadCount;
+            mainUnmutedUnreadCount = pendingMainUnmutedUnreadCount;
             getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_READ_DIALOG_MESSAGE);
         });
     }

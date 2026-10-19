@@ -148,7 +148,7 @@ class NotificationSettingsTest(unittest.TestCase):
         section = activity.split(
             "addSectionLabel(items, R.string.FluxGramNotifications);", 1
         )[1].split(
-            "addSectionLabel(items, R.string.FluxGramProfile);", 1
+            "addSectionLabel(items, R.string.FluxGramDataTransfer);", 1
         )[0]
 
         self.assertIn("NotificationSettings.isInAppVibrationEnabled(currentAccount)", section)

@@ -1322,6 +1322,17 @@ public class FilterTabsView extends FrameLayout {
         adapter.notifyDataSetChanged();
     }
 
+    public void refreshTabs(boolean animated) {
+        allTabsWidth = 0;
+        for (int index = 0; index < tabs.size(); index++) {
+            allTabsWidth += tabs.get(index).getWidth(true) + dp(TAB_PADDING_WIDTH);
+        }
+        invalidated = true;
+        requestLayout();
+        listView.setItemAnimator(animated ? itemAnimator : null);
+        adapter.notifyDataSetChanged();
+    }
+
     public void setColors(int line, int active, int unactive, int selector, int background) {
         tabLineColorKey = line;
         backgroundColorKey = background;

@@ -44,6 +44,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.FluxGramChatListPreviewCell;
+import org.telegram.ui.Components.FluxGramFolderPreviewCell;
 import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
 import org.telegram.ui.Components.FluxGramSettingsHeaderCell;
@@ -92,12 +93,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int REVEAL_ARCHIVE_ON_PULL = 34;
     private static final int DISABLE_UNARCHIVE_SWIPE = 35;
     private static final int FOLDER_PRESENTATION = 36;
+    private static final int FOLDER_COUNTER = 37;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
     private UniversalRecyclerView listView;
     private FluxGramFormattingPreviewCell formattingPreview;
     private FluxGramChatListPreviewCell appearancePreview;
+    private FluxGramFolderPreviewCell folderPreview;
     private boolean destroyed;
 
     private final Runnable refresh = () -> {
@@ -106,6 +109,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
     };
     private final Runnable rebuildFormattingFragments = () -> {
+        if (!destroyed && parentLayout != null) {
+            parentLayout.rebuildFragments(0);
+        }
+    };
+    private final Runnable rebuildFolderFragments = () -> {
         if (!destroyed && parentLayout != null) {
             parentLayout.rebuildFragments(0);
         }
@@ -135,6 +143,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     public void onFragmentDestroy() {
         destroyed = true;
         AndroidUtilities.cancelRunOnUIThread(rebuildFormattingFragments);
+        AndroidUtilities.cancelRunOnUIThread(rebuildFolderFragments);
         ExternalPlugins.removeListener(refresh);
         PluginDeveloperBridge.removeListener(refresh);
         super.onFragmentDestroy();
@@ -177,6 +186,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
             );
         } else if (section == APPEARANCE) {
             appearancePreview = new FluxGramChatListPreviewCell(
+                    context, currentAccount, getResourceProvider()
+            );
+            folderPreview = new FluxGramFolderPreviewCell(
                     context, currentAccount, getResourceProvider()
             );
         }
@@ -378,10 +390,16 @@ public class FluxGramSettingsActivity extends BaseFragment {
             ).setChecked(AppearanceSettings.forcesSnow(currentAccount)));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
+            items.add(UItem.asCustomShadow(folderPreview, 58));
             items.add(UItem.asButton(
                     FOLDER_PRESENTATION,
                     LocaleController.getString(R.string.FluxGramFolderPresentation),
                     folderPresentationOption(FolderSettings.getPolicy(currentAccount).getPresentationMode())
+            ));
+            items.add(UItem.asButton(
+                    FOLDER_COUNTER,
+                    LocaleController.getString(R.string.FluxGramFolderCounter),
+                    folderCounterOption(FolderSettings.getPolicy(currentAccount).getCounterMode())
             ));
             items.add(UItem.asShadow(null));
 
@@ -709,6 +727,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 showAppearanceTitleDialog();
             } else if (item.id == FOLDER_PRESENTATION) {
                 showFolderPresentationDialog();
+            } else if (item.id == FOLDER_COUNTER) {
+                showFolderCounterDialog();
             } else if (item.id == HIDE_ACTION_BAR_STATUS) {
                 boolean hidden = !AppearanceSettings.hidesActionBarStatus(currentAccount);
                 AppearanceSettings.setHidesActionBarStatus(currentAccount, hidden);
@@ -908,10 +928,51 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 .setTitle(LocaleController.getString(R.string.FluxGramFolderPresentation))
                 .setItems(options, (dialog, index) -> {
                     FolderSettings.setPresentationMode(currentAccount, index);
-                    parentLayout.rebuildFragments(0);
+                    updateFolderPreview();
                 })
                 .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                 .create());
+    }
+
+    private CharSequence folderCounterOption(int mode) {
+        if (mode == FolderSettings.COUNTER_UNMUTED) {
+            return LocaleController.getString(R.string.FluxGramFolderCounterUnmuted);
+        }
+        if (mode == FolderSettings.COUNTER_HIDDEN) {
+            return LocaleController.getString(R.string.FluxGramFolderCounterHidden);
+        }
+
+        return LocaleController.getString(R.string.FluxGramFolderCounterAll);
+    }
+
+    private void showFolderCounterDialog() {
+        CharSequence[] options = {
+                folderCounterOption(FolderSettings.COUNTER_ALL),
+                folderCounterOption(FolderSettings.COUNTER_UNMUTED),
+                folderCounterOption(FolderSettings.COUNTER_HIDDEN)
+        };
+        int selected = FolderSettings.getPolicy(currentAccount).getCounterMode();
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramFolderCounter))
+                .setItems(options, (dialog, index) -> {
+                    FolderSettings.setCounterMode(currentAccount, index);
+                    updateFolderPreview();
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void updateFolderPreview() {
+        folderPreview.updateFolders(true);
+        AndroidUtilities.cancelRunOnUIThread(rebuildFolderFragments);
+        AndroidUtilities.runOnUIThread(rebuildFolderFragments, 250);
     }
 
     private void showAppearanceTitleDialog() {

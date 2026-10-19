@@ -82,6 +82,7 @@ import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.glass.GlassTabView;
 import org.telegram.ui.fluxgram.FolderPresentation;
+import org.telegram.ui.fluxgram.FolderUnreadCounter;
 import org.telegram.ui.Stories.recorder.HintView2;
 import org.telegram.ui.Wallet.WalletActivity;
 
@@ -482,15 +483,17 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             if (!folder.isDefault()) {
                 title = MessageObject.replaceAnimatedEmoji(title, folder.entities, folderItem.getTextView().getPaint().getFontMetricsInt());
             }
-            final int unreadCount = folder.isDefault()
-                    ? MessagesStorage.getInstance(currentAccount).getMainUnreadCount()
-                    : folder.unreadCount;
+            final int unreadCount = FolderUnreadCounter.resolve(currentAccount, folder, folderPolicy);
             if (unreadCount > 0) {
                 final SpannableStringBuilder titleWithCounter = new SpannableStringBuilder(title);
                 final int counterStart = titleWithCounter.length();
                 titleWithCounter.append(String.valueOf(unreadCount));
                 titleWithCounter.setSpan(
-                        new FolderCounterSpan(unreadCount, hasUnmutedUnreadDialogs(folder)),
+                        new FolderCounterSpan(
+                                unreadCount,
+                                folderPolicy.getCounterMode() == FolderSettings.COUNTER_UNMUTED
+                                        || hasUnmutedUnreadDialogs(folder)
+                        ),
                         counterStart,
                         titleWithCounter.length(),
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE

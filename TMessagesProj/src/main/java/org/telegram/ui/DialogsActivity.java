@@ -277,6 +277,7 @@ import org.telegram.ui.community.cells.CommunityRequestsCell;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogStoriesCell;
 import org.telegram.ui.fluxgram.FolderPresentation;
+import org.telegram.ui.fluxgram.FolderUnreadCounter;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -3748,13 +3749,30 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         return 0;
                     }
                     if (tabId == filterTabsView.getDefaultTabId()) {
+                        if (usesFluxGramRootDialogsAppearance()) {
+                            return FolderUnreadCounter.resolve(
+                                    currentAccount,
+                                    null,
+                                    FolderSettings.getPolicy(currentAccount)
+                            );
+                        }
+
                         return getMessagesStorage().getMainUnreadCount();
                     }
                     ArrayList<MessagesController.DialogFilter> dialogFilters = getMessagesController().getDialogFilters();
                     if (tabId < 0 || tabId >= dialogFilters.size()) {
                         return 0;
                     }
-                    return getMessagesController().getDialogFilters().get(tabId).unreadCount;
+                    MessagesController.DialogFilter filter = dialogFilters.get(tabId);
+                    if (usesFluxGramRootDialogsAppearance()) {
+                        return FolderUnreadCounter.resolve(
+                                currentAccount,
+                                filter,
+                                FolderSettings.getPolicy(currentAccount)
+                        );
+                    }
+
+                    return filter.unreadCount;
                 }
 
                 @Override
