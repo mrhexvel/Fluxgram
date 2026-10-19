@@ -166,6 +166,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
@@ -664,6 +665,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int infoHeaderRowEmpty;
     private int infoEndRowEmpty;
     private int phoneRow;
+    private int profileIdRow;
+    private int profileDcRow;
     private int noteRow;
     private int locationRow;
     private int userInfoRow;
@@ -7393,7 +7396,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
-        if (position == usernameRow || position == setUsernameRow) {
+        if (position == profileIdRow) {
+            long id = userId != 0 ? userId : chatId;
+            AndroidUtilities.addToClipboard(String.valueOf(id));
+            BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.FluxGramProfileIdCopied)).show();
+
+            return true;
+        } else if (position == usernameRow || position == setUsernameRow) {
             final String username;
             final TLRPC.TL_username usernameObj;
             if (userId != 0) {
@@ -10653,6 +10662,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         infoHeaderRowEmpty = -1;
         infoEndRowEmpty = -1;
         phoneRow = -1;
+        profileIdRow = -1;
+        profileDcRow = -1;
         noteRow = -1;
         userInfoRow = -1;
         locationRow = -1;
@@ -10827,6 +10838,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 String username = UserObject.getPublicUsername(user);
                 boolean hasInfo = userInfo != null && !TextUtils.isEmpty(userInfo.about) || user != null && !TextUtils.isEmpty(username);
                 boolean hasPhone = user != null && (!TextUtils.isEmpty(user.phone) || !TextUtils.isEmpty(vcardPhone));
+                boolean hideOwnPhone = user != null
+                        && user.id == getUserConfig().getClientUserId()
+                        && ProfileDisplaySettings.hidesOwnPhone();
 
                 if (!isBot && userInfo != null && userInfo.unofficial_security_risk) {
                     unofficialSecurityRiskRow = rowCount++;
@@ -10841,7 +10855,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
                 infoStartRow = rowCount;
-                if (!isBot && (hasPhone || !hasInfo)) {
+                if (!isBot && !hideOwnPhone && (hasPhone || !hasInfo)) {
                     phoneRow = rowCount++;
                 }
                 if (userInfo != null && !TextUtils.isEmpty(userInfo.about)) {
@@ -10863,6 +10877,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (userInfo.note != null) {
                         noteRow = rowCount++;
                     }
+                }
+                if (ProfileDisplaySettings.showsIdAndDc()) {
+                    profileIdRow = rowCount++;
+                    profileDcRow = rowCount++;
                 }
                 if (actionsView == null && userId != getUserConfig().getClientUserId()) {
                     notificationsRow = rowCount++;
@@ -10985,7 +11003,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 sharedMediaRow = rowCount++;
             }
         } else if (chatId != 0) {
-            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat)) {
+            boolean showProfileIdentity = ProfileDisplaySettings.showsIdAndDc();
+            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat) || showProfileIdentity) {
                 if (emptyRow < 0 && emptyRow2 < 0) {
                     if (hasMusic || peerColor != null || actionsView == null) {
                         emptyRow2 = rowCount++;
@@ -11007,6 +11026,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
+                }
+                if (showProfileIdentity) {
+                    profileIdRow = rowCount++;
+                    profileDcRow = rowCount++;
                 }
             }
             if (emptyRow < 0 && emptyRow2 < 0) {
@@ -11493,7 +11516,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 getFileLoader().loadFile(imageLocation, user, null, FileLoader.PRIORITY_LOW, 1);
             }
 
-            CharSequence newString = UserObject.getUserName(user);
+            CharSequence newString = user.id == getUserConfig().getClientUserId()
+                    && ProfileDisplaySettings.hidesOwnPhone()
+                    ? ProfileDisplaySettings.getNameWithoutPhone(user)
+                    : UserObject.getUserName(user);
             String newString2;
             boolean hiddenStatusButton = false;
             if (user.id == getUserConfig().getClientUserId()) {
@@ -13703,6 +13729,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                         isFragmentPhoneNumber = phoneNumber != null && phoneNumber.matches("888\\d{8}");
                         detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), false);
+                    } else if (position == profileIdRow) {
+                        long id = userId != 0 ? userId : chatId;
+                        int label = userId != 0 ? R.string.FluxGramUserId : R.string.FluxGramChatId;
+                        detailCell.setTextAndValue(String.valueOf(id), LocaleController.getString(label), false);
+                    } else if (position == profileDcRow) {
+                        int dc = userId != 0
+                                ? ProfileDisplaySettings.getProfilePhotoDc(getMessagesController().getUser(userId))
+                                : ProfileDisplaySettings.getProfilePhotoDc(currentChat);
+                        String value = dc > 0 ? String.valueOf(dc) : LocaleController.getString(R.string.Unavailable);
+                        detailCell.setTextAndValue(value, LocaleController.getString(R.string.FluxGramProfilePhotoDc), false);
                     } else if (position == noteRow) {
                         final TLRPC.UserFull userInfo = getMessagesController().getUserFull(userId);
                         if (userInfo == null) return;
@@ -13788,7 +13824,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     } else if (position == numberRow) {
                         TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
                         String value;
-                        if (user != null && user.phone != null && user.phone.length() != 0) {
+                        if (ProfileDisplaySettings.hidesOwnPhone()) {
+                            value = LocaleController.getString(R.string.FluxGramPhoneHiddenValue);
+                        } else if (user != null && user.phone != null && user.phone.length() != 0) {
                             value = PhoneFormat.getInstance().format("+" + user.phone);
                         } else {
                             value = LocaleController.getString(R.string.NumberUnknown);
@@ -14473,8 +14511,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
+            int position = holder.getAdapterPosition();
+            if (position == profileDcRow) {
+                return false;
+            }
+            if (position == profileIdRow) {
+                return true;
+            }
             if (notificationRow != -1) {
-                int position = holder.getAdapterPosition();
                 return position == notificationRow || position == numberRow || position == privacyRow ||
                         position == languageRow || position == setUsernameRow || position == bioRow ||
                         position == versionRow || position == dataRow || position == chatRow ||
@@ -14491,7 +14535,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (object instanceof TLRPC.User) {
                     TLRPC.User user = (TLRPC.User) object;
                     if (UserObject.isUserSelf(user)) {
-                        int position = holder.getAdapterPosition();
                         return position >= membersStartRow && position < membersEndRow;
                     }
                 }
@@ -14512,7 +14555,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow ||
+                    position == profileIdRow || position == profileDcRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -15911,6 +15955,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, infoHeaderRowEmpty, sparseIntArray);
             put(++pointer, infoEndRowEmpty, sparseIntArray);
             put(++pointer, phoneRow, sparseIntArray);
+            put(++pointer, profileIdRow, sparseIntArray);
+            put(++pointer, profileDcRow, sparseIntArray);
             put(++pointer, noteRow, sparseIntArray);
             put(++pointer, locationRow, sparseIntArray);
             put(++pointer, userInfoRow, sparseIntArray);

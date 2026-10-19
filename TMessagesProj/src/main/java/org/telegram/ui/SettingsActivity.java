@@ -86,6 +86,7 @@ import org.telegram.utils.settings.SharedSettings;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -533,14 +534,20 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         avatarDrawable.setInfo(user);
         avatarView.setForUserOrChat(user, avatarDrawable);
-        titleView.setText(UserObject.getUserName(user));
+        boolean hidePhone = ProfileDisplaySettings.hidesOwnPhone();
+        titleView.setText(hidePhone
+                ? ProfileDisplaySettings.getNameWithoutPhone(user)
+                : UserObject.getUserName(user));
         final StringBuilder sb = new StringBuilder();
-        if (user != null) {
+        if (!hidePhone && user != null && !TextUtils.isEmpty(user.phone)) {
             sb.append(PhoneFormat.getInstance().format("+" + user.phone));
         }
         final String username = UserObject.getPublicUsername(user);
         if (username != null) {
-            sb.append(" • @").append(username);
+            if (sb.length() > 0) {
+                sb.append(" • ");
+            }
+            sb.append("@").append(username);
         }
         subtitleView.setText(sb);
 
@@ -1065,7 +1072,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             avatarDrawable.setInfo(account, user);
             avatarView.getImageReceiver().setCurrentAccount(account);
             avatarView.setForUserOrChat(user, avatarDrawable);
-            textView.setText(UserObject.getUserName(user));
+            textView.setText(ProfileDisplaySettings.hidesOwnPhone()
+                    ? ProfileDisplaySettings.getNameWithoutPhone(user)
+                    : UserObject.getUserName(user));
 
             botDrawable.setCurrentAccount(account);
             emojiStatusDrawable.setCurrentAccount(account);

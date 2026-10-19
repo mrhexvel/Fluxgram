@@ -19,6 +19,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
+import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginDeveloperBridge;
@@ -68,6 +69,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int FULL_NUMBER_FORMAT = 22;
     private static final int SHOW_TIME_SECONDS = 23;
     private static final int RELATIVE_LAST_SEEN = 24;
+    private static final int HIDE_OWN_PHONE = 25;
+    private static final int SHOW_PROFILE_ID_DC = 26;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -227,6 +230,16 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     RELATIVE_LAST_SEEN,
                     LocaleController.getString(R.string.FluxGramRelativeLastSeen)
             ).setChecked(GeneralSettings.usesRelativeLastSeen()));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramProfile);
+            items.add(UItem.asCheck(
+                    HIDE_OWN_PHONE,
+                    LocaleController.getString(R.string.FluxGramHideOwnPhone)
+            ).setChecked(ProfileDisplaySettings.hidesOwnPhone()));
+            items.add(UItem.asCheck(
+                    SHOW_PROFILE_ID_DC,
+                    LocaleController.getString(R.string.FluxGramShowProfileIdDc)
+            ).setChecked(ProfileDisplaySettings.showsIdAndDc()));
             items.add(UItem.asShadow(null));
             items.add(UItem.asButton(
                     GHOST_MODE,
@@ -530,6 +543,16 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !GeneralSettings.usesRelativeLastSeen();
                 GeneralSettings.setUsesRelativeLastSeen(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == HIDE_OWN_PHONE) {
+                boolean hidden = !ProfileDisplaySettings.hidesOwnPhone();
+                ProfileDisplaySettings.setHidesOwnPhone(hidden);
+                ((TextCheckCell) view).setChecked(hidden);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_PROFILE_ID_DC) {
+                boolean shown = !ProfileDisplaySettings.showsIdAndDc();
+                ProfileDisplaySettings.setShowsIdAndDc(shown);
+                ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
             } else if (item.id == GHOST_MODE) {
                 presentFragment(new FluxGramGhostModeActivity());

@@ -299,6 +299,14 @@
     <string name="FluxGramFullNumberFormat">Показывать числа полностью</string>
     <string name="FluxGramShowTimeSeconds">Показывать секунды во времени</string>
     <string name="FluxGramRelativeLastSeen">Относительное время последнего посещения</string>
+    <string name="FluxGramProfile">Профиль</string>
+    <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>
+    <string name="FluxGramShowProfileIdDc">Показывать ID профиля и DC фотографии</string>
+    <string name="FluxGramPhoneHiddenValue">Номер телефона скрыт</string>
+    <string name="FluxGramUserId">ID пользователя</string>
+    <string name="FluxGramChatId">ID чата</string>
+    <string name="FluxGramProfileIdCopied">ID скопирован в буфер обмена</string>
+    <string name="FluxGramProfilePhotoDc">DC фотографии профиля</string>
     <string name="FluxGramAppearance">Внешний вид</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Шрифты</string>

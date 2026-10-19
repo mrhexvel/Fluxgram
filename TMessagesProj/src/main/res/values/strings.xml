@@ -11271,6 +11271,14 @@
     <string name="FluxGramFullNumberFormat">Show full numbers</string>
     <string name="FluxGramShowTimeSeconds">Show seconds in time</string>
     <string name="FluxGramRelativeLastSeen">Show relative last seen</string>
+    <string name="FluxGramProfile">Profile</string>
+    <string name="FluxGramHideOwnPhone">Hide my phone number</string>
+    <string name="FluxGramShowProfileIdDc">Show profile ID and photo DC</string>
+    <string name="FluxGramPhoneHiddenValue">Phone number hidden</string>
+    <string name="FluxGramUserId">User ID</string>
+    <string name="FluxGramChatId">Chat ID</string>
+    <string name="FluxGramProfileIdCopied">ID copied to clipboard</string>
+    <string name="FluxGramProfilePhotoDc">Profile photo DC</string>
     <string name="FluxGramAppearance">Appearance</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Fonts</string>
