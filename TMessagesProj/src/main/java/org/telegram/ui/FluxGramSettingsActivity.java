@@ -86,6 +86,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int INCREASE_DOWNLOAD_SPEED = 30;
     private static final int INCREASE_UPLOAD_SPEED = 31;
     private static final int SAVE_FILES_DIRECTORY = 32;
+    private static final int HIDE_ARCHIVE_ABOVE_LIST = 33;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -370,6 +371,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         if (section == CHATS) {
+            addSectionLabel(items, R.string.ArchivedChats);
+            items.add(UItem.asCheck(
+                    HIDE_ARCHIVE_ABOVE_LIST,
+                    LocaleController.getString(R.string.HideAboveTheList)
+            ).setChecked(SharedConfig.archiveHidden));
+            items.add(UItem.asShadow(null));
             items.add(UItem.asButton(
                     STEALTH,
                     R.drawable.msg_archive,
@@ -650,8 +657,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
             return;
         }
 
-        if (section == CHATS && item.id == STEALTH) {
-            presentFragment(new FluxGramStealthActivity());
+        if (section == CHATS) {
+            if (item.id == HIDE_ARCHIVE_ABOVE_LIST) {
+                SharedConfig.toggleArchiveHidden();
+                ((TextCheckCell) view).setChecked(SharedConfig.archiveHidden);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == STEALTH) {
+                presentFragment(new FluxGramStealthActivity());
+            }
 
             return;
         }
