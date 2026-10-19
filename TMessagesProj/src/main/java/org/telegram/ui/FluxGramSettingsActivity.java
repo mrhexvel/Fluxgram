@@ -13,6 +13,7 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
@@ -62,6 +63,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int FORCE_SNOW = 18;
     private static final int FONTS = 19;
     private static final int PLUGIN_DEVELOPER_ACCESS = 20;
+    private static final int USE_SYSTEM_EMOJI = 21;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -227,6 +229,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramFonts),
                     fontModeOption(FontSettings.getMode())
             ));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramEmoji);
+            items.add(UItem.asCheck(
+                    USE_SYSTEM_EMOJI,
+                    LocaleController.getString(R.string.FluxGramUseSystemEmoji)
+            ).setChecked(SharedConfig.useSystemEmoji));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramChatList);
             items.add(UItem.asCustom(appearancePreview, 88));
@@ -505,6 +513,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
         if (section == APPEARANCE) {
             if (item.id == FONTS) {
                 presentFragment(new FluxGramFontSettingsActivity());
+            } else if (item.id == USE_SYSTEM_EMOJI) {
+                SharedConfig.toggleUseSystemEmoji();
+                ((TextCheckCell) view).setChecked(SharedConfig.useSystemEmoji);
+                parentLayout.rebuildFragments(0);
             } else if (item.id == ACTION_BAR_TITLE) {
                 showAppearanceTitleDialog();
             } else if (item.id == HIDE_ACTION_BAR_STATUS) {

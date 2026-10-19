@@ -1115,6 +1115,14 @@ public class SharedConfig {
         editor.apply();
     }
 
+    public static void toggleUseSystemEmoji() {
+        useSystemEmoji = !useSystemEmoji;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putBoolean("useSystemEmoji", useSystemEmoji);
+        editor.apply();
+    }
+
     public static void toggleUseSystemBoldFont() {
         useSystemBoldFont = !useSystemBoldFont;
         AndroidUtilities.mediumTypeface = null;

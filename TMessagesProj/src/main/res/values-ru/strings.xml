@@ -298,6 +298,8 @@
     <string name="FluxGramAppearance">Внешний вид</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Шрифты</string>
+    <string name="FluxGramEmoji">Эмодзи</string>
+    <string name="FluxGramUseSystemEmoji">Использовать системные эмодзи</string>
     <string name="FluxGramFontMode">Режим шрифта</string>
     <string name="FluxGramFontModeInfo">Настройка общая для всех аккаунтов. Предпросмотр показывает сохранённый выбор. Полностью перезапустите FluxGram, чтобы применить его к интерфейсу.</string>
     <string name="FluxGramFontTelegram">Telegram</string>

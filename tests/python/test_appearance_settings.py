@@ -58,6 +58,18 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("statusDrawable.attach();", preview)
         self.assertIn("statusDrawable.detach();", preview)
 
+    def test_system_emoji_reuses_shared_config(self):
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        appearance = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        shared = (JAVA / "messenger/SharedConfig.java").read_text()
+        emoji = (JAVA / "messenger/Emoji.java").read_text()
+
+        self.assertIn(".setChecked(SharedConfig.useSystemEmoji)", activity)
+        self.assertIn("SharedConfig.toggleUseSystemEmoji();", activity)
+        self.assertIn('editor.putBoolean("useSystemEmoji", useSystemEmoji);', shared)
+        self.assertIn("if (SharedConfig.useSystemEmoji", emoji)
+        self.assertNotIn("useSystemEmoji", appearance)
+
     def test_main_dialogs_title_hook_is_fail_closed(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()
         stories = (JAVA / "ui/fluxgram/appearance/FluxGramDialogStoriesCell.java").read_text()
