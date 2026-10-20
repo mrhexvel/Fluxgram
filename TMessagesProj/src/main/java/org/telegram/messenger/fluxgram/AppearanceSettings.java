@@ -27,6 +27,7 @@ public final class AppearanceSettings {
     private static final String SETTINGS_SECTION_RADIUS = "settings_section_radius";
     private static final String SETTINGS_DIVIDER_STYLE = "settings_divider_style";
     private static final String GLASS_OUTLINE_STYLE = "glass_outline_style";
+    private static final String GOOEY_AVATAR = "gooey_avatar";
 
     public static final int TITLE_APP_NAME = 0;
     public static final int TITLE_USERNAME = 1;
@@ -202,6 +203,14 @@ public final class AppearanceSettings {
         setInt(account, GLASS_OUTLINE_STYLE, style);
     }
 
+    public static boolean usesGooeyAvatar(int account) {
+        return getBoolean(account, GOOEY_AVATAR, true);
+    }
+
+    public static void setUsesGooeyAvatar(int account, boolean enabled) {
+        setBoolean(account, GOOEY_AVATAR, enabled);
+    }
+
     public static CharSequence getActionBarTitle(int account) {
         int mode = getTitleMode(account);
 
@@ -225,9 +234,13 @@ public final class AppearanceSettings {
     }
 
     private static boolean getBoolean(int account, String key) {
+        return getBoolean(account, key, false);
+    }
+
+    private static boolean getBoolean(int account, String key, boolean defaultValue) {
         SharedPreferences preferences = activePreferences(account);
 
-        return preferences != null && preferences.getBoolean(key, false);
+        return preferences == null ? defaultValue : preferences.getBoolean(key, defaultValue);
     }
 
     private static void setBoolean(int account, String key, boolean value) {

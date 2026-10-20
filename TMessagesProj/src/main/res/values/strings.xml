@@ -11343,6 +11343,7 @@
     <string name="FluxGramFonts">Fonts</string>
     <string name="FluxGramFontsAndEmoji">Fonts and emoji</string>
     <string name="FluxGramUseSystemEmoji">Use system emoji</string>
+    <string name="FluxGramGooeyAvatar">Gooey avatar</string>
     <string name="FluxGramFontMode">Font mode</string>
     <string name="FluxGramFontModeInfo">This setting is global for all accounts. The preview shows the saved selection. Fully restart FluxGram to apply it to the interface.</string>
     <string name="FluxGramFontTelegram">Telegram</string>

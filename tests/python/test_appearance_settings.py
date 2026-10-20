@@ -28,6 +28,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn('"settings_section_radius"', source)
         self.assertIn('"settings_divider_style"', source)
         self.assertIn('"glass_outline_style"', source)
+        self.assertIn('"gooey_avatar"', source)
 
     def test_title_modes_have_safe_fallbacks(self):
         source = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
@@ -98,6 +99,23 @@ class AppearanceSettingsTest(unittest.TestCase):
             activity,
         )
         self.assertNotIn("new AppIconsSelectorCell", activity)
+
+    def test_gooey_avatar_toggle_controls_only_profile_effect(self):
+        settings = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        profile = (JAVA / "ui/ProfileActivity.java").read_text()
+        gooey = (JAVA / "ui/Components/ProfileGooeyView.java").read_text()
+
+        self.assertIn("getBoolean(account, GOOEY_AVATAR, true)", settings)
+        self.assertIn("AppearanceSettings.usesGooeyAvatar(currentAccount)", activity)
+        self.assertIn("AppearanceSettings.setUsesGooeyAvatar(currentAccount, enabled)", activity)
+        update = profile.split("private void updateGooey()", 1)[1].split(
+            "private int getHeaderOnlyExtraHeight()", 1
+        )[0]
+        self.assertIn("!AppearanceSettings.usesGooeyAvatar(currentAccount)", update)
+        self.assertIn("avatarGooey.setGooeyEnabled(false);", update)
+        self.assertIn("avatarGooey.setGooeyEnabled(pullUpProgress > 0", update)
+        self.assertNotIn("AppearanceSettings", gooey)
 
     def test_main_dialogs_title_hook_is_fail_closed(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()
