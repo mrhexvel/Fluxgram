@@ -103,6 +103,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int UNIFIED_AVATAR_RADIUS = 39;
     private static final int SETTINGS_DIVIDER_STYLE = 40;
     private static final int GLASS_OUTLINE_STYLE = 41;
+    private static final int APP_ICON = 42;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -447,6 +448,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     GLASS_OUTLINE_STYLE,
                     LocaleController.getString(R.string.FluxGramGlassOutlineStyle),
                     glassOutlineStyleOption(AppearanceSettings.getGlassOutlineStyle(currentAccount))
+            ));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.OtherSettings);
+            items.add(UItem.asButton(
+                    APP_ICON,
+                    R.drawable.msg_palette,
+                    LocaleController.getString(R.string.AppIcon)
             ));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
@@ -839,6 +847,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 showDividerStyleDialog();
             } else if (item.id == GLASS_OUTLINE_STYLE) {
                 showGlassOutlineStyleDialog();
+            } else if (item.id == APP_ICON) {
+                presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_BASIC));
+                AndroidUtilities.scrollToFragmentRow(parentLayout, "appIconSelectorRow");
             }
 
             return;

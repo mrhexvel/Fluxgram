@@ -83,6 +83,22 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("if (SharedConfig.useSystemEmoji", emoji)
         self.assertNotIn("useSystemEmoji", appearance)
 
+    def test_app_icon_opens_existing_telegram_selector(self):
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertIn("addSectionLabel(items, R.string.OtherSettings);", activity)
+        self.assertIn("UItem.asButton(\n                    APP_ICON", activity)
+        self.assertIn("LocaleController.getString(R.string.AppIcon)", activity)
+        self.assertIn(
+            "presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_BASIC));",
+            activity,
+        )
+        self.assertIn(
+            'AndroidUtilities.scrollToFragmentRow(parentLayout, "appIconSelectorRow");',
+            activity,
+        )
+        self.assertNotIn("new AppIconsSelectorCell", activity)
+
     def test_main_dialogs_title_hook_is_fail_closed(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()
         stories = (JAVA / "ui/fluxgram/appearance/FluxGramDialogStoriesCell.java").read_text()
