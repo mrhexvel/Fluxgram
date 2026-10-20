@@ -7422,6 +7422,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 && !inPreviewMode;
     }
 
+    private boolean usesFluxGramDialogAvatarGeometry() {
+        return usesFluxGramRootDialogsAppearance()
+                || initialDialogsType == DIALOGS_TYPE_DEFAULT
+                && !onlySelect
+                && folderId == 1
+                && communityId == 0
+                && searchString == null
+                && !inPreviewMode;
+    }
+
     private int getSearchFieldHeight() {
         if (usesFluxGramRootDialogsAppearance()
                 && AppearanceSettings.hidesDialogsSearchBar(currentAccount)) {
@@ -7436,7 +7446,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         adapter.setFluxGramAppearanceOptions(
                 enabled && AppearanceSettings.showsSenderMiniAvatars(currentAccount),
                 enabled && AppearanceSettings.hidesFloatingButton(currentAccount),
-                enabled
+                usesFluxGramDialogAvatarGeometry()
         );
     }
 

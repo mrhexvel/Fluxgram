@@ -182,17 +182,27 @@ class AppearanceSettingsTest(unittest.TestCase):
         )
         self.assertIn("radius < 0 || radius > AvatarGeometry.MAX_CORNER_RADIUS", settings)
 
-    def test_avatar_geometry_is_root_dialog_list_only(self):
+    def test_avatar_geometry_is_limited_to_root_and_archive_dialog_lists(self):
         activity = (JAVA / "ui/DialogsActivity.java").read_text()
         adapter = (JAVA / "ui/Adapters/DialogsAdapter.java").read_text()
         base = (JAVA / "ui/Cells/DialogCell.java").read_text()
         cell = (JAVA / "ui/Cells/FluxGramDialogCell.java").read_text()
 
+        eligibility = activity.split(
+            "private boolean usesFluxGramDialogAvatarGeometry()", 1
+        )[1].split("private int getSearchFieldHeight()", 1)[0]
+        self.assertIn("usesFluxGramRootDialogsAppearance()", eligibility)
+        self.assertIn("initialDialogsType == DIALOGS_TYPE_DEFAULT", eligibility)
+        self.assertIn("!onlySelect", eligibility)
+        self.assertIn("folderId == 1", eligibility)
+        self.assertIn("communityId == 0", eligibility)
+        self.assertIn("searchString == null", eligibility)
+        self.assertIn("!inPreviewMode", eligibility)
         configure = activity.split(
             "private void configureFluxGramAppearance(DialogsAdapter adapter)", 1
         )[1].split("private void applyFluxGramDialogsAppearance()", 1)[0]
         self.assertIn("boolean enabled = usesFluxGramRootDialogsAppearance();", configure)
-        self.assertIn("enabled\n        );", configure)
+        self.assertIn("usesFluxGramDialogAvatarGeometry()", configure)
         self.assertIn("fluxGramAvatarGeometry = avatarGeometry;", adapter)
         self.assertIn("setAvatarGeometryEnabled(fluxGramAvatarGeometry);", adapter)
         self.assertIn("protected int resolveAvatarRoundRadius(", base)
