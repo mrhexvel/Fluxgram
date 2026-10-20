@@ -29,6 +29,7 @@ import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
+import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.messenger.fluxgram.TabletModeSettings;
@@ -52,6 +53,7 @@ import org.telegram.ui.Components.FluxGramFabShapePreviewCell;
 import org.telegram.ui.Components.FluxGramFolderPreviewCell;
 import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
+import org.telegram.ui.Components.FluxGramPredictiveBackIntensityCell;
 import org.telegram.ui.Components.FluxGramSectionRadiusCell;
 import org.telegram.ui.Components.FluxGramSettingsHeaderCell;
 import org.telegram.ui.Components.ItemOptions;
@@ -59,6 +61,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
 import org.telegram.ui.fluxgram.FluxGramSettingsSections;
+import org.telegram.ui.fluxgram.NavigationTransitionPolicy;
 
 import java.util.ArrayList;
 
@@ -111,6 +114,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int NAVIGATION = 45;
     private static final int TABLET_MODE = 46;
     private static final int BOTTOM_NAVIGATION = 47;
+    private static final int TRANSITION_STYLE = 48;
+    private static final int PREDICTIVE_BACK = 49;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -121,6 +126,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private FluxGramFabShapePreviewCell fabShapePreview;
     private FluxGramSectionRadiusCell sectionRadiusCell;
     private FluxGramFolderPreviewCell folderPreview;
+    private FluxGramPredictiveBackIntensityCell predictiveBackIntensityCell;
     private boolean destroyed;
 
     private final Runnable refresh = () -> {
@@ -236,6 +242,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
             );
             folderPreview = new FluxGramFolderPreviewCell(
                     context, currentAccount, getResourceProvider()
+            );
+        } else if (section == NAVIGATION) {
+            predictiveBackIntensityCell = new FluxGramPredictiveBackIntensityCell(
+                    context,
+                    getResourceProvider()
             );
         }
 
@@ -531,6 +542,19 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramBottomNavigation),
                     bottomNavigationOption(SharedConfig.bottomNavigationMode)
             ));
+            items.add(UItem.asButton(
+                    TRANSITION_STYLE,
+                    LocaleController.getString(R.string.FluxGramTransitionStyle),
+                    transitionStyleOption(SharedConfig.navigationTransitionStyle)
+            ));
+            items.add(UItem.asCheck(
+                    PREDICTIVE_BACK,
+                    LocaleController.getString(R.string.FluxGramPredictiveBack)
+            ).setChecked(SharedConfig.predictiveBackEnabled));
+            if (SharedConfig.predictiveBackEnabled) {
+                predictiveBackIntensityCell.update();
+                items.add(UItem.asCustom(predictiveBackIntensityCell, 104));
+            }
             items.add(UItem.asShadow(LocaleController.getString(
                     R.string.FluxGramNavigationInfo)));
 
@@ -835,6 +859,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 showTabletModeDialog();
             } else if (item.id == BOTTOM_NAVIGATION) {
                 showBottomNavigationDialog();
+            } else if (item.id == TRANSITION_STYLE) {
+                showTransitionStyleDialog();
+            } else if (item.id == PREDICTIVE_BACK) {
+                confirmPredictiveBackChange(!SharedConfig.predictiveBackEnabled);
             }
 
             return;
@@ -1194,6 +1222,77 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         return LocaleController.getString(R.string.FluxGramBottomNavigationFloating);
+    }
+
+    private String transitionStyleOption(int style) {
+        if (style == NavigationSettings.TRANSITION_AOSP) {
+            return LocaleController.getString(R.string.FluxGramTransitionStyleAosp);
+        }
+        if (style == NavigationSettings.TRANSITION_SPRING) {
+            return LocaleController.getString(R.string.FluxGramTransitionStyleSpring);
+        }
+
+        return LocaleController.getString(R.string.FluxGramTransitionStyleDefault);
+    }
+
+    private void showTransitionStyleDialog() {
+        CharSequence[] options = {
+                transitionStyleOption(NavigationSettings.TRANSITION_DEFAULT),
+                transitionStyleOption(NavigationSettings.TRANSITION_AOSP),
+                transitionStyleOption(NavigationSettings.TRANSITION_SPRING)
+        };
+        int selected = SharedConfig.navigationTransitionStyle;
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramTransitionStyle))
+                .setItems(options, (dialog, index) -> {
+                    SharedConfig.setNavigationTransitionStyle(index);
+                    if (!AndroidUtilities.isTablet()) {
+                        NavigationTransitionPolicy.apply(parentLayout, index);
+                    }
+                    listView.adapter.update(true);
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void confirmPredictiveBackChange(boolean enabled) {
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramPredictiveBack))
+                .setMessage(LocaleController.getString(R.string.FluxGramPredictiveBackRestartMessage))
+                .setPositiveButton(LocaleController.getString(R.string.FluxGramRestartNow),
+                        (dialog, which) -> restartWithPredictiveBack(enabled))
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void restartWithPredictiveBack(boolean enabled) {
+        Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+
+        Intent intent = activity.getPackageManager().getLaunchIntentForPackage(
+                activity.getPackageName());
+        if (intent == null || !SharedConfig.setPredictiveBackEnabled(enabled)) {
+            showInfo(
+                    LocaleController.getString(R.string.FluxGramPredictiveBack),
+                    LocaleController.getString(R.string.FluxGramPredictiveBackRestartError)
+            );
+
+            return;
+        }
+
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        activity.finishAffinity();
+        activity.startActivity(intent);
+        System.exit(0);
     }
 
     private void showBottomNavigationDialog() {

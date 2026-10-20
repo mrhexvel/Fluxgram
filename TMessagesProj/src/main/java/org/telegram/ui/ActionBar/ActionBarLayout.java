@@ -17,6 +17,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.TimeInterpolator;
 import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.Dialog;
@@ -614,6 +615,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     private DecelerateInterpolator decelerateInterpolator = new DecelerateInterpolator(1.5f);
     private OvershootInterpolator overshootInterpolator = new OvershootInterpolator(1.02f);
     private AccelerateDecelerateInterpolator accelerateDecelerateInterpolator = new AccelerateDecelerateInterpolator();
+    private TimeInterpolator fallbackTransitionInterpolator;
+    private int fallbackTransitionDuration = 150;
+    private float fallbackBackDurationScale = 1.0f;
 
     public float innerTranslationX;
 
@@ -1601,11 +1605,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         float x = containerView.getX();
         AnimatorSet animatorSet = new AnimatorSet();
         float distToMove;
+        int duration;
         boolean overrideTransition = currentFragment.shouldOverrideSlideTransition(false, backAnimation);
 
         if (!backAnimation) {
             distToMove = Math.abs(containerView.getMeasuredWidth() - x);
-            int duration = Math.max((int) (200.0f / containerView.getMeasuredWidth() * distToMove), newBackTransitions() ? 380 : 50);
+            duration = Math.max((int) (200.0f / containerView.getMeasuredWidth() * distToMove), newBackTransitions() ? 380 : 50);
             if (!overrideTransition) {
                 animatorSet.playTogether(
                     ObjectAnimator.ofFloat(containerView, View.TRANSLATION_X, (containerView.getMeasuredWidth() + (predictiveBackInProgress ? dp(56) : 0))).setDuration(duration),
@@ -1617,7 +1622,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             }
         } else {
             distToMove = x;
-            int duration = Math.max((int) (320.0f / containerView.getMeasuredWidth() * distToMove), newBackTransitions() ? 320 : 120);
+            duration = Math.max((int) (320.0f / containerView.getMeasuredWidth() * distToMove), newBackTransitions() ? 320 : 120);
             if (!overrideTransition) {
                 animatorSet.playTogether(
                     ObjectAnimator.ofFloat(containerView, View.TRANSLATION_X, 0).setDuration(duration),
@@ -1630,6 +1635,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         }
 
         Animator customTransition = currentFragment.getCustomSlideTransition(false, backAnimation, distToMove);
+        boolean hasCustomTransition = customTransition != null;
         if (customTransition != null) {
             animatorSet.playTogether(customTransition);
         }
@@ -1638,8 +1644,14 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         if (lastFragment != null) {
             customTransition = lastFragment.getCustomSlideTransition(false, backAnimation, distToMove);
             if (customTransition != null) {
+                hasCustomTransition = true;
                 animatorSet.playTogether(customTransition);
             }
+        }
+
+        if (!overrideTransition && !hasCustomTransition && fallbackTransitionInterpolator != null) {
+            animatorSet.setDuration(Math.max(1, Math.round(duration * fallbackBackDurationScale)));
+            animatorSet.setInterpolator(fallbackTransitionInterpolator);
         }
 
         animatorSet.addListener(new AnimatorListenerAdapter() {
@@ -1827,7 +1839,14 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     dt = 18;
                 }
                 lastFrameTime = newTime;
-                float duration = preview && open ? 190.0f : 150.0f;
+                float duration;
+                if (preview) {
+                    duration = open ? 190.0f : 150.0f;
+                } else if (fallbackTransitionInterpolator != null) {
+                    duration = fallbackTransitionDuration;
+                } else {
+                    duration = 150.0f;
+                }
                 animationProgress += dt / duration;
                 if (animationProgress > 1.0f) {
                     animationProgress = 1.0f;
@@ -1870,7 +1889,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         interpolated = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(animationProgress);
                     }
                 } else {
-                    interpolated = decelerateInterpolator.getInterpolation(animationProgress);
+                    TimeInterpolator interpolator = fallbackTransitionInterpolator != null
+                            ? fallbackTransitionInterpolator
+                            : decelerateInterpolator;
+                    interpolated = interpolator.getInterpolation(animationProgress);
                 }
                 if (open) {
                     float clampedInterpolated = MathUtils.clamp(interpolated, 0, 1);
@@ -3269,6 +3291,16 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     @Override
     public void setUseAlphaAnimations(boolean value) {
         useAlphaAnimations = value;
+    }
+
+    public void setFallbackTransitionAnimation(
+            TimeInterpolator interpolator,
+            int duration,
+            float backDurationScale
+    ) {
+        fallbackTransitionInterpolator = interpolator;
+        fallbackTransitionDuration = Math.max(1, duration);
+        fallbackBackDurationScale = Math.max(0.1f, backDurationScale);
     }
 
     @Override

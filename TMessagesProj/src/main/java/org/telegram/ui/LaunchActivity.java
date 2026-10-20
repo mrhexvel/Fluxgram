@@ -137,6 +137,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.messenger.pip.PipActivityController;
 import org.telegram.messenger.pip.activity.IPipActivity;
 import org.telegram.messenger.pip.activity.IPipActivityHandler;
@@ -219,6 +220,7 @@ import org.telegram.ui.Components.spoilers.SpoilerEffect2;
 import org.telegram.ui.Components.voip.RTMPStreamPipOverlay;
 import org.telegram.ui.Components.voip.VoIPHelper;
 import org.telegram.ui.Gifts.GiftSheet;
+import org.telegram.ui.fluxgram.NavigationTransitionPolicy;
 import org.telegram.ui.Stars.ISuperRipple;
 import org.telegram.ui.Gifts.AuctionJoinSheet;
 import org.telegram.ui.Stars.StarGiftPreviewSheet;
@@ -457,6 +459,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         }
         AndroidUtilities.fillStatusBarHeight(this, false);
         actionBarLayout = new ActionBarLayout(this, true);
+        if (!AndroidUtilities.isTablet()) {
+            NavigationTransitionPolicy.apply(
+                    actionBarLayout,
+                    SharedConfig.navigationTransitionStyle
+            );
+        }
 
         frameLayout = new ActivityContentLayout(this);
         frameLayout.setClipToPadding(false);
@@ -736,7 +744,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         BackupAgent.requestBackup();
 
         RestrictedLanguagesSelectActivity.checkRestrictedLanguages(false);
-        if (Build.VERSION.SDK_INT >= 34) {
+        if (Build.VERSION.SDK_INT >= 34 && SharedConfig.predictiveBackEnabled) {
             if (onBackAnimationCallback == null) {
                 onBackAnimationCallback =  new OnBackAnimationCallback() {
                     private AnimationNotificationsLocker locker = new AnimationNotificationsLocker();
@@ -800,10 +808,14 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                         }
 
                         final float fixedProgress = Math.max(0, progress - LAZY_START) / (1 - LAZY_START);
+                        final float scaledProgress = NavigationSettings.scalePredictiveBackProgress(
+                                fixedProgress,
+                                SharedConfig.predictiveBackIntensity
+                        );
 
                         if (AndroidUtilities.isTablet()) return;
                         if (actionBarLayout != null) {
-                            actionBarLayout.onBackProgress(fixedProgress);
+                            actionBarLayout.onBackProgress(scaledProgress);
                         }
                     }
 
@@ -6892,14 +6904,15 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         } catch (Exception e) {
             FileLog.e(e);
         }
-        if (Build.VERSION.SDK_INT >= 34) {
-            if (onBackAnimationCallback instanceof OnBackAnimationCallback) {
-                getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((OnBackAnimationCallback) onBackAnimationCallback);
-            }
-        } else if (Build.VERSION.SDK_INT >= 33) {
-            if (onBackAnimationCallback instanceof OnBackInvokedCallback) {
-                getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((OnBackInvokedCallback) onBackInvokedCallback);
-            }
+        if (Build.VERSION.SDK_INT >= 34 && onBackAnimationCallback instanceof OnBackAnimationCallback) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(
+                    (OnBackAnimationCallback) onBackAnimationCallback
+            );
+        }
+        if (Build.VERSION.SDK_INT >= 33 && onBackInvokedCallback instanceof OnBackInvokedCallback) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(
+                    (OnBackInvokedCallback) onBackInvokedCallback
+            );
         }
         Bulletin.removeDelegate(frameLayout);
         VideoAds.dropCache();

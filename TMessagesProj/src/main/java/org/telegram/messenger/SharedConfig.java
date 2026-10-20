@@ -30,6 +30,7 @@ import androidx.core.content.pm.ShortcutManagerCompat;
 
 import org.json.JSONObject;
 import org.telegram.messenger.fluxgram.BottomNavigationSettings;
+import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.utils.proxy.ProxySettings;
 import org.telegram.tgnet.ConnectionsManager;
@@ -264,6 +265,9 @@ public class SharedConfig {
     public static boolean forceDisableTabletMode;
     public static int tabletMode = TabletModeSettings.AUTO;
     public static int bottomNavigationMode = BottomNavigationSettings.FLOATING;
+    public static int navigationTransitionStyle = NavigationSettings.TRANSITION_DEFAULT;
+    public static boolean predictiveBackEnabled = true;
+    public static int predictiveBackIntensity = NavigationSettings.DEFAULT_PREDICTIVE_BACK_INTENSITY;
     public static boolean updateStickersOrderOnSend = true;
     public static boolean bigCameraForRound;
     public static Boolean useCamera2Force;
@@ -623,6 +627,16 @@ public class SharedConfig {
             forceDisableTabletMode = tabletMode == TabletModeSettings.OFF;
             bottomNavigationMode = BottomNavigationSettings.normalize(
                     preferences.getInt("fluxgramBottomNavigationMode", BottomNavigationSettings.FLOATING)
+            );
+            navigationTransitionStyle = NavigationSettings.normalizeTransitionStyle(
+                    preferences.getInt("fluxgramNavigationTransitionStyle", NavigationSettings.TRANSITION_DEFAULT)
+            );
+            predictiveBackEnabled = preferences.getBoolean("fluxgramPredictiveBackEnabled", true);
+            predictiveBackIntensity = NavigationSettings.normalizePredictiveBackIntensity(
+                    preferences.getInt(
+                            "fluxgramPredictiveBackIntensity",
+                            NavigationSettings.DEFAULT_PREDICTIVE_BACK_INTENSITY
+                    )
             );
             fontSize = preferences.getInt("fons_size", AndroidUtilities.isTablet() && !AndroidUtilities.isFold() ? 18 : 16);
             fontSizeIsDefault = !preferences.contains("fons_size");
@@ -1437,6 +1451,32 @@ public class SharedConfig {
         bottomNavigationMode = normalizedMode;
 
         return true;
+    }
+
+    public static void setNavigationTransitionStyle(int style) {
+        navigationTransitionStyle = NavigationSettings.normalizeTransitionStyle(style);
+        MessagesController.getGlobalMainSettings().edit()
+                .putInt("fluxgramNavigationTransitionStyle", navigationTransitionStyle)
+                .apply();
+    }
+
+    public static boolean setPredictiveBackEnabled(boolean enabled) {
+        SharedPreferences.Editor editor = MessagesController.getGlobalMainSettings().edit();
+        editor.putBoolean("fluxgramPredictiveBackEnabled", enabled);
+        if (!editor.commit()) {
+            return false;
+        }
+
+        predictiveBackEnabled = enabled;
+
+        return true;
+    }
+
+    public static void setPredictiveBackIntensity(int intensity) {
+        predictiveBackIntensity = NavigationSettings.normalizePredictiveBackIntensity(intensity);
+        MessagesController.getGlobalMainSettings().edit()
+                .putInt("fluxgramPredictiveBackIntensity", predictiveBackIntensity)
+                .apply();
     }
 
     public static void toggleInappCamera() {
