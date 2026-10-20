@@ -3,9 +3,13 @@ package org.telegram.ui.Cells;
 import android.content.Context;
 import android.graphics.Canvas;
 
+import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.UserObject;
+import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
+import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
@@ -15,6 +19,7 @@ public final class FluxGramShareHintCell extends HintDialogCell implements FluxG
     private final int account;
     private final FluxGramDialogListAppearanceController controller;
     private final FluxGramUserListBadgeRenderer renderer;
+    private final boolean avatarGeometry;
 
     private FluxGramPeerKey requestedPeer;
     private boolean attached;
@@ -23,11 +28,13 @@ public final class FluxGramShareHintCell extends HintDialogCell implements FluxG
             Context context,
             int account,
             Theme.ResourcesProvider resourcesProvider,
-            FluxGramDialogListAppearanceController controller
+            FluxGramDialogListAppearanceController controller,
+            boolean avatarGeometry
     ) {
         super(context, true, resourcesProvider);
         this.account = account;
         this.controller = controller;
+        this.avatarGeometry = avatarGeometry;
         setCurrentAccount(account);
         renderer = new FluxGramUserListBadgeRenderer(
                 this,
@@ -41,7 +48,7 @@ public final class FluxGramShareHintCell extends HintDialogCell implements FluxG
         super.setDialog(dialogId, counter, name);
 
         requestedPeer = FluxGramDialogCell.peerFor(account, dialogId);
-        if (attached) {
+        if (attached && controller != null) {
             controller.bind(this, requestedPeer);
         } else {
             renderer.bind(null, false);
@@ -68,7 +75,9 @@ public final class FluxGramShareHintCell extends HintDialogCell implements FluxG
 
     public void recycleAppearance() {
         requestedPeer = null;
-        controller.unbind(this);
+        if (controller != null) {
+            controller.unbind(this);
+        }
         renderer.bind(null, false);
         renderer.detach();
         attached = false;
@@ -101,14 +110,59 @@ public final class FluxGramShareHintCell extends HintDialogCell implements FluxG
         super.onAttachedToWindow();
         attached = true;
         renderer.attach();
-        controller.bind(this, requestedPeer);
+        if (controller != null) {
+            controller.bind(this, requestedPeer);
+        }
     }
 
     @Override
     protected void onDetachedFromWindow() {
         attached = false;
-        controller.unbind(this);
+        if (controller != null) {
+            controller.unbind(this);
+        }
         renderer.detach();
         super.onDetachedFromWindow();
+    }
+
+    @Override
+    protected int resolveAvatarRoundRadius(
+            int stockRadius,
+            int avatarSize,
+            TLRPC.User user,
+            TLRPC.Chat chat
+    ) {
+        if (!avatarGeometry || !isAvatarGeometryPeer(user, chat)) {
+            return stockRadius;
+        }
+
+        int role;
+        if (chat == null) {
+            role = AvatarGeometry.ROLE_USER;
+        } else if (ChatObject.isMonoForum(chat)) {
+            role = AvatarGeometry.ROLE_MONOFORUM;
+        } else if (ChatObject.isCommunity(chat)) {
+            role = AvatarGeometry.ROLE_COMMUNITY;
+        } else if (ChatObject.isForum(chat)) {
+            role = AvatarGeometry.ROLE_FORUM;
+        } else {
+            role = AvatarGeometry.ROLE_GROUP;
+        }
+        return AvatarGeometry.resolveRadius(account, avatarSize, role, stockRadius);
+    }
+
+    private static boolean isAvatarGeometryPeer(TLRPC.User user, TLRPC.Chat chat) {
+        if (chat != null) {
+            return chat.id > 0;
+        }
+        return user != null
+                && user.id > 0
+                && !UserObject.isDeleted(user)
+                && !UserObject.isUserSelf(user)
+                && !UserObject.isReplyUser(user)
+                && !UserObject.isAnonymous(user)
+                && !UserObject.isService(user.id)
+                && user.id != UserObject.VERIFY
+                && user.id != UserObject.OAUTH;
     }
 }

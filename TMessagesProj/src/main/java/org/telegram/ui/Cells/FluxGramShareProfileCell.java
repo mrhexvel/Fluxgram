@@ -12,8 +12,7 @@ import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramUserListBadgeRenderer;
 
-public final class FluxGramShareProfileCell extends ProfileSearchCell implements FluxGramDialogListAppearanceController.Target {
-    private final int account;
+public final class FluxGramShareProfileCell extends FluxGramSearchProfileCell implements FluxGramDialogListAppearanceController.Target {
     private final Theme.ResourcesProvider resourcesProvider;
     private final FluxGramDialogListAppearanceController controller;
     private final FluxGramUserListBadgeRenderer renderer;
@@ -25,13 +24,12 @@ public final class FluxGramShareProfileCell extends ProfileSearchCell implements
             Context context,
             int account,
             Theme.ResourcesProvider resourcesProvider,
-            FluxGramDialogListAppearanceController controller
+            FluxGramDialogListAppearanceController controller,
+            boolean avatarGeometry
     ) {
-        super(context, resourcesProvider);
-        this.account = account;
+        super(context, account, resourcesProvider, avatarGeometry);
         this.resourcesProvider = resourcesProvider;
         this.controller = controller;
-        setCurrentAccount(account);
         renderer = new FluxGramUserListBadgeRenderer(
                 this,
                 account,
@@ -51,7 +49,7 @@ public final class FluxGramShareProfileCell extends ProfileSearchCell implements
         super.setData(object, encryptedChat, name, status, needCount, saved);
 
         requestedPeer = encryptedChat == null && !saved ? peerFor(object) : null;
-        if (attached) {
+        if (attached && controller != null) {
             controller.bind(this, requestedPeer);
         } else {
             renderer.bind(null, false);
@@ -78,7 +76,9 @@ public final class FluxGramShareProfileCell extends ProfileSearchCell implements
 
     public void recycleAppearance() {
         requestedPeer = null;
-        controller.unbind(this);
+        if (controller != null) {
+            controller.unbind(this);
+        }
         renderer.bind(null, false);
         renderer.detach();
         attached = false;
@@ -110,13 +110,17 @@ public final class FluxGramShareProfileCell extends ProfileSearchCell implements
         super.onAttachedToWindow();
         attached = true;
         renderer.attach();
-        controller.bind(this, requestedPeer);
+        if (controller != null) {
+            controller.bind(this, requestedPeer);
+        }
     }
 
     @Override
     protected void onDetachedFromWindow() {
         attached = false;
-        controller.unbind(this);
+        if (controller != null) {
+            controller.unbind(this);
+        }
         renderer.detach();
         super.onDetachedFromWindow();
     }

@@ -182,7 +182,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         )
         self.assertIn("radius < 0 || radius > AvatarGeometry.MAX_CORNER_RADIUS", settings)
 
-    def test_avatar_geometry_is_limited_to_root_and_archive_dialog_lists(self):
+    def test_avatar_geometry_is_limited_to_root_archive_and_forward_selector(self):
         activity = (JAVA / "ui/DialogsActivity.java").read_text()
         adapter = (JAVA / "ui/Adapters/DialogsAdapter.java").read_text()
         base = (JAVA / "ui/Cells/DialogCell.java").read_text()
@@ -192,6 +192,7 @@ class AppearanceSettingsTest(unittest.TestCase):
             "private boolean usesFluxGramDialogAvatarGeometry()", 1
         )[1].split("private int getSearchFieldHeight()", 1)[0]
         self.assertIn("usesFluxGramRootDialogsAppearance()", eligibility)
+        self.assertIn("usesFluxGramSelectorAvatarGeometry()", eligibility)
         self.assertIn("initialDialogsType == DIALOGS_TYPE_DEFAULT", eligibility)
         self.assertIn("!onlySelect", eligibility)
         self.assertIn("folderId == 1", eligibility)
@@ -208,7 +209,18 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("protected int resolveAvatarRoundRadius(", base)
         self.assertIn("return stockRadius;", base)
         self.assertNotIn("AvatarGeometry", base)
-        self.assertIn("if (!avatarGeometryEnabled)", cell)
+        selector = activity.split(
+            "private boolean usesFluxGramSelectorAvatarGeometry()", 1
+        )[1].split("private int getSearchFieldHeight()", 1)[0]
+        self.assertIn("initialDialogsType == DIALOGS_TYPE_FORWARD", selector)
+        self.assertIn("&& onlySelect", selector)
+        self.assertIn("&& folderId == 0", selector)
+        self.assertIn("&& communityId == 0", selector)
+        self.assertIn("&& searchString == null", selector)
+        self.assertIn("&& !inPreviewMode", selector)
+        self.assertIn("fluxGramAppearanceController != null || fluxGramAvatarGeometry", adapter)
+        self.assertIn("!isAvatarGeometryDialog()", cell)
+        self.assertIn("!UserObject.isUserSelf(user)", cell)
         self.assertIn("AvatarGeometry.resolveRadius(account", cell)
 
     def test_avatar_geometry_profile_surface_is_fail_closed(self):
@@ -289,7 +301,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         bots = (JAVA / "ui/Components/DialogsBotsAdapter.java").read_text()
 
         self.assertIn(
-            "setFluxGramAvatarGeometry(usesFluxGramRootDialogsAppearance())",
+            "usesFluxGramRootDialogsAppearance() || usesFluxGramSelectorAvatarGeometry()",
             activity,
         )
         self.assertIn("private boolean fluxGramAvatarGeometry;", adapter)
@@ -319,6 +331,31 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("isAvatarGeometryPeer(user, chat)", hint)
         self.assertIn("if (chat != null)", hint)
         self.assertIn("requestedPeer = FluxGramDialogCell.peerFor(account, dialogId);", hint)
+
+    def test_avatar_geometry_share_sheet_uses_opt_in_cells(self):
+        alert = (JAVA / "ui/Components/ShareAlert.java").read_text()
+        base = (JAVA / "ui/Cells/ShareDialogCell.java").read_text()
+        dialog = (JAVA / "ui/Cells/FluxGramShareDialogCell.java").read_text()
+        profile = (JAVA / "ui/Cells/FluxGramShareProfileCell.java").read_text()
+        hint = (JAVA / "ui/Cells/FluxGramShareHintCell.java").read_text()
+
+        self.assertIn("return !darkTheme && !includeStory && storyItem == null;", alert)
+        self.assertIn("fluxGramAppearanceController != null || avatarGeometry", alert)
+        self.assertIn("fluxGramAppearanceController == null && !avatarGeometry", alert)
+        self.assertIn("new FluxGramShareDialogCell(", alert)
+        self.assertIn("new FluxGramShareProfileCell(", alert)
+        self.assertIn("new FluxGramShareHintCell(", alert)
+        self.assertIn("protected int resolveAvatarRoundRadius(", base)
+        self.assertIn("return stockRadius;", base)
+        self.assertNotIn("AvatarGeometry", base)
+        self.assertIn("topicWasVisible", base)
+        self.assertIn("extends FluxGramSearchProfileCell", profile)
+        self.assertIn("AvatarGeometry.resolveRadius(account", dialog)
+        self.assertIn("topicVisible || !isAvatarGeometryPeer", dialog)
+        self.assertIn("dialogId == Long.MAX_VALUE", dialog)
+        self.assertIn("!UserObject.isUserSelf(user)", dialog)
+        self.assertIn("AvatarGeometry.resolveRadius(account", hint)
+        self.assertIn("!UserObject.isUserSelf(user)", hint)
 
     def test_avatar_geometry_preview_uses_shared_resolver(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()

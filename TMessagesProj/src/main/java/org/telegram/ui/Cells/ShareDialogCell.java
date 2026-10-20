@@ -75,6 +75,7 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
     private final AvatarDrawable avatarDrawable;
     private RepostStoryDrawable repostStoryDrawable;
     private TLRPC.User user;
+    private TLRPC.Chat chat;
     private final int currentType;
 
     private float onlineProgress;
@@ -209,8 +210,11 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
     }
 
     public void setDialog(long uid, boolean checked, CharSequence name) {
+        currentDialog = uid;
         avatarDrawable.setScaleSize(1f);
         if (uid == Long.MAX_VALUE) {
+            user = null;
+            chat = null;
             nameTextView.setText(repostToCustomName());
             if (repostStoryDrawable == null) {
                 repostStoryDrawable = new RepostStoryDrawable(getContext(), imageView, true, resourcesProvider);
@@ -218,6 +222,7 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
             imageView.setImage(null, null, repostStoryDrawable, null);
         } else if (DialogObject.isUserDialog(uid)) {
             user = MessagesController.getInstance(currentAccount).getUser(uid);
+            chat = null;
             final TL_account.RequirementToContact r = MessagesController.getInstance(currentAccount).isUserContactBlocked(uid);
             premiumBlocked = DialogObject.isPremiumBlocked(r);
             starsPriceBlocked = DialogObject.getMessagesStarsPrice(r);
@@ -244,14 +249,13 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
                 }
                 imageView.setForUserOrChat(user, avatarDrawable);
             }
-            imageView.setRoundRadius(dp(28));
         } else {
             user = null;
             premiumBlocked = false;
             premiumBlockedT.force(0);
             starsPriceBlocked = MessagesController.getInstance(currentAccount).getSendPaidMessagesStars(uid);
             starsBlockedT.force(false);
-            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-uid);
+            chat = MessagesController.getInstance(currentAccount).getChat(-uid);
             if (name != null) {
                 nameTextView.setText(name);
             } else if (chat != null) {
@@ -269,9 +273,8 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
                 avatarDrawable.setInfo(currentAccount, chat);
                 imageView.setForUserOrChat(chat, avatarDrawable);
             }
-            imageView.setRoundRadius(chat != null && (chat.forum || chat.monoforum)? dp(16) : dp(28));
         }
-        currentDialog = uid;
+        applyAvatarRoundRadius();
         checkBox.setChecked(checked, false);
     }
 
@@ -342,6 +345,31 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
 
             topicWasVisible = visible;
         }
+        applyAvatarRoundRadius();
+    }
+
+    private void applyAvatarRoundRadius() {
+        int stockRadius = chat != null && (chat.forum || chat.monoforum) ? dp(16) : dp(28);
+        int avatarSize = dp(currentType == TYPE_CREATE ? 48 : 56);
+        imageView.setRoundRadius(resolveAvatarRoundRadius(
+                stockRadius,
+                avatarSize,
+                currentDialog,
+                user,
+                chat,
+                topicWasVisible
+        ));
+    }
+
+    protected int resolveAvatarRoundRadius(
+            int stockRadius,
+            int avatarSize,
+            long dialogId,
+            TLRPC.User user,
+            TLRPC.Chat chat,
+            boolean topicVisible
+    ) {
+        return stockRadius;
     }
 
     private PremiumGradient.PremiumGradientTools premiumGradient;

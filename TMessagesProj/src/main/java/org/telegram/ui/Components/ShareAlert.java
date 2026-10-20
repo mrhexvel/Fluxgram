@@ -3045,12 +3045,14 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             View view;
             switch (viewType) {
                 case 0: {
-                    if (fluxGramAppearanceController != null) {
+                    boolean avatarGeometry = isFluxGramAppearanceEligible();
+                    if (fluxGramAppearanceController != null || avatarGeometry) {
                         view = new FluxGramShareDialogCell(
                                 context,
                                 currentAccount,
                                 resourcesProvider,
-                                fluxGramAppearanceController
+                                fluxGramAppearanceController,
+                                avatarGeometry
                         ) {
                             @Override
                             protected String repostToCustomName() {
@@ -3622,12 +3624,14 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             View view;
             switch (viewType) {
                 case 5: {
-                    if (fluxGramAppearanceController != null) {
+                    boolean avatarGeometry = isFluxGramAppearanceEligible();
+                    if (fluxGramAppearanceController != null || avatarGeometry) {
                         view = new FluxGramShareDialogCell(
                                 context,
                                 currentAccount,
                                 resourcesProvider,
-                                fluxGramAppearanceController
+                                fluxGramAppearanceController,
+                                avatarGeometry
                         );
                     } else {
                         view = new ShareDialogCell(context, ShareDialogCell.TYPE_SHARE, resourcesProvider);
@@ -3636,12 +3640,14 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                     break;
                 }
                 case 0: {
-                    if (fluxGramAppearanceController != null) {
+                    boolean avatarGeometry = isFluxGramAppearanceEligible();
+                    if (fluxGramAppearanceController != null || avatarGeometry) {
                         FluxGramShareProfileCell cell = new FluxGramShareProfileCell(
                                 context,
                                 currentAccount,
                                 resourcesProvider,
-                                fluxGramAppearanceController
+                                fluxGramAppearanceController,
+                                avatarGeometry
                         );
                         cell.useCustomPaints().showPremiumBlock(true);
                         view = cell;
@@ -3680,7 +3686,8 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                     horizontalListView.setAdapter(categoryAdapter = new DialogsSearchAdapter.CategoryAdapterRecycler(context, currentAccount, true, true, resourcesProvider) {
                         @Override
                         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-                            if (fluxGramAppearanceController == null) {
+                            boolean avatarGeometry = isFluxGramAppearanceEligible();
+                            if (fluxGramAppearanceController == null && !avatarGeometry) {
                                 return super.onCreateViewHolder(parent, viewType);
                             }
 
@@ -3688,7 +3695,8 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                                     context,
                                     currentAccount,
                                     resourcesProvider,
-                                    fluxGramAppearanceController
+                                    fluxGramAppearanceController,
+                                    avatarGeometry
                             );
                             cell.showPremiumBlocked();
                             cell.setLayoutParams(new RecyclerView.LayoutParams(dp(80), dp(86)));

@@ -69,7 +69,7 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
 
     @Override
     protected int resolveAvatarRoundRadius(int stockRadius, int avatarSize, int avatarRole) {
-        if (!avatarGeometryEnabled) {
+        if (!avatarGeometryEnabled || !isAvatarGeometryDialog()) {
             return stockRadius;
         }
 
@@ -78,7 +78,9 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
 
     @Override
     protected float resolveStoryRoundRectRadius(int avatarRadius, int avatarRole) {
-        if (!avatarGeometryEnabled || AvatarGeometry.usesStockGeometry(account)) {
+        if (!avatarGeometryEnabled
+                || !isAvatarGeometryDialog()
+                || AvatarGeometry.usesStockGeometry(account)) {
             return -1;
         }
 
@@ -124,7 +126,7 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
         super.setDialog(dialog, type, folder);
 
         requestedPeer = peerFor(account, dialog.id);
-        if (attached) {
+        if (attached && controller != null) {
             controller.bind(this, requestedPeer);
         } else {
             renderer.bind(null, false);
@@ -151,7 +153,9 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
 
     public void recycleAppearance() {
         requestedPeer = null;
-        controller.unbind(this);
+        if (controller != null) {
+            controller.unbind(this);
+        }
         renderer.bind(null, false);
         renderer.detach();
         attached = false;
@@ -184,15 +188,37 @@ public final class FluxGramDialogCell extends DialogCell implements FluxGramDial
         super.onAttachedToWindow();
         attached = true;
         renderer.attach();
-        controller.bind(this, requestedPeer);
+        if (controller != null) {
+            controller.bind(this, requestedPeer);
+        }
     }
 
     @Override
     protected void onDetachedFromWindow() {
         attached = false;
-        controller.unbind(this);
+        if (controller != null) {
+            controller.unbind(this);
+        }
         renderer.detach();
         super.onDetachedFromWindow();
+    }
+
+    private boolean isAvatarGeometryDialog() {
+        long dialogId = getDialogId();
+        if (DialogObject.isUserDialog(dialogId)) {
+            TLRPC.User user = MessagesController.getInstance(account).getUser(dialogId);
+            return user != null
+                    && user.id > 0
+                    && !UserObject.isDeleted(user)
+                    && !UserObject.isUserSelf(user)
+                    && !UserObject.isReplyUser(user)
+                    && !UserObject.isAnonymous(user)
+                    && !UserObject.isService(user.id)
+                    && user.id != UserObject.VERIFY
+                    && user.id != UserObject.OAUTH;
+        }
+        return DialogObject.isChatDialog(dialogId)
+                && MessagesController.getInstance(account).getChat(-dialogId) != null;
     }
 
     static FluxGramPeerKey peerFor(int account, long dialogId) {

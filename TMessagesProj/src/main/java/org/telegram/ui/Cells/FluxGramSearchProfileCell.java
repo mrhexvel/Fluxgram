@@ -6,6 +6,7 @@ import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.Theme;
 
 public class FluxGramSearchProfileCell extends ProfileSearchCell {
     protected final int account;
@@ -13,7 +14,16 @@ public class FluxGramSearchProfileCell extends ProfileSearchCell {
     private boolean avatarGeometryEnabled;
 
     public FluxGramSearchProfileCell(Context context, int account, boolean avatarGeometry) {
-        super(context);
+        this(context, account, null, avatarGeometry);
+    }
+
+    public FluxGramSearchProfileCell(
+            Context context,
+            int account,
+            Theme.ResourcesProvider resourcesProvider,
+            boolean avatarGeometry
+    ) {
+        super(context, resourcesProvider);
         this.account = account;
         this.avatarGeometry = avatarGeometry;
         setCurrentAccount(account);

@@ -169,7 +169,7 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("transitionPage.animationSupportDialogsAdapter.setFluxGramAppearanceController(fluxGramAppearanceController);", activity)
         self.assertEqual(activity.count("fluxGramAppearanceController.destroy();"), 2)
 
-        self.assertIn("viewType == VIEW_TYPE_DIALOG && fluxGramAppearanceController != null", adapter)
+        self.assertIn("fluxGramAppearanceController != null || fluxGramAvatarGeometry", adapter)
         self.assertIn("new FluxGramDialogCell(", adapter)
         self.assertIn("recycleAppearance();", adapter)
         self.assertIn("extends DialogCell", cell)
@@ -213,7 +213,7 @@ class ProfileAppearanceTest(unittest.TestCase):
         self.assertIn("return folderId == 1;", activity)
         self.assertIn("dialogsCount == 0 && parentFragment.isArchive()", adapter)
         self.assertIn("new ItemInternal(VIEW_TYPE_ARCHIVE_FULLSCREEN)", adapter)
-        self.assertIn("viewType == VIEW_TYPE_DIALOG && fluxGramAppearanceController != null", adapter)
+        self.assertIn("fluxGramAppearanceController != null || fluxGramAvatarGeometry", adapter)
         self.assertIn("if (!DialogObject.isChatDialog(dialogId))", cell)
         self.assertNotIn("FluxGramDialogCell", (JAVA / "ui/Cells/ArchiveHintCell.java").read_text())
 

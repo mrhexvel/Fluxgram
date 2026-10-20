@@ -690,7 +690,8 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     view = new ProfileSearchCell(mContext);
                 } else {
                     DialogCell dialogCell;
-                    if (viewType == VIEW_TYPE_DIALOG && fluxGramAppearanceController != null) {
+                    if (viewType == VIEW_TYPE_DIALOG
+                            && (fluxGramAppearanceController != null || fluxGramAvatarGeometry)) {
                         dialogCell = new FluxGramDialogCell(
                                 parentFragment,
                                 mContext,

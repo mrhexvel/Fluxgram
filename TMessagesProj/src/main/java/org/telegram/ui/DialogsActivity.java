@@ -7424,9 +7424,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private boolean usesFluxGramDialogAvatarGeometry() {
         return usesFluxGramRootDialogsAppearance()
+                || usesFluxGramSelectorAvatarGeometry()
                 || initialDialogsType == DIALOGS_TYPE_DEFAULT
                 && !onlySelect
                 && folderId == 1
+                && communityId == 0
+                && searchString == null
+                && !inPreviewMode;
+    }
+
+    private boolean usesFluxGramSelectorAvatarGeometry() {
+        return initialDialogsType == DIALOGS_TYPE_FORWARD
+                && onlySelect
+                && folderId == 0
                 && communityId == 0
                 && searchString == null
                 && !inPreviewMode;
@@ -13363,7 +13373,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         };
         searchViewPager.dialogsSearchAdapter.setFluxGramAppearanceController(fluxGramSearchAppearanceController);
-        searchViewPager.setFluxGramAvatarGeometry(usesFluxGramRootDialogsAppearance());
+        searchViewPager.setFluxGramAvatarGeometry(
+                usesFluxGramRootDialogsAppearance() || usesFluxGramSelectorAvatarGeometry()
+        );
         ((ContentView) fragmentView).addView(searchViewPager, searchViewPagerIndex);
 
         searchViewPager.dialogsSearchAdapter.setDelegate(new DialogsSearchAdapter.DialogsSearchAdapterDelegate() {
