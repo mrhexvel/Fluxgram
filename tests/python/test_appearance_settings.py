@@ -381,16 +381,33 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("isMessageSenderAvatarPeerAvailable(fromId)", base)
         self.assertIn("getClientUserId()", base)
 
-    def test_forced_snow_is_action_bar_scoped(self):
+    def test_forced_snow_is_scoped_to_root_header_and_cloud_chat_surfaces(self):
         action_bar = (JAVA / "ui/ActionBar/ActionBar.java").read_text()
-        activity = (JAVA / "ui/DialogsActivity.java").read_text()
+        dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        frame = (JAVA / "ui/Components/SizeNotifierFrameLayout.java").read_text()
         theme = (JAVA / "ui/ActionBar/Theme.java").read_text()
 
         self.assertIn("public void setForceHolidayImage(boolean value)", action_bar)
         self.assertIn("forceHolidayImage ? forcedHolidayDrawable", action_bar)
         self.assertIn("titlesContainer == null ? titleView.getScaleY()", action_bar)
         self.assertIn("titlesContainer == null ? 1f : titlesContainer.getAlpha()", action_bar)
-        self.assertIn("AppearanceSettings.forcesSnow(currentAccount)", activity)
+        self.assertIn("AppearanceSettings.forcesSnow(currentAccount)", dialogs)
+        eligibility = chat.split("private boolean isFluxGramChatSnowEligible()", 1)[1].split(
+            "private void updatePluginChatLifecycle()", 1
+        )[0]
+        self.assertIn("chatMode == MODE_DEFAULT", eligibility)
+        self.assertIn("currentEncryptedChat == null", eligibility)
+        self.assertNotIn("!isInPreviewMode()", eligibility)
+        self.assertNotIn("!isTopic", eligibility)
+        self.assertNotIn("!isComments", eligibility)
+        self.assertNotIn("!isThreadChat()", eligibility)
+        self.assertIn("quickReplyShortcut == null", eligibility)
+        self.assertIn("contentView.setForceSnowflakes(", chat)
+        self.assertIn("public void setForceSnowflakes(boolean forceSnowflakes)", frame)
+        self.assertIn("forceSnowflakes || Theme.canStartHolidayAnimation()", frame)
+        self.assertIn("LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)", frame)
+        self.assertNotIn("AppearanceSettings", frame)
         self.assertNotIn("AppearanceSettings", theme)
 
     def test_avatar_geometry_resolver_preserves_stock_defaults(self):

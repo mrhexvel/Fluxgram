@@ -3641,6 +3641,19 @@ public class ChatActivity extends BaseFragment implements
                 && !currentChat.broadcast;
     }
 
+    private boolean isFluxGramChatSnowEligible() {
+        return chatMode == MODE_DEFAULT
+                && currentEncryptedChat == null
+                && !inBubbleMode
+                && !isInsideContainer
+                && quickReplyShortcut == null
+                && businessLink == null
+                && chatInvite == null
+                && !isReport()
+                && startLoadFromDate == 0
+                && !isInBotForumMode();
+    }
+
     private void updatePluginChatLifecycle() {
         if (pluginComposer != null) {
             pluginComposer.refresh();
@@ -4928,6 +4941,9 @@ public class ChatActivity extends BaseFragment implements
         }
         removingFromParent = false;
         fragmentView = contentView = new ChatActivityFragmentView(context, parentLayout);
+        contentView.setForceSnowflakes(
+                isFluxGramChatSnowEligible() && AppearanceSettings.forcesSnow(currentAccount)
+        );
         invalidateBlurredSourcesView = new OnPostDrawView(context, true, this::invalidateMergedVisibleBlurredPositionsAndSourcesImpl);
         contentView.addView(invalidateBlurredSourcesView);
 
@@ -30393,6 +30409,9 @@ public class ChatActivity extends BaseFragment implements
             chatAttachAlert.onResume();
         }
         if (contentView != null) {
+            contentView.setForceSnowflakes(
+                    isFluxGramChatSnowEligible() && AppearanceSettings.forcesSnow(currentAccount)
+            );
             contentView.onResume();
         }
         checkChecksHint();

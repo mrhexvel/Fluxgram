@@ -89,6 +89,7 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
     private boolean animationInProgress;
     private boolean skipBackgroundDrawing;
     SnowflakesEffect snowflakesEffect;
+    private boolean forceSnowflakes;
     public View backgroundView;
     boolean attached;
 
@@ -447,6 +448,20 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
         occupyStatusBar = value;
     }
 
+    public void setForceSnowflakes(boolean forceSnowflakes) {
+        if (this.forceSnowflakes == forceSnowflakes) {
+            return;
+        }
+
+        this.forceSnowflakes = forceSnowflakes;
+        if (!forceSnowflakes && !Theme.canStartHolidayAnimation()) {
+            snowflakesEffect = null;
+        }
+        if (backgroundView != null) {
+            backgroundView.invalidate();
+        }
+    }
+
     public void onPause() {
         if (parallaxEffect != null) {
             parallaxEffect.setEnabled(false);
@@ -558,12 +573,16 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
     }
 
     private void checkSnowflake(Canvas canvas) {
-        if (backgroundView != null && Theme.canStartHolidayAnimation() && LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
+        if (backgroundView != null
+                && (forceSnowflakes || Theme.canStartHolidayAnimation())
+                && LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
             if (snowflakesEffect == null) {
                 snowflakesEffect = new SnowflakesEffect(1);
                 snowflakesEffect.setForcedColor(0xFFFFFFFF);
             }
             snowflakesEffect.onDraw(backgroundView, canvas);
+        } else {
+            snowflakesEffect = null;
         }
     }
 

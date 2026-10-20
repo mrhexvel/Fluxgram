@@ -527,7 +527,7 @@ public class MessageObject {
             if (topicId == 0) {
                 topicId = message.reply_to.reply_to_top_id;
             }
-            return topicId;
+            return topicId == 0 && sureIsForum ? 1 : topicId;
         } else {
             int topicId = message.reply_to.reply_to_top_id;
             if (topicId == 0) {
