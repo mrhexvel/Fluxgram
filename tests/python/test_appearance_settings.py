@@ -29,6 +29,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn('"settings_divider_style"', source)
         self.assertIn('"glass_outline_style"', source)
         self.assertIn('"gooey_avatar"', source)
+        self.assertIn('"custom_chat_themes"', source)
 
     def test_title_modes_have_safe_fallbacks(self):
         source = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
@@ -116,6 +117,31 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("avatarGooey.setGooeyEnabled(false);", update)
         self.assertIn("avatarGooey.setGooeyEnabled(pullUpProgress > 0", update)
         self.assertNotIn("AppearanceSettings", gooey)
+
+    def test_custom_chat_themes_toggle_controls_chat_theme_application(self):
+        settings = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        controller = (JAVA / "messenger/ChatThemeController.java").read_text()
+
+        self.assertIn("getBoolean(account, CUSTOM_CHAT_THEMES, true)", settings)
+        self.assertIn("AppearanceSettings.usesCustomChatThemes(currentAccount)", activity)
+        self.assertIn(
+            "AppearanceSettings.setUsesCustomChatThemes(currentAccount, enabled)",
+            activity,
+        )
+        theme_delegate = chat.split("public class ThemeDelegate", 1)[1]
+        self.assertIn(
+            "AppearanceSettings.usesCustomChatThemes(currentAccount) "
+            "&& isThemeChangeAvailable(false)",
+            theme_delegate,
+        )
+        self.assertIn(
+            "!AppearanceSettings.usesCustomChatThemes(currentAccount) "
+            "&& (chatTheme != null || newWallpaper != null)",
+            theme_delegate,
+        )
+        self.assertNotIn("AppearanceSettings", controller)
 
     def test_main_dialogs_title_hook_is_fail_closed(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()

@@ -105,6 +105,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int GLASS_OUTLINE_STYLE = 41;
     private static final int APP_ICON = 42;
     private static final int GOOEY_AVATAR = 43;
+    private static final int CUSTOM_CHAT_THEMES = 44;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -461,6 +462,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     GOOEY_AVATAR,
                     LocaleController.getString(R.string.FluxGramGooeyAvatar)
             ).setChecked(AppearanceSettings.usesGooeyAvatar(currentAccount)));
+            items.add(UItem.asCheck(
+                    CUSTOM_CHAT_THEMES,
+                    LocaleController.getString(R.string.FluxGramCustomChatThemes)
+            ).setChecked(AppearanceSettings.usesCustomChatThemes(currentAccount)));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
             items.add(UItem.asCustomShadow(folderPreview, 58));
@@ -858,6 +863,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
             } else if (item.id == GOOEY_AVATAR) {
                 boolean enabled = !AppearanceSettings.usesGooeyAvatar(currentAccount);
                 AppearanceSettings.setUsesGooeyAvatar(currentAccount, enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                scheduleAppearanceRebuild();
+            } else if (item.id == CUSTOM_CHAT_THEMES) {
+                boolean enabled = !AppearanceSettings.usesCustomChatThemes(currentAccount);
+                AppearanceSettings.setUsesCustomChatThemes(currentAccount, enabled);
                 ((TextCheckCell) view).setChecked(enabled);
                 scheduleAppearanceRebuild();
             }

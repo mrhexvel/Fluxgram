@@ -122,6 +122,7 @@ import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
+import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
@@ -44175,7 +44176,7 @@ public class ChatActivity extends BaseFragment implements
         ThemeDelegate() {
             isDark = Theme.getActiveTheme().isDark();
             boolean setup = false;
-            if (isThemeChangeAvailable(false)) {
+            if (AppearanceSettings.usesCustomChatThemes(currentAccount) && isThemeChangeAvailable(false)) {
                 chatTheme = ChatThemeController.getInstance(currentAccount).getDialogTheme(dialog_id);
                 wallpaper = ChatThemeController.getInstance(currentAccount).getDialogWallpaper(dialog_id);
                 if (chatTheme != null || wallpaper != null) {
@@ -44312,6 +44313,9 @@ public class ChatActivity extends BaseFragment implements
         }
         public void setCurrentTheme(final EmojiThemes chatTheme, TLRPC.WallPaper newWallpaper, boolean animated, Boolean forceDark, boolean force) {
             if (parentLayout == null || parentThemeDelegate != null) {
+                return;
+            }
+            if (!AppearanceSettings.usesCustomChatThemes(currentAccount) && (chatTheme != null || newWallpaper != null)) {
                 return;
             }
             final EmojiThemes prevTheme = this.chatTheme;

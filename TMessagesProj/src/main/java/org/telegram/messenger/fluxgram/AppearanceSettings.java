@@ -28,6 +28,7 @@ public final class AppearanceSettings {
     private static final String SETTINGS_DIVIDER_STYLE = "settings_divider_style";
     private static final String GLASS_OUTLINE_STYLE = "glass_outline_style";
     private static final String GOOEY_AVATAR = "gooey_avatar";
+    private static final String CUSTOM_CHAT_THEMES = "custom_chat_themes";
 
     public static final int TITLE_APP_NAME = 0;
     public static final int TITLE_USERNAME = 1;
@@ -209,6 +210,14 @@ public final class AppearanceSettings {
 
     public static void setUsesGooeyAvatar(int account, boolean enabled) {
         setBoolean(account, GOOEY_AVATAR, enabled);
+    }
+
+    public static boolean usesCustomChatThemes(int account) {
+        return getBoolean(account, CUSTOM_CHAT_THEMES, true);
+    }
+
+    public static void setUsesCustomChatThemes(int account, boolean enabled) {
+        setBoolean(account, CUSTOM_CHAT_THEMES, enabled);
     }
 
     public static CharSequence getActionBarTitle(int account) {
