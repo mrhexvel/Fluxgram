@@ -223,6 +223,48 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("setRoundRectProgressRadius(resolveMainAvatarRoundRectRadius(rect2))", stories)
         self.assertIn("private float roundRectProgressRadius = -1;", radial_progress)
 
+    def test_avatar_geometry_chat_header_is_opt_in_and_fail_closed(self):
+        activity = (JAVA / "ui/ChatActivity.java").read_text()
+        container = (JAVA / "ui/Components/ChatAvatarContainer.java").read_text()
+        action_bar = (JAVA / "ui/ActionBar/ActionBar.java").read_text()
+
+        eligibility = activity.split(
+            "private boolean isFluxGramChatHeaderAvatarGeometryEligible()", 1
+        )[1].split("private void updatePluginChatLifecycle()", 1)[0]
+        self.assertIn("chatMode != MODE_DEFAULT", eligibility)
+        self.assertIn("currentEncryptedChat != null", eligibility)
+        self.assertIn("isInPreviewMode()", eligibility)
+        self.assertIn("inBubbleMode", eligibility)
+        self.assertIn("isInsideContainer", eligibility)
+        self.assertIn("isTopic", eligibility)
+        self.assertIn("isComments", eligibility)
+        self.assertIn("isThreadChat()", eligibility)
+        self.assertIn("isReplyChatComment()", eligibility)
+        self.assertIn("threadMessageId != 0", eligibility)
+        self.assertIn("quickReplyShortcut != null", eligibility)
+        self.assertIn("businessLink != null", eligibility)
+        self.assertIn("chatInvite != null", eligibility)
+        self.assertIn("startLoadFromDate != 0", eligibility)
+        self.assertIn("isInBotForumMode()", eligibility)
+        self.assertIn("!ChatObject.isCommunity(currentChat)", eligibility)
+        self.assertIn("!ChatObject.isChannelAndNotMegaGroup(currentChat)", eligibility)
+        self.assertIn("!ChatObject.isForum(currentChat)", eligibility)
+        self.assertIn("!ChatObject.isMonoForum(currentChat)", eligibility)
+        self.assertIn("!currentChat.gigagroup", eligibility)
+        self.assertIn("!currentChat.broadcast", eligibility)
+        self.assertIn("AvatarGeometry.ROLE_HEADER", activity)
+        self.assertIn("protected int resolveAvatarRoundRadius(", container)
+        self.assertIn("return stockRadius;", container)
+        self.assertIn("protected float resolveStoryRoundRectRadius(", container)
+        self.assertIn("protected float resolveHeaderBackgroundRadius(", container)
+        self.assertIn("return avatarRadius * 23f / 21f;", activity)
+        self.assertIn("params.roundRectRadius = storyRoundRectRadius;", container)
+        self.assertIn("avatarContainer.setActionBar(actionBar);", activity)
+        self.assertIn("actionBar.setGlassTitleLeftRadius(headerBackgroundRadius);", container)
+        self.assertIn("glassTitleLeftRadiusOverride", action_bar)
+        self.assertIn("glassDrawable.setRadius(leftRadius, dp(23), dp(23), leftRadius);", action_bar)
+        self.assertNotIn("AvatarGeometry", container)
+
     def test_avatar_geometry_preview_uses_shared_resolver(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         preview = (

@@ -81,6 +81,8 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     public boolean allowDrawStories;
     private Integer storiesForceState;
     private int avatarSizeInDp = 42;
+    private float storyRoundRectRadius = -1;
+    private float headerBackgroundRadius = -1;
     public BackupImageView avatarImageView;
     private boolean avatarImageIsHidden;
     private SimpleTextView titleTextView;
@@ -223,6 +225,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                     params.drawSegments = true;
                     params.drawInside = true;
                     params.resourcesProvider = resourcesProvider;
+                    params.roundRectRadius = storyRoundRectRadius;
                     if (storiesForceState != null) {
                         params.forceState = storiesForceState;
                     }
@@ -1448,7 +1451,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         avatarDrawable.setInfo(currentAccount, chat);
         if (avatarImageView != null) {
             avatarImageView.setForUserOrChat(chat, avatarDrawable);
-            avatarImageView.setRoundRadius(ChatObject.isForum(chat) ? dp(ChatObject.hasStories(chat) ? 11 : 16) : dp(21));
+            applyAvatarRoundRadius(ChatObject.isForum(chat) ? dp(ChatObject.hasStories(chat) ? 11 : 16) : dp(21));
         }
     }
 
@@ -1482,6 +1485,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                 avatarImageView.setForUserOrChat(user, avatarDrawable);
             }
         }
+        applyAvatarRoundRadius(dp(21));
     }
 
     public void checkAndUpdateAvatar() {
@@ -1501,6 +1505,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                 chat = parentFragment.getMessagesController().getChat(-dialogId);
             }
         }
+        int stockRadius = dp(21);
         if (user != null) {
             avatarDrawable.setInfo(currentAccount, user);
             if (UserObject.isReplyUser(user)) {
@@ -1556,7 +1561,6 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                 avatarImageView.setAnimatedEmojiDrawable(null);
                 ForumUtilities.setMonoForumAvatar(currentAccount, chat, avatarDrawable, avatarImageView);
             }
-            avatarImageView.setRoundRadius(dp(21));
         } else if (chat != null) {
             avatarDrawable.setScaleSize(1f);
             avatarDrawable.setInfo(currentAccount, chat);
@@ -1564,9 +1568,39 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             if (avatarImageView != null) {
                 avatarImageView.setAnimatedEmojiDrawable(null);
                 avatarImageView.setForUserOrChat(chat, avatarDrawable);
-                avatarImageView.setRoundRadius(chat.forum ? dp(ChatObject.hasStories(chat) ? 11 : 16) : dp(21));
+                stockRadius = chat.forum ? dp(ChatObject.hasStories(chat) ? 11 : 16) : dp(21);
             }
         }
+        applyAvatarRoundRadius(stockRadius);
+    }
+
+    private void applyAvatarRoundRadius(int stockRadius) {
+        if (avatarImageView == null) {
+            return;
+        }
+
+        int radius = resolveAvatarRoundRadius(stockRadius, dp(avatarSizeInDp));
+        avatarImageView.setRoundRadius(radius);
+        storyRoundRectRadius = resolveStoryRoundRectRadius(radius);
+        float resolvedHeaderBackgroundRadius = resolveHeaderBackgroundRadius(radius);
+        if (headerBackgroundRadius != resolvedHeaderBackgroundRadius) {
+            headerBackgroundRadius = resolvedHeaderBackgroundRadius;
+            if (actionBar != null) {
+                actionBar.setGlassTitleLeftRadius(headerBackgroundRadius);
+            }
+        }
+    }
+
+    protected int resolveAvatarRoundRadius(int stockRadius, int avatarSize) {
+        return stockRadius;
+    }
+
+    protected float resolveStoryRoundRectRadius(int avatarRadius) {
+        return -1;
+    }
+
+    protected float resolveHeaderBackgroundRadius(int avatarRadius) {
+        return -1;
     }
 
     public void updateOnlineCount() {
@@ -1788,6 +1822,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
 
     public void setActionBar(ActionBar actionBar) {
         this.actionBar = actionBar;
+        if (actionBar != null) {
+            actionBar.setGlassTitleLeftRadius(headerBackgroundRadius);
+        }
     }
 
     private void checkActionBar(boolean animated) {

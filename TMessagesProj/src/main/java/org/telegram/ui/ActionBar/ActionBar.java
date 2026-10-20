@@ -198,6 +198,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private boolean glassMode;
     private boolean glassOnlyBack;
     private boolean glassModeIsForum;
+    private float glassTitleLeftRadius = -1;
+    private float glassTitleLeftRadiusOverride = -1;
 
     private ChatAvatarContainer chatAvatarContainer;
 
@@ -207,6 +209,17 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     public void setChatAvatarContainer(ChatAvatarContainer chatAvatarContainer) {
         this.chatAvatarContainer = chatAvatarContainer;
+    }
+
+    public void setGlassTitleLeftRadius(float radius) {
+        if (glassTitleLeftRadiusOverride == radius) {
+            return;
+        }
+
+        glassTitleLeftRadiusOverride = radius;
+        glassTitleLeftRadius = -1;
+        updateGlassTitleRadius();
+        invalidate();
     }
 
     public void setupGlass(BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colorProvider) {
@@ -224,11 +237,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         glassDrawable = factory.create(this)
             .setColorProvider(colorProvider)
             .setPadding(dp(6));
-        if (isForum) {
-            glassDrawable.setRadius(dp(18.33f), dp(23), dp(23), dp(18.33f));
-        } else {
-            glassDrawable.setRadius(dp(23));
-        }
+        glassTitleLeftRadius = -1;
+        updateGlassTitleRadius();
 
 
         glassDrawableBack = factory.create(this)
@@ -2181,6 +2191,22 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     private boolean doNotDrawChild;
 
+    private void updateGlassTitleRadius() {
+        if (glassDrawable == null) {
+            return;
+        }
+
+        float leftRadius = glassTitleLeftRadiusOverride >= 0
+                ? glassTitleLeftRadiusOverride
+                : dp(glassModeIsForum ? 18.33f : 23f);
+        if (glassTitleLeftRadius == leftRadius) {
+            return;
+        }
+
+        glassTitleLeftRadius = leftRadius;
+        glassDrawable.setRadius(leftRadius, dp(23), dp(23), leftRadius);
+    }
+
     public void setSkipDrawChild(boolean skip) {
         if (doNotDrawChild != skip) {
             doNotDrawChild = skip;
@@ -2294,6 +2320,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final int b = t + s + p * 2;
 
         if (glassDrawable != null && !glassOnlyBack && drawGlassTitle) {
+            updateGlassTitleRadius();
             final int menuWidthWithPadding = menuWidth + ((hasForcedMenuWidth || hasForcedMenuMinWidth) ? (menuWidth > 0 ? p : 0) : (int) (p * animatorHasMenuItems.getFloatValue()));
             final int rightOffset = lerp(menuWidthWithPadding, Math.max(menuWidthWithPadding, p + s), chatAvatarContainer == null ? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
 

@@ -122,6 +122,7 @@ import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
+import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
 import org.telegram.ui.fluxgram.MessageMenuMetadataController;
@@ -3594,6 +3595,51 @@ public class ChatActivity extends BaseFragment implements
         return TelegramPeerKeyAdapter.fromUserId(userId);
     }
 
+    private boolean isFluxGramChatHeaderAvatarGeometryEligible() {
+        if (chatMode != MODE_DEFAULT
+                || currentEncryptedChat != null
+                || isInPreviewMode()
+                || inBubbleMode
+                || isInsideContainer
+                || isTopic
+                || isComments
+                || isThreadChat()
+                || isReplyChatComment()
+                || threadMessageId != 0
+                || quickReplyShortcut != null
+                || businessLink != null
+                || chatInvite != null
+                || isReport()
+                || startLoadFromDate != 0
+                || isInBotForumMode()) {
+            return false;
+        }
+
+        if (currentUser != null) {
+            long userId = currentUser.id;
+            return currentChat == null
+                    && userId > 0
+                    && !UserObject.isDeleted(currentUser)
+                    && !UserObject.isUserSelf(currentUser)
+                    && !UserObject.isReplyUser(currentUser)
+                    && !UserObject.isAnonymous(currentUser)
+                    && !UserObject.isService(userId)
+                    && userId != UserObject.VERIFY
+                    && userId != UserObject.OAUTH
+                    && DialogObject.isUserDialog(dialog_id)
+                    && dialog_id == userId;
+        }
+
+        return currentChat != null
+                && dialog_id == -currentChat.id
+                && !ChatObject.isCommunity(currentChat)
+                && !ChatObject.isChannelAndNotMegaGroup(currentChat)
+                && !ChatObject.isForum(currentChat)
+                && !ChatObject.isMonoForum(currentChat)
+                && !currentChat.gigagroup
+                && !currentChat.broadcast;
+    }
+
     private void updatePluginChatLifecycle() {
         if (pluginComposer != null) {
             pluginComposer.refresh();
@@ -4427,6 +4473,40 @@ public class ChatActivity extends BaseFragment implements
         }
         avatarContainer = new ChatAvatarContainer(context, this, currentEncryptedChat != null, themeDelegate) {
             @Override
+            protected int resolveAvatarRoundRadius(int stockRadius, int avatarSize) {
+                if (!isFluxGramChatHeaderAvatarGeometryEligible()) {
+                    return stockRadius;
+                }
+
+                return AvatarGeometry.resolveRadius(
+                        currentAccount,
+                        avatarSize,
+                        AvatarGeometry.ROLE_HEADER,
+                        stockRadius
+                );
+            }
+
+            @Override
+            protected float resolveStoryRoundRectRadius(int avatarRadius) {
+                if (!isFluxGramChatHeaderAvatarGeometryEligible()
+                        || AvatarGeometry.usesStockGeometry(currentAccount)) {
+                    return -1;
+                }
+
+                return avatarRadius;
+            }
+
+            @Override
+            protected float resolveHeaderBackgroundRadius(int avatarRadius) {
+                if (!isFluxGramChatHeaderAvatarGeometryEligible()
+                        || AvatarGeometry.usesStockGeometry(currentAccount)) {
+                    return -1;
+                }
+
+                return avatarRadius * 23f / 21f;
+            }
+
+            @Override
             protected boolean onAvatarClick() {
                 if (currentUser != null && currentUser.linked_community_id != 0) {
                     showDialog(new CommunitySheet(ChatActivity.this, currentUser.linked_community_id));
@@ -4868,19 +4948,17 @@ public class ChatActivity extends BaseFragment implements
             glassBackgroundDrawableFactory,
             BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate),
             ChatObject.isForum(currentChat));
+        avatarContainer.setActionBar(actionBar);
 
         if (chatMode == MODE_PINNED) {
             actionBar.setChatAvatarContainer(avatarContainer);
-            avatarContainer.setActionBar(actionBar);
         } else if (chatMode == MODE_WELCOME_MESSAGES) {
             actionBar.setChatAvatarContainer(avatarContainer);
             actionBar.setForcedMenuWidth(dp(46));
             actionBar.doNotDrawGlassMenu = true;
-            avatarContainer.setActionBar(actionBar);
         } else if (isComments) {
             actionBar.setChatAvatarContainer(avatarContainer);
             actionBar.setForcedMenuMinWidth(dp(46));
-            avatarContainer.setActionBar(actionBar);
         }
 
         chatInputViewsContainer = new ChatInputViewsContainer(context);
