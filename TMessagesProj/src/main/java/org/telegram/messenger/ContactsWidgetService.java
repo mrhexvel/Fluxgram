@@ -7,12 +7,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.BitmapShader;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.RectF;
-import android.graphics.Shader;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -20,11 +14,9 @@ import android.widget.RemoteViewsService;
 
 import androidx.collection.LongSparseArray;
 
-
-
+import org.telegram.messenger.fluxgram.AvatarGeometryWidgets;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.EditWidgetActivity;
 
 import java.io.File;
@@ -43,8 +35,6 @@ class ContactsRemoteViewsFactory implements RemoteViewsService.RemoteViewsFactor
     private Context mContext;
     private int appWidgetId;
     private AccountInstance accountInstance;
-    private Paint roundPaint;
-    private RectF bitmapRect;
     private LongSparseArray<TLRPC.Dialog> dialogs = new LongSparseArray<>();
     private boolean deleted;
 
@@ -137,44 +127,17 @@ class ContactsRemoteViewsFactory implements RemoteViewsService.RemoteViewsFactor
                 try {
                     Bitmap bitmap = null;
                     if (photoPath != null) {
-                        File path = FileLoader.getInstance(UserConfig.selectedAccount).getPathToAttach(photoPath, true);
+                        File path = FileLoader.getInstance(accountInstance.getCurrentAccount()).getPathToAttach(photoPath, true);
                         bitmap = BitmapFactory.decodeFile(path.toString());
                     }
 
-                    int size = AndroidUtilities.dp(48);
-                    Bitmap result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-                    result.eraseColor(Color.TRANSPARENT);
-                    Canvas canvas = new Canvas(result);
-                    if (bitmap == null) {
-                        AvatarDrawable avatarDrawable;
-                        if (user != null) {
-                            avatarDrawable = new AvatarDrawable(user);
-                            if (UserObject.isReplyUser(user)) {
-                                avatarDrawable.setAvatarType(AvatarDrawable.AVATAR_TYPE_REPLIES);
-                            } else if (UserObject.isUserSelf(user)) {
-                                avatarDrawable.setAvatarType(AvatarDrawable.AVATAR_TYPE_SAVED);
-                            }
-                        } else {
-                            avatarDrawable = new AvatarDrawable();
-                            avatarDrawable.setInfo(accountInstance.getCurrentAccount(), chat);
-                        }
-                        avatarDrawable.setBounds(0, 0, size, size);
-                        avatarDrawable.draw(canvas);
-                    } else {
-                        BitmapShader shader = new BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                        if (roundPaint == null) {
-                            roundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                            bitmapRect = new RectF();
-                        }
-                        float scale = size / (float) bitmap.getWidth();
-                        canvas.save();
-                        canvas.scale(scale, scale);
-                        roundPaint.setShader(shader);
-                        bitmapRect.set(0, 0, bitmap.getWidth(), bitmap.getHeight());
-                        canvas.drawRoundRect(bitmapRect, bitmap.getWidth(), bitmap.getHeight(), roundPaint);
-                        canvas.restore();
-                    }
-                    canvas.setBitmap(null);
+                    Bitmap result = AvatarGeometryWidgets.render(
+                            accountInstance.getCurrentAccount(),
+                            id,
+                            user,
+                            chat,
+                            bitmap
+                    );
                     rv.setImageViewBitmap(a == 0 ? R.id.contacts_widget_item_avatar1 : R.id.contacts_widget_item_avatar2, result);
                 } catch (Throwable e) {
                     FileLog.e(e);

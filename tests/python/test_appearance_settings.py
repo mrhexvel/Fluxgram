@@ -357,6 +357,38 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("AvatarGeometry.resolveRadius(account", hint)
         self.assertIn("!UserObject.isUserSelf(user)", hint)
 
+    def test_avatar_geometry_widgets_render_and_refresh_by_account(self):
+        settings = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        avatar = (JAVA / "ui/Components/AvatarDrawable.java").read_text()
+        renderer = (
+            JAVA / "messenger/fluxgram/AvatarGeometryWidgets.java"
+        ).read_text()
+        chats = (JAVA / "messenger/ChatsWidgetService.java").read_text()
+        contacts = (JAVA / "messenger/ContactsWidgetService.java").read_text()
+        preview = (JAVA / "ui/EditWidgetActivity.java").read_text()
+
+        self.assertIn("AvatarGeometry.ROLE_WIDGET", renderer)
+        self.assertIn("new RectF(0, 0, size, size)", renderer)
+        self.assertIn("Math.max(size / (float) photo.getWidth()", renderer)
+        self.assertIn("avatarDrawable.setRoundRadius(radius);", renderer)
+        self.assertIn("!UserObject.isUserSelf(user)", renderer)
+        self.assertIn("DialogObject.isChatDialog(dialogId)", renderer)
+        self.assertIn("ChatsWidgetProvider.class", renderer)
+        self.assertIn("ContactsWidgetProvider.class", renderer)
+        self.assertIn('preferences.getInt("account" + widgetId, -1) == account', renderer)
+        self.assertIn('!preferences.getBoolean("deleted" + widgetId, false)', renderer)
+        self.assertIn("notifyAppWidgetViewDataChanged(widgetId, R.id.list_view)", renderer)
+        self.assertIn("AvatarGeometryWidgets.render(", chats)
+        self.assertIn("AvatarGeometryWidgets.render(", contacts)
+        self.assertIn("FileLoader.getInstance(accountInstance.getCurrentAccount())", chats)
+        self.assertIn("FileLoader.getInstance(accountInstance.getCurrentAccount())", contacts)
+        self.assertNotIn("FileLoader.getInstance(UserConfig.selectedAccount)", chats)
+        self.assertNotIn("FileLoader.getInstance(UserConfig.selectedAccount)", contacts)
+        self.assertIn("if (roundRadius >= 0)", avatar)
+        self.assertIn("this::onAvatarGeometryChanged", settings)
+        self.assertIn("AvatarGeometryWidgets.refresh(currentAccount);", settings)
+        self.assertNotIn("AvatarGeometryWidgets", preview)
+
     def test_avatar_geometry_preview_uses_shared_resolver(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         preview = (

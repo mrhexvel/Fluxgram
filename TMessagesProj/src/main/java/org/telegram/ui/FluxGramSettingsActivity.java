@@ -23,6 +23,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
+import org.telegram.messenger.fluxgram.AvatarGeometryWidgets;
 import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
@@ -202,7 +203,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     context,
                     currentAccount,
                     getResourceProvider(),
-                    this::scheduleAppearanceRebuild
+                    this::onAvatarGeometryChanged
             );
             folderPreview = new FluxGramFolderPreviewCell(
                     context, currentAccount, getResourceProvider()
@@ -798,7 +799,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 AppearanceSettings.setUsesUnifiedAvatarRadius(currentAccount, unified);
                 ((TextCheckCell) view).setChecked(unified);
                 avatarGeometryPreview.update();
-                scheduleAppearanceRebuild();
+                onAvatarGeometryChanged();
             }
 
             return;
@@ -1017,6 +1018,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private void scheduleAppearanceRebuild() {
         AndroidUtilities.cancelRunOnUIThread(rebuildAppearanceFragments);
         AndroidUtilities.runOnUIThread(rebuildAppearanceFragments, 250);
+    }
+
+    private void onAvatarGeometryChanged() {
+        AvatarGeometryWidgets.refresh(currentAccount);
+        scheduleAppearanceRebuild();
     }
 
     private void showAppearanceTitleDialog() {
