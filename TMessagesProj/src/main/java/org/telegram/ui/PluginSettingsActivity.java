@@ -162,7 +162,8 @@ public final class PluginSettingsActivity extends BaseFragment {
             PluginSettings.Setting setting = visibleSettings.get(index);
             String labelText = visibleLabels.get(index);
             boolean divider = index + 1 < visibleSettings.size()
-                    && visibleLabels.get(index + 1).isEmpty();
+                    && visibleLabels.get(index + 1).isEmpty()
+                    && FluxGramSettingsSections.showsDividers(currentAccount);
 
             if (!labelText.isEmpty()) {
                 HeaderCell label = new HeaderCell(getParentActivity(), 33, getResourceProvider());

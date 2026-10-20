@@ -9,7 +9,18 @@ public final class FluxGramSettingsSections {
     }
 
     public static void apply(UniversalRecyclerView listView, int account) {
+        if (listView == null) {
+            return;
+        }
+
+        int dividerStyle = AppearanceSettings.getSettingsDividerStyle(account);
+        listView.adapter.setDividersEnabled(dividerStyle == AppearanceSettings.DIVIDER_LINE);
         applyRadius(listView, AppearanceSettings.getSettingsSectionRadius(account));
+        listView.setSegmentedSections(dividerStyle == AppearanceSettings.DIVIDER_SEGMENTS);
+    }
+
+    public static boolean showsDividers(int account) {
+        return AppearanceSettings.getSettingsDividerStyle(account) == AppearanceSettings.DIVIDER_LINE;
     }
 
     public static void applyRadius(UniversalRecyclerView listView, int radius) {

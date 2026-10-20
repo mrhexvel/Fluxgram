@@ -101,6 +101,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int FOLDER_COUNTER = 37;
     private static final int SHOW_ALL_CHATS_FOLDER = 38;
     private static final int UNIFIED_AVATAR_RADIUS = 39;
+    private static final int SETTINGS_DIVIDER_STYLE = 40;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -434,6 +435,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
             items.add(UItem.asCustom(fabShapePreview, 104));
             sectionRadiusCell.update();
             items.add(UItem.asCustom(sectionRadiusCell, 104));
+            items.add(UItem.asButton(
+                    SETTINGS_DIVIDER_STYLE,
+                    LocaleController.getString(R.string.FluxGramDividerStyle),
+                    dividerStyleOption(AppearanceSettings.getSettingsDividerStyle(currentAccount))
+            ));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
             items.add(UItem.asCustomShadow(folderPreview, 58));
@@ -821,6 +827,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ((TextCheckCell) view).setChecked(unified);
                 avatarGeometryPreview.update();
                 onAvatarGeometryChanged();
+            } else if (item.id == SETTINGS_DIVIDER_STYLE) {
+                showDividerStyleDialog();
             }
 
             return;
@@ -1067,6 +1075,42 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     AppearanceSettings.setTitleMode(currentAccount, index);
                     appearancePreview.update(true);
                     listView.adapter.update(true);
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private String dividerStyleOption(int style) {
+        if (style == AppearanceSettings.DIVIDER_HIDDEN) {
+            return LocaleController.getString(R.string.FluxGramDividerHidden);
+        }
+        if (style == AppearanceSettings.DIVIDER_SEGMENTS) {
+            return LocaleController.getString(R.string.FluxGramDividerSegments);
+        }
+
+        return LocaleController.getString(R.string.FluxGramDividerLine);
+    }
+
+    private void showDividerStyleDialog() {
+        CharSequence[] options = {
+                dividerStyleOption(AppearanceSettings.DIVIDER_HIDDEN),
+                dividerStyleOption(AppearanceSettings.DIVIDER_LINE),
+                dividerStyleOption(AppearanceSettings.DIVIDER_SEGMENTS)
+        };
+        int selected = AppearanceSettings.getSettingsDividerStyle(currentAccount);
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramDividerStyle))
+                .setItems(options, (dialog, index) -> {
+                    AppearanceSettings.setSettingsDividerStyle(currentAccount, index);
+                    FluxGramSettingsSections.apply(listView, currentAccount);
+                    listView.adapter.update(false);
                 })
                 .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                 .create());

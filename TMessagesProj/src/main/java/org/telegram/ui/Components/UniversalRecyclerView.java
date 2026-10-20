@@ -440,7 +440,7 @@ public class UniversalRecyclerView extends RecyclerListView {
                 final ViewHolder viewHolder = getChildViewHolder(view);
                 return !UniversalAdapter.isShadow(viewHolder.getItemViewType());
             },
-            UniversalAdapter::isShadow,
+            viewType -> !UniversalAdapter.isShadow(viewType),
             padding, roundRadius,
             super::drawBackgroundRect,
             topPadding

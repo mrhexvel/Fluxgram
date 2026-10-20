@@ -125,6 +125,7 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
     private final int classGuid;
     private final boolean dialog;
     private boolean applyBackground = true;
+    private boolean dividersEnabled = true;
     protected Utilities.Callback2<ArrayList<UItem>, UniversalAdapter> fillItems;
     private final Theme.ResourcesProvider resourcesProvider;
 
@@ -166,6 +167,15 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
 
     public void setApplyBackground(boolean applyBackground) {
         this.applyBackground = applyBackground;
+    }
+
+    public void setDividersEnabled(boolean dividersEnabled) {
+        if (this.dividersEnabled == dividersEnabled) {
+            return;
+        }
+
+        this.dividersEnabled = dividersEnabled;
+        notifyDataSetChanged();
     }
 
     private static class Section {
@@ -600,7 +610,8 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
     private boolean hasDivider(int position) {
         UItem item = getItem(position);
         UItem nextItem = getItem(position + 1);
-        return item != null && !item.hideDivider && nextItem != null && isShadow(nextItem.viewType) == isShadow(item.viewType);
+        return dividersEnabled && item != null && !item.hideDivider && nextItem != null
+                && isShadow(nextItem.viewType) == isShadow(item.viewType);
     }
 
     public static boolean isShadow(int viewType) {

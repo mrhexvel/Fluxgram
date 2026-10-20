@@ -26,6 +26,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn('"unified_avatar_radius"', source)
         self.assertIn('"fab_corner_radius"', source)
         self.assertIn('"settings_section_radius"', source)
+        self.assertIn('"settings_divider_style"', source)
 
     def test_title_modes_have_safe_fallbacks(self):
         source = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
@@ -181,6 +182,58 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertNotIn("UItem.asHeader", ghost_mode)
         self.assertIn("UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT)", ghost_mode)
 
+    def test_settings_divider_modes_are_opt_in_and_bounded(self):
+        settings = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        helper = (JAVA / "ui/fluxgram/FluxGramSettingsSections.java").read_text()
+        adapter = (JAVA / "ui/Components/UniversalAdapter.java").read_text()
+        recycler = (JAVA / "ui/Components/RecyclerListView.java").read_text()
+        universal_recycler = (
+            JAVA / "ui/Components/UniversalRecyclerView.java"
+        ).read_text()
+
+        self.assertIn("DIVIDER_HIDDEN = 0", settings)
+        self.assertIn("DIVIDER_LINE = 1", settings)
+        self.assertIn("DIVIDER_SEGMENTS = 2", settings)
+        self.assertIn(
+            "getInt(account, SETTINGS_DIVIDER_STYLE, DIVIDER_LINE)", settings
+        )
+        self.assertIn("style < DIVIDER_HIDDEN || style > DIVIDER_SEGMENTS", settings)
+        self.assertIn("listView.adapter.setDividersEnabled(", helper)
+        self.assertIn("listView.setSegmentedSections(", helper)
+        self.assertIn("private boolean dividersEnabled = true;", adapter)
+        self.assertIn("return dividersEnabled && item != null", adapter)
+        self.assertIn("public void setSegmentedSections(boolean segmentedSections)", recycler)
+        self.assertIn("outRect.top += dp(2);", recycler)
+        self.assertIn("Math.min(sectionRadius, dp(4))", recycler)
+        self.assertIn(
+            "viewType -> !UniversalAdapter.isShadow(viewType)", universal_recycler
+        )
+        self.assertNotIn("AppearanceSettings", recycler)
+        self.assertNotIn("AppearanceSettings", adapter)
+
+    def test_divider_selector_is_inside_rounding_card(self):
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        rounding = activity.split(
+            "addSectionLabel(items, R.string.FluxGramRounding);", 1
+        )[1].split("addSectionLabel(items, R.string.Filters);", 1)[0]
+
+        self.assertIn("UItem.asButton(\n                    SETTINGS_DIVIDER_STYLE", rounding)
+        self.assertIn("showDividerStyleDialog();", activity)
+        self.assertIn("AppearanceSettings.setSettingsDividerStyle(currentAccount, index)", activity)
+        self.assertIn("FluxGramSettingsSections.apply(listView, currentAccount)", activity)
+        self.assertEqual(1, rounding.count("UItem.asShadow(null)"))
+
+    def test_custom_settings_rows_follow_local_divider_policy(self):
+        stealth = (JAVA / "ui/FluxGramStealthActivity.java").read_text()
+        plugins = (JAVA / "ui/PluginSettingsActivity.java").read_text()
+
+        self.assertGreaterEqual(
+            stealth.count("FluxGramSettingsSections.showsDividers(currentAccount)"), 4
+        )
+        self.assertIn(
+            "&& FluxGramSettingsSections.showsDividers(currentAccount);", plugins
+        )
+
     def test_shape_preview_labels_use_active_regular_typeface(self):
         previews = [
             "FluxGramAvatarGeometryPreviewCell.java",
@@ -203,6 +256,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("UItem.asCheck(\n                    UNIFIED_AVATAR_RADIUS", rounding)
         self.assertIn("UItem.asCustom(fabShapePreview, 104)", rounding)
         self.assertIn("UItem.asCustom(sectionRadiusCell, 104)", rounding)
+        self.assertIn("SETTINGS_DIVIDER_STYLE", rounding)
         self.assertEqual(1, rounding.count("UItem.asShadow(null)"))
         self.assertNotIn("addSectionLabel", rounding)
 

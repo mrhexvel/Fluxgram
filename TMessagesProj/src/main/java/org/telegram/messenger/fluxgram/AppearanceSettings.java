@@ -25,6 +25,7 @@ public final class AppearanceSettings {
     private static final String UNIFIED_AVATAR_RADIUS = "unified_avatar_radius";
     private static final String FAB_CORNER_RADIUS = "fab_corner_radius";
     private static final String SETTINGS_SECTION_RADIUS = "settings_section_radius";
+    private static final String SETTINGS_DIVIDER_STYLE = "settings_divider_style";
 
     public static final int TITLE_APP_NAME = 0;
     public static final int TITLE_USERNAME = 1;
@@ -33,6 +34,9 @@ public final class AppearanceSettings {
     public static final int MAX_FAB_CORNER_RADIUS = 24;
     public static final int DEFAULT_SETTINGS_SECTION_RADIUS = 20;
     public static final int MAX_SETTINGS_SECTION_RADIUS = 28;
+    public static final int DIVIDER_HIDDEN = 0;
+    public static final int DIVIDER_LINE = 1;
+    public static final int DIVIDER_SEGMENTS = 2;
 
     private AppearanceSettings() {
     }
@@ -156,6 +160,24 @@ public final class AppearanceSettings {
         }
 
         setInt(account, SETTINGS_SECTION_RADIUS, radius);
+    }
+
+    public static int getSettingsDividerStyle(int account) {
+        int style = getInt(account, SETTINGS_DIVIDER_STYLE, DIVIDER_LINE);
+
+        if (style < DIVIDER_HIDDEN || style > DIVIDER_SEGMENTS) {
+            return DIVIDER_LINE;
+        }
+
+        return style;
+    }
+
+    public static void setSettingsDividerStyle(int account, int style) {
+        if (style < DIVIDER_HIDDEN || style > DIVIDER_SEGMENTS) {
+            return;
+        }
+
+        setInt(account, SETTINGS_DIVIDER_STYLE, style);
     }
 
     public static CharSequence getActionBarTitle(int account) {

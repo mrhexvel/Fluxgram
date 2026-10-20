@@ -11393,6 +11393,10 @@
     <string name="FluxGramFabCircle">Circle</string>
     <string name="FluxGramSettingsAppearance">Settings appearance</string>
     <string name="FluxGramSectionCornerRadiusValue">Corner radius: %d dp</string>
+    <string name="FluxGramDividerStyle">Divider style</string>
+    <string name="FluxGramDividerHidden">Hidden</string>
+    <string name="FluxGramDividerLine">Line</string>
+    <string name="FluxGramDividerSegments">Segments</string>
     <string name="FluxGramChats">Chats</string>
     <string name="FluxGramCategories">Categories</string>
     <string name="FluxGramLinks">Links</string>

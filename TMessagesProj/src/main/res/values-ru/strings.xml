@@ -388,6 +388,10 @@
     <string name="FluxGramFabCircle">Круг</string>
     <string name="FluxGramSettingsAppearance">Оформление настроек</string>
     <string name="FluxGramSectionCornerRadiusValue">Радиус углов: %d dp</string>
+    <string name="FluxGramDividerStyle">Стиль разделителей</string>
+    <string name="FluxGramDividerHidden">Скрыты</string>
+    <string name="FluxGramDividerLine">Линия</string>
+    <string name="FluxGramDividerSegments">Сегменты</string>
     <string name="FluxGramChats">Чаты</string>
     <string name="FluxGramCategories">Категории</string>
     <string name="FluxGramLinks">Ссылки</string>

@@ -218,7 +218,8 @@ public final class FluxGramStealthActivity extends BaseFragment {
         cell.setTextAndValue(text(R.string.FluxGramDeletedChats), EditHistory.keepsDeletedInAllChats(currentAccount)
                 ? text(R.string.FluxGramAttachmentAllChats)
                 : LocaleController.formatString(R.string.FluxGramAttachmentSelectedChats,
-                        EditHistory.deletedChats(currentAccount).size()), true);
+                        EditHistory.deletedChats(currentAccount).size()),
+                FluxGramSettingsSections.showsDividers(currentAccount));
         cell.setBackground(Theme.getSelectorDrawable(false));
         cell.setEnabled(checked[0], null);
 
@@ -232,11 +233,12 @@ public final class FluxGramStealthActivity extends BaseFragment {
     private void addSwitch(ArrayList<UItem> items, int index, int title, int description, boolean divider) {
         TextCheckCell cell = new TextCheckCell(getParentActivity(), getResourceProvider());
         boolean enabled = index != 4 || checked[0];
+        boolean showDivider = divider && FluxGramSettingsSections.showsDividers(currentAccount);
 
         if (description == 0) {
-            cell.setTextAndCheck(text(title), checked[index], divider);
+            cell.setTextAndCheck(text(title), checked[index], showDivider);
         } else {
-            cell.setTextAndValueAndCheck(text(title), text(description), checked[index], true, divider);
+            cell.setTextAndValueAndCheck(text(title), text(description), checked[index], true, showDivider);
         }
 
         cell.setBackground(Theme.getSelectorDrawable(false));
@@ -267,7 +269,9 @@ public final class FluxGramStealthActivity extends BaseFragment {
 
     private void addStatistic(ArrayList<UItem> items, int title, String value, boolean divider) {
         TextSettingsCell cell = new TextSettingsCell(getParentActivity(), getResourceProvider());
-        cell.setTextAndValue(text(title), value, false, divider);
+        cell.setTextAndValue(
+                text(title), value, false,
+                divider && FluxGramSettingsSections.showsDividers(currentAccount));
         cell.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
     }
@@ -415,7 +419,9 @@ public final class FluxGramStealthActivity extends BaseFragment {
 
     private void addAction(ArrayList<UItem> items, int title, int icon, boolean divider) {
         TextSettingsCell cell = new TextSettingsCell(getParentActivity(), getResourceProvider());
-        cell.setTextAndIcon(text(title), icon, divider);
+        cell.setTextAndIcon(
+                text(title), icon,
+                divider && FluxGramSettingsSections.showsDividers(currentAccount));
         cell.setBackground(Theme.getSelectorDrawable(false));
         cell.setOnClickListener(view -> showPlaceholder());
         items.add(UItem.asCustom(cell, LayoutHelper.WRAP_CONTENT));
