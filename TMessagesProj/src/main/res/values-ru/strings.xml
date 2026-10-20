@@ -410,6 +410,13 @@
     <string name="FluxGramTabletModeRestartMessage">Изменение режима планшета перестраивает навигацию приложения. Для применения нужен перезапуск FluxGram.</string>
     <string name="FluxGramRestartNow">Перезапустить</string>
     <string name="FluxGramTabletModeRestartError">Не удалось сохранить настройку или перезапустить FluxGram.</string>
+    <string name="FluxGramBottomNavigation">Нижняя навигация</string>
+    <string name="FluxGramBottomNavigationFloating">Плавающая</string>
+    <string name="FluxGramBottomNavigationShow">Показывать</string>
+    <string name="FluxGramBottomNavigationHide">Скрывать</string>
+    <string name="FluxGramNavigationInfo">Режим планшета управляет компоновкой приложения на этом устройстве. Плавающая нижняя панель следует прокрутке списка чатов и скрывается при поиске и поверхностных слоях, режим показа оставляет её видимой, а режим скрытия убирает её и сохраняет доступ к настройкам через меню списка чатов.</string>
+    <string name="FluxGramBottomNavigationRestartMessage">Изменение нижней навигации перестраивает корневые страницы приложения. Для применения нужен перезапуск FluxGram.</string>
+    <string name="FluxGramBottomNavigationRestartError">Не удалось сохранить режим нижней навигации или перезапустить FluxGram.</string>
     <string name="FluxGramCategories">Категории</string>
     <string name="FluxGramLinks">Ссылки</string>
     <string name="FluxGramChannel">Канал</string>

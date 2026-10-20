@@ -54,6 +54,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
+import org.telegram.messenger.fluxgram.BottomNavigationSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.tgnet.TLRPC;
@@ -124,9 +125,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private MainTabsLayout tabsView;
     private BlurredBackgroundDrawable tabsViewBackground;
     private View fadeView;
+    private final int bottomNavigationMode;
 
     public MainTabsActivity() {
         super();
+        bottomNavigationMode = BottomNavigationSettings.normalize(SharedConfig.bottomNavigationMode);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             iBlur3SourceTabGlass = new BlurredBackgroundSourceRenderNode(null);
             iBlur3SourceTabGlass.setupRenderer(new RenderNodeWithHash.Renderer() {
@@ -202,7 +205,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         Bulletin.Delegate delegate = new Bulletin.Delegate() {
             @Override
             public int getBottomOffset(int tag) {
-                return navigationBarHeight + dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN);
+                int tabsOffset = hasBottomNavigation()
+                        ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN)
+                        : 0;
+
+                return navigationBarHeight + tabsOffset;
             }
         };
 
@@ -311,6 +318,21 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         super.createView(context);
         tabletLayout = false;
 
+        if (!hasBottomNavigation()) {
+            iBlur3SourceColor.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
+
+            fadeView = new View(context);
+            fadeView.setVisibility(View.GONE);
+            contentView.addView(fadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 0, Gravity.BOTTOM));
+
+            tabsViewWrapper = new FrameLayout(context);
+            tabsViewWrapper.setVisibility(View.GONE);
+            contentView.addView(tabsViewWrapper, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
+
+            setupUpdateLayout(context);
+            return contentView;
+        }
+
         tabsView = new MainTabsLayout(context, resourceProvider);
         tabsView.setClipChildren(false);
         tabsView.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4));
@@ -390,6 +412,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsViewWrapper.setClipToPadding(false);
         contentView.addView(tabsViewWrapper, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
 
+        setupUpdateLayout(context);
+        checkUnreadCount(false);
+        return contentView;
+    }
+
+    private void setupUpdateLayout(Context context) {
         updateLayoutWrapper = new UpdateLayoutWrapper(context);
         contentView.addView(updateLayoutWrapper, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
 
@@ -399,8 +427,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
 
         updateLayout();
-        checkUnreadCount(false);
-        return contentView;
     }
 
     private void checkUnreadCount(boolean animated) {
@@ -790,7 +816,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected int getFragmentsCount() {
-        return TABS_COUNT;
+        return hasBottomNavigation() ? TABS_COUNT : 1;
     }
 
     @Override
@@ -820,7 +846,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             bundle = new Bundle();
         }
 
-        bundle.putBoolean("hasMainTabs", true);
+        bundle.putBoolean("hasMainTabs", hasBottomNavigation());
         dialogsActivity = new DialogsActivity(bundle);
         dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
         putFragmentAtPosition(POSITION_CHATS, dialogsActivity);
@@ -833,21 +859,21 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             Bundle args = new Bundle();
             args.putBoolean("needPhonebook", true);
             args.putBoolean("needFinishFragment", false);
-            args.putBoolean("hasMainTabs", true);
+            args.putBoolean("hasMainTabs", hasBottomNavigation());
             return new ContactsActivity(args);
         } else if (position == POSITION_CALLS_OR_SETTINGS) {
             if (getUserConfig().showCallsTab) {
                 Bundle args = new Bundle();
                 args.putBoolean("needFinishFragment", false);
-                args.putBoolean("hasMainTabs", true);
+                args.putBoolean("hasMainTabs", hasBottomNavigation());
                 return new CallLogActivity(args);
             }
             Bundle args = new Bundle();
-            args.putBoolean("hasMainTabs", true);
+            args.putBoolean("hasMainTabs", hasBottomNavigation());
             return new SettingsActivity(args);
         } else if (position == POSITION_CHATS) {
             Bundle args = new Bundle();
-            args.putBoolean("hasMainTabs", true);
+            args.putBoolean("hasMainTabs", hasBottomNavigation());
             dialogsActivity = new DialogsActivity(args);
             dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
             return dialogsActivity;
@@ -856,7 +882,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
             args.putBoolean("my_profile", true);
             // args.putBoolean("expandPhoto", true);
-            args.putBoolean("hasMainTabs", true);
+            args.putBoolean("hasMainTabs", hasBottomNavigation());
             return new ProfileActivity(args);
         }
         return null;
@@ -914,6 +940,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
     private boolean canScrollInternal(MotionEvent ev, boolean forward) {
+        if (!hasBottomNavigation()) {
+            return false;
+        }
+
         final BaseFragment fragment = getCurrentVisibleFragment();
         if (fragment instanceof TabFragmentDelegate) {
             final TabFragmentDelegate delegate = (TabFragmentDelegate) fragment;
@@ -1078,6 +1108,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (viewPager == null || fadeView == null) {
             return;
         }
+        if (!hasBottomNavigation()) {
+            fadeView.setVisibility(View.GONE);
+            return;
+        }
 
         final float animatedPosition = viewPager.getPositionAnimated();
         final float isProfile = 1f - MathUtils.clamp(Math.abs(POSITION_PROFILE - animatedPosition), 0, 1);
@@ -1093,6 +1127,15 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
     private void checkUi_tabsPosition() {
+        if (!hasBottomNavigation()) {
+            tabsViewWrapper.setVisibility(View.GONE);
+            if (tabsView != null) {
+                tabsView.setVisibility(View.GONE);
+            }
+            return;
+        }
+
+        tabsViewWrapper.setVisibility(View.VISIBLE);
         final boolean isUpdateLayoutVisible = updateLayoutWrapper.isUpdateLayoutVisible();
         final int updateLayoutHeight = isUpdateLayoutVisible ? dp(UpdateLayoutWrapper.HEIGHT) : 0;
         final int normalY = -(updateLayoutHeight);
@@ -1131,7 +1174,19 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private class MainTabsActivityControllerImpl implements MainTabsActivityController {
         @Override
         public void setTabsVisible(boolean visible) {
+            if (!hasBottomNavigation()) {
+                return;
+            }
+            if (!BottomNavigationSettings.followsContentVisibility(bottomNavigationMode)) {
+                visible = true;
+            }
+
             animatorTabsVisible.setValue(visible, true);
+        }
+
+        @Override
+        public boolean openAccountSelector(View anchor) {
+            return MainTabsActivity.this.openAccountSelector(anchor);
         }
     }
 
@@ -1180,7 +1235,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private boolean accountSwitchHintShown;
 
     private void showAccountChangeHint() {
-        if (accountSwitchHintShown) return;
+        if (accountSwitchHintShown || !hasBottomNavigation()) return;
 
         if (accountSwitchHint == null && HintsController.Hint.AccountSwitchHint.show()) {
             AndroidUtilities.runOnUIThread(() -> {
@@ -1216,7 +1271,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     private final RectF fragmentPosition = new RectF();
     private void blur3_invalidateBlur() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || iBlur3SourceTabGlass == null || fragmentView == null) {
+        if (!hasBottomNavigation() || Build.VERSION.SDK_INT < Build.VERSION_CODES.S || iBlur3SourceTabGlass == null || fragmentView == null) {
             return;
         }
 
@@ -1225,6 +1280,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         iBlur3SourceTabGlass.setSize(width, height);
         iBlur3SourceTabGlass.updateDisplayListIfNeeded();
+    }
+
+    private boolean hasBottomNavigation() {
+        return BottomNavigationSettings.isVisible(bottomNavigationMode);
     }
 
     private void blur3_updateFadeColors() {

@@ -11415,6 +11415,13 @@
     <string name="FluxGramTabletModeRestartMessage">Changing tablet mode rebuilds the app navigation. FluxGram must restart to apply it.</string>
     <string name="FluxGramRestartNow">Restart now</string>
     <string name="FluxGramTabletModeRestartError">Could not save the setting or restart FluxGram.</string>
+    <string name="FluxGramBottomNavigation">Bottom navigation</string>
+    <string name="FluxGramBottomNavigationFloating">Floating</string>
+    <string name="FluxGramBottomNavigationShow">Show</string>
+    <string name="FluxGramBottomNavigationHide">Hide</string>
+    <string name="FluxGramNavigationInfo">Tablet mode controls the app layout on this device. Floating bottom navigation follows Chats scrolling and hides for search and overlays, Show keeps it visible, and Hide removes it while keeping Settings available from the Chats menu.</string>
+    <string name="FluxGramBottomNavigationRestartMessage">Changing bottom navigation rebuilds the app root pages. FluxGram must restart to apply it.</string>
+    <string name="FluxGramBottomNavigationRestartError">Could not save the bottom navigation setting or restart FluxGram.</string>
     <string name="FluxGramCategories">Categories</string>
     <string name="FluxGramLinks">Links</string>
     <string name="FluxGramChannel">Channel</string>

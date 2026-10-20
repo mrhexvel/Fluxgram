@@ -132,6 +132,7 @@ import org.telegram.messenger.XiaomiUtilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
+import org.telegram.messenger.fluxgram.BottomNavigationSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.FBool;
@@ -11520,6 +11521,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         floatingButtonHidden = hide;
         updateFloatingButtonVisibility(true);
+        checkUi_mainTabsVisible();
 
         if (hide) {
             if (storyHint != null) {
@@ -14125,7 +14127,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         }
-        if (getUserConfig().showCallsTab) {
+        boolean hiddenBottomNavigation = usesFluxGramRootDialogsAppearance()
+                && !BottomNavigationSettings.isVisible(SharedConfig.bottomNavigationMode);
+        if (hiddenBottomNavigation && mainTabsActivityController != null) {
+            io.add(R.drawable.settings_account, getString(R.string.SettingsAccounts), () -> {
+                io.dismiss();
+                mainTabsActivityController.openAccountSelector(optionsItem);
+            });
+        }
+        if (getUserConfig().showCallsTab || hiddenBottomNavigation) {
             io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
                 presentFragment(new SettingsActivity());
             });
@@ -14358,7 +14368,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private void checkUi_searchPagesPaddings(boolean doNotRequestLayout) {
         if (searchViewPager != null && actionBar != null) {
-            final int bottom = AndroidUtilities.navigationBarHeight;
+            final boolean persistentMainTabs = hasMainTabs
+                    && !BottomNavigationSettings.followsContentVisibility(
+                            SharedConfig.bottomNavigationMode);
+            final int bottom = AndroidUtilities.navigationBarHeight
+                    + (persistentMainTabs ? additionNavigationBarHeight : 0);
             final int top = dp(ADDITIONAL_LIST_HEIGHT_DP)
                 + actionBar.getMeasuredHeight()
                 + (searchTabsView != null ? dp(50) : 0)
@@ -14394,7 +14408,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void checkUi_mainTabsVisible() {
-        final boolean mainTabsVisible = !searching && (blurredView == null || blurredView.getBackground() == null || blurredView.getAlpha() < 0.01f || blurredView.getVisibility() == View.GONE);
+        final boolean mainTabsVisible = !floatingButtonHidden
+                && !searching
+                && (blurredView == null
+                || blurredView.getBackground() == null
+                || blurredView.getAlpha() < 0.01f
+                || blurredView.getVisibility() == View.GONE);
         if (mainTabsActivityController != null) {
             mainTabsActivityController.setTabsVisible(mainTabsVisible);
         }

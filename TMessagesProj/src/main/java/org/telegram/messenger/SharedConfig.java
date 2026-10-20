@@ -29,6 +29,7 @@ import androidx.annotation.RequiresApi;
 import androidx.core.content.pm.ShortcutManagerCompat;
 
 import org.json.JSONObject;
+import org.telegram.messenger.fluxgram.BottomNavigationSettings;
 import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.utils.proxy.ProxySettings;
 import org.telegram.tgnet.ConnectionsManager;
@@ -262,6 +263,7 @@ public class SharedConfig {
     public static boolean disableVoiceAudioEffects;
     public static boolean forceDisableTabletMode;
     public static int tabletMode = TabletModeSettings.AUTO;
+    public static int bottomNavigationMode = BottomNavigationSettings.FLOATING;
     public static boolean updateStickersOrderOnSend = true;
     public static boolean bigCameraForRound;
     public static Boolean useCamera2Force;
@@ -619,6 +621,9 @@ public class SharedConfig {
                     preferences.getInt("fluxgramTabletMode", legacyTabletMode)
             );
             forceDisableTabletMode = tabletMode == TabletModeSettings.OFF;
+            bottomNavigationMode = BottomNavigationSettings.normalize(
+                    preferences.getInt("fluxgramBottomNavigationMode", BottomNavigationSettings.FLOATING)
+            );
             fontSize = preferences.getInt("fons_size", AndroidUtilities.isTablet() && !AndroidUtilities.isFold() ? 18 : 16);
             fontSizeIsDefault = !preferences.contains("fons_size");
             bubbleRadius = preferences.getInt("bubbleRadius", 17);
@@ -1416,6 +1421,20 @@ public class SharedConfig {
 
         tabletMode = normalizedMode;
         forceDisableTabletMode = normalizedMode == TabletModeSettings.OFF;
+
+        return true;
+    }
+
+    public static boolean setBottomNavigationMode(int mode) {
+        int normalizedMode = BottomNavigationSettings.normalize(mode);
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putInt("fluxgramBottomNavigationMode", normalizedMode);
+        if (!editor.commit()) {
+            return false;
+        }
+
+        bottomNavigationMode = normalizedMode;
 
         return true;
     }

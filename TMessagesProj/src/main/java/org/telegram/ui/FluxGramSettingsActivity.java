@@ -24,6 +24,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.AvatarGeometryWidgets;
+import org.telegram.messenger.fluxgram.BottomNavigationSettings;
 import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
@@ -109,6 +110,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int CUSTOM_CHAT_THEMES = 44;
     private static final int NAVIGATION = 45;
     private static final int TABLET_MODE = 46;
+    private static final int BOTTOM_NAVIGATION = 47;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -524,8 +526,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramTabletMode),
                     tabletModeOption(SharedConfig.tabletMode)
             ));
+            items.add(UItem.asButton(
+                    BOTTOM_NAVIGATION,
+                    LocaleController.getString(R.string.FluxGramBottomNavigation),
+                    bottomNavigationOption(SharedConfig.bottomNavigationMode)
+            ));
             items.add(UItem.asShadow(LocaleController.getString(
-                    R.string.FluxGramTabletModeInfo)));
+                    R.string.FluxGramNavigationInfo)));
 
             return;
         }
@@ -826,6 +833,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
         if (section == NAVIGATION) {
             if (item.id == TABLET_MODE) {
                 showTabletModeDialog();
+            } else if (item.id == BOTTOM_NAVIGATION) {
+                showBottomNavigationDialog();
             }
 
             return;
@@ -1174,6 +1183,75 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         return LocaleController.getString(R.string.FluxGramTabletModeAuto);
+    }
+
+    private String bottomNavigationOption(int mode) {
+        if (mode == BottomNavigationSettings.SHOW) {
+            return LocaleController.getString(R.string.FluxGramBottomNavigationShow);
+        }
+        if (mode == BottomNavigationSettings.HIDE) {
+            return LocaleController.getString(R.string.FluxGramBottomNavigationHide);
+        }
+
+        return LocaleController.getString(R.string.FluxGramBottomNavigationFloating);
+    }
+
+    private void showBottomNavigationDialog() {
+        CharSequence[] options = {
+                bottomNavigationOption(BottomNavigationSettings.FLOATING),
+                bottomNavigationOption(BottomNavigationSettings.SHOW),
+                bottomNavigationOption(BottomNavigationSettings.HIDE)
+        };
+        int selected = SharedConfig.bottomNavigationMode;
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramBottomNavigation))
+                .setItems(options, (dialog, index) -> {
+                    if (index != SharedConfig.bottomNavigationMode) {
+                        confirmBottomNavigationChange(index);
+                    }
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void confirmBottomNavigationChange(int mode) {
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramTabletModeRestartTitle))
+                .setMessage(LocaleController.getString(R.string.FluxGramBottomNavigationRestartMessage))
+                .setPositiveButton(LocaleController.getString(R.string.FluxGramRestartNow),
+                        (dialog, which) -> restartWithBottomNavigation(mode))
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void restartWithBottomNavigation(int mode) {
+        Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+
+        Intent intent = activity.getPackageManager().getLaunchIntentForPackage(
+                activity.getPackageName());
+        if (intent == null || !SharedConfig.setBottomNavigationMode(mode)) {
+            showInfo(
+                    LocaleController.getString(R.string.FluxGramBottomNavigation),
+                    LocaleController.getString(R.string.FluxGramBottomNavigationRestartError)
+            );
+
+            return;
+        }
+
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        activity.finishAffinity();
+        activity.startActivity(intent);
+        System.exit(0);
     }
 
     private void showTabletModeDialog() {
