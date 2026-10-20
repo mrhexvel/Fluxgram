@@ -535,10 +535,10 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
                 }
                 break;
             case VIEW_TYPE_PROFILE_CELL:
-                view = new ProfileSearchCell(context);
+                view = createProfileSearchCell(context);
                 break;
             case VIEW_TYPE_SEARCH_MESSAGE:
-                view = new DialogCell(null, context, false, true);
+                view = createSearchMessageCell(context);
                 break;
             case VIEW_TYPE_FLICKER:
                 FlickerLoadingView flickerLoadingView = new FlickerLoadingView(context, resourcesProvider);
@@ -580,6 +580,14 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
             view.setBackgroundColor(getThemedColor(key_background));
         }
         return new RecyclerListView.Holder(view);
+    }
+
+    protected ProfileSearchCell createProfileSearchCell(Context context) {
+        return new ProfileSearchCell(context);
+    }
+
+    protected DialogCell createSearchMessageCell(Context context) {
+        return new DialogCell(null, context, false, true);
     }
 
     @Override

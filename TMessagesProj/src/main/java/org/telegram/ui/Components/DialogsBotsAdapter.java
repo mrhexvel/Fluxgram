@@ -33,6 +33,10 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_bots;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Cells.DialogCell;
+import org.telegram.ui.Cells.FluxGramSearchMessageCell;
+import org.telegram.ui.Cells.FluxGramSearchProfileCell;
+import org.telegram.ui.Cells.ProfileSearchCell;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -46,6 +50,7 @@ public class DialogsBotsAdapter extends UniversalAdapter {
     private final int folderId;
     private final boolean showOnlyPopular;
     private final Theme.ResourcesProvider resourcesProvider;
+    private boolean fluxGramAvatarGeometry;
 
     private final PopularBots popular;
 
@@ -103,6 +108,27 @@ public class DialogsBotsAdapter extends UniversalAdapter {
     }
 
     private int topPeersStart, topPeersEnd;
+
+    public void setFluxGramAvatarGeometry(boolean enabled) {
+        fluxGramAvatarGeometry = enabled;
+    }
+
+    @Override
+    protected ProfileSearchCell createProfileSearchCell(Context context) {
+        if (fluxGramAvatarGeometry) {
+            return new FluxGramSearchProfileCell(context, currentAccount, true);
+        }
+        return super.createProfileSearchCell(context);
+    }
+
+    @Override
+    protected DialogCell createSearchMessageCell(Context context) {
+        if (fluxGramAvatarGeometry) {
+            return new FluxGramSearchMessageCell(context, currentAccount, resourcesProvider, true);
+        }
+        return super.createSearchMessageCell(context);
+    }
+
     public void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         HashSet<Long> uids = new HashSet<>();
 

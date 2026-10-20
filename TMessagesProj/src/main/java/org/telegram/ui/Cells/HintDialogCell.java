@@ -173,14 +173,16 @@ public class HintDialogCell extends FrameLayout {
     }
 
     public void update() {
+        TLRPC.Chat chat = null;
         if (DialogObject.isUserDialog(dialogId)) {
             currentUser = MessagesController.getInstance(currentAccount).getUser(dialogId);
             avatarDrawable.setInfo(currentAccount, currentUser);
         } else {
-            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
+            chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
             avatarDrawable.setInfo(currentAccount, chat);
             currentUser = null;
         }
+        applyAvatarRoundRadius(currentUser, chat);
         updatePremiumBlocked(true);
     }
 
@@ -200,6 +202,7 @@ public class HintDialogCell extends FrameLayout {
             invalidate();
         }
         dialogId = uid;
+        TLRPC.Chat chat = null;
         if (DialogObject.isUserDialog(uid)) {
             currentUser = MessagesController.getInstance(currentAccount).getUser(uid);
             if (name != null) {
@@ -212,7 +215,7 @@ public class HintDialogCell extends FrameLayout {
             avatarDrawable.setInfo(currentAccount, currentUser);
             imageView.setForUserOrChat(currentUser, avatarDrawable);
         } else {
-            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-uid);
+            chat = MessagesController.getInstance(currentAccount).getChat(-uid);
             if (name != null) {
                 nameTextView.setText(name);
             } else if (chat != null) {
@@ -224,10 +227,24 @@ public class HintDialogCell extends FrameLayout {
             currentUser = null;
             imageView.setForUserOrChat(chat, avatarDrawable);
         }
+        applyAvatarRoundRadius(currentUser, chat);
         updatePremiumBlocked(false);
         if (counter) {
             update(0);
         }
+    }
+
+    private void applyAvatarRoundRadius(TLRPC.User user, TLRPC.Chat chat) {
+        imageView.setRoundRadius(resolveAvatarRoundRadius(AndroidUtilities.dp(27), AndroidUtilities.dp(54), user, chat));
+    }
+
+    protected int resolveAvatarRoundRadius(
+            int stockRadius,
+            int avatarSize,
+            TLRPC.User user,
+            TLRPC.Chat chat
+    ) {
+        return stockRadius;
     }
 
     private int backgroundColorKey = Theme.key_windowBackgroundWhite;

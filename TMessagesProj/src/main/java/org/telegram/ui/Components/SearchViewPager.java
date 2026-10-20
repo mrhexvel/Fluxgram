@@ -103,6 +103,12 @@ public class SearchViewPager extends ViewPagerFixed implements FilteredSearchVie
     public final @NonNull RecyclerListView botsSearchListView;
     public DialogsBotsAdapter botsSearchAdapter;
 
+    public void setFluxGramAvatarGeometry(boolean enabled) {
+        dialogsSearchAdapter.setFluxGramAvatarGeometry(enabled);
+        channelsSearchAdapter.setFluxGramAvatarGeometry(enabled);
+        botsSearchAdapter.setFluxGramAvatarGeometry(enabled);
+    }
+
     public boolean postsAreNew;
     public final @NonNull PostsSearchContainer postsSearchContainer;
 

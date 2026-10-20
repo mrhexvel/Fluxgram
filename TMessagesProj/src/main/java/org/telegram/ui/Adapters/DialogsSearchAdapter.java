@@ -170,6 +170,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
     private final DialogsActivity dialogsActivity;
     private final Theme.ResourcesProvider resourcesProvider;
     private FluxGramDialogListAppearanceController fluxGramAppearanceController;
+    private boolean fluxGramAvatarGeometry;
 
     private int currentAccount = UserConfig.selectedAccount;
 
@@ -225,9 +226,10 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         private boolean showPremiumBlock;
         private Theme.ResourcesProvider resourcesProvider;
         private FluxGramDialogListAppearanceController fluxGramAppearanceController;
+        private boolean fluxGramAvatarGeometry;
 
         public CategoryAdapterRecycler(Context context, int account, boolean drawChecked, boolean showPremiumBlock, Theme.ResourcesProvider resourcesProvider) {
-            this(context, account, drawChecked, showPremiumBlock, resourcesProvider, null);
+            this(context, account, drawChecked, showPremiumBlock, resourcesProvider, null, false);
         }
 
         public CategoryAdapterRecycler(
@@ -236,7 +238,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 boolean drawChecked,
                 boolean showPremiumBlock,
                 Theme.ResourcesProvider resourcesProvider,
-                FluxGramDialogListAppearanceController fluxGramAppearanceController
+                FluxGramDialogListAppearanceController fluxGramAppearanceController,
+                boolean fluxGramAvatarGeometry
         ) {
             this.drawChecked = drawChecked;
             mContext = context;
@@ -244,6 +247,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
             this.showPremiumBlock = showPremiumBlock;
             this.resourcesProvider = resourcesProvider;
             this.fluxGramAppearanceController = fluxGramAppearanceController;
+            this.fluxGramAvatarGeometry = fluxGramAvatarGeometry;
         }
 
         public void setIndex(int value) {
@@ -258,7 +262,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                         mContext,
                         currentAccount,
                         resourcesProvider,
-                        fluxGramAppearanceController
+                        fluxGramAppearanceController,
+                        fluxGramAvatarGeometry
                 );
             } else {
                 cell = new HintDialogCell(mContext, drawChecked, resourcesProvider);
@@ -409,6 +414,10 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
 
     public void setFluxGramAppearanceController(FluxGramDialogListAppearanceController controller) {
         fluxGramAppearanceController = controller;
+    }
+
+    public void setFluxGramAvatarGeometry(boolean enabled) {
+        fluxGramAvatarGeometry = enabled;
     }
 
     public boolean isMessagesSearchEndReached() {
@@ -1671,7 +1680,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                     view = new FluxGramDialogsSearchProfileCell(
                             mContext,
                             currentAccount,
-                            fluxGramAppearanceController
+                            fluxGramAppearanceController,
+                            fluxGramAvatarGeometry
                     );
                 } else {
                     view = new ProfileSearchCell(mContext).showPremiumBlock(dialogsType == DialogsActivity.DIALOGS_TYPE_FORWARD);
@@ -1686,7 +1696,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                             mContext,
                             currentAccount,
                             resourcesProvider,
-                            fluxGramAppearanceController
+                            fluxGramAppearanceController,
+                            fluxGramAvatarGeometry
                     );
                     break;
                 }
@@ -1739,7 +1750,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                         false,
                         dialogsType == DialogsActivity.DIALOGS_TYPE_FORWARD,
                         resourcesProvider,
-                        fluxGramAppearanceController
+                        fluxGramAppearanceController,
+                        fluxGramAvatarGeometry
                 ));
                 horizontalListView.setOnItemClickListener((view1, position) -> {
                     if (view1 instanceof HintDialogCell && ((HintDialogCell) view1).isBlocked()) {

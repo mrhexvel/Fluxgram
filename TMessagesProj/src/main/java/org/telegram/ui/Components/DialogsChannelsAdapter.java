@@ -25,6 +25,9 @@ import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Adapters.DialogsSearchAdapter;
+import org.telegram.ui.Cells.DialogCell;
+import org.telegram.ui.Cells.FluxGramSearchMessageCell;
+import org.telegram.ui.Cells.FluxGramSearchProfileCell;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.ProfileSearchCell;
 import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
@@ -40,6 +43,7 @@ public class DialogsChannelsAdapter extends UniversalAdapter {
     private final int currentAccount;
     private final int folderId;
     private final Theme.ResourcesProvider resourcesProvider;
+    private boolean fluxGramAvatarGeometry;
 
     public final ArrayList<MessageObject> messages = new ArrayList<>();
     public final ArrayList<TLRPC.Chat> searchMyChannels = new ArrayList<>();
@@ -72,6 +76,26 @@ public class DialogsChannelsAdapter extends UniversalAdapter {
         }
         myChannels.clear();
         myChannels.addAll(channels);
+    }
+
+    public void setFluxGramAvatarGeometry(boolean enabled) {
+        fluxGramAvatarGeometry = enabled;
+    }
+
+    @Override
+    protected ProfileSearchCell createProfileSearchCell(Context context) {
+        if (fluxGramAvatarGeometry) {
+            return new FluxGramSearchProfileCell(context, currentAccount, true);
+        }
+        return super.createProfileSearchCell(context);
+    }
+
+    @Override
+    protected DialogCell createSearchMessageCell(Context context) {
+        if (fluxGramAvatarGeometry) {
+            return new FluxGramSearchMessageCell(context, currentAccount, resourcesProvider, true);
+        }
+        return super.createSearchMessageCell(context);
     }
 
     public void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {

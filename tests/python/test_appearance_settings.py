@@ -275,6 +275,51 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("glassDrawable.setRadius(leftRadius, dp(23), dp(23), leftRadius);", action_bar)
         self.assertNotIn("AvatarGeometry", container)
 
+    def test_avatar_geometry_main_search_uses_opt_in_cells(self):
+        activity = (JAVA / "ui/DialogsActivity.java").read_text()
+        adapter = (JAVA / "ui/Adapters/DialogsSearchAdapter.java").read_text()
+        profile_base = (JAVA / "ui/Cells/ProfileSearchCell.java").read_text()
+        hint_base = (JAVA / "ui/Cells/HintDialogCell.java").read_text()
+        profile = (JAVA / "ui/Cells/FluxGramSearchProfileCell.java").read_text()
+        message = (JAVA / "ui/Cells/FluxGramSearchMessageCell.java").read_text()
+        hint = (JAVA / "ui/Cells/FluxGramDialogsSearchHintCell.java").read_text()
+        pager = (JAVA / "ui/Components/SearchViewPager.java").read_text()
+        universal = (JAVA / "ui/Components/UniversalAdapter.java").read_text()
+        channels = (JAVA / "ui/Components/DialogsChannelsAdapter.java").read_text()
+        bots = (JAVA / "ui/Components/DialogsBotsAdapter.java").read_text()
+
+        self.assertIn(
+            "setFluxGramAvatarGeometry(usesFluxGramRootDialogsAppearance())",
+            activity,
+        )
+        self.assertIn("private boolean fluxGramAvatarGeometry;", adapter)
+        self.assertIn("new FluxGramDialogsSearchProfileCell(", adapter)
+        self.assertIn("new FluxGramDialogsSearchMessageCell(", adapter)
+        self.assertIn("new FluxGramDialogsSearchHintCell(", adapter)
+        self.assertIn("channelsSearchAdapter.setFluxGramAvatarGeometry(enabled);", pager)
+        self.assertIn("botsSearchAdapter.setFluxGramAvatarGeometry(enabled);", pager)
+        self.assertIn("createProfileSearchCell(context)", universal)
+        self.assertIn("createSearchMessageCell(context)", universal)
+        self.assertIn("new FluxGramSearchProfileCell(context, currentAccount, true)", channels)
+        self.assertIn("new FluxGramSearchMessageCell(context, currentAccount, resourcesProvider, true)", channels)
+        self.assertIn("new FluxGramSearchProfileCell(context, currentAccount, true)", bots)
+        self.assertIn("new FluxGramSearchMessageCell(context, currentAccount, resourcesProvider, true)", bots)
+        self.assertIn("protected int resolveAvatarRoundRadius(", profile_base)
+        self.assertIn("return stockRadius;", profile_base)
+        self.assertNotIn("AvatarGeometry", profile_base)
+        self.assertIn("protected int resolveAvatarRoundRadius(", hint_base)
+        self.assertIn("return stockRadius;", hint_base)
+        self.assertNotIn("AvatarGeometry", hint_base)
+        self.assertIn("isAvatarGeometryPeer(object, encryptedChat, saved)", profile)
+        self.assertIn("object instanceof TLRPC.Chat", profile)
+        self.assertIn("encryptedChat", profile)
+        self.assertIn("AvatarGeometry.resolveRadius(account", profile)
+        self.assertIn("useFromUserAsAvatar ? AvatarGeometry.ROLE_USER", message)
+        self.assertIn("dialogId < 0 && MessagesController.getInstance(account).getChat(-dialogId) != null", message)
+        self.assertIn("isAvatarGeometryPeer(user, chat)", hint)
+        self.assertIn("if (chat != null)", hint)
+        self.assertIn("requestedPeer = FluxGramDialogCell.peerFor(account, dialogId);", hint)
+
     def test_avatar_geometry_preview_uses_shared_resolver(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         preview = (

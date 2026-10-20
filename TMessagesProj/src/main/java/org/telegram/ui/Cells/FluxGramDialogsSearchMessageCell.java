@@ -12,8 +12,7 @@ import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramUserListBadgeRenderer;
 
-public final class FluxGramDialogsSearchMessageCell extends DialogCell implements FluxGramDialogListAppearanceController.Target {
-    private final int account;
+public final class FluxGramDialogsSearchMessageCell extends FluxGramSearchMessageCell implements FluxGramDialogListAppearanceController.Target {
     private final FluxGramDialogListAppearanceController controller;
     private final FluxGramUserListBadgeRenderer renderer;
 
@@ -24,10 +23,10 @@ public final class FluxGramDialogsSearchMessageCell extends DialogCell implement
             Context context,
             int account,
             Theme.ResourcesProvider resourcesProvider,
-            FluxGramDialogListAppearanceController controller
+            FluxGramDialogListAppearanceController controller,
+            boolean avatarGeometry
     ) {
-        super(null, context, false, true, account, resourcesProvider);
-        this.account = account;
+        super(context, account, resourcesProvider, avatarGeometry);
         this.controller = controller;
         renderer = new FluxGramUserListBadgeRenderer(
                 this,

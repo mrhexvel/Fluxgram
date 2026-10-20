@@ -13363,6 +13363,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         };
         searchViewPager.dialogsSearchAdapter.setFluxGramAppearanceController(fluxGramSearchAppearanceController);
+        searchViewPager.setFluxGramAvatarGeometry(usesFluxGramRootDialogsAppearance());
         ((ContentView) fragmentView).addView(searchViewPager, searchViewPagerIndex);
 
         searchViewPager.dialogsSearchAdapter.setDelegate(new DialogsSearchAdapter.DialogsSearchAdapterDelegate() {

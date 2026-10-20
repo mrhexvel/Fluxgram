@@ -868,7 +868,10 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             avatarImage.setImage(null, null, avatarDrawable, null, null, 0);
         }
 
-        avatarImage.setRoundRadius(ChatObject.isCommunity(chat) ? DrawableUtils.getCommunityCardDrawableRadius(dp(46)) : chat != null && chat.monoforum ? 0 : rectangularAvatar ? dp(10) : chat != null && chat.forum ? dp(16) : dp(23));
+        int stockRadius = ChatObject.isCommunity(chat) ? DrawableUtils.getCommunityCardDrawableRadius(dp(46)) : chat != null && chat.monoforum ? 0 : rectangularAvatar ? dp(10) : chat != null && chat.forum ? dp(16) : dp(23);
+        int avatarRadius = resolveAvatarRoundRadius(stockRadius, dp(46), user, chat);
+        avatarImage.setRoundRadius(avatarRadius);
+        avatarStoryParams.roundRectRadius = resolveStoryRoundRectRadius(avatarRadius, user, chat);
         if (mask != 0) {
             boolean continueUpdate = false;
             if ((mask & MessagesController.UPDATE_MASK_AVATAR) != 0 && user != null || (mask & MessagesController.UPDATE_MASK_CHAT_AVATAR) != 0 && chat != null) {
@@ -934,6 +937,23 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             requestLayout();
         }
         postInvalidate();
+    }
+
+    protected int resolveAvatarRoundRadius(
+            int stockRadius,
+            int avatarSize,
+            TLRPC.User user,
+            TLRPC.Chat chat
+    ) {
+        return stockRadius;
+    }
+
+    protected float resolveStoryRoundRectRadius(
+            int avatarRadius,
+            TLRPC.User user,
+            TLRPC.Chat chat
+    ) {
+        return -1;
     }
 
     private PremiumGradient.PremiumGradientTools premiumGradient;

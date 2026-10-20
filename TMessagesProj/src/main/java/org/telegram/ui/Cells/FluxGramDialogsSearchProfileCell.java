@@ -15,7 +15,7 @@ import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.fluxgram.appearance.FluxGramDialogListAppearanceController;
 import org.telegram.ui.fluxgram.appearance.FluxGramUserListBadgeRenderer;
 
-public final class FluxGramDialogsSearchProfileCell extends ProfileSearchCell implements FluxGramDialogListAppearanceController.Target {
+public final class FluxGramDialogsSearchProfileCell extends FluxGramSearchProfileCell implements FluxGramDialogListAppearanceController.Target {
     private final FluxGramDialogListAppearanceController controller;
     private final FluxGramUserListBadgeRenderer renderer;
 
@@ -26,11 +26,11 @@ public final class FluxGramDialogsSearchProfileCell extends ProfileSearchCell im
     public FluxGramDialogsSearchProfileCell(
             Context context,
             int account,
-            FluxGramDialogListAppearanceController controller
+            FluxGramDialogListAppearanceController controller,
+            boolean avatarGeometry
     ) {
-        super(context);
+        super(context, account, avatarGeometry);
         this.controller = controller;
-        setCurrentAccount(account);
         renderer = new FluxGramUserListBadgeRenderer(
                 this,
                 account,
@@ -163,5 +163,14 @@ public final class FluxGramDialogsSearchProfileCell extends ProfileSearchCell im
 
         FluxGramPeerKey peer = TelegramPeerKeyAdapter.fromChat(chat);
         return peer != null && peer.getType() == FluxGramPeerKey.Type.GROUP ? peer : null;
+    }
+
+    @Override
+    protected boolean isAvatarGeometryPeer(
+            Object object,
+            TLRPC.EncryptedChat encryptedChat,
+            boolean saved
+    ) {
+        return !sponsored && super.isAvatarGeometryPeer(object, encryptedChat, saved);
     }
 }
