@@ -24,6 +24,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn('"force_snow"', source)
         self.assertIn('"avatar_corner_radius"', source)
         self.assertIn('"unified_avatar_radius"', source)
+        self.assertIn('"fab_corner_radius"', source)
 
     def test_title_modes_have_safe_fallbacks(self):
         source = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
@@ -119,6 +120,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         activity = (JAVA / "ui/DialogsActivity.java").read_text()
         adapter = (JAVA / "ui/Adapters/DialogsAdapter.java").read_text()
         empty_cell = (JAVA / "ui/Cells/DialogsEmptyCell.java").read_text()
+        button = (JAVA / "ui/Components/FragmentFloatingButton.java").read_text()
 
         self.assertIn("AppearanceSettings.hidesStories(currentAccount)", activity)
         self.assertIn("AppearanceSettings.hidesFloatingButton(currentAccount)", activity)
@@ -127,6 +129,23 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("&& !fluxGramHideComposeHints", adapter)
         self.assertIn("cell.setHideNewChatHelp(fluxGramHideComposeHints)", adapter)
         self.assertIn("hideNewChatHelp && welcome ? GONE : VISIBLE", empty_cell)
+        self.assertIn("if (usesFluxGramRootDialogsAppearance())", activity)
+        self.assertIn("AppearanceSettings.getFabCornerRadius(currentAccount)", activity)
+        self.assertIn("radius != AppearanceSettings.MAX_FAB_CORNER_RADIUS", activity)
+        self.assertIn("radius < 0 || radius > SIZE / 2", button)
+        self.assertNotIn("AppearanceSettings", button)
+
+    def test_fab_shape_uses_telegram_preview_and_delayed_rebuild(self):
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        preview = (JAVA / "ui/Components/FluxGramFabShapePreviewCell.java").read_text()
+
+        self.assertIn("new FluxGramFabShapePreviewCell(", activity)
+        self.assertIn("addSectionLabel(items, R.string.FluxGramFloatingButton);", activity)
+        self.assertIn("new FragmentFloatingButton(context, resourcesProvider)", preview)
+        self.assertIn("setSeparatorsCount(AppearanceSettings.MAX_FAB_CORNER_RADIUS + 1)", preview)
+        self.assertIn("AppearanceSettings.setFabCornerRadius(account, radius);", preview)
+        self.assertIn("if (stop)", preview)
+        self.assertIn("this::scheduleAppearanceRebuild", activity)
 
     def test_hidden_search_uses_dynamic_layout_height(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()

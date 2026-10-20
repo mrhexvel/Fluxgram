@@ -382,6 +382,11 @@
     <string name="FluxGramUnifiedAvatarRadius">Одинаковая форма для всех аватаров</string>
     <string name="FluxGramAvatarSquare">Квадрат</string>
     <string name="FluxGramAvatarCircle">Круг</string>
+    <string name="FluxGramFloatingButton">Плавающая кнопка</string>
+    <string name="FluxGramFabCornerRadius">Закругление кнопки</string>
+    <string name="FluxGramFabCornerRadiusValue">Радиус углов: %d dp</string>
+    <string name="FluxGramFabSquare">Квадрат</string>
+    <string name="FluxGramFabCircle">Круг</string>
     <string name="FluxGramChats">Чаты</string>
     <string name="FluxGramCategories">Категории</string>
     <string name="FluxGramLinks">Ссылки</string>

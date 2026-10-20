@@ -46,6 +46,7 @@ import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.FluxGramAvatarGeometryPreviewCell;
 import org.telegram.ui.Components.FluxGramChatListPreviewCell;
+import org.telegram.ui.Components.FluxGramFabShapePreviewCell;
 import org.telegram.ui.Components.FluxGramFolderPreviewCell;
 import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
@@ -105,6 +106,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private FluxGramFormattingPreviewCell formattingPreview;
     private FluxGramChatListPreviewCell appearancePreview;
     private FluxGramAvatarGeometryPreviewCell avatarGeometryPreview;
+    private FluxGramFabShapePreviewCell fabShapePreview;
     private FluxGramFolderPreviewCell folderPreview;
     private boolean destroyed;
 
@@ -204,6 +206,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     currentAccount,
                     getResourceProvider(),
                     this::onAvatarGeometryChanged
+            );
+            fabShapePreview = new FluxGramFabShapePreviewCell(
+                    context,
+                    currentAccount,
+                    getResourceProvider(),
+                    this::scheduleAppearanceRebuild
             );
             folderPreview = new FluxGramFolderPreviewCell(
                     context, currentAccount, getResourceProvider()
@@ -413,6 +421,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     UNIFIED_AVATAR_RADIUS,
                     LocaleController.getString(R.string.FluxGramUnifiedAvatarRadius)
             ).setChecked(AppearanceSettings.usesUnifiedAvatarRadius(currentAccount)));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramFloatingButton);
+            fabShapePreview.update();
+            items.add(UItem.asCustom(fabShapePreview, 170));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
             items.add(UItem.asCustomShadow(folderPreview, 58));

@@ -11387,6 +11387,11 @@
     <string name="FluxGramUnifiedAvatarRadius">Use the same shape for all avatars</string>
     <string name="FluxGramAvatarSquare">Square</string>
     <string name="FluxGramAvatarCircle">Circle</string>
+    <string name="FluxGramFloatingButton">Floating button</string>
+    <string name="FluxGramFabCornerRadius">Button rounding</string>
+    <string name="FluxGramFabCornerRadiusValue">Corner radius: %d dp</string>
+    <string name="FluxGramFabSquare">Square</string>
+    <string name="FluxGramFabCircle">Circle</string>
     <string name="FluxGramChats">Chats</string>
     <string name="FluxGramCategories">Categories</string>
     <string name="FluxGramLinks">Links</string>

@@ -4849,6 +4849,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         contentView.addView(floatingButtonStories, FragmentFloatingButton.createSubButtonLayoutParams());
 
         floatingButton3 = new FragmentFloatingButton(context, resourceProvider);
+        if (usesFluxGramRootDialogsAppearance()) {
+            int radius = AppearanceSettings.getFabCornerRadius(currentAccount);
+            if (radius != AppearanceSettings.MAX_FAB_CORNER_RADIUS) {
+                floatingButton3.setCornerRadiusDp(radius);
+            }
+        }
         contentView.addView(floatingButton3, FragmentFloatingButton.createDefaultLayoutParams());
         floatingButton3.setOnClickListener(v -> {
             if (parentLayout != null && parentLayout.isInPreviewMode()) {

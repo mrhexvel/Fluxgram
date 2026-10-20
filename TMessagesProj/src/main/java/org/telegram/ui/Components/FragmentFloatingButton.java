@@ -47,6 +47,7 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
     private final Theme.ResourcesProvider resourcesProvider;
     private ArrayList<View> additionalContentViews;
     private final boolean isSubButton;
+    private int cornerRadiusDp = -1;
 
     public FragmentFloatingButton(@NonNull Context context, Theme.ResourcesProvider resourcesProvider) {
         this(context, resourcesProvider, false);
@@ -99,6 +100,17 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
             iBlur3Background.setPadding(dp(5.66f));
         }
 
+        updateColors();
+    }
+
+    public void setCornerRadiusDp(int radius) {
+        if (isSubButton || radius < 0 || radius > SIZE / 2 || cornerRadiusDp == radius) {
+            return;
+        }
+
+        cornerRadiusDp = radius;
+        setOutlineProvider(ViewOutlineProviderImpl.boundsWithPaddingRoundRect(0, dp(radius)));
+        invalidateOutline();
         updateColors();
     }
 
@@ -163,10 +175,17 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
         } else {
             imageView.setColorFilter(Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider), PorterDuff.Mode.SRC_IN);
             progressView.setProgressColor(Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider));
-            setBackground(Theme.createSimpleSelectorCircleDrawable(dp(48),
-                Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider),
-                Theme.getColor(Theme.key_featuredStickers_addButtonPressed, resourcesProvider)
-            ));
+            int color = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider);
+            int pressedColor = Theme.getColor(Theme.key_featuredStickers_addButtonPressed, resourcesProvider);
+            if (cornerRadiusDp < 0) {
+                setBackground(Theme.createSimpleSelectorCircleDrawable(dp(SIZE), color, pressedColor));
+            } else {
+                setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                        dp(cornerRadiusDp),
+                        color,
+                        pressedColor
+                ));
+            }
         }
     }
 
