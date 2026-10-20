@@ -14,11 +14,11 @@ public final class MainMenuPolicy {
     public static final String NEW_GROUP = "new_group";
     public static final String NEW_CHANNEL = "new_channel";
     public static final String SAVED_MESSAGES = "saved_messages";
-    public static final String CONTACTS = "contacts";
-    public static final String CALLS = "calls";
+    public static final String CONTACTS = RootNavigationSnapshot.CONTACTS;
+    public static final String CALLS = RootNavigationSnapshot.CALLS;
     public static final String WALLET = "wallet";
     public static final String ACCOUNTS = "accounts";
-    public static final String SETTINGS = "settings";
+    public static final String SETTINGS = RootNavigationSnapshot.SETTINGS;
     public static final String PROXY = "proxy";
 
     public static final String DIVIDER_PRIMARY = "divider:primary";

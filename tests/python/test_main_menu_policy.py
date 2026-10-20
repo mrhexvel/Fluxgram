@@ -8,6 +8,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/fluxgram/MainMenuPolicy.java"
+ROOT_NAVIGATION = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/fluxgram/RootNavigationSnapshot.java"
+BOTTOM_NAVIGATION = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/fluxgram/BottomNavigationSettings.java"
 
 
 class MainMenuPolicyTest(unittest.TestCase):
@@ -179,7 +181,15 @@ class MainMenuPolicyTest(unittest.TestCase):
             """))
 
             subprocess.run(
-                ["javac", "-d", str(root), str(POLICY), str(check)],
+                [
+                    "javac",
+                    "-d",
+                    str(root),
+                    str(BOTTOM_NAVIGATION),
+                    str(ROOT_NAVIGATION),
+                    str(POLICY),
+                    str(check),
+                ],
                 check=True,
             )
             subprocess.run(

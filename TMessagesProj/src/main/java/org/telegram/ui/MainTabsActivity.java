@@ -57,6 +57,7 @@ import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.BottomNavigationSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
+import org.telegram.messenger.fluxgram.RootNavigationSnapshot;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -892,6 +893,142 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         return dialogsActivity;
     }
 
+    private RootNavigationSnapshot getRootNavigationSnapshot() {
+        if (fragmentView == null
+                || !fragmentView.isAttachedToWindow()
+                || viewPager == null
+                || getParentLayout() == null
+                || !hasStableCallsOrSettingsPage()) {
+            return null;
+        }
+
+        int position = viewPager.getCurrentPosition();
+
+        return RootNavigationSnapshot.create(
+                currentAccount,
+                getClassGuid(),
+                bottomNavigationMode,
+                getUserConfig().showCallsTab,
+                destinationForPosition(position)
+        );
+    }
+
+    private String destinationForPosition(int position) {
+        if (position == POSITION_CONTACTS) {
+            return RootNavigationSnapshot.CONTACTS;
+        }
+        if (position == POSITION_CALLS_OR_SETTINGS) {
+            FragmentState state = fragmentsArr.get(POSITION_CALLS_OR_SETTINGS);
+            if (state != null && state.fragment instanceof CallLogActivity) {
+                return RootNavigationSnapshot.CALLS;
+            }
+            if (state != null && state.fragment instanceof SettingsActivity) {
+                return RootNavigationSnapshot.SETTINGS;
+            }
+
+            return getUserConfig().showCallsTab
+                    ? RootNavigationSnapshot.CALLS
+                    : RootNavigationSnapshot.SETTINGS;
+        }
+        if (position == POSITION_PROFILE) {
+            return RootNavigationSnapshot.PROFILE;
+        }
+
+        return RootNavigationSnapshot.CHATS;
+    }
+
+    private boolean hasStableCallsOrSettingsPage() {
+        if (dropCallsFragmentAfterPageScroll) {
+            return false;
+        }
+
+        FragmentState state = fragmentsArr.get(POSITION_CALLS_OR_SETTINGS);
+        if (state == null) {
+            return true;
+        }
+
+        return getUserConfig().showCallsTab
+                ? state.fragment instanceof CallLogActivity
+                : state.fragment instanceof SettingsActivity;
+    }
+
+    private boolean navigateToRootDestination(
+            RootNavigationSnapshot snapshot,
+            String destination
+    ) {
+        RootNavigationSnapshot currentSnapshot = getRootNavigationSnapshot();
+        if (currentSnapshot == null
+                || snapshot == null
+                || !currentSnapshot.matches(snapshot)
+                || !currentSnapshot.hasDestination(destination)) {
+            return false;
+        }
+
+        if (currentSnapshot.canSelectInRoot(destination)) {
+            if (viewPager == null) {
+                return false;
+            }
+
+            viewPager.scrollToPosition(positionForDestination(destination));
+
+            return true;
+        }
+
+        BaseFragment fragment = createStandaloneDestination(destination);
+        if (fragment == null
+                || getParentLayout() == null
+                || getParentLayout().checkTransitionAnimation()) {
+            return false;
+        }
+
+        boolean presented = presentFragment(fragment);
+
+        return presented || fragment.getParentLayout() != null;
+    }
+
+    private int positionForDestination(String destination) {
+        if (RootNavigationSnapshot.CONTACTS.equals(destination)) {
+            return POSITION_CONTACTS;
+        }
+        if (RootNavigationSnapshot.CALLS.equals(destination)
+                || RootNavigationSnapshot.SETTINGS.equals(destination)) {
+            return POSITION_CALLS_OR_SETTINGS;
+        }
+        if (RootNavigationSnapshot.PROFILE.equals(destination)) {
+            return POSITION_PROFILE;
+        }
+
+        return POSITION_CHATS;
+    }
+
+    private BaseFragment createStandaloneDestination(String destination) {
+        Bundle args = new Bundle();
+        args.putBoolean("hasMainTabs", false);
+
+        if (RootNavigationSnapshot.CONTACTS.equals(destination)) {
+            args.putBoolean("needPhonebook", true);
+            args.putBoolean("needFinishFragment", false);
+
+            return new ContactsActivity(args);
+        }
+        if (RootNavigationSnapshot.CALLS.equals(destination)) {
+            args.putBoolean("needFinishFragment", false);
+
+            return new CallLogActivity(args);
+        }
+        if (RootNavigationSnapshot.SETTINGS.equals(destination)) {
+            return new SettingsActivity(args);
+        }
+        if (RootNavigationSnapshot.PROFILE.equals(destination)) {
+            args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+            args.putBoolean("my_profile", true);
+
+            return new ProfileActivity(args);
+        }
+
+        return null;
+    }
+
     /* */
 
     public GlassTabView[] tabs;
@@ -1187,6 +1324,19 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         @Override
         public boolean openAccountSelector(View anchor) {
             return MainTabsActivity.this.openAccountSelector(anchor);
+        }
+
+        @Override
+        public RootNavigationSnapshot getRootNavigationSnapshot() {
+            return MainTabsActivity.this.getRootNavigationSnapshot();
+        }
+
+        @Override
+        public boolean navigateToRootDestination(
+                RootNavigationSnapshot snapshot,
+                String destination
+        ) {
+            return MainTabsActivity.this.navigateToRootDestination(snapshot, destination);
         }
     }
 
