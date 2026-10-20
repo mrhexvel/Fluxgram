@@ -19,11 +19,13 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Components.InviteMembersBottomSheet;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.fluxgram.FluxGramSettingsSections;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -63,7 +65,7 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
         fragmentView = content;
 
         listView = new UniversalRecyclerView(this, this::fillItems, this::onItemClick, null);
-        listView.setSections();
+        FluxGramSettingsSections.apply(listView, currentAccount);
         content.addView(listView, LayoutHelper.createFrame(
                 LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT
         ));
@@ -83,7 +85,9 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
                 + (hideReadReceipts ? 1 : 0) + (hideStoryViews ? 1 : 0)
                 + (automaticOffline ? 1 : 0);
 
-        items.add(UItem.asHeader(text(R.string.FluxGramGhostMode)));
+        HeaderCell label = new HeaderCell(getParentActivity(), 33, getResourceProvider());
+        label.setText(text(R.string.FluxGramGhostMode));
+        items.add(UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT));
         items.add(UItem.asExpandableSwitch(
                         ENABLED, text(R.string.FluxGramGhostMode), selected + "/5"
                 )

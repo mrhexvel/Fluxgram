@@ -26,7 +26,6 @@ public final class FluxGramFabShapePreviewCell extends FrameLayout {
     private final TextView squareView;
     private final TextView circleView;
     private final SeekBarView seekBar;
-    private final FragmentFloatingButton button;
     private int currentRadius;
     private int hapticRadius = -1;
 
@@ -44,9 +43,9 @@ public final class FluxGramFabShapePreviewCell extends FrameLayout {
         FrameLayout header = new FrameLayout(context);
 
         titleView = new TextView(context);
-        titleView.setText(LocaleController.getString(R.string.FluxGramFabCornerRadius));
+        titleView.setText(LocaleController.getString(R.string.FluxGramFloatingButton));
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        titleView.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
+        titleView.setTypeface(AndroidUtilities.regular());
         header.addView(titleView, LayoutHelper.createFrame(
                 LayoutHelper.WRAP_CONTENT,
                 LayoutHelper.WRAP_CONTENT,
@@ -55,7 +54,7 @@ public final class FluxGramFabShapePreviewCell extends FrameLayout {
 
         valueView = new TextView(context);
         valueView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-        valueView.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
+        valueView.setTypeface(AndroidUtilities.regular());
         valueView.setGravity(Gravity.CENTER);
         valueView.setPadding(dp(6), dp(1), dp(6), dp(1));
         header.addView(valueView, LayoutHelper.createFrame(
@@ -135,12 +134,6 @@ public final class FluxGramFabShapePreviewCell extends FrameLayout {
                 0
         ));
 
-        button = new FragmentFloatingButton(context, resourcesProvider);
-        button.setImageResource(R.drawable.filled_fab_compose_32);
-        button.setClickable(false);
-        button.setFocusable(false);
-        addView(button, LayoutHelper.createFrame(48, 48, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 108, 0, 0));
-
         update();
     }
 
@@ -157,13 +150,13 @@ public final class FluxGramFabShapePreviewCell extends FrameLayout {
         squareView.setTextColor(gray);
         circleView.setTextColor(gray);
         seekBar.setColors(color(Theme.key_switchTrack), color(Theme.key_switchTrackChecked));
-        button.updateColors();
         setRadius(AppearanceSettings.getFabCornerRadius(account), false);
     }
 
     private TextView createEndpointView(Context context, int gravity) {
         TextView view = new TextView(context);
         view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        view.setTypeface(AndroidUtilities.regular());
         view.setGravity(gravity);
         return view;
     }
@@ -176,7 +169,6 @@ public final class FluxGramFabShapePreviewCell extends FrameLayout {
 
         currentRadius = radius;
         valueView.setText(LocaleController.formatString(R.string.FluxGramFabCornerRadiusValue, radius));
-        button.setCornerRadiusDp(radius);
 
         if (!fromUser) {
             seekBar.setProgress(radius / (float) AppearanceSettings.MAX_FAB_CORNER_RADIUS);

@@ -25,6 +25,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn('"avatar_corner_radius"', source)
         self.assertIn('"unified_avatar_radius"', source)
         self.assertIn('"fab_corner_radius"', source)
+        self.assertIn('"settings_section_radius"', source)
 
     def test_title_modes_have_safe_fallbacks(self):
         source = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
@@ -135,17 +136,75 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("radius < 0 || radius > SIZE / 2", button)
         self.assertNotIn("AppearanceSettings", button)
 
-    def test_fab_shape_uses_telegram_preview_and_delayed_rebuild(self):
+    def test_fab_shape_uses_compact_control_and_delayed_rebuild(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         preview = (JAVA / "ui/Components/FluxGramFabShapePreviewCell.java").read_text()
 
         self.assertIn("new FluxGramFabShapePreviewCell(", activity)
-        self.assertIn("addSectionLabel(items, R.string.FluxGramFloatingButton);", activity)
-        self.assertIn("new FragmentFloatingButton(context, resourcesProvider)", preview)
+        self.assertIn("addSectionLabel(items, R.string.FluxGramRounding);", activity)
+        self.assertNotIn("addSectionLabel(items, R.string.FluxGramFloatingButton);", activity)
+        self.assertIn("R.string.FluxGramFloatingButton", preview)
+        self.assertNotIn("new FragmentFloatingButton", preview)
+        self.assertIn("UItem.asCustom(fabShapePreview, 104)", activity)
         self.assertIn("setSeparatorsCount(AppearanceSettings.MAX_FAB_CORNER_RADIUS + 1)", preview)
         self.assertIn("AppearanceSettings.setFabCornerRadius(account, radius);", preview)
         self.assertIn("if (stop)", preview)
         self.assertIn("this::scheduleAppearanceRebuild", activity)
+
+    def test_section_radius_is_bounded_and_limited_to_fluxgram_settings(self):
+        settings = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        cell = (JAVA / "ui/Components/FluxGramSectionRadiusCell.java").read_text()
+        helper = (JAVA / "ui/fluxgram/FluxGramSettingsSections.java").read_text()
+
+        self.assertIn("DEFAULT_SETTINGS_SECTION_RADIUS = 20", settings)
+        self.assertIn("MAX_SETTINGS_SECTION_RADIUS = 28", settings)
+        self.assertIn("radius < 0 || radius > MAX_SETTINGS_SECTION_RADIUS", settings)
+        self.assertIn("new FluxGramSectionRadiusCell(", activity)
+        self.assertIn("FluxGramSettingsSections.applyRadius(listView, radius)", activity)
+        self.assertIn("if (stop)", cell)
+        self.assertIn("AppearanceSettings.setSettingsSectionRadius(account, radius);", cell)
+        self.assertIn("listView.setSections(AndroidUtilities.dp(12)", helper)
+
+        screens = [
+            "FluxGramSettingsActivity.java",
+            "FluxGramGhostModeActivity.java",
+            "FluxGramStealthActivity.java",
+            "FluxGramFontSettingsActivity.java",
+            "PluginSettingsActivity.java",
+        ]
+        for screen in screens:
+            source = (JAVA / "ui" / screen).read_text()
+            self.assertIn("FluxGramSettingsSections.apply(", source)
+
+        ghost_mode = (JAVA / "ui/FluxGramGhostModeActivity.java").read_text()
+        self.assertNotIn("UItem.asHeader", ghost_mode)
+        self.assertIn("UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT)", ghost_mode)
+
+    def test_shape_preview_labels_use_active_regular_typeface(self):
+        previews = [
+            "FluxGramAvatarGeometryPreviewCell.java",
+            "FluxGramFabShapePreviewCell.java",
+            "FluxGramSectionRadiusCell.java",
+        ]
+
+        for preview in previews:
+            source = (JAVA / "ui/Components" / preview).read_text()
+            self.assertGreaterEqual(source.count("setTypeface(AndroidUtilities.regular())"), 3)
+            self.assertNotIn("TYPEFACE_ROBOTO_MEDIUM", source)
+
+    def test_rounding_controls_share_one_section_card(self):
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        rounding = activity.split(
+            "addSectionLabel(items, R.string.FluxGramRounding);", 1
+        )[1].split("addSectionLabel(items, R.string.Filters);", 1)[0]
+
+        self.assertIn("UItem.asCustom(avatarGeometryPreview, 222)", rounding)
+        self.assertIn("UItem.asCheck(\n                    UNIFIED_AVATAR_RADIUS", rounding)
+        self.assertIn("UItem.asCustom(fabShapePreview, 104)", rounding)
+        self.assertIn("UItem.asCustom(sectionRadiusCell, 104)", rounding)
+        self.assertEqual(1, rounding.count("UItem.asShadow(null)"))
+        self.assertNotIn("addSectionLabel", rounding)
 
     def test_hidden_search_uses_dynamic_layout_height(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()
@@ -415,7 +474,9 @@ class AppearanceSettingsTest(unittest.TestCase):
         ).read_text()
 
         self.assertIn("new FluxGramAvatarGeometryPreviewCell(", activity)
-        self.assertIn("addSectionLabel(items, R.string.FluxGramAvatarGeometry);", activity)
+        self.assertIn("addSectionLabel(items, R.string.FluxGramRounding);", activity)
+        self.assertNotIn("addSectionLabel(items, R.string.FluxGramAvatarGeometry);", activity)
+        self.assertIn("R.string.FluxGramAvatarGeometry", preview)
         self.assertIn("UItem.asCheck(\n                    UNIFIED_AVATAR_RADIUS", activity)
         self.assertIn("new SeekBarView(context, true, resourcesProvider)", preview)
         self.assertIn("setSeparatorsCount(AvatarGeometry.MAX_CORNER_RADIUS + 1)", preview)

@@ -28,6 +28,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.SlideChooseView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.fluxgram.FluxGramSettingsSections;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -76,7 +77,7 @@ public final class FluxGramStealthActivity extends BaseFragment {
         );
         list.setItemAnimator(null);
         list.adapter.setApplyBackground(false);
-        list.setSections(AndroidUtilities.dp(12), AndroidUtilities.dp(20), false);
+        FluxGramSettingsSections.apply(list, currentAccount);
         content.addView(list, LayoutHelper.createFrame(
                 LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT
         ));

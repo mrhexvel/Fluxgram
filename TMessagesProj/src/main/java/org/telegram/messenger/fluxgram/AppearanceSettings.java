@@ -24,12 +24,15 @@ public final class AppearanceSettings {
     private static final String AVATAR_CORNER_RADIUS = "avatar_corner_radius";
     private static final String UNIFIED_AVATAR_RADIUS = "unified_avatar_radius";
     private static final String FAB_CORNER_RADIUS = "fab_corner_radius";
+    private static final String SETTINGS_SECTION_RADIUS = "settings_section_radius";
 
     public static final int TITLE_APP_NAME = 0;
     public static final int TITLE_USERNAME = 1;
     public static final int TITLE_NAME = 2;
     public static final int TITLE_CHATS = 3;
     public static final int MAX_FAB_CORNER_RADIUS = 24;
+    public static final int DEFAULT_SETTINGS_SECTION_RADIUS = 20;
+    public static final int MAX_SETTINGS_SECTION_RADIUS = 28;
 
     private AppearanceSettings() {
     }
@@ -140,6 +143,19 @@ public final class AppearanceSettings {
         }
 
         setInt(account, FAB_CORNER_RADIUS, radius);
+    }
+
+    public static int getSettingsSectionRadius(int account) {
+        int radius = getInt(account, SETTINGS_SECTION_RADIUS, DEFAULT_SETTINGS_SECTION_RADIUS);
+        return Math.max(0, Math.min(MAX_SETTINGS_SECTION_RADIUS, radius));
+    }
+
+    public static void setSettingsSectionRadius(int account, int radius) {
+        if (radius < 0 || radius > MAX_SETTINGS_SECTION_RADIUS) {
+            return;
+        }
+
+        setInt(account, SETTINGS_SECTION_RADIUS, radius);
     }
 
     public static CharSequence getActionBarTitle(int account) {

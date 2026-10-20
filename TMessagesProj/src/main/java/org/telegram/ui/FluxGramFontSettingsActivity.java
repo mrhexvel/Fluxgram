@@ -22,6 +22,7 @@ import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.fluxgram.FluxGramSettingsSections;
 
 import java.util.ArrayList;
 
@@ -67,7 +68,7 @@ public final class FluxGramFontSettingsActivity extends BaseFragment {
                 null
         );
         listView.adapter.setApplyBackground(false);
-        listView.setSections(AndroidUtilities.dp(12), AndroidUtilities.dp(20), false);
+        FluxGramSettingsSections.apply(listView, currentAccount);
         content.addView(listView, LayoutHelper.createFrame(
                 LayoutHelper.MATCH_PARENT,
                 LayoutHelper.MATCH_PARENT

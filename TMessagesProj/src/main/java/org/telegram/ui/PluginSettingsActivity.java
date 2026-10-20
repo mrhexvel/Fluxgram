@@ -33,6 +33,7 @@ import org.telegram.ui.Components.SeekBarView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.fluxgram.FluxGramSettingsSections;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -98,7 +99,7 @@ public final class PluginSettingsActivity extends BaseFragment {
         listView = new UniversalRecyclerView(this, (items, adapter) -> fillItems(items), null, null);
         listView.setItemAnimator(null);
         listView.adapter.setApplyBackground(false);
-        listView.setSections(AndroidUtilities.dp(12), AndroidUtilities.dp(20), false);
+        FluxGramSettingsSections.apply(listView, currentAccount);
         content.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         actionBar.setAdaptiveBackground(listView);
@@ -508,6 +509,7 @@ public final class PluginSettingsActivity extends BaseFragment {
     public void onResume() {
         super.onResume();
 
+        FluxGramSettingsSections.apply(listView, currentAccount);
         refresh.run();
     }
 }

@@ -55,9 +55,9 @@ public final class FluxGramAvatarGeometryPreviewCell extends FrameLayout {
         header.setGravity(Gravity.CENTER_VERTICAL);
 
         titleView = new TextView(context);
-        titleView.setText(LocaleController.getString(R.string.FluxGramAvatarCornerRadius));
+        titleView.setText(LocaleController.getString(R.string.FluxGramAvatarGeometry));
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        titleView.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
+        titleView.setTypeface(AndroidUtilities.regular());
         header.addView(titleView, LayoutHelper.createLinear(
                 LayoutHelper.WRAP_CONTENT,
                 LayoutHelper.WRAP_CONTENT,
@@ -66,7 +66,7 @@ public final class FluxGramAvatarGeometryPreviewCell extends FrameLayout {
 
         valueView = new TextView(context);
         valueView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-        valueView.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
+        valueView.setTypeface(AndroidUtilities.regular());
         valueView.setGravity(Gravity.CENTER);
         valueView.setPadding(dp(6), dp(1), dp(6), dp(1));
         header.addView(valueView, LayoutHelper.createLinear(
@@ -190,6 +190,7 @@ public final class FluxGramAvatarGeometryPreviewCell extends FrameLayout {
     private TextView createEndpointView(Context context, int gravity) {
         TextView view = new TextView(context);
         view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        view.setTypeface(AndroidUtilities.regular());
         view.setGravity(gravity);
         return view;
     }

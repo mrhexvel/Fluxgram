@@ -50,11 +50,13 @@ import org.telegram.ui.Components.FluxGramFabShapePreviewCell;
 import org.telegram.ui.Components.FluxGramFolderPreviewCell;
 import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
+import org.telegram.ui.Components.FluxGramSectionRadiusCell;
 import org.telegram.ui.Components.FluxGramSettingsHeaderCell;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.fluxgram.FluxGramSettingsSections;
 
 import java.util.ArrayList;
 
@@ -107,6 +109,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private FluxGramChatListPreviewCell appearancePreview;
     private FluxGramAvatarGeometryPreviewCell avatarGeometryPreview;
     private FluxGramFabShapePreviewCell fabShapePreview;
+    private FluxGramSectionRadiusCell sectionRadiusCell;
     private FluxGramFolderPreviewCell folderPreview;
     private boolean destroyed;
 
@@ -213,6 +216,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     getResourceProvider(),
                     this::scheduleAppearanceRebuild
             );
+            sectionRadiusCell = new FluxGramSectionRadiusCell(
+                    context,
+                    currentAccount,
+                    getResourceProvider(),
+                    radius -> FluxGramSettingsSections.applyRadius(listView, radius)
+            );
             folderPreview = new FluxGramFolderPreviewCell(
                     context, currentAccount, getResourceProvider()
             );
@@ -230,7 +239,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
             listView.setItemAnimator(null);
         }
 
-        listView.setSections(dp(12), dp(20), false);
+        FluxGramSettingsSections.apply(listView, currentAccount);
 
         content.addView(listView, LayoutHelper.createFrame(
                 LayoutHelper.MATCH_PARENT,
@@ -414,17 +423,17 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramForceSnow)
             ).setChecked(AppearanceSettings.forcesSnow(currentAccount)));
             items.add(UItem.asShadow(null));
-            addSectionLabel(items, R.string.FluxGramAvatarGeometry);
+            addSectionLabel(items, R.string.FluxGramRounding);
             avatarGeometryPreview.update();
             items.add(UItem.asCustom(avatarGeometryPreview, 222));
             items.add(UItem.asCheck(
                     UNIFIED_AVATAR_RADIUS,
                     LocaleController.getString(R.string.FluxGramUnifiedAvatarRadius)
             ).setChecked(AppearanceSettings.usesUnifiedAvatarRadius(currentAccount)));
-            items.add(UItem.asShadow(null));
-            addSectionLabel(items, R.string.FluxGramFloatingButton);
             fabShapePreview.update();
-            items.add(UItem.asCustom(fabShapePreview, 170));
+            items.add(UItem.asCustom(fabShapePreview, 104));
+            sectionRadiusCell.update();
+            items.add(UItem.asCustom(sectionRadiusCell, 104));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
             items.add(UItem.asCustomShadow(folderPreview, 58));
@@ -1169,6 +1178,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
         super.onResume();
 
         if (listView != null) {
+            FluxGramSettingsSections.apply(listView, currentAccount);
             listView.adapter.update(false);
         }
     }
