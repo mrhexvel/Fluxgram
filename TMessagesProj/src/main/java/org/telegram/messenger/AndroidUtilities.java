@@ -153,6 +153,7 @@ import com.google.android.gms.tasks.Task;
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.FontSettings;
+import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.utils.proxy.ProxySettings;
 import org.telegram.messenger.utils.CustomHtml;
 import org.telegram.messenger.utils.DebugRecordingCanvas;
@@ -2994,7 +2995,7 @@ public class AndroidUtilities {
 
     public static void resetTabletFlag() {
         if (wasTablet == null) {
-            wasTablet = isTabletInternal();
+            wasTablet = isTablet();
         }
         isTablet = null;
         SharedConfig.updateTabletConfig();
@@ -3009,7 +3010,7 @@ public class AndroidUtilities {
     }
 
     public static boolean isTablet() {
-        return isTabletInternal() && !SharedConfig.forceDisableTabletMode;
+        return TabletModeSettings.resolve(SharedConfig.tabletMode, isTabletInternal());
     }
 
     public static boolean isFold() {

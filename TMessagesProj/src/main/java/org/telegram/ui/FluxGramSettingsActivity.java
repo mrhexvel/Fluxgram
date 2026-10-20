@@ -30,6 +30,7 @@ import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
+import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.messenger.fluxgram.TransferSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
@@ -106,6 +107,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int APP_ICON = 42;
     private static final int GOOEY_AVATAR = 43;
     private static final int CUSTOM_CHAT_THEMES = 44;
+    private static final int NAVIGATION = 45;
+    private static final int TABLET_MODE = 46;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -184,6 +187,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
             title = R.string.FluxGramAppearance;
         } else if (section == CHATS) {
             title = R.string.FluxGramChats;
+        } else if (section == NAVIGATION) {
+            title = R.string.FluxGramNavigation;
         }
 
         actionBar.setTitle(section == HOME ? "" : LocaleController.getString(title));
@@ -287,6 +292,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     CHATS,
                     R.drawable.msg_discussion,
                     LocaleController.getString(R.string.FluxGramChats)
+            ));
+            items.add(UItem.asButton(
+                    NAVIGATION,
+                    R.drawable.settings_devices,
+                    LocaleController.getString(R.string.FluxGramNavigation)
             ));
             items.add(UItem.asButton(
                     PLUGINS,
@@ -507,6 +517,19 @@ public class FluxGramSettingsActivity extends BaseFragment {
             return;
         }
 
+        if (section == NAVIGATION) {
+            addSectionLabel(items, R.string.FluxGramNavigation);
+            items.add(UItem.asButton(
+                    TABLET_MODE,
+                    LocaleController.getString(R.string.FluxGramTabletMode),
+                    tabletModeOption(SharedConfig.tabletMode)
+            ));
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramTabletModeInfo)));
+
+            return;
+        }
+
         PluginManager manager = PluginManager.getInstance();
         boolean systemEnabled = manager.isSystemEnabled();
 
@@ -705,6 +728,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 presentFragment(new FluxGramSettingsActivity(APPEARANCE));
             } else if (item.id == CHATS) {
                 presentFragment(new FluxGramSettingsActivity(CHATS));
+            } else if (item.id == NAVIGATION) {
+                presentFragment(new FluxGramSettingsActivity(NAVIGATION));
             } else if (item.id == GHOST_MODE) {
                 presentFragment(new FluxGramGhostModeActivity());
             } else if (item.id == STEALTH) {
@@ -793,6 +818,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean disabled = !ArchiveSettings.disablesUnarchiveSwipe();
                 ArchiveSettings.setDisablesUnarchiveSwipe(disabled);
                 ((TextCheckCell) view).setChecked(disabled);
+            }
+
+            return;
+        }
+
+        if (section == NAVIGATION) {
+            if (item.id == TABLET_MODE) {
+                showTabletModeDialog();
             }
 
             return;
@@ -1130,6 +1163,75 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         return LocaleController.getString(R.string.FluxGramDividerLine);
+    }
+
+    private String tabletModeOption(int mode) {
+        if (mode == TabletModeSettings.ON) {
+            return LocaleController.getString(R.string.FluxGramTabletModeOn);
+        }
+        if (mode == TabletModeSettings.OFF) {
+            return LocaleController.getString(R.string.FluxGramTabletModeOff);
+        }
+
+        return LocaleController.getString(R.string.FluxGramTabletModeAuto);
+    }
+
+    private void showTabletModeDialog() {
+        CharSequence[] options = {
+                tabletModeOption(TabletModeSettings.AUTO),
+                tabletModeOption(TabletModeSettings.ON),
+                tabletModeOption(TabletModeSettings.OFF)
+        };
+        int selected = SharedConfig.tabletMode;
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramTabletMode))
+                .setItems(options, (dialog, index) -> {
+                    if (index != SharedConfig.tabletMode) {
+                        confirmTabletModeChange(index);
+                    }
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void confirmTabletModeChange(int mode) {
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramTabletModeRestartTitle))
+                .setMessage(LocaleController.getString(R.string.FluxGramTabletModeRestartMessage))
+                .setPositiveButton(LocaleController.getString(R.string.FluxGramRestartNow),
+                        (dialog, which) -> restartWithTabletMode(mode))
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void restartWithTabletMode(int mode) {
+        Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+
+        Intent intent = activity.getPackageManager().getLaunchIntentForPackage(
+                activity.getPackageName());
+        if (intent == null || !SharedConfig.setTabletMode(mode)) {
+            showInfo(
+                    LocaleController.getString(R.string.FluxGramTabletMode),
+                    LocaleController.getString(R.string.FluxGramTabletModeRestartError)
+            );
+
+            return;
+        }
+
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        activity.finishAffinity();
+        activity.startActivity(intent);
+        System.exit(0);
     }
 
     private void showDividerStyleDialog() {

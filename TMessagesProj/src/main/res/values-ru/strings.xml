@@ -400,6 +400,16 @@
     <string name="FluxGramGlassOutlineSolid">Сплошной</string>
     <string name="FluxGramGlassOutlineHidden">Скрыт</string>
     <string name="FluxGramChats">Чаты</string>
+    <string name="FluxGramNavigation">Навигация</string>
+    <string name="FluxGramTabletMode">Режим планшета</string>
+    <string name="FluxGramTabletModeAuto">Автоматически</string>
+    <string name="FluxGramTabletModeOn">Включён</string>
+    <string name="FluxGramTabletModeOff">Выключен</string>
+    <string name="FluxGramTabletModeInfo">Автоматический режим следует системному определению размера экрана. Включённый и выключенный режимы переопределяют его для всех аккаунтов.</string>
+    <string name="FluxGramTabletModeRestartTitle">Перезапустить FluxGram?</string>
+    <string name="FluxGramTabletModeRestartMessage">Изменение режима планшета перестраивает навигацию приложения. Для применения нужен перезапуск FluxGram.</string>
+    <string name="FluxGramRestartNow">Перезапустить</string>
+    <string name="FluxGramTabletModeRestartError">Не удалось сохранить настройку или перезапустить FluxGram.</string>
     <string name="FluxGramCategories">Категории</string>
     <string name="FluxGramLinks">Ссылки</string>
     <string name="FluxGramChannel">Канал</string>

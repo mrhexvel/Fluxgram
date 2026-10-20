@@ -29,6 +29,7 @@ import androidx.annotation.RequiresApi;
 import androidx.core.content.pm.ShortcutManagerCompat;
 
 import org.json.JSONObject;
+import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.utils.proxy.ProxySettings;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.InputSerializedData;
@@ -260,6 +261,7 @@ public class SharedConfig {
     public static boolean storiesIntroShown;
     public static boolean disableVoiceAudioEffects;
     public static boolean forceDisableTabletMode;
+    public static int tabletMode = TabletModeSettings.AUTO;
     public static boolean updateStickersOrderOnSend = true;
     public static boolean bigCameraForRound;
     public static Boolean useCamera2Force;
@@ -610,6 +612,13 @@ public class SharedConfig {
             hasCameraCache = preferences.contains("cameraCache");
             roundCamera16to9 = true;
             repeatMode = preferences.getInt("repeatMode", 0);
+            int legacyTabletMode = preferences.getBoolean("forceDisableTabletMode", false)
+                    ? TabletModeSettings.OFF
+                    : TabletModeSettings.AUTO;
+            tabletMode = TabletModeSettings.normalize(
+                    preferences.getInt("fluxgramTabletMode", legacyTabletMode)
+            );
+            forceDisableTabletMode = tabletMode == TabletModeSettings.OFF;
             fontSize = preferences.getInt("fons_size", AndroidUtilities.isTablet() && !AndroidUtilities.isFold() ? 18 : 16);
             fontSizeIsDefault = !preferences.contains("fons_size");
             bubbleRadius = preferences.getInt("bubbleRadius", 17);
@@ -627,7 +636,6 @@ public class SharedConfig {
             saveStreamMedia = preferences.getBoolean("saveStreamMedia", true);
             pauseMusicOnRecord = preferences.getBoolean("pauseMusicOnRecord", true);
             pauseMusicOnMedia = preferences.getBoolean("pauseMusicOnMedia", false);
-            forceDisableTabletMode = preferences.getBoolean("forceDisableTabletMode", false);
             streamAllVideo = preferences.getBoolean("streamAllVideo", BuildVars.DEBUG_VERSION);
             streamMkv = preferences.getBoolean("streamMkv", false);
             suggestStickers = preferences.getInt("suggestStickers", 0);
@@ -1393,11 +1401,23 @@ public class SharedConfig {
     }
 
     public static void toggleForceDisableTabletMode() {
-        forceDisableTabletMode = !forceDisableTabletMode;
+        setTabletMode(forceDisableTabletMode ? TabletModeSettings.AUTO : TabletModeSettings.OFF);
+    }
+
+    public static boolean setTabletMode(int mode) {
+        int normalizedMode = TabletModeSettings.normalize(mode);
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         SharedPreferences.Editor editor = preferences.edit();
-        editor.putBoolean("forceDisableTabletMode", forceDisableTabletMode);
-        editor.apply();
+        editor.putInt("fluxgramTabletMode", normalizedMode);
+        editor.putBoolean("forceDisableTabletMode", normalizedMode == TabletModeSettings.OFF);
+        if (!editor.commit()) {
+            return false;
+        }
+
+        tabletMode = normalizedMode;
+        forceDisableTabletMode = normalizedMode == TabletModeSettings.OFF;
+
+        return true;
     }
 
     public static void toggleInappCamera() {
