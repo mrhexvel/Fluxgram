@@ -102,6 +102,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_ALL_CHATS_FOLDER = 38;
     private static final int UNIFIED_AVATAR_RADIUS = 39;
     private static final int SETTINGS_DIVIDER_STYLE = 40;
+    private static final int GLASS_OUTLINE_STYLE = 41;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -439,6 +440,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     SETTINGS_DIVIDER_STYLE,
                     LocaleController.getString(R.string.FluxGramDividerStyle),
                     dividerStyleOption(AppearanceSettings.getSettingsDividerStyle(currentAccount))
+            ));
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramGlass);
+            items.add(UItem.asButton(
+                    GLASS_OUTLINE_STYLE,
+                    LocaleController.getString(R.string.FluxGramGlassOutlineStyle),
+                    glassOutlineStyleOption(AppearanceSettings.getGlassOutlineStyle(currentAccount))
             ));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.Filters);
@@ -829,6 +837,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 onAvatarGeometryChanged();
             } else if (item.id == SETTINGS_DIVIDER_STYLE) {
                 showDividerStyleDialog();
+            } else if (item.id == GLASS_OUTLINE_STYLE) {
+                showGlassOutlineStyleDialog();
             }
 
             return;
@@ -1111,6 +1121,42 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     AppearanceSettings.setSettingsDividerStyle(currentAccount, index);
                     FluxGramSettingsSections.apply(listView, currentAccount);
                     listView.adapter.update(false);
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private String glassOutlineStyleOption(int style) {
+        if (style == AppearanceSettings.GLASS_OUTLINE_SOLID) {
+            return LocaleController.getString(R.string.FluxGramGlassOutlineSolid);
+        }
+        if (style == AppearanceSettings.GLASS_OUTLINE_HIDDEN) {
+            return LocaleController.getString(R.string.FluxGramGlassOutlineHidden);
+        }
+
+        return LocaleController.getString(R.string.FluxGramGlassOutlineGlare);
+    }
+
+    private void showGlassOutlineStyleDialog() {
+        CharSequence[] options = {
+                glassOutlineStyleOption(AppearanceSettings.GLASS_OUTLINE_GLARE),
+                glassOutlineStyleOption(AppearanceSettings.GLASS_OUTLINE_SOLID),
+                glassOutlineStyleOption(AppearanceSettings.GLASS_OUTLINE_HIDDEN)
+        };
+        int selected = AppearanceSettings.getGlassOutlineStyle(currentAccount);
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramGlassOutlineStyle))
+                .setItems(options, (dialog, index) -> {
+                    AppearanceSettings.setGlassOutlineStyle(currentAccount, index);
+                    listView.adapter.update(true);
+                    scheduleAppearanceRebuild();
                 })
                 .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                 .create());

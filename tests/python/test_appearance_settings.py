@@ -27,6 +27,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn('"fab_corner_radius"', source)
         self.assertIn('"settings_section_radius"', source)
         self.assertIn('"settings_divider_style"', source)
+        self.assertIn('"glass_outline_style"', source)
 
     def test_title_modes_have_safe_fallbacks(self):
         source = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
@@ -215,13 +216,48 @@ class AppearanceSettingsTest(unittest.TestCase):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         rounding = activity.split(
             "addSectionLabel(items, R.string.FluxGramRounding);", 1
-        )[1].split("addSectionLabel(items, R.string.Filters);", 1)[0]
+        )[1].split("addSectionLabel(items, R.string.FluxGramGlass);", 1)[0]
 
         self.assertIn("UItem.asButton(\n                    SETTINGS_DIVIDER_STYLE", rounding)
         self.assertIn("showDividerStyleDialog();", activity)
         self.assertIn("AppearanceSettings.setSettingsDividerStyle(currentAccount, index)", activity)
         self.assertIn("FluxGramSettingsSections.apply(listView, currentAccount)", activity)
         self.assertEqual(1, rounding.count("UItem.asShadow(null)"))
+
+    def test_glass_outline_style_is_scoped_to_main_tabs(self):
+        settings = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        main_tabs = (JAVA / "ui/MainTabsActivity.java").read_text()
+        drawable = (
+            JAVA
+            / "ui/Components/blur3/drawable/BlurredBackgroundDrawable.java"
+        ).read_text()
+        render_node = (
+            JAVA
+            / "ui/Components/blur3/drawable/BlurredBackgroundDrawableRenderNode.java"
+        ).read_text()
+
+        self.assertIn("GLASS_OUTLINE_GLARE = 0", settings)
+        self.assertIn("GLASS_OUTLINE_SOLID = 1", settings)
+        self.assertIn("GLASS_OUTLINE_HIDDEN = 2", settings)
+        self.assertIn(
+            "getInt(account, GLASS_OUTLINE_STYLE, GLASS_OUTLINE_GLARE)", settings
+        )
+        self.assertIn("addSectionLabel(items, R.string.FluxGramGlass);", activity)
+        self.assertIn("showGlassOutlineStyleDialog();", activity)
+        self.assertIn("AppearanceSettings.setGlassOutlineStyle(currentAccount, index)", activity)
+        glass_dialog = activity.split("private void showGlassOutlineStyleDialog()", 1)[1]
+        self.assertIn("scheduleAppearanceRebuild();", glass_dialog)
+        self.assertIn(
+            "tabsViewBackground.setOutlineStyle(AppearanceSettings.getGlassOutlineStyle(currentAccount))",
+            main_tabs,
+        )
+        self.assertNotIn("AppearanceSettings", drawable)
+        self.assertNotIn("AppearanceSettings", render_node)
+        self.assertIn("public static final int OUTLINE_GLARE = 0", drawable)
+        self.assertIn("outlineStyle == OUTLINE_SOLID", drawable)
+        self.assertIn("outlineStyle == OUTLINE_HIDDEN", drawable)
+        self.assertIn("outlineStyle == OUTLINE_SOLID", render_node)
 
     def test_custom_settings_rows_follow_local_divider_policy(self):
         stealth = (JAVA / "ui/FluxGramStealthActivity.java").read_text()
@@ -250,7 +286,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         rounding = activity.split(
             "addSectionLabel(items, R.string.FluxGramRounding);", 1
-        )[1].split("addSectionLabel(items, R.string.Filters);", 1)[0]
+        )[1].split("addSectionLabel(items, R.string.FluxGramGlass);", 1)[0]
 
         self.assertIn("UItem.asCustom(avatarGeometryPreview, 222)", rounding)
         self.assertIn("UItem.asCheck(\n                    UNIFIED_AVATAR_RADIUS", rounding)

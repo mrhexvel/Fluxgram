@@ -26,6 +26,7 @@ public final class AppearanceSettings {
     private static final String FAB_CORNER_RADIUS = "fab_corner_radius";
     private static final String SETTINGS_SECTION_RADIUS = "settings_section_radius";
     private static final String SETTINGS_DIVIDER_STYLE = "settings_divider_style";
+    private static final String GLASS_OUTLINE_STYLE = "glass_outline_style";
 
     public static final int TITLE_APP_NAME = 0;
     public static final int TITLE_USERNAME = 1;
@@ -37,6 +38,9 @@ public final class AppearanceSettings {
     public static final int DIVIDER_HIDDEN = 0;
     public static final int DIVIDER_LINE = 1;
     public static final int DIVIDER_SEGMENTS = 2;
+    public static final int GLASS_OUTLINE_GLARE = 0;
+    public static final int GLASS_OUTLINE_SOLID = 1;
+    public static final int GLASS_OUTLINE_HIDDEN = 2;
 
     private AppearanceSettings() {
     }
@@ -178,6 +182,24 @@ public final class AppearanceSettings {
         }
 
         setInt(account, SETTINGS_DIVIDER_STYLE, style);
+    }
+
+    public static int getGlassOutlineStyle(int account) {
+        int style = getInt(account, GLASS_OUTLINE_STYLE, GLASS_OUTLINE_GLARE);
+
+        if (style < GLASS_OUTLINE_GLARE || style > GLASS_OUTLINE_HIDDEN) {
+            return GLASS_OUTLINE_GLARE;
+        }
+
+        return style;
+    }
+
+    public static void setGlassOutlineStyle(int account, int style) {
+        if (style < GLASS_OUTLINE_GLARE || style > GLASS_OUTLINE_HIDDEN) {
+            return;
+        }
+
+        setInt(account, GLASS_OUTLINE_STYLE, style);
     }
 
     public static CharSequence getActionBarTitle(int account) {

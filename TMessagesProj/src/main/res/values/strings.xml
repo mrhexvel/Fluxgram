@@ -11397,6 +11397,11 @@
     <string name="FluxGramDividerHidden">Hidden</string>
     <string name="FluxGramDividerLine">Line</string>
     <string name="FluxGramDividerSegments">Segments</string>
+    <string name="FluxGramGlass">Glass</string>
+    <string name="FluxGramGlassOutlineStyle">Outline style</string>
+    <string name="FluxGramGlassOutlineGlare">Glare</string>
+    <string name="FluxGramGlassOutlineSolid">Solid</string>
+    <string name="FluxGramGlassOutlineHidden">Hidden</string>
     <string name="FluxGramChats">Chats</string>
     <string name="FluxGramCategories">Categories</string>
     <string name="FluxGramLinks">Links</string>

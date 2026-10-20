@@ -53,6 +53,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
 import org.telegram.tgnet.TLRPC;
@@ -370,6 +371,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsViewBackground = iBlur3FactoryGlass.create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
         tabsViewBackground.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
         tabsViewBackground.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        tabsViewBackground.setOutlineStyle(AppearanceSettings.getGlassOutlineStyle(currentAccount));
         tabsView.setBackground(tabsViewBackground);
 
         BlurredBackgroundDrawableViewFactory iBlur3FactoryFade = new BlurredBackgroundDrawableViewFactory(iBlur3SourceColor);
@@ -1235,6 +1237,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private void blur3_updateColors() {
         blur3_updateFadeColors();
         if (tabsViewBackground != null) {
+            tabsViewBackground.setOutlineStyle(AppearanceSettings.getGlassOutlineStyle(currentAccount));
             tabsViewBackground.updateColors();
         }
         blur3_invalidateBlur();

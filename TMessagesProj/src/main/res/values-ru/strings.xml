@@ -392,6 +392,11 @@
     <string name="FluxGramDividerHidden">Скрыты</string>
     <string name="FluxGramDividerLine">Линия</string>
     <string name="FluxGramDividerSegments">Сегменты</string>
+    <string name="FluxGramGlass">Стекло</string>
+    <string name="FluxGramGlassOutlineStyle">Стиль контура</string>
+    <string name="FluxGramGlassOutlineGlare">Блик</string>
+    <string name="FluxGramGlassOutlineSolid">Сплошной</string>
+    <string name="FluxGramGlassOutlineHidden">Скрыт</string>
     <string name="FluxGramChats">Чаты</string>
     <string name="FluxGramCategories">Категории</string>
     <string name="FluxGramLinks">Ссылки</string>
