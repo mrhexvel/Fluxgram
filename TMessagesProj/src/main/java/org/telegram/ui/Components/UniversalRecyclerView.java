@@ -266,6 +266,24 @@ public class UniversalRecyclerView extends RecyclerListView {
         return reorderingAllowed;
     }
 
+    public boolean startReorder(View view) {
+        if (!reorderingAllowed
+                || itemTouchHelper == null
+                || view == null
+                || view.getParent() != this) {
+            return false;
+        }
+
+        ViewHolder holder = getChildViewHolder(view);
+        if (holder == null || !adapter.isReorderItem(holder.getAdapterPosition())) {
+            return false;
+        }
+
+        itemTouchHelper.startDrag(holder);
+
+        return true;
+    }
+
     public void allowReorder(boolean allow) {
         if (reorderingAllowed == allow) return;
         adapter.updateReorder(reorderingAllowed = allow);

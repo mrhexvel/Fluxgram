@@ -182,7 +182,7 @@ class RootNavigationContractTest(unittest.TestCase):
         self.assertIn("RootNavigationSnapshot.CHATS.equals(snapshot.getActiveDestination())", popup)
         self.assertIn("addRootMainMenuOptions", popup)
         self.assertIn("MainMenuPolicy.resolve", policy)
-        self.assertIn("MainMenuPolicy.defaults()", policy)
+        self.assertIn("MainMenuSettings.getState()", policy)
         self.assertIn("snapshot.canSelectInRoot(RootNavigationSnapshot.SETTINGS)", policy)
         self.assertIn("snapshot.canSelectInRoot(RootNavigationSnapshot.PROFILE)", policy)
         self.assertIn("controller.navigateToRootDestination(snapshot, RootNavigationSnapshot.CONTACTS)", command)

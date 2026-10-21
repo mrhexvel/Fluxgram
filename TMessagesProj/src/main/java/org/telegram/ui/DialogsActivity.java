@@ -135,6 +135,7 @@ import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.BottomNavigationSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.MainMenuPolicy;
+import org.telegram.messenger.fluxgram.MainMenuSettings;
 import org.telegram.messenger.fluxgram.RootNavigationSnapshot;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.FBool;
@@ -14208,7 +14209,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         List<String> resolved = MainMenuPolicy.resolve(
-                MainMenuPolicy.defaults(),
+                MainMenuSettings.getState(),
                 available,
                 snapshot.canSelectInRoot(RootNavigationSnapshot.SETTINGS),
                 snapshot.canSelectInRoot(RootNavigationSnapshot.PROFILE)

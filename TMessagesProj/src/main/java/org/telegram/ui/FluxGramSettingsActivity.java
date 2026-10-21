@@ -116,6 +116,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int BOTTOM_NAVIGATION = 47;
     private static final int TRANSITION_STYLE = 48;
     private static final int PREDICTIVE_BACK = 49;
+    private static final int MAIN_MENU = 50;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -543,6 +544,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     bottomNavigationOption(SharedConfig.bottomNavigationMode)
             ));
             items.add(UItem.asButton(
+                    MAIN_MENU,
+                    LocaleController.getString(R.string.FluxGramMainMenu)
+            ));
+            items.add(UItem.asButton(
                     TRANSITION_STYLE,
                     LocaleController.getString(R.string.FluxGramTransitionStyle),
                     transitionStyleOption(SharedConfig.navigationTransitionStyle)
@@ -859,6 +864,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 showTabletModeDialog();
             } else if (item.id == BOTTOM_NAVIGATION) {
                 showBottomNavigationDialog();
+            } else if (item.id == MAIN_MENU) {
+                presentFragment(new FluxGramMainMenuSettingsActivity());
             } else if (item.id == TRANSITION_STYLE) {
                 showTransitionStyleDialog();
             } else if (item.id == PREDICTIVE_BACK) {

@@ -11419,6 +11419,13 @@
     <string name="FluxGramBottomNavigationFloating">Floating</string>
     <string name="FluxGramBottomNavigationShow">Show</string>
     <string name="FluxGramBottomNavigationHide">Hide</string>
+    <string name="FluxGramMainMenu">Main menu</string>
+    <string name="FluxGramMainMenuPrimaryDivider">Primary divider</string>
+    <string name="FluxGramMainMenuSystemDivider">System divider</string>
+    <string name="FluxGramMainMenuInfo">Use the switches to choose commands and drag the handles to change their order. Accounts and Settings remain available when there is no other path to them.</string>
+    <string name="FluxGramMainMenuResetConfirm">Restore the default command order and visibility?</string>
+    <string name="FluxGramMoveUp">Move up</string>
+    <string name="FluxGramMoveDown">Move down</string>
     <string name="FluxGramNavigationInfo">Tablet mode and bottom navigation control the app layout. Screen transition styles apply only to standard navigation and preserve special Telegram animations. Predictive back intensity controls the Android 14+ interactive gesture.</string>
     <string name="FluxGramBottomNavigationRestartMessage">Changing bottom navigation rebuilds the app root pages. FluxGram must restart to apply it.</string>
     <string name="FluxGramBottomNavigationRestartError">Could not save the bottom navigation setting or restart FluxGram.</string>
