@@ -1103,6 +1103,7 @@ public class ChatActivity extends BaseFragment implements
     private boolean postponedScrollIsCanceled;
     private ChatActivityTextSelectionHelper textSelectionHelper;
     private View slidingView;
+    private String slidingMessageActionId;
     private MessageActionExecutor.Target slidingMessageActionTarget;
 
     private final float[] tmpOverlayPos = new float[2];
@@ -6016,7 +6017,7 @@ public class ChatActivity extends BaseFragment implements
                 if (e != null) {
                     wasManualScroll = true;
                 }
-                if (e != null && e.getAction() == MotionEvent.ACTION_DOWN && !startedTrackingSlidingView && !maybeStartTrackingSlidingView && slidingView == null && !inPreviewMode) {
+                if (e != null && e.getAction() == MotionEvent.ACTION_DOWN && !startedTrackingSlidingView && !maybeStartTrackingSlidingView && slidingView == null && !inPreviewMode && MessageGestureSettings.getState().isSwipeEnabled()) {
                     View view = getPressedChildView();
                     if (view instanceof ChatMessageCell || view instanceof ChatActionCell
                             && ((ChatActionCell) view).canSwipeGramTransferReply(e.getX() - view.getX(), e.getY() - view.getY())) {
@@ -6039,6 +6040,9 @@ public class ChatActivity extends BaseFragment implements
                             slidingView = null;
                             return;
                         }
+                        slidingMessageActionId = MessageGestureSettings.getState()
+                                .getSwipeActions()
+                                .get(0);
                         slidingMessageActionTarget = fluxGramMessageActions.capture(
                                 currentAccount,
                                 getUserConfig().getClientUserId(),
@@ -6050,6 +6054,7 @@ public class ChatActivity extends BaseFragment implements
                         if (slidingMessageActionTarget == null) {
                             slidingViewSetOffset(0);
                             slidingView = null;
+                            slidingMessageActionId = null;
                             return;
                         }
                         startedTrackingPointerId = e.getPointerId(0);
@@ -6096,19 +6101,21 @@ public class ChatActivity extends BaseFragment implements
                 } else if (slidingView != null && (e == null || e.getPointerId(0) == startedTrackingPointerId && (e.getAction() == MotionEvent.ACTION_CANCEL || e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_POINTER_UP))) {
                     if (e != null && e.getAction() != MotionEvent.ACTION_CANCEL && Math.abs(getSlidingNonAnimationTranslationX(false)) >= AndroidUtilities.dp(50)) {
                         View swipedView = slidingView;
+                        String actionId = slidingMessageActionId;
                         MessageActionExecutor.Target target = slidingMessageActionTarget;
                         fluxGramMessageActions.execute(
-                                MessageActionExecutor.REPLY,
+                                actionId,
                                 MessageActionExecutor.Trigger.SWIPE,
                                 target,
-                                (actionId, trigger, expected) -> resolveReplyAction(
-                                        actionId,
+                                (resolvedActionId, trigger, expected) -> resolveReplyAction(
+                                        resolvedActionId,
                                         trigger,
                                         expected,
                                         swipedView
                                 )
                         );
                     }
+                    slidingMessageActionId = null;
                     slidingMessageActionTarget = null;
                     endTrackingX = slidingViewGetOffsetX();
                     if (endTrackingX == 0) {
@@ -9785,6 +9792,7 @@ public class ChatActivity extends BaseFragment implements
                             slidingViewSetOffset(0);
                             slidingView = null;
                         }
+                        slidingMessageActionId = null;
                         slidingMessageActionTarget = null;
                         maybeStartTrackingSlidingView = false;
                     startedTrackingSlidingView = false;

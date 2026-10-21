@@ -440,7 +440,10 @@
     <string name="FluxGramDoubleTapMessages">Двойное нажатие на сообщение</string>
     <string name="FluxGramDoubleTapAction">Действие по двойному нажатию</string>
     <string name="FluxGramQuickReaction">Быстрая реакция</string>
-    <string name="FluxGramMessageGesturesInfo">Выберите, отправляет ли двойное нажатие быструю реакцию или начинает ответ. Если выбранное действие недоступно, сообщение сохраняет обычное поведение нажатия.</string>
+    <string name="FluxGramSwipeMessages">Свайп по сообщению</string>
+    <string name="FluxGramSwipeActions">Действия свайпа</string>
+    <string name="FluxGramSwipeActionsInfo">Используется первое доступное действие. Перетаскивайте действия за ручку, чтобы изменить их приоритет.</string>
+    <string name="FluxGramMessageGesturesInfo">Выберите действия для двойного нажатия и свайпа по сообщению. Если выбранное действие недоступно, жест отменяется без запасного действия.</string>
     <string name="FluxGramNavigationInfo">Режим планшета и нижняя навигация управляют компоновкой приложения. Стили переходов применяются только к обычной навигации и сохраняют специальные анимации Telegram. Интенсивность предиктивного жеста управляет интерактивным переходом Android 14 и новее.</string>
     <string name="FluxGramBottomNavigationRestartMessage">Изменение нижней навигации перестраивает корневые страницы приложения. Для применения нужен перезапуск FluxGram.</string>
     <string name="FluxGramBottomNavigationRestartError">Не удалось сохранить режим нижней навигации или перезапустить FluxGram.</string>

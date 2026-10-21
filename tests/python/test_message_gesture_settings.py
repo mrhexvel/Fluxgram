@@ -12,6 +12,8 @@ SETTINGS = JAVA / "messenger/fluxgram/MessageGestureSettings.java"
 EXECUTOR = JAVA / "messenger/fluxgram/MessageActionExecutor.java"
 CHAT_ACTIVITY = JAVA / "ui/ChatActivity.java"
 SETTINGS_ACTIVITY = JAVA / "ui/FluxGramSettingsActivity.java"
+SWIPE_ACTIVITY = JAVA / "ui/FluxGramMessageSwipeSettingsActivity.java"
+SWIPE_CELL = JAVA / "ui/Components/FluxGramSwipeActionCell.java"
 
 
 class MessageGestureSettingsTest(unittest.TestCase):
@@ -108,6 +110,8 @@ class MessageGestureSettingsTest(unittest.TestCase):
                 import org.telegram.messenger.fluxgram.MessageActionExecutor;
                 import org.telegram.messenger.fluxgram.MessageGestureSettings;
 
+                import java.util.Arrays;
+
                 public final class MessageGestureSettingsCheck {
                     public static void main(String[] args) {
                         if (args.length > 0) {
@@ -116,13 +120,21 @@ class MessageGestureSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw(
                                     "fluxgram_message_double_tap_enabled", 7);
                             MessagesController.preferences.putRaw(
-                                    "fluxgram_message_double_tap_action", 7);
+                                     "fluxgram_message_double_tap_action", 7);
+                            MessagesController.preferences.putRaw(
+                                    "fluxgram_message_swipe_enabled", 7);
+                            MessagesController.preferences.putRaw(
+                                    "fluxgram_message_swipe_actions", 7);
                         }
 
                         MessageGestureSettings.State initial = MessageGestureSettings.getState();
                         require(initial.isDoubleTapEnabled());
                         require(MessageActionExecutor.REACT_DEFAULT.equals(
                                 initial.getDoubleTapAction()));
+                        require(initial.isSwipeEnabled());
+                        require(initial.getSwipeActions().size() == 1);
+                        require(MessageActionExecutor.REPLY.equals(
+                                initial.getSwipeActions().get(0)));
 
                         MessageGestureSettings.setDoubleTapAction(MessageActionExecutor.REPLY);
                         require(MessageActionExecutor.REPLY.equals(
@@ -135,7 +147,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
                         require(!MessagesController.preferences.getBoolean(
                                 "fluxgram_message_double_tap_enabled", true));
                         require(MessagesController.preferences.getInt(
-                                "fluxgram_message_gestures_version", 0) == 1);
+                                "fluxgram_message_gestures_version", 0) == 2);
 
                         MessageGestureSettings.setDoubleTapAction(MessageActionExecutor.COPY);
                         require(MessageActionExecutor.COPY.equals(
@@ -144,6 +156,19 @@ class MessageGestureSettingsTest(unittest.TestCase):
                         MessageGestureSettings.setDoubleTapAction("unknown");
                         require(MessageActionExecutor.REACT_DEFAULT.equals(
                                 MessageGestureSettings.getState().getDoubleTapAction()));
+
+                        MessageGestureSettings.setSwipeEnabled(false);
+                        require(!MessageGestureSettings.getState().isSwipeEnabled());
+                        require(!MessagesController.preferences.getBoolean(
+                                "fluxgram_message_swipe_enabled", true));
+                        MessageGestureSettings.setSwipeActions(Arrays.asList(
+                                "unknown", MessageActionExecutor.REPLY));
+                        require(MessageGestureSettings.getState().getSwipeActions().size() == 1);
+                        require(MessageActionExecutor.REPLY.equals(
+                                MessageGestureSettings.getState().getSwipeActions().get(0)));
+                        MessageGestureSettings.setSwipeActions(Arrays.asList("unknown"));
+                        require(MessageActionExecutor.REPLY.equals(
+                                MessageGestureSettings.getState().getSwipeActions().get(0)));
                     }
 
                     private static void require(boolean value) {
@@ -213,6 +238,8 @@ class MessageGestureSettingsTest(unittest.TestCase):
         resolution = resolution.split("private MessageActionExecutor.Resolution resolveCopyAction(", 1)[0]
 
         self.assertIn("slidingMessageActionTarget = fluxGramMessageActions.capture(", touch)
+        self.assertIn("MessageGestureSettings.getState().isSwipeEnabled()", touch)
+        self.assertIn("slidingMessageActionId = MessageGestureSettings.getState()", touch)
         self.assertIn("MessageActionExecutor.Trigger.SWIPE", touch)
         self.assertIn("resolveReplyAction(", touch)
         self.assertIn("slidingMessageActionTarget = null", touch)
@@ -242,6 +269,26 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("MessageGestureSettings.setDoubleTapEnabled(enabled)", source)
         self.assertIn("MessageGestureSettings.setDoubleTapAction(actionIds[index])", source)
         self.assertIn("MessageActionExecutor.COPY", source)
+        self.assertIn("gestureSettings.isSwipeEnabled()", chats)
+        self.assertIn("SWIPE_MESSAGE_ACTIONS", chats)
+        self.assertIn("MessageGestureSettings.setSwipeEnabled(enabled)", source)
+        self.assertIn("new FluxGramMessageSwipeSettingsActivity()", source)
+
+    def test_swipe_editor_publishes_only_working_actions(self):
+        settings = SETTINGS.read_text()
+        activity = SWIPE_ACTIVITY.read_text()
+        cell = SWIPE_CELL.read_text()
+
+        self.assertIn("Collections.singletonList(", settings)
+        self.assertIn("MessageActionExecutor.REPLY", settings)
+        self.assertIn("getSwipeActions()", settings)
+        self.assertIn("setSwipeActions(Collection<String> actionIds)", settings)
+        self.assertIn("adapter.reorderSectionStart()", activity)
+        self.assertIn("setReorderLongPressEnabled(false)", activity)
+        self.assertIn("listView.startReorder(cell)", cell)
+        self.assertIn("if (activeActions.size() == 1)", activity)
+        self.assertNotIn("MessageActionExecutor.COPY", activity)
+        self.assertNotIn("MessageActionExecutor.REACT_DEFAULT", activity)
 
     def test_copy_action_uses_fresh_message_and_attached_group(self):
         chat = CHAT_ACTIVITY.read_text()

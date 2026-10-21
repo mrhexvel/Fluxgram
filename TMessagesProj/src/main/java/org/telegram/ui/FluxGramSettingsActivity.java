@@ -132,6 +132,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int QUICK_CHANNEL_TOPIC_TRANSITIONS = 57;
     private static final int DOUBLE_TAP_MESSAGES = 58;
     private static final int DOUBLE_TAP_MESSAGE_ACTION = 59;
+    private static final int SWIPE_MESSAGES = 60;
+    private static final int SWIPE_MESSAGE_ACTIONS = 61;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -580,6 +582,16 @@ public class FluxGramSettingsActivity extends BaseFragment {
                         doubleTapActionOption(gestureSettings.getDoubleTapAction())
                 ));
             }
+            items.add(UItem.asCheck(
+                    SWIPE_MESSAGES,
+                    LocaleController.getString(R.string.FluxGramSwipeMessages)
+            ).setChecked(gestureSettings.isSwipeEnabled()));
+            if (gestureSettings.isSwipeEnabled()) {
+                items.add(UItem.asButton(
+                        SWIPE_MESSAGE_ACTIONS,
+                        LocaleController.getString(R.string.FluxGramSwipeActions)
+                ));
+            }
             items.add(UItem.asShadow(LocaleController.getString(
                     R.string.FluxGramMessageGesturesInfo)));
             addSectionLabel(items, R.string.FluxGramMessageInput);
@@ -966,6 +978,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 listView.adapter.update(true);
             } else if (item.id == DOUBLE_TAP_MESSAGE_ACTION) {
                 showDoubleTapActionDialog();
+            } else if (item.id == SWIPE_MESSAGES) {
+                boolean enabled = !MessageGestureSettings.getState().isSwipeEnabled();
+                MessageGestureSettings.setSwipeEnabled(enabled);
+                listView.adapter.update(true);
+            } else if (item.id == SWIPE_MESSAGE_ACTIONS) {
+                presentFragment(new FluxGramMessageSwipeSettingsActivity());
             }
 
             return;
