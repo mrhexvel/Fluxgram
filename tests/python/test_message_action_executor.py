@@ -44,7 +44,8 @@ class MessageActionExecutorTest(unittest.TestCase):
                                  MessageActionExecutor.FORWARD,
                                  MessageActionExecutor.EDIT,
                                  MessageActionExecutor.SELECT,
-                                 MessageActionExecutor.SAVE_TO_GALLERY
+                                 MessageActionExecutor.SAVE_TO_GALLERY,
+                                 MessageActionExecutor.SAVE_TO_DOWNLOADS
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(null).equals(
                                 Collections.singletonList(MessageActionExecutor.REPLY)
@@ -58,6 +59,7 @@ class MessageActionExecutorTest(unittest.TestCase):
                                    MessageActionExecutor.EDIT,
                                    MessageActionExecutor.SELECT,
                                    MessageActionExecutor.SAVE_TO_GALLERY,
+                                   MessageActionExecutor.SAVE_TO_DOWNLOADS,
                                    MessageActionExecutor.REPLY
                          )).equals(Arrays.asList(
                                  MessageActionExecutor.REACT_DEFAULT,
@@ -66,6 +68,7 @@ class MessageActionExecutorTest(unittest.TestCase):
                                    MessageActionExecutor.EDIT,
                                    MessageActionExecutor.SELECT,
                                    MessageActionExecutor.SAVE_TO_GALLERY,
+                                   MessageActionExecutor.SAVE_TO_DOWNLOADS,
                                    MessageActionExecutor.REPLY
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(Arrays.asList(

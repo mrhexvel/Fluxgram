@@ -2137,8 +2137,17 @@ public class ChatActivity extends BaseFragment implements
         return !actionBar.isActionModeShowed()
                 && !hasTextSelection()
                 && isSaveToGalleryGestureChatModeAllowed()
-                && isSaveToGalleryPermissionGranted(messages)
+                && isSaveMediaPermissionGranted(messages)
                 && isSaveToGalleryActionAvailable(swipedView, messageObject, messages);
+    }
+
+    private boolean canStartSaveToDownloadsAction(View swipedView, MessageObject messageObject) {
+        ArrayList<MessageObject> messages = resolveCurrentDownloadMessages(swipedView, messageObject);
+        return !actionBar.isActionModeShowed()
+                && !hasTextSelection()
+                && isSaveToDownloadsGestureChatModeAllowed()
+                && isSaveMediaPermissionGranted(messages)
+                && isSaveToDownloadsActionAvailable(swipedView, messageObject, messages);
     }
 
     private String findSwipeAction(View swipedView, MessageObject messageObject) {
@@ -2167,6 +2176,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (MessageActionExecutor.SAVE_TO_GALLERY.equals(actionId)
                     && canStartSaveToGalleryAction(swipedView, messageObject)) {
+                return actionId;
+            }
+            if (MessageActionExecutor.SAVE_TO_DOWNLOADS.equals(actionId)
+                    && canStartSaveToDownloadsAction(swipedView, messageObject)) {
                 return actionId;
             }
         }
@@ -2425,7 +2438,7 @@ public class ChatActivity extends BaseFragment implements
         boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.SWIPE
                 && MessageActionExecutor.SAVE_TO_GALLERY.equals(actionId)
                 && isSaveToGalleryGestureChatModeAllowed();
-        boolean permissionGranted = isSaveToGalleryPermissionGranted(messages);
+        boolean permissionGranted = isSaveMediaPermissionGranted(messages);
         boolean actionAvailable = isSaveToGalleryActionAvailable(
                 swipedView,
                 messageObject,
@@ -2440,6 +2453,55 @@ public class ChatActivity extends BaseFragment implements
                 permissionGranted,
                 actionAvailable,
                 actionAvailable ? () -> performSaveToGalleryAction(swipedView, messageObject) : null
+        );
+    }
+
+    private MessageActionExecutor.Resolution resolveSaveToDownloadsAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View swipedView
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        ArrayList<MessageObject> messages = resolveCurrentDownloadMessages(swipedView, messageObject);
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.SWIPE
+                && MessageActionExecutor.SAVE_TO_DOWNLOADS.equals(actionId)
+                && isSaveToDownloadsGestureChatModeAllowed();
+        boolean permissionGranted = isSaveMediaPermissionGranted(messages);
+        boolean actionAvailable = isSaveToDownloadsActionAvailable(
+                swipedView,
+                messageObject,
+                messages
+        );
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable
+                        ? () -> performSaveToDownloadsAction(expected, swipedView, messageObject)
+                        : null
         );
     }
 
@@ -2491,6 +2553,17 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private boolean isSaveToGalleryGestureChatModeAllowed() {
+        return !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && (chatMode == MODE_DEFAULT
+                || chatMode == MODE_SCHEDULED
+                || chatMode == MODE_PINNED
+                || chatMode == MODE_SAVED);
+    }
+
+    private boolean isSaveToDownloadsGestureChatModeAllowed() {
         return !isInPreviewMode()
                 && !isInsideContainer
                 && !inBubbleMode
@@ -2584,7 +2657,7 @@ public class ChatActivity extends BaseFragment implements
         return messageObject != null && messageObject.messageOwner != null;
     }
 
-    private boolean isSaveToGalleryPermissionGranted(ArrayList<MessageObject> messages) {
+    private boolean isSaveMediaPermissionGranted(ArrayList<MessageObject> messages) {
         if (messages == null || messages.isEmpty() || getParentActivity() == null) {
             return false;
         }
@@ -2604,7 +2677,7 @@ public class ChatActivity extends BaseFragment implements
         return true;
     }
 
-    private boolean hasSaveToGalleryStoragePermission() {
+    private boolean hasExportStoragePermission() {
         return Build.VERSION.SDK_INT < 23
                 || Build.VERSION.SDK_INT > 28 && !BuildVars.NO_SCOPED_STORAGE
                 || getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -2859,6 +2932,36 @@ public class ChatActivity extends BaseFragment implements
         return true;
     }
 
+    private boolean isSaveToDownloadsActionAvailable(
+            View swipedView,
+            MessageObject messageObject,
+            ArrayList<MessageObject> messages
+    ) {
+        if (messageObject == null
+                || messages == null
+                || messages.isEmpty()
+                || !(swipedView instanceof ChatMessageCell)
+                || !swipedView.isAttachedToWindow()
+                || !showsMessageForReplyAction(
+                        swipedView,
+                        messageObject,
+                        MessageActionExecutor.Trigger.SWIPE
+                )
+                || !isMessageEligibleForSaveToDownloads(messageObject)) {
+            return false;
+        }
+
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject currentMessage = messages.get(index);
+            if (!isDownloadMessageContentAllowed(currentMessage)
+                    || !hasLocalDownloadFile(currentMessage)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private boolean isMessageAvailableToSaveToGallery(MessageObject messageObject) {
         if (messageObject == null
                 || messageObject.messageOwner == null
@@ -2886,6 +2989,179 @@ public class ChatActivity extends BaseFragment implements
         }
 
         return !TextUtils.isEmpty(resolveMessageGalleryPath(messageObject, type == 6));
+    }
+
+    private boolean isMessageEligibleForSaveToDownloads(MessageObject messageObject) {
+        if (!isDownloadMessageContentAllowed(messageObject)) {
+            return false;
+        }
+
+        int type = getMessageType(messageObject);
+        if (messageObject.isPoll()) {
+            return chatMode != MODE_SCHEDULED && type == 2;
+        }
+        if (type == 2) {
+            return chatMode != MODE_SCHEDULED && messageObject.isDocument();
+        }
+        if (type == 4) {
+            return true;
+        }
+        if (type == 5 || type == 10) {
+            return currentEncryptedChat == null;
+        }
+
+        return type == 6 && currentEncryptedChat == null;
+    }
+
+    private boolean isDownloadMessageContentAllowed(MessageObject messageObject) {
+        return messageObject != null
+                && messageObject.messageOwner != null
+                && !messageObject.messageOwner.fluxgramDeleted
+                && !messageObject.isSponsored()
+                && !messageObject.isMusic()
+                && !messageObject.isLivePhoto()
+                && !messageObject.hasRevealedExtendedMedia()
+                && !messageObject.needDrawBluredPreview()
+                && (!messageObject.isHiddenSensitive()
+                || messageObject.isMediaSpoilersRevealed)
+                && !messageObject.isVoiceOnce()
+                && !messageObject.isRoundOnce();
+    }
+
+    private ArrayList<MessageObject> resolveCurrentDownloadMessages(
+            View swipedView,
+            MessageObject messageObject
+    ) {
+        if (messageObject == null || !messageObject.isPoll()) {
+            return resolveCurrentGestureMessages(swipedView, messageObject);
+        }
+        if (!(MessageObject.getMedia(messageObject.messageOwner) instanceof TLRPC.TL_messageMediaPoll)) {
+            return null;
+        }
+
+        TLRPC.TL_messageMediaPoll mediaPoll = (TLRPC.TL_messageMediaPoll) MessageObject.getMedia(
+                messageObject.messageOwner
+        );
+        ArrayList<MessageObject> messages = new ArrayList<>();
+        addPollDownloadMessage(
+                messages,
+                messageObject,
+                PollAttachedMediaPack.getMedia(mediaPoll, PollAttachedMediaPack.INDEX_DESCRIPTION),
+                PollAttachedMediaPack.INDEX_DESCRIPTION
+        );
+        if (messageObject.expandedExplanation) {
+            addPollDownloadMessage(
+                    messages,
+                    messageObject,
+                    PollAttachedMediaPack.getMedia(mediaPoll, PollAttachedMediaPack.INDEX_EXPLANATION),
+                    PollAttachedMediaPack.INDEX_EXPLANATION
+            );
+        }
+
+        return messages.isEmpty() ? null : messages;
+    }
+
+    private void addPollDownloadMessage(
+            ArrayList<MessageObject> messages,
+            MessageObject poll,
+            TLRPC.MessageMedia media,
+            int mediaIndex
+    ) {
+        if (media == null
+                || media.document == null
+                || MessageObject.isVideoDocument(media.document)
+                || MessageObject.isMusicDocument(media.document)) {
+            return;
+        }
+
+        TLRPC.TL_message message = copy(poll.messageOwner);
+        message.media = media;
+        message.attachPath = PollAttachedMediaPack.getAttachPath(poll.messageOwner, mediaIndex);
+        messages.add(new MessageObject(currentAccount, message, false, true));
+    }
+
+    private boolean hasLocalDownloadFile(MessageObject messageObject) {
+        if (messageObject.isLivePhoto()) {
+            TLRPC.MessageMedia media = MessageObject.getMedia(messageObject.messageOwner);
+            if (media == null || media.photo == null || media.document == null) {
+                return false;
+            }
+            TLRPC.PhotoSize photoSize = FileLoader.getClosestPhotoSizeWithSize(
+                    media.photo.sizes,
+                    AndroidUtilities.getPhotoSize(true),
+                    false,
+                    null,
+                    true
+            );
+            if (photoSize == null) {
+                return false;
+            }
+            FileLoader fileLoader = FileLoader.getInstance(currentAccount);
+            File photoFile = fileLoader.getPathToAttach(photoSize, null, false, true);
+            File videoFile = fileLoader.getPathToAttach(media.document, null, false, true);
+            if (photoFile == null || !photoFile.isFile()) {
+                photoFile = fileLoader.getPathToAttach(photoSize, null, true, true);
+            }
+            if (videoFile == null || !videoFile.isFile()) {
+                videoFile = fileLoader.getPathToAttach(media.document, null, true, true);
+            }
+
+            return photoFile != null
+                    && photoFile.isFile()
+                    && videoFile != null
+                    && videoFile.isFile();
+        }
+
+        return resolveMessageDownloadFile(messageObject) != null;
+    }
+
+    private File resolveMessageDownloadFile(MessageObject messageObject) {
+        if (messageObject.qualityToSave == null
+                && !TextUtils.isEmpty(messageObject.messageOwner.attachPath)) {
+            File file = new File(messageObject.messageOwner.attachPath);
+            if (file.isFile()) {
+                return file;
+            }
+        }
+
+        FileLoader fileLoader = FileLoader.getInstance(currentAccount);
+        if (messageObject.qualityToSave != null) {
+            File file = fileLoader.getPathToAttach(messageObject.qualityToSave, null, false, true);
+            return file != null && file.isFile() ? file : null;
+        }
+
+        File file = fileLoader.getPathToMessage(messageObject.messageOwner, true);
+        TLRPC.MessageMedia media = MessageObject.getMedia(messageObject.messageOwner);
+        if (media instanceof TLRPC.TL_messageMediaDocument
+                && !((TLRPC.TL_messageMediaDocument) media).alt_documents.isEmpty()) {
+            file = fileLoader.getPathToAttach(
+                    ((TLRPC.TL_messageMediaDocument) media).alt_documents.get(0),
+                    null,
+                    false,
+                    true
+            );
+        }
+        if (file != null && file.isFile()) {
+            return file;
+        }
+
+        file = fileLoader.getPathToMessage(messageObject.messageOwner);
+        if (file != null && file.isFile()) {
+            return file;
+        }
+
+        if (messageObject.cachedQuality != null
+                && messageObject.cachedQuality.isCached()
+                && messageObject.cachedQuality.uri != null
+                && !TextUtils.isEmpty(messageObject.cachedQuality.uri.getPath())) {
+            file = new File(messageObject.cachedQuality.uri.getPath());
+            if (file.isFile()) {
+                return file;
+            }
+        }
+
+        file = fileLoader.getPathToAttach(messageObject.messageOwner, true);
+        return file != null && file.isFile() ? file : null;
     }
 
     private ArrayList<MessageObject> resolveCurrentGestureMessages(
@@ -3125,11 +3401,11 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean performSaveToGalleryAction(View swipedView, MessageObject messageObject) {
         ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
-        if (!isSaveToGalleryPermissionGranted(messages)
+        if (!isSaveMediaPermissionGranted(messages)
                 || !isSaveToGalleryActionAvailable(swipedView, messageObject, messages)) {
             return false;
         }
-        if (!hasSaveToGalleryStoragePermission()) {
+        if (!hasExportStoragePermission()) {
             getParentActivity().requestPermissions(
                     new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
                     4
@@ -3178,6 +3454,74 @@ public class ChatActivity extends BaseFragment implements
                 BulletinFactory.of(this).createDownloadBulletin(fileType, themeDelegate).show();
             }
         }
+
+        return true;
+    }
+
+    private boolean performSaveToDownloadsAction(
+            MessageActionExecutor.Target target,
+            View swipedView,
+            MessageObject messageObject
+    ) {
+        ArrayList<MessageObject> messages = resolveCurrentDownloadMessages(swipedView, messageObject);
+        if (!isSaveMediaPermissionGranted(messages)
+                || !isSaveToDownloadsActionAvailable(swipedView, messageObject, messages)) {
+            return false;
+        }
+        if (!hasExportStoragePermission()) {
+            getParentActivity().requestPermissions(
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    4
+            );
+            return true;
+        }
+
+        ArrayList<MessageObject> downloadMessages = new ArrayList<>(messages);
+        boolean photo = messageObject.isPhoto() && messages.size() == 1;
+        boolean video = messageObject.isVideo() && messages.size() == 1;
+        boolean gif = messageObject.isGif() && messages.size() == 1;
+        MediaController.saveLocalFilesFromMessages(
+                getParentActivity(),
+                getAccountInstance(),
+                downloadMessages,
+                count -> {
+                    MessageObject currentMessage = findCurrentMessageForAction(target);
+                    MessageActionExecutor.Target actual = currentMessage == null
+                            ? null
+                            : fluxGramMessageActions.capture(
+                                    currentAccount,
+                                    getUserConfig().getClientUserId(),
+                                    dialog_id,
+                                    currentMessage.getDialogId(),
+                                    currentMessage.getId(),
+                                    getTopicId()
+                            );
+                    if (count <= 0
+                            || !target.equals(actual)
+                            || getParentActivity() == null
+                            || fragmentView == null
+                            || paused
+                            || isFinished) {
+                        return;
+                    }
+
+                    BulletinFactory.FileType fileType;
+                    if (photo) {
+                        fileType = BulletinFactory.FileType.PHOTO_TO_DOWNLOADS;
+                    } else if (video) {
+                        fileType = BulletinFactory.FileType.VIDEO_TO_DOWNLOADS;
+                    } else if (gif) {
+                        fileType = BulletinFactory.FileType.GIF_TO_DOWNLOADS;
+                    } else if (count == 1) {
+                        fileType = BulletinFactory.FileType.UNKNOWN;
+                    } else {
+                        fileType = BulletinFactory.FileType.UNKNOWNS;
+                    }
+                    BulletinFactory.of(this)
+                            .createDownloadBulletin(fileType, count, themeDelegate)
+                            .show();
+                }
+        );
 
         return true;
     }
@@ -6564,6 +6908,8 @@ public class ChatActivity extends BaseFragment implements
             private int slidingSelectIconColor;
             private Drawable slidingSaveToGalleryIconDrawable;
             private int slidingSaveToGalleryIconColor;
+            private Drawable slidingSaveToDownloadsIconDrawable;
+            private int slidingSaveToDownloadsIconColor;
 
             private FloatValueHolder slidingDrawableVisibilityProgress = new FloatValueHolder(0);
             private SpringAnimation slidingDrawableVisibilitySpring = new SpringAnimation(slidingDrawableVisibilityProgress)
@@ -6926,6 +7272,18 @@ public class ChatActivity extends BaseFragment implements
                         slidingSaveToGalleryIconColor = color;
                     }
                     actionIconDrawable = slidingSaveToGalleryIconDrawable;
+                } else if (MessageActionExecutor.SAVE_TO_DOWNLOADS.equals(slidingMessageActionId)) {
+                    int color = getThemedColor(Theme.key_chat_serviceIcon);
+                    if (slidingSaveToDownloadsIconDrawable == null
+                            || slidingSaveToDownloadsIconColor != color) {
+                        slidingSaveToDownloadsIconDrawable = Theme.getThemedDrawable(
+                                getContext(),
+                                R.drawable.msg_download,
+                                color
+                        );
+                        slidingSaveToDownloadsIconColor = color;
+                    }
+                    actionIconDrawable = slidingSaveToDownloadsIconDrawable;
                 } else {
                     String actionIconKey = MessageActionExecutor.FORWARD.equals(slidingMessageActionId)
                             ? Theme.key_drawable_shareIcon
@@ -7051,6 +7409,14 @@ public class ChatActivity extends BaseFragment implements
                                     }
                                     if (MessageActionExecutor.SAVE_TO_GALLERY.equals(resolvedActionId)) {
                                         return resolveSaveToGalleryAction(
+                                                resolvedActionId,
+                                                trigger,
+                                                expected,
+                                                swipedView
+                                        );
+                                    }
+                                    if (MessageActionExecutor.SAVE_TO_DOWNLOADS.equals(resolvedActionId)) {
+                                        return resolveSaveToDownloadsAction(
                                                 resolvedActionId,
                                                 trigger,
                                                 expected,

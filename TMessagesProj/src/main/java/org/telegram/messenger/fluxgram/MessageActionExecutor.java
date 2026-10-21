@@ -18,6 +18,7 @@ public final class MessageActionExecutor {
     public static final String EDIT = "edit";
     public static final String SELECT = "select";
     public static final String SAVE_TO_GALLERY = "save_to_gallery";
+    public static final String SAVE_TO_DOWNLOADS = "save_to_downloads";
 
     private static final int MAX_SWIPE_ACTIONS = 8;
     private static final List<String> KNOWN_ACTION_IDS = Collections.unmodifiableList(Arrays.asList(
@@ -27,7 +28,8 @@ public final class MessageActionExecutor {
             FORWARD,
             EDIT,
             SELECT,
-            SAVE_TO_GALLERY
+            SAVE_TO_GALLERY,
+            SAVE_TO_DOWNLOADS
     ));
     private static final Set<String> KNOWN_ACTION_ID_SET = Collections.unmodifiableSet(
             new HashSet<>(KNOWN_ACTION_IDS)

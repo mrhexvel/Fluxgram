@@ -14,6 +14,7 @@ CHAT_ACTIVITY = JAVA / "ui/ChatActivity.java"
 SETTINGS_ACTIVITY = JAVA / "ui/FluxGramSettingsActivity.java"
 SWIPE_ACTIVITY = JAVA / "ui/FluxGramMessageSwipeSettingsActivity.java"
 SWIPE_CELL = JAVA / "ui/Components/FluxGramSwipeActionCell.java"
+MEDIA_CONTROLLER = JAVA / "messenger/MediaController.java"
 
 
 class MessageGestureSettingsTest(unittest.TestCase):
@@ -167,9 +168,10 @@ class MessageGestureSettingsTest(unittest.TestCase):
                                  MessageActionExecutor.EDIT,
                                  MessageActionExecutor.SELECT,
                                  MessageActionExecutor.SAVE_TO_GALLERY,
+                                 MessageActionExecutor.SAVE_TO_DOWNLOADS,
                                  MessageActionExecutor.REPLY,
                                  MessageActionExecutor.FORWARD));
-                        require(MessageGestureSettings.getState().getSwipeActions().size() == 5);
+                        require(MessageGestureSettings.getState().getSwipeActions().size() == 6);
                         require(MessageActionExecutor.FORWARD.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(0)));
                         require(MessageActionExecutor.EDIT.equals(
@@ -177,10 +179,12 @@ class MessageGestureSettingsTest(unittest.TestCase):
                         require(MessageActionExecutor.SELECT.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(2)));
                         require(MessageActionExecutor.REPLY.equals(
-                                 MessageGestureSettings.getState().getSwipeActions().get(4)));
+                                 MessageGestureSettings.getState().getSwipeActions().get(5)));
                         require(MessageActionExecutor.SAVE_TO_GALLERY.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(3)));
-                        require("forward,edit,select,save_to_gallery,reply".equals(MessagesController.preferences.getString(
+                        require(MessageActionExecutor.SAVE_TO_DOWNLOADS.equals(
+                                 MessageGestureSettings.getState().getSwipeActions().get(4)));
+                        require("forward,edit,select,save_to_gallery,save_to_downloads,reply".equals(MessagesController.preferences.getString(
                                  "fluxgram_message_swipe_actions", null)));
                         MessageGestureSettings.setSwipeActions(Arrays.asList("unknown"));
                         require(MessageGestureSettings.getState().getSwipeActions().size() == 1);
@@ -303,6 +307,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("MessageActionExecutor.EDIT", settings)
         self.assertIn("MessageActionExecutor.SELECT", settings)
         self.assertIn("MessageActionExecutor.SAVE_TO_GALLERY", settings)
+        self.assertIn("MessageActionExecutor.SAVE_TO_DOWNLOADS", settings)
         self.assertIn("getSwipeActions()", settings)
         self.assertIn("setSwipeActions(Collection<String> actionIds)", settings)
         self.assertIn("adapter.reorderSectionStart()", activity)
@@ -313,6 +318,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("MessageActionExecutor.EDIT", activity)
         self.assertIn("MessageActionExecutor.SELECT", activity)
         self.assertIn("MessageActionExecutor.SAVE_TO_GALLERY", activity)
+        self.assertIn("MessageActionExecutor.SAVE_TO_DOWNLOADS", activity)
         self.assertNotIn("MessageActionExecutor.COPY", activity)
         self.assertNotIn("MessageActionExecutor.REACT_DEFAULT", activity)
 
@@ -419,14 +425,14 @@ class MessageGestureSettingsTest(unittest.TestCase):
             "private MessageActionExecutor.Resolution resolveSaveToGalleryAction(", 1
         )[1]
         resolution = resolution.split("private boolean isReplyGestureChatModeAllowed()", 1)[0]
-        save_path = chat.split("private boolean isSaveToGalleryPermissionGranted(", 1)[1]
+        save_path = chat.split("private boolean isSaveMediaPermissionGranted(", 1)[1]
         save_path = save_path.split("private boolean isReplyActionAvailable(", 1)[0]
         handler = chat.split("private boolean performSaveToGalleryAction(", 1)[1]
         handler = handler.split("private boolean performForwardAction(", 1)[0]
 
         self.assertIn("findCurrentMessageForAction(expected)", resolution)
         self.assertIn("resolveCurrentGestureMessages(swipedView, messageObject)", resolution)
-        self.assertIn("isSaveToGalleryPermissionGranted(messages)", resolution)
+        self.assertIn("isSaveMediaPermissionGranted(messages)", resolution)
         self.assertIn("isSaveToGalleryActionAvailable(", resolution)
         self.assertIn("performSaveToGalleryAction(swipedView, messageObject)", resolution)
         self.assertIn("messageObject.messageOwner.noforwards", save_path)
@@ -436,13 +442,62 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("messageObject.needDrawBluredPreview()", chat)
         self.assertIn("messageObject.isHiddenSensitive()", chat)
         self.assertIn("resolveMessageGalleryPath(messageObject, type == 6)", chat)
-        self.assertIn("if (!hasSaveToGalleryStoragePermission())", handler)
+        self.assertIn("if (!hasExportStoragePermission())", handler)
         self.assertIn("Manifest.permission.WRITE_EXTERNAL_STORAGE", handler)
         self.assertIn("getParentActivity().requestPermissions(", handler)
         self.assertIn("saveMessageToGallery(currentMessage, getMessageType(currentMessage) == 6)", handler)
         self.assertIn("BulletinFactory.FileType.MEDIA", handler)
         self.assertNotIn("selectedObject", resolution + save_path + handler)
         self.assertNotIn("processSelectedOption", resolution + save_path + handler)
+
+    def test_save_to_downloads_uses_local_only_saf_path(self):
+        chat = CHAT_ACTIVITY.read_text()
+        media = MEDIA_CONTROLLER.read_text()
+        resolution = chat.split(
+            "private MessageActionExecutor.Resolution resolveSaveToDownloadsAction(", 1
+        )[1]
+        resolution = resolution.split("private boolean isReplyGestureChatModeAllowed()", 1)[0]
+        download_path = chat.split("private boolean isSaveToDownloadsActionAvailable(", 1)[1]
+        download_path = download_path.split(
+            "private boolean isMessageAvailableToSaveToGallery(", 1
+        )[0]
+        handler = chat.split("private boolean performSaveToDownloadsAction(", 1)[1]
+        handler = handler.split("private boolean performForwardAction(", 1)[0]
+        local_loader = media.split(
+            "public static void saveLocalFilesFromMessages(", 1
+        )[1]
+        local_loader = local_loader.split("public static void saveFile(", 1)[0]
+
+        self.assertIn("findCurrentMessageForAction(expected)", resolution)
+        self.assertIn("resolveCurrentDownloadMessages(swipedView, messageObject)", resolution)
+        self.assertIn("isSaveMediaPermissionGranted(messages)", resolution)
+        self.assertIn("isSaveToDownloadsActionAvailable(", resolution)
+        self.assertIn("performSaveToDownloadsAction(expected, swipedView, messageObject)", resolution)
+        self.assertIn("isMessageEligibleForSaveToDownloads(messageObject)", download_path)
+        self.assertIn("if (type == 4) {\n            return true;", chat)
+        self.assertIn("isDownloadMessageContentAllowed(currentMessage)", download_path)
+        self.assertIn("!messageObject.isLivePhoto()", chat)
+        self.assertIn("hasLocalDownloadFile(currentMessage)", download_path)
+        self.assertIn("PollAttachedMediaPack.INDEX_DESCRIPTION", chat)
+        self.assertIn("PollAttachedMediaPack.INDEX_EXPLANATION", chat)
+        self.assertIn("MessageObject.isMusicDocument(media.document)", chat)
+        self.assertIn("if (!hasExportStoragePermission())", handler)
+        self.assertIn("MediaController.saveLocalFilesFromMessages(", handler)
+        self.assertIn("findCurrentMessageForAction(target)", handler)
+        self.assertIn("!target.equals(actual)", handler)
+        self.assertIn("BulletinFactory.FileType.PHOTO_TO_DOWNLOADS", handler)
+        self.assertIn("BulletinFactory.FileType.VIDEO_TO_DOWNLOADS", handler)
+        self.assertIn("BulletinFactory.FileType.GIF_TO_DOWNLOADS", handler)
+        self.assertIn("new MediaLoader(context, accountInstance, messageObjects, onSaved, false)", local_loader)
+        self.assertIn("if (!allowDownload)", media)
+        self.assertIn("if (!sourceFile.exists() && allowDownload)", media)
+        self.assertIn("if (allowDownload || alternativeFile.exists())", media)
+        self.assertIn("if (!allowDownload && media instanceof TLRPC.TL_messageMediaDocument)", media)
+        self.assertEqual(2, media.count("&& !allowDownload"))
+        self.assertEqual(2, media.count("&& message.qualityToSave == null"))
+        self.assertIn("if (copyFile(sourceFile, destFile, message.getMimeType()))", media)
+        self.assertNotIn("selectedObject", resolution + download_path + handler)
+        self.assertNotIn("processSelectedOption", resolution + download_path + handler)
 
     def test_copy_action_uses_fresh_message_and_attached_group(self):
         chat = CHAT_ACTIVITY.read_text()

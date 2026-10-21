@@ -25,7 +25,8 @@ public final class MessageGestureSettings {
                     MessageActionExecutor.FORWARD,
                     MessageActionExecutor.EDIT,
                     MessageActionExecutor.SELECT,
-                    MessageActionExecutor.SAVE_TO_GALLERY
+                    MessageActionExecutor.SAVE_TO_GALLERY,
+                    MessageActionExecutor.SAVE_TO_DOWNLOADS
             )
     );
 

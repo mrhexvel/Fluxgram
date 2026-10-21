@@ -5020,12 +5020,14 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         private CountDownLatch waitingForFile;
         private MessagesStorage.IntCallback onFinishRunnable;
         private boolean isMusic;
+        private boolean allowDownload;
 
-        public MediaLoader(Context context, AccountInstance accountInstance, ArrayList<MessageObject> messages, MessagesStorage.IntCallback onFinish) {
+        public MediaLoader(Context context, AccountInstance accountInstance, ArrayList<MessageObject> messages, MessagesStorage.IntCallback onFinish, boolean allowDownload) {
             currentAccount = accountInstance;
             messageObjects = messages;
             onFinishRunnable = onFinish;
             isMusic = messages.get(0).isMusic();
+            this.allowDownload = allowDownload;
             currentAccount.getNotificationCenter().addObserver(this, NotificationCenter.fileLoaded);
             currentAccount.getNotificationCenter().addObserver(this, NotificationCenter.fileLoadProgressChanged);
             currentAccount.getNotificationCenter().addObserver(this, NotificationCenter.fileLoadFailed);
@@ -5078,14 +5080,26 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                     if (media instanceof TLRPC.TL_messageMediaDocument) {
                                         final TLRPC.TL_messageMediaDocument mediaDocument = (TLRPC.TL_messageMediaDocument) media;
                                         if (!mediaDocument.alt_documents.isEmpty()) {
-                                            file = fileLoader.getPathToAttach(mediaDocument.alt_documents.get(0), null, false, true);
+                                            File alternativeFile = fileLoader.getPathToAttach(mediaDocument.alt_documents.get(0), null, false, true);
+                                            if (allowDownload || alternativeFile.exists()) {
+                                                file = alternativeFile;
+                                            }
                                         }
                                     }
                                 }
                                 path = file.toString();
                             }
                             File sourceFile = new File(path);
-                            if (!sourceFile.exists()) {
+                            if (!sourceFile.exists()
+                                    && !allowDownload
+                                    && message.qualityToSave == null
+                                    && message.cachedQuality != null
+                                    && message.cachedQuality.isCached()
+                                    && message.cachedQuality.uri != null
+                                    && !TextUtils.isEmpty(message.cachedQuality.uri.getPath())) {
+                                sourceFile = new File(message.cachedQuality.uri.getPath());
+                            }
+                            if (!sourceFile.exists() && allowDownload) {
                                 waitingForFile = new CountDownLatch(1);
                                 addMessageToLoad(message);
                                 waitingForFile.await();
@@ -5098,6 +5112,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                 FileLog.d("saving file: correcting path from " + path + " to " + (sourceFile == null ? null : sourceFile.getAbsolutePath()));
                             }
                             if (sourceFile != null && sourceFile.exists()) {
+                                if (TextUtils.isEmpty(name)) {
+                                    name = sourceFile.getName();
+                                }
                                 Uri savedUri = isMusic ? null : ExportDestinationSettings.saveDownload(
                                         sourceFile,
                                         name,
@@ -5147,13 +5164,40 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                     path = FileLoader.getInstance(currentAccount.getCurrentAccount()).getPathToMessage(message.messageOwner).toString();
                                 }
                                 sourceFile = new File(path);
+                                TLRPC.MessageMedia media = MessageObject.getMedia(message);
+                                if (!allowDownload && media instanceof TLRPC.TL_messageMediaDocument) {
+                                    TLRPC.TL_messageMediaDocument mediaDocument = (TLRPC.TL_messageMediaDocument) media;
+                                    if (!mediaDocument.alt_documents.isEmpty()) {
+                                        File alternativeFile = FileLoader.getInstance(currentAccount.getCurrentAccount()).getPathToAttach(
+                                                mediaDocument.alt_documents.get(0),
+                                                null,
+                                                false,
+                                                true
+                                        );
+                                        if (alternativeFile.exists()) {
+                                            sourceFile = alternativeFile;
+                                        }
+                                    }
+                                }
                             }
-                            if (!sourceFile.exists()) {
+                            if (!sourceFile.exists()
+                                    && !allowDownload
+                                    && message.qualityToSave == null
+                                    && message.cachedQuality != null
+                                    && message.cachedQuality.isCached()
+                                    && message.cachedQuality.uri != null
+                                    && !TextUtils.isEmpty(message.cachedQuality.uri.getPath())) {
+                                sourceFile = new File(message.cachedQuality.uri.getPath());
+                            }
+                            if (!sourceFile.exists() && allowDownload) {
                                 waitingForFile = new CountDownLatch(1);
                                 addMessageToLoad(message);
                                 waitingForFile.await();
                             }
                             if (sourceFile.exists()) {
+                                if (TextUtils.isEmpty(name)) {
+                                    name = sourceFile.getName();
+                                }
                                 Uri savedUri = isMusic ? null : ExportDestinationSettings.saveDownload(
                                         sourceFile,
                                         name,
@@ -5183,14 +5227,16 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                 if (!destFile.exists()) {
                                     destFile.createNewFile();
                                 }
-                                copyFile(sourceFile, destFile, message.getMimeType());
-                                copiedFiles++;
+                                if (copyFile(sourceFile, destFile, message.getMimeType())) {
+                                    copiedFiles++;
+                                }
                             }
                         }
                     }
-                    checkIfFinished();
                 } catch (Exception e) {
                     FileLog.e(e);
+                } finally {
+                    checkIfFinished();
                 }
 
             }).start();
@@ -5235,10 +5281,26 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             File photoFile = fileLoader.getPathToAttach(photoSize, null, false, true);
             File videoFile = fileLoader.getPathToAttach(media.document, null, false, true);
 
+            if (photoFile == null || !photoFile.exists()) {
+                File cachedPhotoFile = fileLoader.getPathToAttach(photoSize, null, true, true);
+                if (cachedPhotoFile != null && cachedPhotoFile.exists()) {
+                    photoFile = cachedPhotoFile;
+                }
+            }
+            if (videoFile == null || !videoFile.exists()) {
+                File cachedVideoFile = fileLoader.getPathToAttach(media.document, null, true, true);
+                if (cachedVideoFile != null && cachedVideoFile.exists()) {
+                    videoFile = cachedVideoFile;
+                }
+            }
+
             final boolean needPhoto = photoFile == null || !photoFile.exists();
             final boolean needVideo = videoFile == null || !videoFile.exists();
             final int needCount = (needPhoto ? 1 : 0) + (needVideo ? 1 : 0);
             if (needCount > 0) {
+                if (!allowDownload) {
+                    return true;
+                }
                 waitingForFile = new CountDownLatch(needCount);
                 final TLRPC.Photo finalPhoto = media.photo;
                 final TLRPC.Document finalDoc = media.document;
@@ -5460,7 +5522,14 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         if (messageObjects == null || messageObjects.isEmpty()) {
             return;
         }
-        new MediaLoader(context, accountInstance, messageObjects, onSaved).start();
+        new MediaLoader(context, accountInstance, messageObjects, onSaved, true).start();
+    }
+
+    public static void saveLocalFilesFromMessages(Context context, AccountInstance accountInstance, ArrayList<MessageObject> messageObjects, final MessagesStorage.IntCallback onSaved) {
+        if (messageObjects == null || messageObjects.isEmpty()) {
+            return;
+        }
+        new MediaLoader(context, accountInstance, messageObjects, onSaved, false).start();
     }
 
     public static void saveFile(String fullPath, Context context, final int type, final String name, final String mime) {
