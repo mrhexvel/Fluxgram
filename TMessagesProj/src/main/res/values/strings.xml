@@ -11432,6 +11432,7 @@
     <string name="FluxGramShowAllRecentStickersInfo">Shows the full locally retained recent sticker list instead of the first 20. Telegram server history and storage limits are unchanged.</string>
     <string name="FluxGramMessageInput">Message input</string>
     <string name="FluxGramHideKeyboardOnScroll">Hide keyboard when scrolling</string>
+    <string name="FluxGramAddCommaAfterMention">Add comma after mentions</string>
     <string name="FluxGramHideSendAs">Hide sender selection</string>
     <string name="FluxGramHideSendAsInfo">Hides the sender button in chats. The previously selected sender remains active.</string>
     <string name="FluxGramMessages">Messages</string>

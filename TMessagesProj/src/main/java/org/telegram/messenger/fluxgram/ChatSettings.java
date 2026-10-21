@@ -7,11 +7,13 @@ import org.telegram.messenger.MessagesController;
 public final class ChatSettings {
     private static final String HIDE_SEND_AS = "fluxgram_hide_send_as";
     private static final String HIDE_KEYBOARD_ON_SCROLL = "fluxgram_hide_keyboard_on_scroll";
+    private static final String ADD_COMMA_AFTER_MENTION = "fluxgram_add_comma_after_mention";
     private static final String SHOW_MESSAGE_REACTIONS = "fluxgram_show_message_reactions";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
     private static volatile boolean hideKeyboardOnScroll;
+    private static volatile boolean addCommaAfterMention;
     private static volatile boolean showMessageReactions;
 
     public static boolean hidesSendAs() {
@@ -46,6 +48,23 @@ public final class ChatSettings {
                 .apply();
 
         hideKeyboardOnScroll = hidden;
+    }
+
+    public static boolean addsCommaAfterMention() {
+        ensureLoaded();
+
+        return addCommaAfterMention;
+    }
+
+    public static synchronized void setAddsCommaAfterMention(boolean enabled) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(ADD_COMMA_AFTER_MENTION, enabled)
+                .apply();
+
+        addCommaAfterMention = enabled;
     }
 
     public static boolean showsMessageReactions() {
@@ -85,6 +104,11 @@ public final class ChatSettings {
                 hideKeyboardOnScroll = preferences.getBoolean(HIDE_KEYBOARD_ON_SCROLL, false);
             } catch (ClassCastException exception) {
                 hideKeyboardOnScroll = false;
+            }
+            try {
+                addCommaAfterMention = preferences.getBoolean(ADD_COMMA_AFTER_MENTION, false);
+            } catch (ClassCastException exception) {
+                addCommaAfterMention = false;
             }
             try {
                 showMessageReactions = preferences.getBoolean(SHOW_MESSAGE_REACTIONS, true);

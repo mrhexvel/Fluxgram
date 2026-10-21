@@ -92,11 +92,13 @@ class ChatSettingsTest(unittest.TestCase):
                         if (args.length > 0) {
                             MessagesController.preferences.putRaw("fluxgram_hide_send_as", 7);
                             MessagesController.preferences.putRaw("fluxgram_hide_keyboard_on_scroll", 7);
+                            MessagesController.preferences.putRaw("fluxgram_add_comma_after_mention", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_reactions", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
                         require(!ChatSettings.hidesKeyboardOnScroll());
+                        require(!ChatSettings.addsCommaAfterMention());
                         require(ChatSettings.showsMessageReactions());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
@@ -106,6 +108,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.hidesKeyboardOnScroll());
                         ChatSettings.setHidesKeyboardOnScroll(false);
                         require(!ChatSettings.hidesKeyboardOnScroll());
+                        ChatSettings.setAddsCommaAfterMention(true);
+                        require(ChatSettings.addsCommaAfterMention());
+                        ChatSettings.setAddsCommaAfterMention(false);
+                        require(!ChatSettings.addsCommaAfterMention());
                         ChatSettings.setShowsMessageReactions(false);
                         require(!ChatSettings.showsMessageReactions());
                         ChatSettings.setShowsMessageReactions(true);
@@ -254,6 +260,44 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.hidesKeyboardOnScroll())", activity)
         self.assertIn("ChatSettings.setHidesKeyboardOnScroll(hidden)", activity)
         handler = activity.split("item.id == HIDE_KEYBOARD_ON_SCROLL", 1)[1]
+        handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        self.assertNotIn("rebuildFragments", handler)
+
+    def test_chat_activity_adds_comma_only_to_human_mentions(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        mentions_container = (
+            JAVA / "ui/Components/MentionsContainerView.java"
+        ).read_text()
+        mentions_adapter = (JAVA / "ui/Adapters/MentionsAdapter.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        helper = chat.split(
+            "private CharSequence createUserMention(TLRPC.User user)", 1
+        )[1].split("private boolean approved", 1)[0]
+        self.assertIn(
+            "ChatSettings.addsCommaAfterMention() && !UserObject.isBot(user)",
+            helper,
+        )
+        self.assertIn('String separator = addComma ? ", " : " ";', helper)
+        self.assertIn('return "@" + username + separator;', helper)
+        self.assertIn("new SpannableString(name + separator)", helper)
+        self.assertIn(
+            "int spanEnd = addComma ? name.length() : spannable.length();",
+            helper,
+        )
+        self.assertIn(
+            "new URLSpanUserMention(\"\" + user.id, 3),\n"
+            "                0,\n"
+            "                spanEnd,",
+            helper,
+        )
+        self.assertEqual(2, chat.count("createUserMention(user)"))
+        self.assertIn('"@" + username + " "', chat)
+        self.assertNotIn("ChatSettings", mentions_container)
+        self.assertIn("int index = text.indexOf(' ');", mentions_adapter)
+        self.assertIn(".setChecked(ChatSettings.addsCommaAfterMention())", activity)
+        self.assertIn("ChatSettings.setAddsCommaAfterMention(enabled)", activity)
+        handler = activity.split("item.id == ADD_COMMA_AFTER_MENTION", 1)[1]
         handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
         self.assertNotIn("rebuildFragments", handler)
 

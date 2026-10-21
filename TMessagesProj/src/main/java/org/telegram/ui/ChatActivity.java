@@ -7804,14 +7804,7 @@ public class ChatActivity extends BaseFragment implements
                 if (searchingForUser && searchContainer != null && searchContainer.getVisibility() == View.VISIBLE) {
                     searchUserMessages(user, null);
                 } else {
-                    if (UserObject.getPublicUsername(user) != null) {
-                        chatActivityEnterView.replaceWithText(start, len, "@" + UserObject.getPublicUsername(user) + " ", false);
-                    } else {
-                        String name = UserObject.getFirstName(user, false);
-                        Spannable spannable = new SpannableString(name + " ");
-                        spannable.setSpan(new URLSpanUserMention("" + user.id, 3), 0, spannable.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                        chatActivityEnterView.replaceWithText(start, len, spannable, false);
-                    }
+                    chatActivityEnterView.replaceWithText(start, len, createUserMention(user), false);
                 }
             } else if (object instanceof MentionsAdapter.EphemeralCommand) {
                 if (mentionContainer.getAdapter().isBotCommands()) {
@@ -13030,6 +13023,26 @@ public class ChatActivity extends BaseFragment implements
             updateFloatingTopicView();
             floatingTopicSeparator.setTag(null);
         }
+    }
+
+    private CharSequence createUserMention(TLRPC.User user) {
+        boolean addComma = ChatSettings.addsCommaAfterMention() && !UserObject.isBot(user);
+        String separator = addComma ? ", " : " ";
+        String username = UserObject.getPublicUsername(user);
+        if (username != null) {
+            return "@" + username + separator;
+        }
+
+        String name = UserObject.getFirstName(user, false);
+        Spannable spannable = new SpannableString(name + separator);
+        int spanEnd = addComma ? name.length() : spannable.length();
+        spannable.setSpan(
+                new URLSpanUserMention("" + user.id, 3),
+                0,
+                spanEnd,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        return spannable;
     }
 
     private boolean approved;
@@ -40677,15 +40690,7 @@ public class ChatActivity extends BaseFragment implements
                 if (sb.length() > 0 && sb.charAt(sb.length() - 1) != ' ') {
                     sb.append(' ');
                 }
-                String username = UserObject.getPublicUsername(user);
-                if (username != null) {
-                    sb.append("@").append(username).append(" ");
-                } else {
-                    String name = UserObject.getFirstName(user, false);
-                    Spannable spannable = new SpannableString(name + " ");
-                    spannable.setSpan(new URLSpanUserMention("" + user.id, 3), 0, spannable.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    sb.append(spannable);
-                }
+                sb.append(createUserMention(user));
                 chatActivityEnterView.setFieldText(sb);
                 AndroidUtilities.runOnUIThread(() -> chatActivityEnterView.openKeyboard(), 200);
             }
