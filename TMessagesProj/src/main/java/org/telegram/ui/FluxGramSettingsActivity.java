@@ -125,6 +125,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_GREETING_STICKER = 52;
     private static final int HIDE_SEND_AS = 53;
     private static final int SHOW_MESSAGE_REACTIONS = 54;
+    private static final int HIDE_KEYBOARD_ON_SCROLL = 55;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -555,6 +556,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     R.string.FluxGramShowMessageReactionsInfo)));
             addSectionLabel(items, R.string.FluxGramMessageInput);
             items.add(UItem.asCheck(
+                    HIDE_KEYBOARD_ON_SCROLL,
+                    LocaleController.getString(R.string.FluxGramHideKeyboardOnScroll)
+            ).setChecked(ChatSettings.hidesKeyboardOnScroll()));
+            items.add(UItem.asCheck(
                     HIDE_SEND_AS,
                     LocaleController.getString(R.string.FluxGramHideSendAs)
             ).setChecked(ChatSettings.hidesSendAs()));
@@ -906,6 +911,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ChatSettings.setHidesSendAs(hidden);
                 ((TextCheckCell) view).setChecked(hidden);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == HIDE_KEYBOARD_ON_SCROLL) {
+                boolean hidden = !ChatSettings.hidesKeyboardOnScroll();
+                ChatSettings.setHidesKeyboardOnScroll(hidden);
+                ((TextCheckCell) view).setChecked(hidden);
             } else if (item.id == SHOW_MESSAGE_REACTIONS) {
                 boolean shown = !ChatSettings.showsMessageReactions();
                 ChatSettings.setShowsMessageReactions(shown);

@@ -7263,6 +7263,27 @@ public class ChatActivity extends BaseFragment implements
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 final ChatActivity chatToUpdate = parentChatActivity != null ? parentChatActivity : ChatActivity.this;
 
+                if (dy != 0
+                        && recyclerView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING
+                        && ChatSettings.hidesKeyboardOnScroll()
+                        && chatActivityEnterView != null
+                        && chatActivityEnterView.getVisibility() == View.VISIBLE
+                        && chatMode != MODE_PINNED
+                        && chatMode != MODE_SEARCH
+                        && !inPreviewMode
+                        && !isInsideContainer
+                        && !inBubbleMode
+                        && !isReport()
+                        && !isInPollAddOptionMode()
+                        && !(chatActivityEnterView.hasBotWebView() && chatActivityEnterView.botCommandsMenuIsShowing())) {
+                    if (chatActivityEnterView.isPopupShowing()) {
+                        chatActivityEnterView.hidePopup(true);
+                    }
+                    if (isKeyboardVisible()) {
+                        chatActivityEnterView.closeKeyboard();
+                    }
+                }
+
                 chatListView.invalidate();
                 if (contentView != null) {
                     contentView.updateBlurContent();

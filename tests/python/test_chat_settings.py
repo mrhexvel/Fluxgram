@@ -91,15 +91,21 @@ class ChatSettingsTest(unittest.TestCase):
                     public static void main(String[] args) {
                         if (args.length > 0) {
                             MessagesController.preferences.putRaw("fluxgram_hide_send_as", 7);
+                            MessagesController.preferences.putRaw("fluxgram_hide_keyboard_on_scroll", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_reactions", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
+                        require(!ChatSettings.hidesKeyboardOnScroll());
                         require(ChatSettings.showsMessageReactions());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
                         require(!ChatSettings.hidesSendAs());
+                        ChatSettings.setHidesKeyboardOnScroll(true);
+                        require(ChatSettings.hidesKeyboardOnScroll());
+                        ChatSettings.setHidesKeyboardOnScroll(false);
+                        require(!ChatSettings.hidesKeyboardOnScroll());
                         ChatSettings.setShowsMessageReactions(false);
                         require(!ChatSettings.showsMessageReactions());
                         ChatSettings.setShowsMessageReactions(true);
@@ -197,6 +203,59 @@ class ChatSettingsTest(unittest.TestCase):
             activity,
         )
         self.assertIn("ChatSettings.setShowsMessageReactions(shown)", activity)
+
+    def test_chat_activity_hides_keyboard_only_during_message_list_drag(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        enter_view = (JAVA / "ui/Components/ChatActivityEnterView.java").read_text()
+        recycler = (JAVA / "ui/Components/RecyclerListView.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        scroll_listener = chat.split(
+            "chatListView.setOnScrollListener(new RecyclerView.OnScrollListener()", 1
+        )[1].split("chatListView.setOnItemClickListener", 1)[0]
+        gate = scroll_listener.split("ChatSettings.hidesKeyboardOnScroll()", 1)[1]
+        gate = gate.split("chatListView.invalidate()", 1)[0]
+
+        self.assertIn("dy != 0", scroll_listener)
+        self.assertIn(
+            "recyclerView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING",
+            scroll_listener,
+        )
+        self.assertNotIn("SCROLL_STATE_SETTLING", gate)
+        self.assertIn("chatMode != MODE_PINNED", gate)
+        self.assertIn("chatMode != MODE_SEARCH", gate)
+        self.assertIn("chatActivityEnterView.getVisibility() == View.VISIBLE", gate)
+        self.assertIn("!inPreviewMode", gate)
+        self.assertIn("!isInsideContainer", gate)
+        self.assertIn("!inBubbleMode", gate)
+        self.assertIn("!isReport()", gate)
+        self.assertIn("!isInPollAddOptionMode()", gate)
+        self.assertIn(
+            "!(chatActivityEnterView.hasBotWebView() && "
+            "chatActivityEnterView.botCommandsMenuIsShowing())",
+            gate,
+        )
+        self.assertIn("chatActivityEnterView.hidePopup(true)", gate)
+        self.assertIn("chatActivityEnterView.closeKeyboard()", gate)
+        self.assertLess(
+            gate.index("chatActivityEnterView.hidePopup(true)"),
+            gate.index("chatActivityEnterView.closeKeyboard()"),
+        )
+        hide_popup = enter_view.split(
+            "public boolean hidePopup(boolean byBackButton, boolean forceAnimate, "
+            "boolean waitKeyboardOpen)",
+            1,
+        )[1].split("private void setSearchingTypeInternal", 1)[0]
+        self.assertIn("botReplyMarkup.is_persistent", hide_popup)
+        self.assertIn("return false", hide_popup)
+        self.assertIn('putInt("closed_botkeyboard_"', hide_popup)
+        self.assertNotIn("ChatSettings", enter_view)
+        self.assertNotIn("ChatSettings", recycler)
+        self.assertIn(".setChecked(ChatSettings.hidesKeyboardOnScroll())", activity)
+        self.assertIn("ChatSettings.setHidesKeyboardOnScroll(hidden)", activity)
+        handler = activity.split("item.id == HIDE_KEYBOARD_ON_SCROLL", 1)[1]
+        handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        self.assertNotIn("rebuildFragments", handler)
 
 
 if __name__ == "__main__":

@@ -426,6 +426,7 @@
     <string name="FluxGramShowAllRecentStickers">Показывать все недавние стикеры</string>
     <string name="FluxGramShowAllRecentStickersInfo">Показывает весь локально сохранённый список недавних стикеров вместо первых 20. История на сервере Telegram и лимиты хранения не меняются.</string>
     <string name="FluxGramMessageInput">Поле ввода</string>
+    <string name="FluxGramHideKeyboardOnScroll">Скрывать клавиатуру при прокрутке</string>
     <string name="FluxGramHideSendAs">Скрывать выбор отправителя</string>
     <string name="FluxGramHideSendAsInfo">Скрывает кнопку выбора отправителя в чатах. Ранее выбранный отправитель продолжает использоваться.</string>
     <string name="FluxGramMessages">Сообщения</string>
