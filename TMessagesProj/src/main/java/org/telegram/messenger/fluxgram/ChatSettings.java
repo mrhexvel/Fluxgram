@@ -8,12 +8,14 @@ public final class ChatSettings {
     private static final String HIDE_SEND_AS = "fluxgram_hide_send_as";
     private static final String HIDE_KEYBOARD_ON_SCROLL = "fluxgram_hide_keyboard_on_scroll";
     private static final String ADD_COMMA_AFTER_MENTION = "fluxgram_add_comma_after_mention";
+    private static final String QUICK_CHANNEL_TOPIC_TRANSITIONS = "fluxgram_quick_channel_topic_transitions";
     private static final String SHOW_MESSAGE_REACTIONS = "fluxgram_show_message_reactions";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
     private static volatile boolean hideKeyboardOnScroll;
     private static volatile boolean addCommaAfterMention;
+    private static volatile boolean quickChannelTopicTransitions;
     private static volatile boolean showMessageReactions;
 
     public static boolean hidesSendAs() {
@@ -67,6 +69,23 @@ public final class ChatSettings {
         addCommaAfterMention = enabled;
     }
 
+    public static boolean allowsQuickChannelTopicTransitions() {
+        ensureLoaded();
+
+        return quickChannelTopicTransitions;
+    }
+
+    public static synchronized void setAllowsQuickChannelTopicTransitions(boolean enabled) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(QUICK_CHANNEL_TOPIC_TRANSITIONS, enabled)
+                .apply();
+
+        quickChannelTopicTransitions = enabled;
+    }
+
     public static boolean showsMessageReactions() {
         ensureLoaded();
 
@@ -109,6 +128,11 @@ public final class ChatSettings {
                 addCommaAfterMention = preferences.getBoolean(ADD_COMMA_AFTER_MENTION, false);
             } catch (ClassCastException exception) {
                 addCommaAfterMention = false;
+            }
+            try {
+                quickChannelTopicTransitions = preferences.getBoolean(QUICK_CHANNEL_TOPIC_TRANSITIONS, false);
+            } catch (ClassCastException exception) {
+                quickChannelTopicTransitions = false;
             }
             try {
                 showMessageReactions = preferences.getBoolean(SHOW_MESSAGE_REACTIONS, true);

@@ -93,12 +93,14 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_hide_send_as", 7);
                             MessagesController.preferences.putRaw("fluxgram_hide_keyboard_on_scroll", 7);
                             MessagesController.preferences.putRaw("fluxgram_add_comma_after_mention", 7);
+                            MessagesController.preferences.putRaw("fluxgram_quick_channel_topic_transitions", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_reactions", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
                         require(!ChatSettings.hidesKeyboardOnScroll());
                         require(!ChatSettings.addsCommaAfterMention());
+                        require(!ChatSettings.allowsQuickChannelTopicTransitions());
                         require(ChatSettings.showsMessageReactions());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
@@ -112,6 +114,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.addsCommaAfterMention());
                         ChatSettings.setAddsCommaAfterMention(false);
                         require(!ChatSettings.addsCommaAfterMention());
+                        ChatSettings.setAllowsQuickChannelTopicTransitions(true);
+                        require(ChatSettings.allowsQuickChannelTopicTransitions());
+                        ChatSettings.setAllowsQuickChannelTopicTransitions(false);
+                        require(!ChatSettings.allowsQuickChannelTopicTransitions());
                         ChatSettings.setShowsMessageReactions(false);
                         require(!ChatSettings.showsMessageReactions());
                         ChatSettings.setShowsMessageReactions(true);
@@ -298,6 +304,46 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.addsCommaAfterMention())", activity)
         self.assertIn("ChatSettings.setAddsCommaAfterMention(enabled)", activity)
         handler = activity.split("item.id == ADD_COMMA_AFTER_MENTION", 1)[1]
+        handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        self.assertNotIn("rebuildFragments", handler)
+
+    def test_chat_activity_gates_only_existing_quick_transitions(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        pulling_drawable = (JAVA / "ui/ChatPullingDownDrawable.java").read_text()
+        topics_tabs = (JAVA / "ui/Components/TopicsTabsView.java").read_text()
+        topics = (JAVA / "ui/TopicsFragment.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        policy = "ChatSettings.allowsQuickChannelTopicTransitions()"
+        self.assertEqual(3, chat.count(policy))
+        eligibility = chat.split("final boolean allowPullingDownScroll =", 1)[1]
+        eligibility = eligibility.split("if (allowPullingDownScroll", 1)[0]
+        self.assertIn(policy, eligibility)
+        release = chat.split("boolean openNextChat =", 1)[1]
+        release = release.split("if (openNextChat)", 1)[0]
+        self.assertIn(policy, release)
+        callback = chat.split("pullingDownDrawable.runOnAnimationFinish(() ->", 1)[1]
+        callback = callback.split("});", 1)[0]
+        self.assertIn(policy, callback)
+        self.assertIn("pullingDownBackAnimator.cancel()", callback)
+        self.assertIn("pullingDownOffset = 0", callback)
+        self.assertLess(
+            callback.index("pullingDownBackAnimator.cancel()"),
+            callback.index("pullingDownOffset = 0"),
+        )
+        self.assertIn("animateToNextChat()", chat)
+        self.assertNotIn("ChatSettings", pulling_drawable)
+        self.assertNotIn("ChatSettings", topics_tabs)
+        self.assertNotIn("ChatSettings", topics)
+        self.assertIn(
+            ".setChecked(ChatSettings.allowsQuickChannelTopicTransitions())",
+            activity,
+        )
+        self.assertIn(
+            "ChatSettings.setAllowsQuickChannelTopicTransitions(enabled)",
+            activity,
+        )
+        handler = activity.split("item.id == QUICK_CHANNEL_TOPIC_TRANSITIONS", 1)[1]
         handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
         self.assertNotIn("rebuildFragments", handler)
 

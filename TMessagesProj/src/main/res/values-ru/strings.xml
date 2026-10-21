@@ -431,6 +431,9 @@
     <string name="FluxGramHideSendAs">Скрывать выбор отправителя</string>
     <string name="FluxGramHideSendAsInfo">Скрывает кнопку выбора отправителя в чатах. Ранее выбранный отправитель продолжает использоваться.</string>
     <string name="FluxGramMessages">Сообщения</string>
+    <string name="FluxGramChatNavigation">Навигация в чатах</string>
+    <string name="FluxGramQuickChannelTopicTransitions">Быстрые переходы между каналами и темами</string>
+    <string name="FluxGramQuickChannelTopicTransitionsInfo">Потяните вверх в конце канала или темы, чтобы открыть следующий доступный канал или непрочитанную тему.</string>
     <string name="FluxGramShowMessageReactions">Показывать реакции под сообщениями</string>
     <string name="FluxGramShowMessageReactionsInfo">Управляет только плашками реакций под сообщениями. Отправка реакций, меню, уведомления и истории не меняются.</string>
     <string name="FluxGramNavigationInfo">Режим планшета и нижняя навигация управляют компоновкой приложения. Стили переходов применяются только к обычной навигации и сохраняют специальные анимации Telegram. Интенсивность предиктивного жеста управляет интерактивным переходом Android 14 и новее.</string>

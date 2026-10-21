@@ -5538,7 +5538,12 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (pullingDownOffset != 0 && (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL)) {
                     float progress = Math.min(1f, pullingDownOffset / AndroidUtilities.dp(110));
-                    if (e.getAction() == MotionEvent.ACTION_UP && progress == 1 && pullingDownDrawable != null && !pullingDownDrawable.emptyStub) {
+                    boolean openNextChat = e.getAction() == MotionEvent.ACTION_UP
+                            && progress == 1
+                            && ChatSettings.allowsQuickChannelTopicTransitions()
+                            && pullingDownDrawable != null
+                            && !pullingDownDrawable.emptyStub;
+                    if (openNextChat) {
                         if (pullingDownDrawable.animationIsRunning()) {
                             ValueAnimator animator = ValueAnimator.ofFloat(pullingDownOffset, pullingDownOffset + AndroidUtilities.dp(8));
                             pullingDownBackAnimator = animator;
@@ -5550,7 +5555,17 @@ public class ChatActivity extends BaseFragment implements
                             animator.setInterpolator(CubicBezierInterpolator.DEFAULT);
                             animator.start();
                             pullingDownDrawable.runOnAnimationFinish(() -> {
-                                animateToNextChat();
+                                if (ChatSettings.allowsQuickChannelTopicTransitions()) {
+                                    animateToNextChat();
+                                } else {
+                                    if (pullingDownBackAnimator != null) {
+                                        pullingDownBackAnimator.cancel();
+                                        pullingDownBackAnimator = null;
+                                    }
+                                    pullingDownOffset = 0;
+                                    animatorPullingDownContainerVisibility.setValue(false, true);
+                                    chatListView.invalidate();
+                                }
                             });
                         } else {
                             animateToNextChat();
@@ -7103,7 +7118,9 @@ public class ChatActivity extends BaseFragment implements
                 if (!foundTopView) {
                     scrolled = super.scrollVerticallyBy(dy, recycler, state);
                 }
-                final boolean allowPullingDownScroll = !isInPollAddOptionMode() && !hasSelectedMessages();
+                final boolean allowPullingDownScroll = ChatSettings.allowsQuickChannelTopicTransitions()
+                        && !isInPollAddOptionMode()
+                        && !hasSelectedMessages();
                 if (allowPullingDownScroll && dy > 0 && scrolled == 0 && (ChatObject.isChannel(currentChat) && !currentChat.megagroup || isTopic && !UserObject.isBotForum(currentUser)) && chatMode != MODE_SAVED && chatMode != MODE_WELCOME_MESSAGES && chatMode != MODE_SCHEDULED && chatListView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING && !chatListView.isFastScrollAnimationRunning() && !chatListView.isMultiselect() && !isReport()) {
                     if (pullingDownOffset == 0 && pullingDownDrawable != null) {
                         if (nextChannels != null && !nextChannels.isEmpty()) {

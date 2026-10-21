@@ -11436,6 +11436,9 @@
     <string name="FluxGramHideSendAs">Hide sender selection</string>
     <string name="FluxGramHideSendAsInfo">Hides the sender button in chats. The previously selected sender remains active.</string>
     <string name="FluxGramMessages">Messages</string>
+    <string name="FluxGramChatNavigation">Chat navigation</string>
+    <string name="FluxGramQuickChannelTopicTransitions">Quick channel and topic transitions</string>
+    <string name="FluxGramQuickChannelTopicTransitionsInfo">Pull up at the end of a channel or topic to open the next available channel or unread topic.</string>
     <string name="FluxGramShowMessageReactions">Show reactions below messages</string>
     <string name="FluxGramShowMessageReactionsInfo">Controls only reaction badges below messages. Sending reactions, menus, notifications, and stories remain unchanged.</string>
     <string name="FluxGramNavigationInfo">Tablet mode and bottom navigation control the app layout. Screen transition styles apply only to standard navigation and preserve special Telegram animations. Predictive back intensity controls the Android 14+ interactive gesture.</string>

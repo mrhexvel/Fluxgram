@@ -127,6 +127,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_MESSAGE_REACTIONS = 54;
     private static final int HIDE_KEYBOARD_ON_SCROLL = 55;
     private static final int ADD_COMMA_AFTER_MENTION = 56;
+    private static final int QUICK_CHANNEL_TOPIC_TRANSITIONS = 57;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -537,6 +538,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramDisableUnarchiveSwipe)
             ).setChecked(ArchiveSettings.disablesUnarchiveSwipe()));
             items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramChatNavigation);
+            items.add(UItem.asCheck(
+                    QUICK_CHANNEL_TOPIC_TRANSITIONS,
+                    LocaleController.getString(R.string.FluxGramQuickChannelTopicTransitions)
+            ).setChecked(ChatSettings.allowsQuickChannelTopicTransitions()));
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramQuickChannelTopicTransitionsInfo)));
             addSectionLabel(items, R.string.FluxGramStickers);
             items.add(UItem.asCheck(
                     SHOW_GREETING_STICKER,
@@ -923,6 +931,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
             } else if (item.id == ADD_COMMA_AFTER_MENTION) {
                 boolean enabled = !ChatSettings.addsCommaAfterMention();
                 ChatSettings.setAddsCommaAfterMention(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+            } else if (item.id == QUICK_CHANNEL_TOPIC_TRANSITIONS) {
+                boolean enabled = !ChatSettings.allowsQuickChannelTopicTransitions();
+                ChatSettings.setAllowsQuickChannelTopicTransitions(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
             } else if (item.id == SHOW_MESSAGE_REACTIONS) {
                 boolean shown = !ChatSettings.showsMessageReactions();
