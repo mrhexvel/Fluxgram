@@ -436,6 +436,11 @@
     <string name="FluxGramQuickChannelTopicTransitionsInfo">Потяните вверх в конце канала или темы, чтобы открыть следующий доступный канал или непрочитанную тему.</string>
     <string name="FluxGramShowMessageReactions">Показывать реакции под сообщениями</string>
     <string name="FluxGramShowMessageReactionsInfo">Управляет только плашками реакций под сообщениями. Отправка реакций, меню, уведомления и истории не меняются.</string>
+    <string name="FluxGramMessageGestures">Жесты сообщений</string>
+    <string name="FluxGramDoubleTapMessages">Двойное нажатие на сообщение</string>
+    <string name="FluxGramDoubleTapAction">Действие по двойному нажатию</string>
+    <string name="FluxGramQuickReaction">Быстрая реакция</string>
+    <string name="FluxGramMessageGesturesInfo">Выберите, отправляет ли двойное нажатие быструю реакцию или начинает ответ. Если выбранное действие недоступно, сообщение сохраняет обычное поведение нажатия.</string>
     <string name="FluxGramNavigationInfo">Режим планшета и нижняя навигация управляют компоновкой приложения. Стили переходов применяются только к обычной навигации и сохраняют специальные анимации Telegram. Интенсивность предиктивного жеста управляет интерактивным переходом Android 14 и новее.</string>
     <string name="FluxGramBottomNavigationRestartMessage">Изменение нижней навигации перестраивает корневые страницы приложения. Для применения нужен перезапуск FluxGram.</string>
     <string name="FluxGramBottomNavigationRestartError">Не удалось сохранить режим нижней навигации или перезапустить FluxGram.</string>

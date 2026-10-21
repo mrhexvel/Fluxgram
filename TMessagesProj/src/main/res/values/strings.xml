@@ -11441,6 +11441,11 @@
     <string name="FluxGramQuickChannelTopicTransitionsInfo">Pull up at the end of a channel or topic to open the next available channel or unread topic.</string>
     <string name="FluxGramShowMessageReactions">Show reactions below messages</string>
     <string name="FluxGramShowMessageReactionsInfo">Controls only reaction badges below messages. Sending reactions, menus, notifications, and stories remain unchanged.</string>
+    <string name="FluxGramMessageGestures">Message gestures</string>
+    <string name="FluxGramDoubleTapMessages">Double tap messages</string>
+    <string name="FluxGramDoubleTapAction">Double tap action</string>
+    <string name="FluxGramQuickReaction">Quick reaction</string>
+    <string name="FluxGramMessageGesturesInfo">Choose whether double tapping a message sends your quick reaction or starts a reply. If the selected action is unavailable, the message keeps its regular tap behavior.</string>
     <string name="FluxGramNavigationInfo">Tablet mode and bottom navigation control the app layout. Screen transition styles apply only to standard navigation and preserve special Telegram animations. Predictive back intensity controls the Android 14+ interactive gesture.</string>
     <string name="FluxGramBottomNavigationRestartMessage">Changing bottom navigation rebuilds the app root pages. FluxGram must restart to apply it.</string>
     <string name="FluxGramBottomNavigationRestartError">Could not save the bottom navigation setting or restart FluxGram.</string>

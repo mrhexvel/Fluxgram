@@ -206,6 +206,7 @@ import org.telegram.messenger.camera.CameraView;
 import org.telegram.messenger.plugins.PluginChatLifecycle;
 import org.telegram.messenger.plugins.PluginUiLifecycle;
 import org.telegram.messenger.fluxgram.MessageActionExecutor;
+import org.telegram.messenger.fluxgram.MessageGestureSettings;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
@@ -1963,7 +1964,25 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public boolean hasDoubleTap(View view, int position) {
-            if (isQuickRepliesOrWelcomeMessagesMode()) return false;
+            MessageGestureSettings.State settings = MessageGestureSettings.getState();
+            if (!settings.isDoubleTapEnabled()) {
+                return false;
+            }
+            MessageObject messageObject;
+            if (view instanceof ChatMessageCell) {
+                messageObject = ((ChatMessageCell) view).getPrimaryMessageObject();
+            } else if (view instanceof ChatActionCell) {
+                messageObject = ((ChatActionCell) view).getMessageObject();
+            } else {
+                return false;
+            }
+            if (MessageActionExecutor.REPLY.equals(settings.getDoubleTapAction())) {
+                return canStartReplyAction(view, messageObject);
+            }
+            if (!MessageActionExecutor.REACT_DEFAULT.equals(settings.getDoubleTapAction())
+                    || isQuickRepliesOrWelcomeMessagesMode()) {
+                return false;
+            }
             String reactionStringSetting = getMediaDataController().getDoubleTapReaction();
             TLRPC.TL_availableReaction reaction = getMediaDataController().getReactionsMap().get(reactionStringSetting);
             if (reaction == null && (reactionStringSetting == null || !reactionStringSetting.startsWith("animated_"))) {
@@ -1976,19 +1995,15 @@ public class ChatActivity extends BaseFragment implements
             if (!available) {
                 return false;
             }
-            MessageObject messageObject;
-            if (view instanceof ChatMessageCell) {
-                messageObject = ((ChatMessageCell) view).getPrimaryMessageObject();
-            } else if (view instanceof ChatActionCell) {
-                messageObject = ((ChatActionCell) view).getMessageObject();
-            } else {
-                return false;
-            }
             return messageObject != null && !messageObject.isDateObject && !messageObject.isSending() && messageObject.canSetReaction() && !messageObject.isEditing() && !actionBar.isActionModeShowed() && !isSecretChat() && !isInScheduleMode() && !messageObject.isSponsored();
         }
 
         @Override
         public void onDoubleTap(View view, int position, float x, float y) {
+            MessageGestureSettings.State settings = MessageGestureSettings.getState();
+            if (!settings.isDoubleTapEnabled()) {
+                return;
+            }
             MessageObject messageObject;
             if (view instanceof ChatMessageCell) {
                 messageObject = ((ChatMessageCell) view).getPrimaryMessageObject();
@@ -2014,21 +2029,215 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
 
+            String actionId = settings.getDoubleTapAction();
             fluxGramMessageActions.execute(
-                    MessageActionExecutor.REACT_DEFAULT,
+                    actionId,
                     MessageActionExecutor.Trigger.DOUBLE_TAP,
                     target,
-                    (actionId, trigger, expected) -> resolveDefaultReactionAction(
-                            actionId,
-                            trigger,
-                            expected,
-                            view,
-                            x,
-                            y
-                    )
+                    (resolvedActionId, trigger, expected) -> {
+                        if (MessageActionExecutor.REPLY.equals(resolvedActionId)) {
+                            return resolveReplyAction(
+                                    resolvedActionId,
+                                    trigger,
+                                    expected,
+                                    view
+                            );
+                        }
+
+                        return resolveDefaultReactionAction(
+                                resolvedActionId,
+                                trigger,
+                                expected,
+                                view,
+                                x,
+                                y
+                        );
+                    }
             );
         }
     };
+
+    private boolean canStartReplyAction(View tappedView, MessageObject messageObject) {
+        return !actionBar.isActionModeShowed()
+                && !hasTextSelection()
+                && isReplyGestureChatModeAllowed()
+                && isReplyPermissionGranted(messageObject)
+                && isReplyActionAvailable(tappedView, messageObject);
+    }
+
+    private MessageActionExecutor.Resolution resolveReplyAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View tappedView
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.DOUBLE_TAP
+                && MessageActionExecutor.REPLY.equals(actionId)
+                && isReplyGestureChatModeAllowed();
+        boolean permissionGranted = isReplyPermissionGranted(messageObject);
+        boolean actionAvailable = isReplyActionAvailable(tappedView, messageObject);
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable ? () -> performReplyAction(messageObject) : null
+        );
+    }
+
+    private boolean isReplyGestureChatModeAllowed() {
+        return !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && (chatMode == MODE_DEFAULT
+                || chatMode == MODE_QUICK_REPLIES
+                || chatMode == MODE_SUGGESTIONS
+                || chatMode == MODE_SAVED
+                && threadMessageId == getUserConfig().getClientUserId());
+    }
+
+    private boolean isReplyPermissionGranted(MessageObject messageObject) {
+        if (messageObject == null
+                || messageObject.messageOwner == null
+                || messageObject.messageOwner.noforwards) {
+            return false;
+        }
+
+        return !shouldSelectReplyDestination(messageObject)
+                || !getMessagesController().isPeerNoForwards(messageObject.getDialogId())
+                && messageObject.type != MessageObject.TYPE_PAID_MEDIA;
+    }
+
+    private boolean isReplyActionAvailable(View tappedView, MessageObject messageObject) {
+        if (messageObject == null
+                || messageObject.messageOwner == null
+                || messageObject.messageOwner.fluxgramDeleted
+                || messageObject.isDateObject
+                || messageObject.isSponsored()
+                || messageObject.isExpiredStory()
+                || messageObject.type == MessageObject.TYPE_JOINED_CHANNEL
+                || messageObject.isEphemeral() && messageObject.isOut()
+                || threadMessageObjects != null && threadMessageObjects.contains(messageObject)
+                || getMessageType(messageObject) == 1
+                && (messageObject.getDialogId() == mergeDialogId
+                || messageObject.needDrawBluredPreview())
+                || currentEncryptedChat == null && messageObject.getId() < 0
+                || currentChat != null
+                && ChatObject.isForum(currentChat)
+                && !canSendMessageToTopic(messageObject)) {
+            return false;
+        }
+        if (shouldSelectReplyDestination(messageObject)
+                && resolveReplyMessageForDestination(messageObject) == null) {
+            return false;
+        }
+
+        return tappedView != null
+                && tappedView.isAttachedToWindow()
+                && showsMessageForAction(tappedView, messageObject);
+    }
+
+    private boolean performReplyAction(MessageObject messageObject) {
+        if (!isReplyPermissionGranted(messageObject)) {
+            return false;
+        }
+
+        if (!shouldSelectReplyDestination(messageObject)) {
+            showFieldPanelForReply(messageObject);
+            return true;
+        }
+
+        MessageObject replyMessage = resolveReplyMessageForDestination(messageObject);
+        if (replyMessage == null) {
+            return false;
+        }
+        replyingMessageObject = replyMessage;
+        Bundle args = new Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
+        args.putBoolean("quote", true);
+        args.putBoolean("reply_to", true);
+        long author = DialogObject.getPeerDialogId(replyMessage.getFromPeer());
+        if (author != 0
+                && author != getDialogId()
+                && author != getUserConfig().getClientUserId()
+                && author > 0) {
+            args.putLong("reply_to_author", author);
+        }
+        args.putInt("messagesCount", 1);
+        args.putBoolean("canSelectTopics", true);
+        DialogsActivity fragment = new DialogsActivity(args);
+        fragment.setDelegate(this);
+        presentFragment(fragment);
+
+        return true;
+    }
+
+    private boolean shouldSelectReplyDestination(MessageObject messageObject) {
+        return bottomChannelButtonsLayout != null
+                && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE
+                && !(bottomOverlayChatWaitsReply
+                && canSendMessageToTopic(messageObject)
+                || messageObject.wasJustSent)
+                || currentChat != null
+                && (ChatObject.isNotInChat(currentChat) && !isThreadChat()
+                || ChatObject.isChannel(currentChat)
+                && !ChatObject.canPost(currentChat)
+                && !currentChat.megagroup
+                || !ChatObject.canSendMessages(currentChat));
+    }
+
+    private MessageObject resolveReplyMessageForDestination(MessageObject messageObject) {
+        if (messageObject.getGroupId() == 0) {
+            return messageObject;
+        }
+
+        MessageObject.GroupedMessages group = getGroup(messageObject.getGroupId());
+        if (group == null || group.captionMessage == null) {
+            return messageObject;
+        }
+
+        boolean containsMessage = false;
+        for (int index = 0; index < group.messages.size(); index++) {
+            MessageObject groupedMessage = group.messages.get(index);
+            if (groupedMessage.getId() == messageObject.getId()
+                    && groupedMessage.getDialogId() == messageObject.getDialogId()) {
+                containsMessage = true;
+                break;
+            }
+        }
+        if (!containsMessage) {
+            return null;
+        }
+
+        return findCurrentMessageForAction(
+                group.captionMessage.getDialogId(),
+                group.captionMessage.getId()
+        );
+    }
 
     private MessageActionExecutor.Resolution resolveDefaultReactionAction(
             String actionId,
@@ -2111,11 +2320,18 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private MessageObject findCurrentMessageForAction(MessageActionExecutor.Target expected) {
+        return findCurrentMessageForAction(
+                expected.getMessageDialogId(),
+                expected.getMessageId()
+        );
+    }
+
+    private MessageObject findCurrentMessageForAction(long messageDialogId, int messageId) {
         if (chatAdapter != null && chatAdapter.isFiltered) {
             for (int index = 0; index < chatAdapter.filteredMessages.size(); index++) {
                 MessageObject messageObject = chatAdapter.filteredMessages.get(index);
-                if (messageObject.getId() == expected.getMessageId()
-                        && messageObject.getDialogId() == expected.getMessageDialogId()) {
+                if (messageObject.getId() == messageId
+                        && messageObject.getDialogId() == messageDialogId) {
                     return messageObject;
                 }
             }
@@ -2123,17 +2339,17 @@ public class ChatActivity extends BaseFragment implements
             return null;
         }
 
-        int loadIndex = expected.getMessageDialogId() == dialog_id
+        int loadIndex = messageDialogId == dialog_id
                 ? 0
-                : expected.getMessageDialogId() == mergeDialogId ? 1 : -1;
+                : messageDialogId == mergeDialogId ? 1 : -1;
         if (loadIndex < 0) {
             return null;
         }
 
-        MessageObject messageObject = messagesDict[loadIndex].get(expected.getMessageId());
+        MessageObject messageObject = messagesDict[loadIndex].get(messageId);
         if (messageObject == null
-                || messageObject.getId() != expected.getMessageId()
-                || messageObject.getDialogId() != expected.getMessageDialogId()) {
+                || messageObject.getId() != messageId
+                || messageObject.getDialogId() != messageDialogId) {
             return null;
         }
 

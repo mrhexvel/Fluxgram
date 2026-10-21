@@ -32,6 +32,8 @@ import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.GeneralSettings;
+import org.telegram.messenger.fluxgram.MessageActionExecutor;
+import org.telegram.messenger.fluxgram.MessageGestureSettings;
 import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
@@ -128,6 +130,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int HIDE_KEYBOARD_ON_SCROLL = 55;
     private static final int ADD_COMMA_AFTER_MENTION = 56;
     private static final int QUICK_CHANNEL_TOPIC_TRANSITIONS = 57;
+    private static final int DOUBLE_TAP_MESSAGES = 58;
+    private static final int DOUBLE_TAP_MESSAGE_ACTION = 59;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -563,6 +567,21 @@ public class FluxGramSettingsActivity extends BaseFragment {
             ).setChecked(ChatSettings.showsMessageReactions()));
             items.add(UItem.asShadow(LocaleController.getString(
                     R.string.FluxGramShowMessageReactionsInfo)));
+            addSectionLabel(items, R.string.FluxGramMessageGestures);
+            MessageGestureSettings.State gestureSettings = MessageGestureSettings.getState();
+            items.add(UItem.asCheck(
+                    DOUBLE_TAP_MESSAGES,
+                    LocaleController.getString(R.string.FluxGramDoubleTapMessages)
+            ).setChecked(gestureSettings.isDoubleTapEnabled()));
+            if (gestureSettings.isDoubleTapEnabled()) {
+                items.add(UItem.asButton(
+                        DOUBLE_TAP_MESSAGE_ACTION,
+                        LocaleController.getString(R.string.FluxGramDoubleTapAction),
+                        doubleTapActionOption(gestureSettings.getDoubleTapAction())
+                ));
+            }
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramMessageGesturesInfo)));
             addSectionLabel(items, R.string.FluxGramMessageInput);
             items.add(UItem.asCheck(
                     HIDE_KEYBOARD_ON_SCROLL,
@@ -941,6 +960,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ChatSettings.setShowsMessageReactions(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == DOUBLE_TAP_MESSAGES) {
+                boolean enabled = !MessageGestureSettings.getState().isDoubleTapEnabled();
+                MessageGestureSettings.setDoubleTapEnabled(enabled);
+                listView.adapter.update(true);
+            } else if (item.id == DOUBLE_TAP_MESSAGE_ACTION) {
+                showDoubleTapActionDialog();
             }
 
             return;
@@ -1182,6 +1207,41 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         return LocaleController.getString(R.string.FluxGramFolderPresentationTitleAndIcon);
+    }
+
+    private CharSequence doubleTapActionOption(String actionId) {
+        if (MessageActionExecutor.REPLY.equals(actionId)) {
+            return LocaleController.getString(R.string.Reply);
+        }
+
+        return LocaleController.getString(R.string.FluxGramQuickReaction);
+    }
+
+    private void showDoubleTapActionDialog() {
+        String[] actionIds = {
+                MessageActionExecutor.REACT_DEFAULT,
+                MessageActionExecutor.REPLY
+        };
+        CharSequence[] options = {
+                doubleTapActionOption(actionIds[0]),
+                doubleTapActionOption(actionIds[1])
+        };
+        String selected = MessageGestureSettings.getState().getDoubleTapAction();
+
+        for (int i = 0; i < actionIds.length; i++) {
+            if (actionIds[i].equals(selected)) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramDoubleTapAction))
+                .setItems(options, (dialog, index) -> {
+                    MessageGestureSettings.setDoubleTapAction(actionIds[index]);
+                    listView.adapter.update(true);
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
     }
 
     private void showFolderPresentationDialog() {

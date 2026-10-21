@@ -157,17 +157,18 @@ class ChatMessageActionControllerTest(unittest.TestCase):
                 check=True,
             )
 
-    def test_chat_activity_uses_fresh_resolution_for_default_reaction(self):
+    def test_chat_activity_uses_fresh_resolution_for_double_tap_actions(self):
         source = CHAT_ACTIVITY.read_text()
         double_tap = source[source.index("public void onDoubleTap("):source.index("private class ChatActivityEnterViewDelegate")]
 
         self.assertIn("fluxGramMessageActions.execute(", double_tap)
-        self.assertIn("MessageActionExecutor.REACT_DEFAULT", double_tap)
+        self.assertIn("MessageGestureSettings.getState()", double_tap)
+        self.assertIn("resolveReplyAction(", double_tap)
         self.assertIn("resolveDefaultReactionAction(", double_tap)
         self.assertIn("findCurrentMessageForAction(expected)", double_tap)
         self.assertIn("chatAdapter.filteredMessages.get(index)", double_tap)
-        self.assertIn("messageObject.getDialogId() == expected.getMessageDialogId()", double_tap)
-        self.assertIn("messagesDict[loadIndex].get(expected.getMessageId())", double_tap)
+        self.assertIn("messageObject.getDialogId() == messageDialogId", double_tap)
+        self.assertIn("messagesDict[loadIndex].get(messageId)", double_tap)
         self.assertIn("tappedView.isAttachedToWindow()", double_tap)
         self.assertIn("showsMessageForAction(tappedView, messageObject)", double_tap)
         self.assertIn("fluxGramMessageActions.destroy();", source)
