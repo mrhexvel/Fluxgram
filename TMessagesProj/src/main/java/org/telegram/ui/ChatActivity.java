@@ -19261,6 +19261,7 @@ public class ChatActivity extends BaseFragment implements
         if (dummyMessageCell == null) {
             dummyMessageCell = new ChatMessageCell(getParentActivity(), currentAccount, true, sharedResources, themeDelegate);
             dummyMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
+            dummyMessageCell.setDrawStickerTime(StickerSettings.showsStickerTime());
         }
         dummyMessageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser);
         dummyMessageCell.isSavedChat = chatMode == MODE_SAVED;
@@ -39967,6 +39968,7 @@ public class ChatActivity extends BaseFragment implements
                 ChatMessageCell chatMessageCell = (ChatMessageCell) view;
                 chatMessageCell.setResourcesProvider(themeDelegate);
                 chatMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
+                chatMessageCell.setDrawStickerTime(StickerSettings.showsStickerTime());
                 chatMessageCell.shouldCheckVisibleOnScreen = false;
                 chatMessageCell.setDelegate(getChatMessageCellDelegate());
                 chatMessageCell.draftAnimationsPool = botDraftAnimationsPool;

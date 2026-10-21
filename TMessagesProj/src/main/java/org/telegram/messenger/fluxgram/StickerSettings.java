@@ -7,10 +7,12 @@ import org.telegram.messenger.MessagesController;
 public final class StickerSettings {
     private static final String SHOW_ALL_RECENT = "fluxgram_show_all_recent_stickers";
     private static final String SHOW_GREETING = "fluxgram_show_greeting_sticker";
+    private static final String SHOW_STICKER_TIME = "fluxgram_show_sticker_time";
 
     private static volatile boolean loaded;
     private static volatile boolean showAllRecent;
     private static volatile boolean showGreeting;
+    private static volatile boolean showStickerTime;
 
     public static boolean showsAllRecent() {
         ensureLoaded();
@@ -46,6 +48,23 @@ public final class StickerSettings {
         showGreeting = enabled;
     }
 
+    public static boolean showsStickerTime() {
+        ensureLoaded();
+
+        return showStickerTime;
+    }
+
+    public static synchronized void setShowsStickerTime(boolean enabled) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_STICKER_TIME, enabled)
+                .apply();
+
+        showStickerTime = enabled;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -66,6 +85,11 @@ public final class StickerSettings {
                 showGreeting = preferences.getBoolean(SHOW_GREETING, true);
             } catch (ClassCastException exception) {
                 showGreeting = true;
+            }
+            try {
+                showStickerTime = preferences.getBoolean(SHOW_STICKER_TIME, true);
+            } catch (ClassCastException exception) {
+                showStickerTime = true;
             }
             loaded = true;
         }

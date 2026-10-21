@@ -1035,6 +1035,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean groupPhotoInvisible;
     public final ReactionsLayoutInBubble reactionsLayoutInBubble = new ReactionsLayoutInBubble(this);
     private boolean drawMessageReactions = true;
+    private boolean drawStickerTime = true;
     public final GiveawayMessageCell giveawayMessageCell = new GiveawayMessageCell(this);
     public final GiveawayResultsMessageCell giveawayResultsMessageCell = new GiveawayResultsMessageCell(this);
 
@@ -1056,6 +1057,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public void setDrawMessageReactions(boolean drawMessageReactions) {
         this.drawMessageReactions = drawMessageReactions;
         reactionsLayoutInBubble.setPresentationHidden(!drawMessageReactions);
+    }
+
+    public void setDrawStickerTime(boolean drawStickerTime) {
+        this.drawStickerTime = drawStickerTime;
     }
 
     private boolean shouldDrawReactions(MessageObject messageObject) {
@@ -3341,7 +3346,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private boolean pressedEffect = false;
     private boolean checkEffectMotionEvent(MotionEvent event) {
-        if (currentMessageObject == null || currentMessageObject.getEffect() == null) {
+        if (isStickerTimeHidden() || currentMessageObject == null || currentMessageObject.getEffect() == null) {
             return false;
         }
         int x = (int) (getTimeX() - dp(effectId == 0 ? 0 : 14 + 4) + timeWidth * (currentMessageObject.sendPreview ? 1f - timeAlpha : 0f));
@@ -4196,7 +4201,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     private boolean checkDateMotionEvent(MotionEvent event) {
-        if (!currentMessageObject.isImportedForward()) {
+        if (isStickerTimeHidden() || !currentMessageObject.isImportedForward()) {
             return false;
         }
         int x = (int) getEventX(event);
@@ -5392,6 +5397,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     private boolean checkReactionsTouchEvent(MotionEvent event) {
+        if (isStickerTimeHidden() && reactionsLayoutInBubble.isSmall) {
+            return false;
+        }
         if (currentMessageObject.hasValidGroupId() && currentMessagesGroup != null && !currentMessagesGroup.isDocuments) {
             ViewGroup parent = (ViewGroup) getParent();
             if (parent == null) {
@@ -23908,6 +23916,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public void drawTime(Canvas canvas, float alpha, boolean fromParent) {
+        if (isStickerTimeHidden()) {
+            return;
+        }
         if (!drawFromPinchToZoom && delegate != null && delegate.getPinchToZoomHelper() != null && delegate.getPinchToZoomHelper().isInOverlayModeFor(this) && shouldDrawTimeOnMedia()) {
             return;
         }
@@ -23982,6 +23993,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             effectDrawable.draw(canvas);
         }
+    }
+
+    private boolean isStickerTimeHidden() {
+        return !drawStickerTime
+                && currentMessageObject != null
+                && (currentMessageObject.type == MessageObject.TYPE_STICKER
+                || currentMessageObject.type == MessageObject.TYPE_ANIMATED_STICKER)
+                && !currentMessageObject.isDice()
+                && !currentMessageObject.isAnimatedEmoji();
     }
 
     private void drawTimeInternal(Canvas canvas, float alpha, boolean fromParent, float timeX, StaticLayout timeLayout, float timeWidth, boolean drawSelectionBackground) {

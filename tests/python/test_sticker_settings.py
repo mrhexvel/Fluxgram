@@ -100,9 +100,14 @@ class StickerSettingsTest(unittest.TestCase):
                                     "fluxgram_show_greeting_sticker",
                                     7
                             );
+                            MessagesController.preferences.putRaw(
+                                    "fluxgram_show_sticker_time",
+                                    7
+                            );
                         }
                         require(!StickerSettings.showsAllRecent());
                         require(StickerSettings.showsGreeting());
+                        require(StickerSettings.showsStickerTime());
                         StickerSettings.setShowsAllRecent(true);
                         require(StickerSettings.showsAllRecent());
                         StickerSettings.setShowsAllRecent(false);
@@ -111,6 +116,10 @@ class StickerSettingsTest(unittest.TestCase):
                         require(!StickerSettings.showsGreeting());
                         StickerSettings.setShowsGreeting(true);
                         require(StickerSettings.showsGreeting());
+                        StickerSettings.setShowsStickerTime(false);
+                        require(!StickerSettings.showsStickerTime());
+                        StickerSettings.setShowsStickerTime(true);
+                        require(StickerSettings.showsStickerTime());
 
                         require(!GreetingStickerPolicy.shouldHideRandomSticker(
                                 false, true, false, false, false, false, 0
@@ -258,6 +267,49 @@ class StickerSettingsTest(unittest.TestCase):
         self.assertIn("isRandomGreetingStickerPolicyEligible()", user_info)
         self.assertIn("greetingsViewContainer = null", user_info)
         self.assertIn("createEmptyView(true)", user_info)
+
+    def test_sticker_time_setting_hides_only_chat_sticker_status_block(self):
+        settings = SETTINGS.read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        chats = activity.split(
+            "if (section == CHATS) {\n            addSectionLabel",
+            1,
+        )[1].split("if (section == NAVIGATION)", 1)[0]
+        click = activity.split(
+            "if (section == CHATS) {\n            if (item.id",
+            1,
+        )[1].split("if (section == NAVIGATION)", 1)[0]
+        draw_time = cell.split(
+            "public void drawTime(Canvas canvas, float alpha, boolean fromParent)",
+            1,
+        )[1].split("private void drawTimeInternal", 1)[0]
+
+        self.assertIn('"fluxgram_show_sticker_time"', settings)
+        self.assertIn("preferences.getBoolean(SHOW_STICKER_TIME, true)", settings)
+        self.assertIn("showStickerTime = true", settings)
+        self.assertIn(".setChecked(StickerSettings.showsStickerTime())", chats)
+        self.assertIn("StickerSettings.setShowsStickerTime(enabled)", click)
+        self.assertIn("parentLayout.rebuildFragments(0)", click)
+        self.assertNotIn("StickerSettings", cell)
+        self.assertIn("private boolean drawStickerTime = true", cell)
+        self.assertIn("if (isStickerTimeHidden())", draw_time)
+        self.assertIn("MessageObject.TYPE_STICKER", draw_time)
+        self.assertIn("MessageObject.TYPE_ANIMATED_STICKER", draw_time)
+        self.assertIn("!currentMessageObject.isDice()", draw_time)
+        self.assertIn("!currentMessageObject.isAnimatedEmoji()", draw_time)
+        self.assertIn("isStickerTimeHidden() || !currentMessageObject.isImportedForward()", cell)
+        self.assertIn("isStickerTimeHidden() || currentMessageObject == null", cell)
+        self.assertIn("isStickerTimeHidden() && reactionsLayoutInBubble.isSmall", cell)
+        self.assertIn("AndroidUtilities.isTablet()", click)
+        self.assertIn("rebuildAllFragments(true)", click)
+        self.assertNotIn("setPresentationHidden", cell.split(
+            "public void setDrawStickerTime", 1
+        )[1].split("private boolean shouldDrawReactions", 1)[0])
+        self.assertEqual(2, chat.count(
+            "setDrawStickerTime(StickerSettings.showsStickerTime())"
+        ))
 
 
 if __name__ == "__main__":

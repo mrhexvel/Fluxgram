@@ -134,6 +134,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int DOUBLE_TAP_MESSAGE_ACTION = 59;
     private static final int SWIPE_MESSAGES = 60;
     private static final int SWIPE_MESSAGE_ACTIONS = 61;
+    private static final int SHOW_STICKER_TIME = 62;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -557,6 +558,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramShowGreetingSticker)
             ).setChecked(StickerSettings.showsGreeting()));
             items.add(UItem.asCheck(
+                    SHOW_STICKER_TIME,
+                    LocaleController.getString(R.string.FluxGramShowStickerTime)
+            ).setChecked(StickerSettings.showsStickerTime()));
+            items.add(UItem.asCheck(
                     SHOW_ALL_RECENT_STICKERS,
                     LocaleController.getString(R.string.FluxGramShowAllRecentStickers)
             ).setChecked(StickerSettings.showsAllRecent()));
@@ -950,6 +955,15 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 StickerSettings.setShowsGreeting(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_STICKER_TIME) {
+                boolean enabled = !StickerSettings.showsStickerTime();
+                StickerSettings.setShowsStickerTime(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                if (AndroidUtilities.isTablet() && getParentActivity() instanceof LaunchActivity) {
+                    ((LaunchActivity) getParentActivity()).rebuildAllFragments(true);
+                } else {
+                    parentLayout.rebuildFragments(0);
+                }
             } else if (item.id == HIDE_SEND_AS) {
                 boolean hidden = !ChatSettings.hidesSendAs();
                 ChatSettings.setHidesSendAs(hidden);
