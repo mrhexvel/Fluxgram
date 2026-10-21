@@ -23,7 +23,8 @@ public final class MessageGestureSettings {
             Arrays.asList(
                     MessageActionExecutor.REPLY,
                     MessageActionExecutor.FORWARD,
-                    MessageActionExecutor.EDIT
+                    MessageActionExecutor.EDIT,
+                    MessageActionExecutor.SELECT
             )
     );
 

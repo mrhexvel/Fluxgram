@@ -2105,7 +2105,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private boolean canStartForwardAction(View swipedView, MessageObject messageObject) {
-        ArrayList<MessageObject> messages = resolveCurrentForwardMessages(swipedView, messageObject);
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
         return !actionBar.isActionModeShowed()
                 && !hasTextSelection()
                 && isForwardGestureChatModeAllowed()
@@ -2120,6 +2120,16 @@ public class ChatActivity extends BaseFragment implements
                 && isEditGestureChatModeAllowed()
                 && isEditPermissionGranted(messageObject, editMessage)
                 && isEditActionAvailable(swipedView, messageObject, editMessage);
+    }
+
+    private boolean canStartSelectAction(View swipedView, MessageObject messageObject) {
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
+        return !actionBar.isActionModeShowed()
+                && !isTryingTextSelection()
+                && !hasTextSelection()
+                && isSelectGestureChatModeAllowed()
+                && isSelectPermissionGranted(messageObject)
+                && isSelectActionAvailable(swipedView, messageObject, messages);
     }
 
     private String findSwipeAction(View swipedView, MessageObject messageObject) {
@@ -2140,6 +2150,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (MessageActionExecutor.EDIT.equals(actionId)
                     && canStartEditAction(swipedView, messageObject)) {
+                return actionId;
+            }
+            if (MessageActionExecutor.SELECT.equals(actionId)
+                    && canStartSelectAction(swipedView, messageObject)) {
                 return actionId;
             }
         }
@@ -2247,7 +2261,7 @@ public class ChatActivity extends BaseFragment implements
                 messageObject.getId(),
                 getTopicId()
         );
-        ArrayList<MessageObject> messages = resolveCurrentForwardMessages(swipedView, messageObject);
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
         boolean screenActive = getParentActivity() != null
                 && fragmentView != null
                 && !paused
@@ -2326,6 +2340,49 @@ public class ChatActivity extends BaseFragment implements
         );
     }
 
+    private MessageActionExecutor.Resolution resolveSelectAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View swipedView
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection() || isTryingTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.SWIPE
+                && MessageActionExecutor.SELECT.equals(actionId)
+                && isSelectGestureChatModeAllowed();
+        boolean permissionGranted = isSelectPermissionGranted(messageObject);
+        boolean actionAvailable = isSelectActionAvailable(swipedView, messageObject, messages);
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable ? () -> performSelectAction(swipedView, messageObject) : null
+        );
+    }
+
     private boolean isReplyGestureChatModeAllowed() {
         return !isInPreviewMode()
                 && !isInsideContainer
@@ -2356,6 +2413,15 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private boolean isEditGestureChatModeAllowed() {
+        return !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && currentEncryptedChat == null
+                && chatMode == MODE_DEFAULT;
+    }
+
+    private boolean isSelectGestureChatModeAllowed() {
         return !isInPreviewMode()
                 && !isInsideContainer
                 && !inBubbleMode
@@ -2441,6 +2507,10 @@ public class ChatActivity extends BaseFragment implements
                 && editMessage.messageOwner != null
                 && messageObject.canEditMessage(currentChat)
                 && editMessage.canEditMessage(currentChat);
+    }
+
+    private boolean isSelectPermissionGranted(MessageObject messageObject) {
+        return messageObject != null && messageObject.messageOwner != null;
     }
 
     private boolean isReplyActionAvailable(
@@ -2621,7 +2691,49 @@ public class ChatActivity extends BaseFragment implements
                 );
     }
 
-    private ArrayList<MessageObject> resolveCurrentForwardMessages(
+    private boolean isSelectActionAvailable(
+            View swipedView,
+            MessageObject messageObject,
+            ArrayList<MessageObject> messages
+    ) {
+        if (messageObject == null
+                || messageObject.messageOwner == null
+                || messages == null
+                || messages.isEmpty()
+                || messageObject.contentType != 0
+                || messageObject.isAnyGift()
+                || messageObject.isSponsored()
+                || messageObject.isEphemeral()
+                || messageObject.type == MessageObject.TYPE_SUGGEST_PHOTO
+                || messageObject.type == MessageObject.TYPE_JOINED_CHANNEL
+                || messageObject.type == MessageObject.TYPE_GIFT_STARS
+                || messageObject.isWallpaperAction()
+                || threadMessageObjects != null
+                && threadMessageObjects.contains(messageObject)
+                && !isThreadChat()
+                || selectedMessagesIds[0].size() != 0
+                || selectedMessagesIds[1].size() != 0
+                || chatActivityEnterView == null
+                || chatActivityEnterView.isRecordingAudioVideo()
+                || chatActivityEnterView.isRecordLocked()) {
+            return false;
+        }
+
+        int type = getMessageType(messageObject);
+        if (type < 2 || type == 20) {
+            return false;
+        }
+
+        return swipedView instanceof ChatMessageCell
+                && swipedView.isAttachedToWindow()
+                && showsMessageForReplyAction(
+                        swipedView,
+                        messageObject,
+                        MessageActionExecutor.Trigger.SWIPE
+                );
+    }
+
+    private ArrayList<MessageObject> resolveCurrentGestureMessages(
             View swipedView,
             MessageObject messageObject
     ) {
@@ -2842,6 +2954,17 @@ public class ChatActivity extends BaseFragment implements
         }
 
         startEditingMessageObject(editMessage);
+        return true;
+    }
+
+    private boolean performSelectAction(View swipedView, MessageObject messageObject) {
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
+        if (!isSelectPermissionGranted(messageObject)
+                || !isSelectActionAvailable(swipedView, messageObject, messages)) {
+            return false;
+        }
+
+        startMessageSelection(messages);
         return true;
     }
 
@@ -6223,6 +6346,8 @@ public class ChatActivity extends BaseFragment implements
             private Paint outlineActionBackgroundDarkenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private Drawable slidingEditIconDrawable;
             private int slidingEditIconColor;
+            private Drawable slidingSelectIconDrawable;
+            private int slidingSelectIconColor;
 
             private FloatValueHolder slidingDrawableVisibilityProgress = new FloatValueHolder(0);
             private SpringAnimation slidingDrawableVisibilitySpring = new SpringAnimation(slidingDrawableVisibilityProgress)
@@ -6562,6 +6687,17 @@ public class ChatActivity extends BaseFragment implements
                         slidingEditIconColor = color;
                     }
                     actionIconDrawable = slidingEditIconDrawable;
+                } else if (MessageActionExecutor.SELECT.equals(slidingMessageActionId)) {
+                    int color = getThemedColor(Theme.key_chat_serviceIcon);
+                    if (slidingSelectIconDrawable == null || slidingSelectIconColor != color) {
+                        slidingSelectIconDrawable = Theme.getThemedDrawable(
+                                getContext(),
+                                R.drawable.msg_select,
+                                color
+                        );
+                        slidingSelectIconColor = color;
+                    }
+                    actionIconDrawable = slidingSelectIconDrawable;
                 } else {
                     String actionIconKey = MessageActionExecutor.FORWARD.equals(slidingMessageActionId)
                             ? Theme.key_drawable_shareIcon
@@ -6671,6 +6807,14 @@ public class ChatActivity extends BaseFragment implements
                                     }
                                     if (MessageActionExecutor.EDIT.equals(resolvedActionId)) {
                                         return resolveEditAction(
+                                                resolvedActionId,
+                                                trigger,
+                                                expected,
+                                                swipedView
+                                        );
+                                    }
+                                    if (MessageActionExecutor.SELECT.equals(resolvedActionId)) {
+                                        return resolveSelectAction(
                                                 resolvedActionId,
                                                 trigger,
                                                 expected,
@@ -34519,17 +34663,38 @@ public class ChatActivity extends BaseFragment implements
             return false;
         }
 
+        startMessageSelection(message, listView);
+        return false;
+    }
+
+    private void startMessageSelection(MessageObject messageObject, boolean outside) {
+        showMessageSelectionMode();
+        addToSelectedMessages(messageObject, outside);
+        finishMessageSelection();
+    }
+
+    private void startMessageSelection(ArrayList<MessageObject> messageObjects) {
+        showMessageSelectionMode();
+        for (int index = 0; index < messageObjects.size(); index++) {
+            addToSelectedMessages(
+                    messageObjects.get(index),
+                    false,
+                    index + 1 == messageObjects.size()
+            );
+        }
+        finishMessageSelection();
+    }
+
+    private void showMessageSelectionMode() {
         createActionMode();
         final ActionBarMenu actionMode = actionBar.createActionMode();
         actionMode.setItemVisibility(delete, View.VISIBLE);
         actionsButtonsLayout.bringToFront();
         bottomViewsVisibilityController.setViewVisible(MESSAGE_ACTION_CONTAINER, true, true);
 
-        int translationY = chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(51);
         createActionMode();
         if (chatActivityEnterView.getVisibility() == View.VISIBLE) {
             ArrayList<View> views = new ArrayList<>();
-            //views.add(chatActivityEnterView);
             if (mentionContainer != null && mentionContainer.getVisibility() == View.VISIBLE) {
                 views.add(mentionContainer);
             }
@@ -34540,7 +34705,7 @@ public class ChatActivity extends BaseFragment implements
             if (getParentActivity() instanceof LaunchActivity) {
                 ((LaunchActivity) getParentActivity()).hideVisibleActionMode();
             }
-            if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
+            if (chatActivityEnterView.getEditField() != null) {
                 chatActivityEnterView.getEditField().setAllowDrawCursor(false);
             }
         } else if (bottomChannelButtonsLayout.getVisibility() == View.VISIBLE) {
@@ -34554,17 +34719,17 @@ public class ChatActivity extends BaseFragment implements
 
         AnimatorSet animatorSet = new AnimatorSet();
         ArrayList<Animator> animators = new ArrayList<>();
-        for (int a = 0; a < actionModeViews.size(); a++) {
-            View view = actionModeViews.get(a);
+        for (int index = 0; index < actionModeViews.size(); index++) {
+            View view = actionModeViews.get(index);
             AndroidUtilities.clearDrawableAnimation(view);
             animators.add(ObjectAnimator.ofFloat(view, View.SCALE_Y, 0.1f, 1.0f));
         }
         animatorSet.playTogether(animators);
         animatorSet.setDuration(250);
         animatorSet.start();
+    }
 
-        addToSelectedMessages(message, listView);
-
+    private void finishMessageSelection() {
         if (chatActivityEnterView != null) {
             chatActivityEnterView.preventInput = true;
         }
@@ -34576,7 +34741,6 @@ public class ChatActivity extends BaseFragment implements
         if (chatActivityEnterView != null) {
             chatActivityEnterView.hideBotCommands();
         }
-        return false;
     }
 
     private void createEmptyView(boolean recreate) {

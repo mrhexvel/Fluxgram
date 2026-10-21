@@ -42,7 +42,8 @@ class MessageActionExecutorTest(unittest.TestCase):
                                  MessageActionExecutor.REACT_DEFAULT,
                                  MessageActionExecutor.COPY,
                                  MessageActionExecutor.FORWARD,
-                                 MessageActionExecutor.EDIT
+                                 MessageActionExecutor.EDIT,
+                                 MessageActionExecutor.SELECT
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(null).equals(
                                 Collections.singletonList(MessageActionExecutor.REPLY)
@@ -54,12 +55,14 @@ class MessageActionExecutorTest(unittest.TestCase):
                                   MessageActionExecutor.COPY,
                                   MessageActionExecutor.FORWARD,
                                   MessageActionExecutor.EDIT,
+                                  MessageActionExecutor.SELECT,
                                   MessageActionExecutor.REPLY
                          )).equals(Arrays.asList(
                                  MessageActionExecutor.REACT_DEFAULT,
                                   MessageActionExecutor.COPY,
                                   MessageActionExecutor.FORWARD,
                                   MessageActionExecutor.EDIT,
+                                  MessageActionExecutor.SELECT,
                                   MessageActionExecutor.REPLY
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(Arrays.asList(

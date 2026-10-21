@@ -165,16 +165,19 @@ class MessageGestureSettingsTest(unittest.TestCase):
                                  "unknown",
                                  MessageActionExecutor.FORWARD,
                                  MessageActionExecutor.EDIT,
+                                 MessageActionExecutor.SELECT,
                                  MessageActionExecutor.REPLY,
                                  MessageActionExecutor.FORWARD));
-                        require(MessageGestureSettings.getState().getSwipeActions().size() == 3);
+                        require(MessageGestureSettings.getState().getSwipeActions().size() == 4);
                         require(MessageActionExecutor.FORWARD.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(0)));
                         require(MessageActionExecutor.EDIT.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(1)));
-                        require(MessageActionExecutor.REPLY.equals(
+                        require(MessageActionExecutor.SELECT.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(2)));
-                        require("forward,edit,reply".equals(MessagesController.preferences.getString(
+                        require(MessageActionExecutor.REPLY.equals(
+                                 MessageGestureSettings.getState().getSwipeActions().get(3)));
+                        require("forward,edit,select,reply".equals(MessagesController.preferences.getString(
                                  "fluxgram_message_swipe_actions", null)));
                         MessageGestureSettings.setSwipeActions(Arrays.asList("unknown"));
                         require(MessageGestureSettings.getState().getSwipeActions().size() == 1);
@@ -295,6 +298,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("MessageActionExecutor.REPLY", settings)
         self.assertIn("MessageActionExecutor.FORWARD", settings)
         self.assertIn("MessageActionExecutor.EDIT", settings)
+        self.assertIn("MessageActionExecutor.SELECT", settings)
         self.assertIn("getSwipeActions()", settings)
         self.assertIn("setSwipeActions(Collection<String> actionIds)", settings)
         self.assertIn("adapter.reorderSectionStart()", activity)
@@ -303,6 +307,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("if (activeActions.size() == 1)", activity)
         self.assertIn("MessageActionExecutor.FORWARD", activity)
         self.assertIn("MessageActionExecutor.EDIT", activity)
+        self.assertIn("MessageActionExecutor.SELECT", activity)
         self.assertNotIn("MessageActionExecutor.COPY", activity)
         self.assertNotIn("MessageActionExecutor.REACT_DEFAULT", activity)
 
@@ -335,6 +340,42 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertNotIn("selectedObject", resolution + edit_path + album + handler)
         self.assertNotIn("processSelectedOption", resolution + edit_path + album + handler)
 
+    def test_select_action_enters_action_mode_with_fresh_message(self):
+        chat = CHAT_ACTIVITY.read_text()
+        resolution = chat.split("private MessageActionExecutor.Resolution resolveSelectAction(", 1)[1]
+        resolution = resolution.split("private boolean isReplyGestureChatModeAllowed()", 1)[0]
+        select_path = chat.split("private boolean isSelectActionAvailable(", 1)[1]
+        select_path = select_path.split("private ArrayList<MessageObject> resolveCurrentGestureMessages(", 1)[0]
+        handler = chat.split("private boolean performSelectAction(", 1)[1]
+        handler = handler.split("private boolean performForwardAction(", 1)[0]
+        action_mode = chat.split("private void startMessageSelection(", 1)[1]
+        action_mode = action_mode.split("private void createEmptyView(", 1)[0]
+
+        self.assertIn("findCurrentMessageForAction(expected)", resolution)
+        self.assertIn("isSelectGestureChatModeAllowed()", resolution)
+        self.assertIn("isSelectPermissionGranted(messageObject)", resolution)
+        self.assertIn("resolveCurrentGestureMessages(swipedView, messageObject)", resolution)
+        self.assertIn("isSelectActionAvailable(swipedView, messageObject, messages)", resolution)
+        self.assertIn("performSelectAction(swipedView, messageObject)", resolution)
+        self.assertIn("messageObject.contentType != 0", select_path)
+        self.assertIn("messageObject.isAnyGift()", select_path)
+        self.assertIn("messageObject.isSponsored()", select_path)
+        self.assertIn("messageObject.isEphemeral()", select_path)
+        self.assertIn("messageObject.type == MessageObject.TYPE_JOINED_CHANNEL", select_path)
+        self.assertIn("threadMessageObjects.contains(messageObject)", select_path)
+        self.assertIn("getMessageType(messageObject)", select_path)
+        self.assertIn("type < 2 || type == 20", select_path)
+        self.assertIn("showsMessageForReplyAction(", select_path)
+        self.assertIn("resolveCurrentGestureMessages(swipedView, messageObject)", handler)
+        self.assertIn("startMessageSelection(messages)", handler)
+        self.assertIn("addToSelectedMessages(", action_mode)
+        self.assertIn("messageObjects.get(index)", action_mode)
+        self.assertIn("private void showMessageSelectionMode()", chat)
+        self.assertIn("actionBar.showActionMode(", chat)
+        self.assertIn("startMessageSelection(message, listView)", chat)
+        self.assertNotIn("selectedObject", resolution + select_path + handler)
+        self.assertNotIn("processSelectedOption", resolution + select_path + handler)
+
     def test_forward_action_uses_fresh_group_without_menu_state(self):
         chat = CHAT_ACTIVITY.read_text()
         resolution = chat.split("private MessageActionExecutor.Resolution resolveForwardAction(", 1)[1]
@@ -345,7 +386,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         handler = handler.split("private boolean shouldSelectReplyDestination(", 1)[0]
 
         self.assertIn("findCurrentMessageForAction(expected)", resolution)
-        self.assertIn("resolveCurrentForwardMessages(swipedView, messageObject)", resolution)
+        self.assertIn("resolveCurrentGestureMessages(swipedView, messageObject)", resolution)
         self.assertIn("isForwardPermissionGranted(messages)", resolution)
         self.assertIn("isForwardActionAvailable(", resolution)
         self.assertIn("performForwardAction(expected, messageObject, messages)", resolution)

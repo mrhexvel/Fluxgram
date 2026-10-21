@@ -16,6 +16,7 @@ public final class MessageActionExecutor {
     public static final String COPY = "copy";
     public static final String FORWARD = "forward";
     public static final String EDIT = "edit";
+    public static final String SELECT = "select";
 
     private static final int MAX_SWIPE_ACTIONS = 8;
     private static final List<String> KNOWN_ACTION_IDS = Collections.unmodifiableList(Arrays.asList(
@@ -23,7 +24,8 @@ public final class MessageActionExecutor {
             REACT_DEFAULT,
             COPY,
             FORWARD,
-            EDIT
+            EDIT,
+            SELECT
     ));
     private static final Set<String> KNOWN_ACTION_ID_SET = Collections.unmodifiableSet(
             new HashSet<>(KNOWN_ACTION_IDS)
