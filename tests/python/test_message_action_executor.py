@@ -43,7 +43,8 @@ class MessageActionExecutorTest(unittest.TestCase):
                                  MessageActionExecutor.COPY,
                                  MessageActionExecutor.FORWARD,
                                  MessageActionExecutor.EDIT,
-                                 MessageActionExecutor.SELECT
+                                 MessageActionExecutor.SELECT,
+                                 MessageActionExecutor.SAVE_TO_GALLERY
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(null).equals(
                                 Collections.singletonList(MessageActionExecutor.REPLY)
@@ -54,16 +55,18 @@ class MessageActionExecutorTest(unittest.TestCase):
                                  MessageActionExecutor.REACT_DEFAULT,
                                   MessageActionExecutor.COPY,
                                   MessageActionExecutor.FORWARD,
-                                  MessageActionExecutor.EDIT,
-                                  MessageActionExecutor.SELECT,
-                                  MessageActionExecutor.REPLY
+                                   MessageActionExecutor.EDIT,
+                                   MessageActionExecutor.SELECT,
+                                   MessageActionExecutor.SAVE_TO_GALLERY,
+                                   MessageActionExecutor.REPLY
                          )).equals(Arrays.asList(
                                  MessageActionExecutor.REACT_DEFAULT,
                                   MessageActionExecutor.COPY,
                                   MessageActionExecutor.FORWARD,
-                                  MessageActionExecutor.EDIT,
-                                  MessageActionExecutor.SELECT,
-                                  MessageActionExecutor.REPLY
+                                   MessageActionExecutor.EDIT,
+                                   MessageActionExecutor.SELECT,
+                                   MessageActionExecutor.SAVE_TO_GALLERY,
+                                   MessageActionExecutor.REPLY
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(Arrays.asList(
                                 "unknown",

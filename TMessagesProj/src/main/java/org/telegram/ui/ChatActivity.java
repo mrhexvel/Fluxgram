@@ -2132,6 +2132,15 @@ public class ChatActivity extends BaseFragment implements
                 && isSelectActionAvailable(swipedView, messageObject, messages);
     }
 
+    private boolean canStartSaveToGalleryAction(View swipedView, MessageObject messageObject) {
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
+        return !actionBar.isActionModeShowed()
+                && !hasTextSelection()
+                && isSaveToGalleryGestureChatModeAllowed()
+                && isSaveToGalleryPermissionGranted(messages)
+                && isSaveToGalleryActionAvailable(swipedView, messageObject, messages);
+    }
+
     private String findSwipeAction(View swipedView, MessageObject messageObject) {
         List<String> actionIds = MessageGestureSettings.getState().getSwipeActions();
         for (int index = 0; index < actionIds.size(); index++) {
@@ -2154,6 +2163,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (MessageActionExecutor.SELECT.equals(actionId)
                     && canStartSelectAction(swipedView, messageObject)) {
+                return actionId;
+            }
+            if (MessageActionExecutor.SAVE_TO_GALLERY.equals(actionId)
+                    && canStartSaveToGalleryAction(swipedView, messageObject)) {
                 return actionId;
             }
         }
@@ -2383,6 +2396,53 @@ public class ChatActivity extends BaseFragment implements
         );
     }
 
+    private MessageActionExecutor.Resolution resolveSaveToGalleryAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View swipedView
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.SWIPE
+                && MessageActionExecutor.SAVE_TO_GALLERY.equals(actionId)
+                && isSaveToGalleryGestureChatModeAllowed();
+        boolean permissionGranted = isSaveToGalleryPermissionGranted(messages);
+        boolean actionAvailable = isSaveToGalleryActionAvailable(
+                swipedView,
+                messageObject,
+                messages
+        );
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable ? () -> performSaveToGalleryAction(swipedView, messageObject) : null
+        );
+    }
+
     private boolean isReplyGestureChatModeAllowed() {
         return !isInPreviewMode()
                 && !isInsideContainer
@@ -2428,6 +2488,17 @@ public class ChatActivity extends BaseFragment implements
                 && !isReport()
                 && currentEncryptedChat == null
                 && chatMode == MODE_DEFAULT;
+    }
+
+    private boolean isSaveToGalleryGestureChatModeAllowed() {
+        return !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && (chatMode == MODE_DEFAULT
+                || chatMode == MODE_SCHEDULED
+                || chatMode == MODE_PINNED
+                || chatMode == MODE_SAVED);
     }
 
     private boolean isReplyPermissionGranted(MessageObject messageObject) {
@@ -2511,6 +2582,33 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean isSelectPermissionGranted(MessageObject messageObject) {
         return messageObject != null && messageObject.messageOwner != null;
+    }
+
+    private boolean isSaveToGalleryPermissionGranted(ArrayList<MessageObject> messages) {
+        if (messages == null || messages.isEmpty() || getParentActivity() == null) {
+            return false;
+        }
+
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject messageObject = messages.get(index);
+            if (messageObject == null
+                    || messageObject.messageOwner == null
+                    || messageObject.messageOwner.noforwards
+                    || messageObject.getDialogId() == UserObject.VERIFY
+                    || isMessagePeerNoForwards(messageObject)
+                    || messageObject.type == MessageObject.TYPE_PAID_MEDIA) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean hasSaveToGalleryStoragePermission() {
+        return Build.VERSION.SDK_INT < 23
+                || Build.VERSION.SDK_INT > 28 && !BuildVars.NO_SCOPED_STORAGE
+                || getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private boolean isReplyActionAvailable(
@@ -2731,6 +2829,63 @@ public class ChatActivity extends BaseFragment implements
                         messageObject,
                         MessageActionExecutor.Trigger.SWIPE
                 );
+    }
+
+    private boolean isSaveToGalleryActionAvailable(
+            View swipedView,
+            MessageObject messageObject,
+            ArrayList<MessageObject> messages
+    ) {
+        if (messageObject == null
+                || messages == null
+                || messages.isEmpty()
+                || !(swipedView instanceof ChatMessageCell)
+                || !swipedView.isAttachedToWindow()
+                || !showsMessageForReplyAction(
+                        swipedView,
+                        messageObject,
+                        MessageActionExecutor.Trigger.SWIPE
+                )) {
+            return false;
+        }
+
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject currentMessage = messages.get(index);
+            if (!isMessageAvailableToSaveToGallery(currentMessage)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean isMessageAvailableToSaveToGallery(MessageObject messageObject) {
+        if (messageObject == null
+                || messageObject.messageOwner == null
+                || messageObject.messageOwner.fluxgramDeleted
+                || messageObject.isSponsored()
+                || messageObject.hasRevealedExtendedMedia()
+                || messageObject.needDrawBluredPreview()
+                || messageObject.isHiddenSensitive()
+                && !messageObject.isMediaSpoilersRevealed) {
+            return false;
+        }
+
+        int type = getMessageType(messageObject);
+        if (type == 4) {
+            if (!messageObject.isVideo()
+                    && (messageObject.isMusic() || messageObject.getDocument() != null)) {
+                return false;
+            }
+        } else if (type == 6) {
+            if (messageObject.isVoiceOnce() || messageObject.isRoundOnce()) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        return !TextUtils.isEmpty(resolveMessageGalleryPath(messageObject, type == 6));
     }
 
     private ArrayList<MessageObject> resolveCurrentGestureMessages(
@@ -2965,6 +3120,65 @@ public class ChatActivity extends BaseFragment implements
         }
 
         startMessageSelection(messages);
+        return true;
+    }
+
+    private boolean performSaveToGalleryAction(View swipedView, MessageObject messageObject) {
+        ArrayList<MessageObject> messages = resolveCurrentGestureMessages(swipedView, messageObject);
+        if (!isSaveToGalleryPermissionGranted(messages)
+                || !isSaveToGalleryActionAvailable(swipedView, messageObject, messages)) {
+            return false;
+        }
+        if (!hasSaveToGalleryStoragePermission()) {
+            getParentActivity().requestPermissions(
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    4
+            );
+            return true;
+        }
+
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject currentMessage = messages.get(index);
+            if (!saveMessageToGallery(currentMessage, getMessageType(currentMessage) == 6)) {
+                return false;
+            }
+        }
+
+        if (messages.size() > 1) {
+            boolean allPhotos = true;
+            boolean allVideos = true;
+            for (int index = 0; index < messages.size(); index++) {
+                MessageObject currentMessage = messages.get(index);
+                allPhotos &= currentMessage.isPhoto();
+                allVideos &= currentMessage.isVideo();
+            }
+            BulletinFactory.FileType fileType = allPhotos
+                    ? BulletinFactory.FileType.PHOTOS
+                    : allVideos
+                    ? BulletinFactory.FileType.VIDEOS
+                    : BulletinFactory.FileType.MEDIA;
+            BulletinFactory.of(this)
+                    .createDownloadBulletin(fileType, messages.size(), themeDelegate)
+                    .show();
+        } else {
+            MessageObject currentMessage = messages.get(0);
+            if (getMessageType(currentMessage) == 6) {
+                BulletinFactory.createSaveToGalleryBulletin(
+                        this,
+                        currentMessage.isVideo() && !currentMessage.isLivePhoto(),
+                        currentMessage.isLivePhoto(),
+                        themeDelegate
+                ).show();
+            } else {
+                BulletinFactory.FileType fileType = currentMessage.isLivePhoto()
+                        ? BulletinFactory.FileType.LIVEPHOTO
+                        : currentMessage.isVideo()
+                        ? BulletinFactory.FileType.VIDEO
+                        : BulletinFactory.FileType.PHOTO;
+                BulletinFactory.of(this).createDownloadBulletin(fileType, themeDelegate).show();
+            }
+        }
+
         return true;
     }
 
@@ -6348,6 +6562,8 @@ public class ChatActivity extends BaseFragment implements
             private int slidingEditIconColor;
             private Drawable slidingSelectIconDrawable;
             private int slidingSelectIconColor;
+            private Drawable slidingSaveToGalleryIconDrawable;
+            private int slidingSaveToGalleryIconColor;
 
             private FloatValueHolder slidingDrawableVisibilityProgress = new FloatValueHolder(0);
             private SpringAnimation slidingDrawableVisibilitySpring = new SpringAnimation(slidingDrawableVisibilityProgress)
@@ -6698,6 +6914,18 @@ public class ChatActivity extends BaseFragment implements
                         slidingSelectIconColor = color;
                     }
                     actionIconDrawable = slidingSelectIconDrawable;
+                } else if (MessageActionExecutor.SAVE_TO_GALLERY.equals(slidingMessageActionId)) {
+                    int color = getThemedColor(Theme.key_chat_serviceIcon);
+                    if (slidingSaveToGalleryIconDrawable == null
+                            || slidingSaveToGalleryIconColor != color) {
+                        slidingSaveToGalleryIconDrawable = Theme.getThemedDrawable(
+                                getContext(),
+                                R.drawable.msg_gallery,
+                                color
+                        );
+                        slidingSaveToGalleryIconColor = color;
+                    }
+                    actionIconDrawable = slidingSaveToGalleryIconDrawable;
                 } else {
                     String actionIconKey = MessageActionExecutor.FORWARD.equals(slidingMessageActionId)
                             ? Theme.key_drawable_shareIcon
@@ -6815,6 +7043,14 @@ public class ChatActivity extends BaseFragment implements
                                     }
                                     if (MessageActionExecutor.SELECT.equals(resolvedActionId)) {
                                         return resolveSelectAction(
+                                                resolvedActionId,
+                                                trigger,
+                                                expected,
+                                                swipedView
+                                        );
+                                    }
+                                    if (MessageActionExecutor.SAVE_TO_GALLERY.equals(resolvedActionId)) {
+                                        return resolveSaveToGalleryAction(
                                                 resolvedActionId,
                                                 trigger,
                                                 expected,
@@ -35509,7 +35745,10 @@ public class ChatActivity extends BaseFragment implements
         return fragment;
     }
 
-    private void saveMessageToGallery(MessageObject messageObject) {
+    private String resolveMessageGalleryPath(
+            MessageObject messageObject,
+            boolean includeDocumentFallback
+    ) {
         String path = messageObject.messageOwner.attachPath;
         if (!TextUtils.isEmpty(path)) {
             File temp = new File(path);
@@ -35519,6 +35758,16 @@ public class ChatActivity extends BaseFragment implements
         }
         if (TextUtils.isEmpty(path)) {
             File f = FileLoader.getInstance(currentAccount).getPathToMessage(messageObject.messageOwner);
+            if (f != null && f.exists()) {
+                path = f.getPath();
+            }
+        }
+        if (TextUtils.isEmpty(path) && includeDocumentFallback) {
+            File f = FileLoader.getInstance(currentAccount).getPathToMessage(
+                    messageObject.messageOwner,
+                    true,
+                    true
+            );
             if (f != null && f.exists()) {
                 path = f.getPath();
             }
@@ -35535,8 +35784,21 @@ public class ChatActivity extends BaseFragment implements
                 path = f.getPath();
             }
         }
+
+        return path;
+    }
+
+    private boolean saveMessageToGallery(MessageObject messageObject) {
+        return saveMessageToGallery(messageObject, false);
+    }
+
+    private boolean saveMessageToGallery(
+            MessageObject messageObject,
+            boolean includeDocumentFallback
+    ) {
+        String path = resolveMessageGalleryPath(messageObject, includeDocumentFallback);
         if (TextUtils.isEmpty(path)) {
-            return;
+            return false;
         }
         if (messageObject.isLivePhoto()) {
             final TLRPC.Document videoDoc = MessageObject.getMedia(messageObject.messageOwner) != null
@@ -35554,10 +35816,17 @@ public class ChatActivity extends BaseFragment implements
             }
             if (!TextUtils.isEmpty(videoPath)) {
                 MediaController.saveFile(path, videoPath, getParentActivity(), null);
-                return;
+                return true;
             }
         }
-        MediaController.saveFile(path, getParentActivity(), messageObject.isVideo() ? 1 : 0, null, null);
+        MediaController.saveFile(
+                path,
+                getParentActivity(),
+                includeDocumentFallback ? 0 : messageObject.isVideo() ? 1 : 0,
+                null,
+                null
+        );
+        return true;
     }
 
     private static final int OPTION_FLUXGRAM_EDIT_HISTORY = 10001;

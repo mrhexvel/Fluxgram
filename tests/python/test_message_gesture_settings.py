@@ -166,9 +166,10 @@ class MessageGestureSettingsTest(unittest.TestCase):
                                  MessageActionExecutor.FORWARD,
                                  MessageActionExecutor.EDIT,
                                  MessageActionExecutor.SELECT,
+                                 MessageActionExecutor.SAVE_TO_GALLERY,
                                  MessageActionExecutor.REPLY,
                                  MessageActionExecutor.FORWARD));
-                        require(MessageGestureSettings.getState().getSwipeActions().size() == 4);
+                        require(MessageGestureSettings.getState().getSwipeActions().size() == 5);
                         require(MessageActionExecutor.FORWARD.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(0)));
                         require(MessageActionExecutor.EDIT.equals(
@@ -176,8 +177,10 @@ class MessageGestureSettingsTest(unittest.TestCase):
                         require(MessageActionExecutor.SELECT.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(2)));
                         require(MessageActionExecutor.REPLY.equals(
+                                 MessageGestureSettings.getState().getSwipeActions().get(4)));
+                        require(MessageActionExecutor.SAVE_TO_GALLERY.equals(
                                  MessageGestureSettings.getState().getSwipeActions().get(3)));
-                        require("forward,edit,select,reply".equals(MessagesController.preferences.getString(
+                        require("forward,edit,select,save_to_gallery,reply".equals(MessagesController.preferences.getString(
                                  "fluxgram_message_swipe_actions", null)));
                         MessageGestureSettings.setSwipeActions(Arrays.asList("unknown"));
                         require(MessageGestureSettings.getState().getSwipeActions().size() == 1);
@@ -299,6 +302,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("MessageActionExecutor.FORWARD", settings)
         self.assertIn("MessageActionExecutor.EDIT", settings)
         self.assertIn("MessageActionExecutor.SELECT", settings)
+        self.assertIn("MessageActionExecutor.SAVE_TO_GALLERY", settings)
         self.assertIn("getSwipeActions()", settings)
         self.assertIn("setSwipeActions(Collection<String> actionIds)", settings)
         self.assertIn("adapter.reorderSectionStart()", activity)
@@ -308,6 +312,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("MessageActionExecutor.FORWARD", activity)
         self.assertIn("MessageActionExecutor.EDIT", activity)
         self.assertIn("MessageActionExecutor.SELECT", activity)
+        self.assertIn("MessageActionExecutor.SAVE_TO_GALLERY", activity)
         self.assertNotIn("MessageActionExecutor.COPY", activity)
         self.assertNotIn("MessageActionExecutor.REACT_DEFAULT", activity)
 
@@ -407,6 +412,37 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("fmessages.addAll(currentMessages)", chat)
         self.assertNotIn("selectedObject", resolution + forward_path + handler)
         self.assertNotIn("processSelectedOption", resolution + forward_path + handler)
+
+    def test_save_to_gallery_uses_fresh_local_album_without_menu_state(self):
+        chat = CHAT_ACTIVITY.read_text()
+        resolution = chat.split(
+            "private MessageActionExecutor.Resolution resolveSaveToGalleryAction(", 1
+        )[1]
+        resolution = resolution.split("private boolean isReplyGestureChatModeAllowed()", 1)[0]
+        save_path = chat.split("private boolean isSaveToGalleryPermissionGranted(", 1)[1]
+        save_path = save_path.split("private boolean isReplyActionAvailable(", 1)[0]
+        handler = chat.split("private boolean performSaveToGalleryAction(", 1)[1]
+        handler = handler.split("private boolean performForwardAction(", 1)[0]
+
+        self.assertIn("findCurrentMessageForAction(expected)", resolution)
+        self.assertIn("resolveCurrentGestureMessages(swipedView, messageObject)", resolution)
+        self.assertIn("isSaveToGalleryPermissionGranted(messages)", resolution)
+        self.assertIn("isSaveToGalleryActionAvailable(", resolution)
+        self.assertIn("performSaveToGalleryAction(swipedView, messageObject)", resolution)
+        self.assertIn("messageObject.messageOwner.noforwards", save_path)
+        self.assertIn("isMessagePeerNoForwards(messageObject)", save_path)
+        self.assertIn("MessageObject.TYPE_PAID_MEDIA", save_path)
+        self.assertIn("messageObject.hasRevealedExtendedMedia()", chat)
+        self.assertIn("messageObject.needDrawBluredPreview()", chat)
+        self.assertIn("messageObject.isHiddenSensitive()", chat)
+        self.assertIn("resolveMessageGalleryPath(messageObject, type == 6)", chat)
+        self.assertIn("if (!hasSaveToGalleryStoragePermission())", handler)
+        self.assertIn("Manifest.permission.WRITE_EXTERNAL_STORAGE", handler)
+        self.assertIn("getParentActivity().requestPermissions(", handler)
+        self.assertIn("saveMessageToGallery(currentMessage, getMessageType(currentMessage) == 6)", handler)
+        self.assertIn("BulletinFactory.FileType.MEDIA", handler)
+        self.assertNotIn("selectedObject", resolution + save_path + handler)
+        self.assertNotIn("processSelectedOption", resolution + save_path + handler)
 
     def test_copy_action_uses_fresh_message_and_attached_group(self):
         chat = CHAT_ACTIVITY.read_text()

@@ -176,6 +176,9 @@ public final class FluxGramMessageSwipeSettingsActivity extends BaseFragment {
         if (MessageActionExecutor.SELECT.equals(actionId)) {
             return LocaleController.getString(R.string.Select);
         }
+        if (MessageActionExecutor.SAVE_TO_GALLERY.equals(actionId)) {
+            return LocaleController.getString(R.string.SaveToGallery);
+        }
 
         return actionId;
     }
