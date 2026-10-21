@@ -47,6 +47,15 @@ public abstract class ViewPagerActivity extends BaseFragment {
 
     }
 
+    protected void onViewPagerPageTransform(
+            View currentPage,
+            View nextPage,
+            float currentVisibility,
+            float nextVisibility
+    ) {
+
+    }
+
 
     protected FrameLayout createContentView(Context context) {
         return new FrameLayout(context);
@@ -466,6 +475,13 @@ public abstract class ViewPagerActivity extends BaseFragment {
         @Override
         public void onTabAnimationUpdate(boolean manual) {
             super.onTabAnimationUpdate(manual);
+            boolean hasWidth = getAvailableTranslationX() > 0f;
+            onViewPagerPageTransform(
+                    viewPages[0],
+                    viewPages[1],
+                    hasWidth ? getCurrentPositionAlpha() : 1f,
+                    hasWidth ? getNextPositionAlpha() : 0f
+            );
             onViewPagerTabAnimationUpdate(manual);
             checkFragmentsVisibility();
             checkSystemBarColors();

@@ -164,6 +164,47 @@ class RootNavigationContractTest(unittest.TestCase):
         self.assertIn("state.fragment instanceof CallLogActivity", stability)
         self.assertIn("state.fragment instanceof SettingsActivity", stability)
 
+    def test_root_pager_shared_axis_transform_is_opt_in_and_bounded(self):
+        pager = (JAVA / "ui/ViewPagerActivity.java").read_text()
+        activity = (JAVA / "ui/MainTabsActivity.java").read_text()
+        transform = activity.split("protected void onViewPagerPageTransform", 1)[1].split(
+            "protected int getFragmentsCount", 1
+        )[0]
+
+        self.assertIn("protected void onViewPagerPageTransform", pager)
+        self.assertIn("boolean hasWidth = getAvailableTranslationX() > 0f", pager)
+        self.assertIn("hasWidth ? getCurrentPositionAlpha() : 1f", pager)
+        self.assertIn("hasWidth ? getNextPositionAlpha() : 0f", pager)
+        self.assertIn("getCurrentPositionAlpha()", pager)
+        self.assertIn("getNextPositionAlpha()", pager)
+        self.assertIn("SharedConfig.animationsEnabled()", transform)
+        self.assertIn("!LiteMode.isPowerSaverApplied()", transform)
+        self.assertIn("MathUtils.clamp(visibility, 0f, 1f)", transform)
+        self.assertIn("lerp(0.72f, 1f, progress)", transform)
+        self.assertIn("lerp(0.96f, 1f, progress)", transform)
+        self.assertIn("page.setAlpha(alpha)", transform)
+        self.assertIn("page.setScaleX(scale)", transform)
+        self.assertIn("page.setScaleY(scale)", transform)
+        self.assertNotIn("tabsView.setAlpha", transform)
+        self.assertNotIn("tabsView.setScale", transform)
+
+    def test_root_glass_capture_uses_the_same_page_transform(self):
+        activity = (JAVA / "ui/MainTabsActivity.java").read_text()
+        glass = activity.split("iBlur3SourceTabGlass.setupRenderer", 1)[1].split(
+            "iBlur3SourceColor = new BlurredBackgroundSourceColor", 1
+        )[0]
+        draw = activity.split("private void drawRootPageGlassSource", 1)[1].split(
+            "protected FrameLayout createContentView", 1
+        )[0]
+
+        self.assertIn("View rootPage = getRootPage(fragment)", glass)
+        self.assertIn("rootPage.getAlpha()", glass)
+        self.assertIn("rootPage.getScaleX()", glass)
+        self.assertIn("rootPage.getScaleY()", glass)
+        self.assertIn("drawRootPageGlassSource(canvas, fragment, source, width, height)", glass)
+        self.assertIn("canvas.scale(rootPage.getScaleX(), rootPage.getScaleY())", draw)
+        self.assertIn("canvas.saveLayerAlpha(0, 0, width, height, alpha)", draw)
+
     def test_root_popup_uses_policy_and_snapshot_navigation(self):
         dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
         popup = dialogs.split("private void showItemOptions()", 1)[1].split(

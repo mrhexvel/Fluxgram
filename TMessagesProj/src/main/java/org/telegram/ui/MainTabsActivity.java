@@ -156,8 +156,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                             TabFragmentDelegate delegate = (TabFragmentDelegate) fragment;
                             BlurredBackgroundSourceRenderNode source = delegate.getGlassSource();
                             if (source != null) {
+                                View rootPage = getRootPage(fragment);
                                 hash.addF(fragmentPosition.left);
                                 hash.addF(fragmentPosition.top);
+                                hash.addF(rootPage != null ? rootPage.getAlpha() : 1f);
+                                hash.addF(rootPage != null ? rootPage.getScaleX() : 1f);
+                                hash.addF(rootPage != null ? rootPage.getScaleY() : 1f);
                                 hash.add(fragment.getClassGuid());
                             }
                         }
@@ -188,10 +192,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                             TabFragmentDelegate delegate = (TabFragmentDelegate) fragment;
                             BlurredBackgroundSourceRenderNode source = delegate.getGlassSource();
                             if (source != null) {
-                                canvas.save();
-                                canvas.translate(fragmentPosition.left, fragmentPosition.top);
-                                source.draw(canvas, 0, 0, width, height);
-                                canvas.restore();
+                                drawRootPageGlassSource(canvas, fragment, source, width, height);
                             }
                         }
                     }
@@ -216,6 +217,42 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         Bulletin.addDelegate(this, delegate);
         Bulletin.addDelegate(contentView, delegate);
+    }
+
+    private View getRootPage(BaseFragment fragment) {
+        if (fragment.fragmentView == null || !(fragment.fragmentView.getParent() instanceof View)) {
+            return null;
+        }
+
+        return (View) fragment.fragmentView.getParent();
+    }
+
+    private void drawRootPageGlassSource(
+            Canvas canvas,
+            BaseFragment fragment,
+            BlurredBackgroundSourceRenderNode source,
+            int width,
+            int height
+    ) {
+        View rootPage = getRootPage(fragment);
+        int restore = canvas.save();
+        canvas.translate(fragmentPosition.left, fragmentPosition.top);
+
+        if (rootPage != null) {
+            float pivotX = rootPage.getPivotX() - fragment.fragmentView.getX();
+            float pivotY = rootPage.getPivotY() - fragment.fragmentView.getY();
+            canvas.translate(pivotX, pivotY);
+            canvas.scale(rootPage.getScaleX(), rootPage.getScaleY());
+            canvas.translate(-pivotX, -pivotY);
+        }
+
+        int alpha = rootPage != null ? Math.round(255f * rootPage.getAlpha()) : 255;
+        int layer = alpha < 255
+                ? canvas.saveLayerAlpha(0, 0, width, height, alpha)
+                : canvas.save();
+        source.draw(canvas, 0, 0, width, height);
+        canvas.restoreToCount(layer);
+        canvas.restoreToCount(restore);
     }
 
     @Override
@@ -812,6 +849,31 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         checkUi_fadeView();
         blur3_invalidateBlur();
         contentView.invalidate();
+    }
+
+    @Override
+    protected void onViewPagerPageTransform(
+            View currentPage,
+            View nextPage,
+            float currentVisibility,
+            float nextVisibility
+    ) {
+        boolean enabled = SharedConfig.animationsEnabled() && !LiteMode.isPowerSaverApplied();
+        applyRootPageTransform(currentPage, currentVisibility, enabled);
+        applyRootPageTransform(nextPage, nextVisibility, enabled);
+    }
+
+    private void applyRootPageTransform(View page, float visibility, boolean enabled) {
+        if (page == null) {
+            return;
+        }
+
+        float progress = MathUtils.clamp(visibility, 0f, 1f);
+        float alpha = enabled ? lerp(0.72f, 1f, progress) : 1f;
+        float scale = enabled ? lerp(0.96f, 1f, progress) : 1f;
+        page.setAlpha(alpha);
+        page.setScaleX(scale);
+        page.setScaleY(scale);
     }
 
 
