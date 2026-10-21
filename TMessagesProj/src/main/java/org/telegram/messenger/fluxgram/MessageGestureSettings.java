@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import org.telegram.messenger.MessagesController;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -18,8 +19,11 @@ public final class MessageGestureSettings {
     private static final String SWIPE_ENABLED = "fluxgram_message_swipe_enabled";
     private static final String SWIPE_ACTIONS = "fluxgram_message_swipe_actions";
 
-    private static final List<String> PUBLISHED_SWIPE_ACTIONS = Collections.singletonList(
-            MessageActionExecutor.REPLY
+    private static final List<String> PUBLISHED_SWIPE_ACTIONS = Collections.unmodifiableList(
+            Arrays.asList(
+                    MessageActionExecutor.REPLY,
+                    MessageActionExecutor.FORWARD
+            )
     );
 
     private static volatile State state;

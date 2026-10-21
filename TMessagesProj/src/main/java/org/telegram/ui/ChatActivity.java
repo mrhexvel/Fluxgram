@@ -830,6 +830,8 @@ public class ChatActivity extends BaseFragment implements
     private CharSequence formwardingNameText;
     private MessageObject forwardingMessage;
     private MessageObject.GroupedMessages forwardingMessageGroup;
+    private ArrayList<MessageObject> forwardingGestureMessages;
+    private MessageActionExecutor.Target forwardingGestureTarget;
     private MessageObject.GroupedMessages replyingQuoteGroup;
     public MessageObject replyingTopMessage;
     private ReplyQuote replyingQuote;
@@ -2071,6 +2073,18 @@ public class ChatActivity extends BaseFragment implements
     };
 
     private boolean canStartReplyAction(View tappedView, MessageObject messageObject) {
+        return canStartReplyAction(
+                tappedView,
+                messageObject,
+                MessageActionExecutor.Trigger.DOUBLE_TAP
+        );
+    }
+
+    private boolean canStartReplyAction(
+            View tappedView,
+            MessageObject messageObject,
+            MessageActionExecutor.Trigger trigger
+    ) {
         return !actionBar.isActionModeShowed()
                 && !hasTextSelection()
                 && isReplyGestureChatModeAllowed()
@@ -2078,7 +2092,7 @@ public class ChatActivity extends BaseFragment implements
                 && isReplyActionAvailable(
                         tappedView,
                         messageObject,
-                        MessageActionExecutor.Trigger.DOUBLE_TAP
+                        trigger
                 );
     }
 
@@ -2088,6 +2102,36 @@ public class ChatActivity extends BaseFragment implements
                 && isCopyGestureChatModeAllowed()
                 && isCopyPermissionGranted(messageObject)
                 && isCopyActionAvailable(tappedView, messageObject);
+    }
+
+    private boolean canStartForwardAction(View swipedView, MessageObject messageObject) {
+        ArrayList<MessageObject> messages = resolveCurrentForwardMessages(swipedView, messageObject);
+        return !actionBar.isActionModeShowed()
+                && !hasTextSelection()
+                && isForwardGestureChatModeAllowed()
+                && isForwardPermissionGranted(messages)
+                && isForwardActionAvailable(swipedView, messageObject, messages);
+    }
+
+    private String findSwipeAction(View swipedView, MessageObject messageObject) {
+        List<String> actionIds = MessageGestureSettings.getState().getSwipeActions();
+        for (int index = 0; index < actionIds.size(); index++) {
+            String actionId = actionIds.get(index);
+            if (MessageActionExecutor.REPLY.equals(actionId)
+                    && canStartReplyAction(
+                            swipedView,
+                            messageObject,
+                            MessageActionExecutor.Trigger.SWIPE
+                    )) {
+                return actionId;
+            }
+            if (MessageActionExecutor.FORWARD.equals(actionId)
+                    && canStartForwardAction(swipedView, messageObject)) {
+                return actionId;
+            }
+        }
+
+        return null;
     }
 
     private MessageActionExecutor.Resolution resolveReplyAction(
@@ -2175,6 +2219,53 @@ public class ChatActivity extends BaseFragment implements
         );
     }
 
+    private MessageActionExecutor.Resolution resolveForwardAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View swipedView
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        ArrayList<MessageObject> messages = resolveCurrentForwardMessages(swipedView, messageObject);
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.SWIPE
+                && MessageActionExecutor.FORWARD.equals(actionId)
+                && isForwardGestureChatModeAllowed();
+        boolean permissionGranted = isForwardPermissionGranted(messages);
+        boolean actionAvailable = isForwardActionAvailable(
+                swipedView,
+                messageObject,
+                messages
+        );
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable ? () -> performForwardAction(expected, messageObject, messages) : null
+        );
+    }
+
     private boolean isReplyGestureChatModeAllowed() {
         return !isInPreviewMode()
                 && !isInsideContainer
@@ -2193,6 +2284,15 @@ public class ChatActivity extends BaseFragment implements
                 && !inBubbleMode
                 && !isReport()
                 && chatMode != MODE_WELCOME_MESSAGES;
+    }
+
+    private boolean isForwardGestureChatModeAllowed() {
+        return !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && !isQuickRepliesOrWelcomeMessagesMode()
+                && chatMode != MODE_SCHEDULED;
     }
 
     private boolean isReplyPermissionGranted(MessageObject messageObject) {
@@ -2230,6 +2330,36 @@ public class ChatActivity extends BaseFragment implements
         }
 
         return getMessagesController().isPeerNoForwards(messageObject.getDialogId());
+    }
+
+    private boolean isForwardPermissionGranted(ArrayList<MessageObject> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return false;
+        }
+
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject messageObject = messages.get(index);
+            if (messageObject == null || messageObject.messageOwner == null) {
+                return false;
+            }
+        }
+        if (!canForwardMessages(messages)) {
+            return false;
+        }
+        if (messages.get(0).messageOwner.fluxgramDeleted) {
+            return true;
+        }
+
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject messageObject = messages.get(index);
+            if (messageObject.messageOwner.noforwards
+                    || messageObject.getDialogId() == UserObject.VERIFY
+                    || isMessagePeerNoForwards(messageObject)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private boolean isReplyActionAvailable(
@@ -2303,6 +2433,122 @@ public class ChatActivity extends BaseFragment implements
                 && tappedView != null
                 && tappedView.isAttachedToWindow()
                 && showsMessageForAction(tappedView, messageObject);
+    }
+
+    private boolean isForwardActionAvailable(
+            View swipedView,
+            MessageObject messageObject,
+            ArrayList<MessageObject> messages
+    ) {
+        if (!isForwardMessagesAvailable(messageObject, messages)) {
+            return false;
+        }
+
+        return swipedView != null
+                && swipedView.isAttachedToWindow()
+                && showsMessageForReplyAction(
+                        swipedView,
+                        messageObject,
+                        MessageActionExecutor.Trigger.SWIPE
+                );
+    }
+
+    private boolean isForwardMessagesAvailable(
+            MessageObject messageObject,
+            ArrayList<MessageObject> messages
+    ) {
+        if (messageObject == null
+                || messageObject.messageOwner == null
+                || messages == null
+                || messages.isEmpty()
+                || getMessagesController().isFrozen()) {
+            return false;
+        }
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject currentMessage = messages.get(index);
+            if (currentMessage == null || currentMessage.messageOwner == null) {
+                return false;
+            }
+        }
+        if (!messageObject.canForwardMessage() || !canForwardMessages(messages)) {
+            return false;
+        }
+        if (messageObject.messageOwner.fluxgramDeleted) {
+            return true;
+        }
+
+        int type = getMessageType(messageObject);
+        if (currentEncryptedChat != null
+                || type == -1
+                || type == 0
+                || type == 1
+                || type == 20
+                || currentEncryptedChat == null && messageObject.getId() < 0) {
+            return false;
+        }
+        if (!messageObject.messageOwner.fluxgramDeleted
+                && (messageObject.isSponsored()
+                || messageObject.needDrawBluredPreview()
+                && !messageObject.hasExtendedMediaPreview()
+                || messageObject.isLiveLocation()
+                || messageObject.type == MessageObject.TYPE_PHONE_CALL
+                || messageObject.type == MessageObject.TYPE_SHARING_OFFER
+                || messageObject.type == MessageObject.TYPE_GIFT_PREMIUM
+                || messageObject.type == MessageObject.TYPE_GIFT_OFFER
+                || messageObject.type == MessageObject.TYPE_COMMUNITY_CHANGED
+                || messageObject.type == MessageObject.TYPE_GIFT_OFFER_REJECTED
+                || messageObject.type == MessageObject.TYPE_GIFT_PREMIUM_CHANNEL
+                || messageObject.type == MessageObject.TYPE_SUGGEST_PHOTO
+                || messageObject.isWallpaperAction()
+                || messageObject.isExpiredStory()
+                || messageObject.type == MessageObject.TYPE_STORY_MENTION
+                || messageObject.type == MessageObject.TYPE_GIFT_STARS)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private ArrayList<MessageObject> resolveCurrentForwardMessages(
+            View swipedView,
+            MessageObject messageObject
+    ) {
+        if (messageObject == null) {
+            return null;
+        }
+
+        ArrayList<MessageObject> messages = new ArrayList<>();
+        if (messageObject.getGroupId() == 0) {
+            messages.add(messageObject);
+            return messages;
+        }
+        if (!(swipedView instanceof ChatMessageCell)) {
+            return null;
+        }
+
+        MessageObject.GroupedMessages group = ((ChatMessageCell) swipedView).getCurrentMessagesGroup();
+        if (group == null || group.groupId != messageObject.getGroupId()) {
+            return null;
+        }
+
+        boolean containsTarget = false;
+        for (int index = 0; index < group.messages.size(); index++) {
+            MessageObject groupedMessage = group.messages.get(index);
+            MessageObject currentMessage = findCurrentMessageForAction(
+                    groupedMessage.getDialogId(),
+                    groupedMessage.getId()
+            );
+            if (currentMessage == null || currentMessage.getGroupId() != messageObject.getGroupId()) {
+                return null;
+            }
+            if (currentMessage.getDialogId() == messageObject.getDialogId()
+                    && currentMessage.getId() == messageObject.getId()) {
+                containsTarget = true;
+            }
+            messages.add(currentMessage);
+        }
+
+        return containsTarget ? messages : null;
     }
 
     private boolean isCopyableMessageType(MessageObject messageObject) {
@@ -2428,6 +2674,136 @@ public class ChatActivity extends BaseFragment implements
         presentFragment(fragment);
 
         return true;
+    }
+
+    private boolean performForwardAction(
+            MessageActionExecutor.Target target,
+            MessageObject messageObject,
+            ArrayList<MessageObject> messages
+    ) {
+        if (getParentActivity() == null
+                || getMessagesController().isFrozen()
+                || !isForwardPermissionGranted(messages)
+                || messages == null
+                || !messages.contains(messageObject)) {
+            return false;
+        }
+
+        int hasPoll = 0;
+        boolean hasInvoice = false;
+        for (int index = 0; index < messages.size(); index++) {
+            MessageObject currentMessage = messages.get(index);
+            if (currentMessage.isTodo()) {
+                hasPoll = 3;
+            } else if (currentMessage.isPoll() && hasPoll < 3) {
+                hasPoll = currentMessage.isPublicPoll() ? 2 : Math.max(hasPoll, 1);
+            }
+            hasInvoice |= currentMessage.isInvoice();
+        }
+
+        ArrayList<MessageObject> forwardMessages = new ArrayList<>(messages);
+        Bundle args = new Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
+        args.putInt("messagesCount", messages.size());
+        args.putInt("hasPoll", hasPoll);
+        if (ChatObject.isMonoForum(currentChat)
+                && ChatObject.canManageMonoForum(currentAccount, currentChat)
+                && currentChat.linked_monoforum_id != 0) {
+            args.putLong("forward_into_channel", -currentChat.linked_monoforum_id);
+        }
+        args.putBoolean("hasInvoice", hasInvoice);
+        args.putBoolean("canSelectTopics", true);
+        DialogsActivity fragment = new DialogsActivity(args);
+        fragment.setDelegate((selectedFragment, dids, message, param, notify, scheduleDate,
+                scheduleRepeatPeriod, topicsFragment) -> {
+            ArrayList<MessageObject> currentMessages = refreshForwardMessages(
+                    target,
+                    forwardMessages
+            );
+            if (currentMessages == null) {
+                selectedFragment.setDelegate(null);
+                if (selectedFragment.getParentActivity() != null) {
+                    selectedFragment.finishFragment();
+                }
+                return false;
+            }
+
+            forwardingGestureMessages = currentMessages;
+            forwardingGestureTarget = target;
+            try {
+                return didSelectDialogs(
+                        selectedFragment,
+                        dids,
+                        message,
+                        param,
+                        notify,
+                        scheduleDate,
+                        scheduleRepeatPeriod,
+                        topicsFragment
+                );
+            } finally {
+                forwardingGestureMessages = null;
+                forwardingGestureTarget = null;
+            }
+        });
+        if (!presentFragment(fragment)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private ArrayList<MessageObject> refreshForwardMessages(
+            MessageActionExecutor.Target target,
+            ArrayList<MessageObject> expectedMessages
+    ) {
+        if (target == null
+                || expectedMessages == null
+                || expectedMessages.isEmpty()
+                || getParentActivity() == null
+                || isFinished) {
+            return null;
+        }
+
+        MessageObject targetMessage = findCurrentMessageForAction(target);
+        MessageActionExecutor.Target actual = targetMessage == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                targetMessage.getDialogId(),
+                targetMessage.getId(),
+                getTopicId()
+        );
+        if (!target.equals(actual)) {
+            return null;
+        }
+
+        ArrayList<MessageObject> currentMessages = new ArrayList<>(expectedMessages.size());
+        boolean containsTarget = false;
+        for (int index = 0; index < expectedMessages.size(); index++) {
+            MessageObject expectedMessage = expectedMessages.get(index);
+            MessageObject currentMessage = findCurrentMessageForAction(
+                    expectedMessage.getDialogId(),
+                    expectedMessage.getId()
+            );
+            if (currentMessage == null
+                    || currentMessage.getGroupId() != targetMessage.getGroupId()) {
+                return null;
+            }
+            if (currentMessage.getDialogId() == targetMessage.getDialogId()
+                    && currentMessage.getId() == targetMessage.getId()) {
+                containsTarget = true;
+            }
+            currentMessages.add(currentMessage);
+        }
+        if (!containsTarget
+                || !isForwardPermissionGranted(currentMessages)
+                || !isForwardMessagesAvailable(targetMessage, currentMessages)) {
+            return null;
+        }
+
+        return currentMessages;
     }
 
     private boolean shouldSelectReplyDestination(MessageObject messageObject) {
@@ -6003,11 +6379,14 @@ public class ChatActivity extends BaseFragment implements
                 }
 
                 int alpha = (int) (iconProgress * 0xFF);
-                Drawable replyIconDrawable = getThemedDrawable(Theme.key_drawable_replyIcon);
-                replyIconDrawable.setAlpha(alpha);
-                replyIconDrawable.setBounds((int) (x - replyIconDrawable.getIntrinsicWidth() / 2 * scale), (int) (y - replyIconDrawable.getIntrinsicHeight() / 2 * scale), (int) (x + replyIconDrawable.getIntrinsicWidth() / 2 * scale), (int) (y + replyIconDrawable.getIntrinsicHeight() / 2 * scale));
-                replyIconDrawable.draw(canvas);
-                replyIconDrawable.setAlpha(255);
+                String actionIconKey = MessageActionExecutor.FORWARD.equals(slidingMessageActionId)
+                        ? Theme.key_drawable_shareIcon
+                        : Theme.key_drawable_replyIcon;
+                Drawable actionIconDrawable = getThemedDrawable(actionIconKey);
+                actionIconDrawable.setAlpha(alpha);
+                actionIconDrawable.setBounds((int) (x - actionIconDrawable.getIntrinsicWidth() / 2 * scale), (int) (y - actionIconDrawable.getIntrinsicHeight() / 2 * scale), (int) (x + actionIconDrawable.getIntrinsicWidth() / 2 * scale), (int) (y + actionIconDrawable.getIntrinsicHeight() / 2 * scale));
+                actionIconDrawable.draw(canvas);
+                actionIconDrawable.setAlpha(255);
 
                 outlineActionBackgroundDarkenPaint.setColor(wasDarkenColor);
                 chatActionBackgroundDarkenPaint.setColor(wasDarkenColor);
@@ -6026,23 +6405,12 @@ public class ChatActivity extends BaseFragment implements
                         }
                         slidingView = view;
                         MessageObject message = getSlidingMessageObject();
-                        boolean allowReplyOnOpenTopic = canSendMessageToTopic(message);
-                        if (
-                            chatMode != 0 && chatMode != MODE_QUICK_REPLIES && chatMode != MODE_SUGGESTIONS && (chatMode != MODE_SAVED || threadMessageId != getUserConfig().getClientUserId()) ||
-                            threadMessageObjects != null && threadMessageObjects.contains(message) ||
-                            getMessageType(message) == 1 && (message.getDialogId() == mergeDialogId || message.needDrawBluredPreview()) ||
-                            currentEncryptedChat == null && message.getId() < 0 ||
-                            currentChat != null && ChatObject.isForum(currentChat) && !allowReplyOnOpenTopic ||
-                            hasTextSelection() ||
-                            message.isEphemeral() && message.isOut()
-                        ) {
+                        slidingMessageActionId = findSwipeAction(view, message);
+                        if (slidingMessageActionId == null) {
                             slidingViewSetOffset(0);
                             slidingView = null;
                             return;
                         }
-                        slidingMessageActionId = MessageGestureSettings.getState()
-                                .getSwipeActions()
-                                .get(0);
                         slidingMessageActionTarget = fluxGramMessageActions.capture(
                                 currentAccount,
                                 getUserConfig().getClientUserId(),
@@ -6107,19 +6475,30 @@ public class ChatActivity extends BaseFragment implements
                                 actionId,
                                 MessageActionExecutor.Trigger.SWIPE,
                                 target,
-                                (resolvedActionId, trigger, expected) -> resolveReplyAction(
-                                        resolvedActionId,
-                                        trigger,
-                                        expected,
-                                        swipedView
-                                )
+                                (resolvedActionId, trigger, expected) -> {
+                                    if (MessageActionExecutor.FORWARD.equals(resolvedActionId)) {
+                                        return resolveForwardAction(
+                                                resolvedActionId,
+                                                trigger,
+                                                expected,
+                                                swipedView
+                                        );
+                                    }
+
+                                    return resolveReplyAction(
+                                            resolvedActionId,
+                                            trigger,
+                                            expected,
+                                            swipedView
+                                    );
+                                }
                         );
                     }
-                    slidingMessageActionId = null;
                     slidingMessageActionTarget = null;
                     endTrackingX = slidingViewGetOffsetX();
                     if (endTrackingX == 0) {
                         slidingView = null;
+                        slidingMessageActionId = null;
                     }
                     lastTrackingAnimationTime = System.currentTimeMillis();
                     trackAnimationProgress = 0.0f;
@@ -6286,6 +6665,7 @@ public class ChatActivity extends BaseFragment implements
                         if (trackAnimationProgress == 1f || trackAnimationProgress == 0f) {
                             slidingViewSetOffset(0);
                             slidingView = null;
+                            slidingMessageActionId = null;
                         }
                         invalidate();
                     }
@@ -32291,6 +32671,8 @@ public class ChatActivity extends BaseFragment implements
         selectedObjectGroup = null;
         forwardingMessage = null;
         forwardingMessageGroup = null;
+        forwardingGestureMessages = null;
+        forwardingGestureTarget = null;
         selectedObjectToEditCaption = null;
         for (int a = 1; a >= 0; a--) {
             selectedMessagesCanCopyIds[a].clear();
@@ -35899,11 +36281,16 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public boolean didSelectDialogs(DialogsActivity fragment, ArrayList<MessagesStorage.TopicKey> dids, CharSequence message, boolean param, boolean notify, int scheduleDate, int scheduleRepeatPeriod, TopicsFragment topicsFragment) {
-        if ((messagePreviewParams == null && (!fragment.isQuote || replyingMessageObject == null) || fragment.isQuote && replyingMessageObject == null) && forwardingMessage == null && selectedMessagesIds[0].size() == 0 && selectedMessagesIds[1].size() == 0) {
+        boolean gestureForward = forwardingGestureMessages != null;
+        MessageActionExecutor.Target gestureForwardTarget = forwardingGestureTarget;
+        boolean directForward = gestureForward || forwardingMessage != null;
+        if ((messagePreviewParams == null && (!fragment.isQuote || replyingMessageObject == null) || fragment.isQuote && replyingMessageObject == null) && !directForward && selectedMessagesIds[0].size() == 0 && selectedMessagesIds[1].size() == 0) {
             return false;
         }
         ArrayList<MessageObject> fmessages = new ArrayList<>();
-        if (forwardingMessage != null) {
+        if (forwardingGestureMessages != null) {
+            fmessages.addAll(forwardingGestureMessages);
+        } else if (forwardingMessage != null) {
             if (forwardingMessageGroup != null) {
                 fmessages.addAll(forwardingMessageGroup.messages);
             } else {
@@ -35945,13 +36332,30 @@ public class ChatActivity extends BaseFragment implements
 
         if (!fragment.isQuote && (dids.size() > 1 || dids.get(0).dialogId == getUserConfig().getClientUserId() || message != null || scheduleDate != 0 || !notify)) {
             return !AlertsCreator.ensurePaidMessagesMultiConfirmationTopicKeys(currentAccount, dids, fmessages.size() + (TextUtils.isEmpty(message) ? 0 : 1), prices -> {
+                if (gestureForward) {
+                    ArrayList<MessageObject> currentMessages = refreshForwardMessages(
+                            gestureForwardTarget,
+                            fmessages
+                    );
+                    if (currentMessages == null || fragment.getParentActivity() == null) {
+                        fragment.setDelegate(null);
+                        if (fragment.getParentActivity() != null) {
+                            fragment.finishFragment();
+                        }
+                        return;
+                    }
+                    fmessages.clear();
+                    fmessages.addAll(currentMessages);
+                }
                 if (fragment.resetDelegate) {
                     fragment.setDelegate(null);
                 }
 
-                if (forwardingMessage != null) {
+                if (directForward) {
                     forwardingMessage = null;
                     forwardingMessageGroup = null;
+                    forwardingGestureMessages = null;
+                    forwardingGestureTarget = null;
                 } else {
                     for (int a = 1; a >= 0; a--) {
                         selectedMessagesCanCopyIds[a].clear();
@@ -35991,9 +36395,11 @@ public class ChatActivity extends BaseFragment implements
                 }
             });
         } else {
-            if (forwardingMessage != null) {
+            if (directForward) {
                 forwardingMessage = null;
                 forwardingMessageGroup = null;
+                forwardingGestureMessages = null;
+                forwardingGestureTarget = null;
             } else {
                 for (int a = 1; a >= 0; a--) {
                     selectedMessagesCanCopyIds[a].clear();

@@ -162,10 +162,17 @@ class MessageGestureSettingsTest(unittest.TestCase):
                         require(!MessagesController.preferences.getBoolean(
                                 "fluxgram_message_swipe_enabled", true));
                         MessageGestureSettings.setSwipeActions(Arrays.asList(
-                                "unknown", MessageActionExecutor.REPLY));
-                        require(MessageGestureSettings.getState().getSwipeActions().size() == 1);
-                        require(MessageActionExecutor.REPLY.equals(
+                                "unknown",
+                                MessageActionExecutor.FORWARD,
+                                MessageActionExecutor.REPLY,
+                                MessageActionExecutor.FORWARD));
+                        require(MessageGestureSettings.getState().getSwipeActions().size() == 2);
+                        require(MessageActionExecutor.FORWARD.equals(
                                 MessageGestureSettings.getState().getSwipeActions().get(0)));
+                        require(MessageActionExecutor.REPLY.equals(
+                                MessageGestureSettings.getState().getSwipeActions().get(1)));
+                        require("forward,reply".equals(MessagesController.preferences.getString(
+                                "fluxgram_message_swipe_actions", null)));
                         MessageGestureSettings.setSwipeActions(Arrays.asList("unknown"));
                         require(MessageActionExecutor.REPLY.equals(
                                 MessageGestureSettings.getState().getSwipeActions().get(0)));
@@ -239,9 +246,10 @@ class MessageGestureSettingsTest(unittest.TestCase):
 
         self.assertIn("slidingMessageActionTarget = fluxGramMessageActions.capture(", touch)
         self.assertIn("MessageGestureSettings.getState().isSwipeEnabled()", touch)
-        self.assertIn("slidingMessageActionId = MessageGestureSettings.getState()", touch)
+        self.assertIn("slidingMessageActionId = findSwipeAction(view, message)", touch)
         self.assertIn("MessageActionExecutor.Trigger.SWIPE", touch)
         self.assertIn("resolveReplyAction(", touch)
+        self.assertIn("resolveForwardAction(", touch)
         self.assertIn("slidingMessageActionTarget = null", touch)
         self.assertNotIn("showFieldPanelForReply(", touch)
         self.assertNotIn("replyingMessageObject =", touch)
@@ -279,16 +287,50 @@ class MessageGestureSettingsTest(unittest.TestCase):
         activity = SWIPE_ACTIVITY.read_text()
         cell = SWIPE_CELL.read_text()
 
-        self.assertIn("Collections.singletonList(", settings)
+        self.assertIn("Arrays.asList(", settings)
         self.assertIn("MessageActionExecutor.REPLY", settings)
+        self.assertIn("MessageActionExecutor.FORWARD", settings)
         self.assertIn("getSwipeActions()", settings)
         self.assertIn("setSwipeActions(Collection<String> actionIds)", settings)
         self.assertIn("adapter.reorderSectionStart()", activity)
         self.assertIn("setReorderLongPressEnabled(false)", activity)
         self.assertIn("listView.startReorder(cell)", cell)
         self.assertIn("if (activeActions.size() == 1)", activity)
+        self.assertIn("MessageActionExecutor.FORWARD", activity)
         self.assertNotIn("MessageActionExecutor.COPY", activity)
         self.assertNotIn("MessageActionExecutor.REACT_DEFAULT", activity)
+
+    def test_forward_action_uses_fresh_group_without_menu_state(self):
+        chat = CHAT_ACTIVITY.read_text()
+        resolution = chat.split("private MessageActionExecutor.Resolution resolveForwardAction(", 1)[1]
+        resolution = resolution.split("private boolean isReplyGestureChatModeAllowed()", 1)[0]
+        forward_path = chat.split("private boolean isForwardPermissionGranted(", 1)[1]
+        forward_path = forward_path.split("private boolean performReplyAction(", 1)[0]
+        handler = chat.split("private boolean performForwardAction(", 1)[1]
+        handler = handler.split("private boolean shouldSelectReplyDestination(", 1)[0]
+
+        self.assertIn("findCurrentMessageForAction(expected)", resolution)
+        self.assertIn("resolveCurrentForwardMessages(swipedView, messageObject)", resolution)
+        self.assertIn("isForwardPermissionGranted(messages)", resolution)
+        self.assertIn("isForwardActionAvailable(", resolution)
+        self.assertIn("performForwardAction(expected, messageObject, messages)", resolution)
+        self.assertIn("getCurrentMessagesGroup()", forward_path)
+        self.assertIn("findCurrentMessageForAction(", forward_path)
+        self.assertIn("containsTarget ? messages : null", forward_path)
+        self.assertIn("canForwardMessages(messages)", forward_path)
+        self.assertIn("messageObject.messageOwner.noforwards", forward_path)
+        self.assertIn("type == -1", forward_path)
+        self.assertIn("type == 0", forward_path)
+        self.assertIn("type == 1", forward_path)
+        self.assertIn("type == 20", forward_path)
+        self.assertIn("currentEncryptedChat != null", forward_path)
+        self.assertIn("refreshForwardMessages(", handler)
+        self.assertIn("forwardingGestureMessages = currentMessages", handler)
+        self.assertIn('args.putInt("messagesCount", messages.size())', handler)
+        self.assertIn("gestureForwardTarget", chat)
+        self.assertIn("fmessages.addAll(currentMessages)", chat)
+        self.assertNotIn("selectedObject", resolution + forward_path + handler)
+        self.assertNotIn("processSelectedOption", resolution + forward_path + handler)
 
     def test_copy_action_uses_fresh_message_and_attached_group(self):
         chat = CHAT_ACTIVITY.read_text()

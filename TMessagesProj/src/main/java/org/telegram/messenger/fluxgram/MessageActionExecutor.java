@@ -14,12 +14,14 @@ public final class MessageActionExecutor {
     public static final String REPLY = "reply";
     public static final String REACT_DEFAULT = "react_default";
     public static final String COPY = "copy";
+    public static final String FORWARD = "forward";
 
     private static final int MAX_SWIPE_ACTIONS = 8;
     private static final List<String> KNOWN_ACTION_IDS = Collections.unmodifiableList(Arrays.asList(
             REPLY,
             REACT_DEFAULT,
-            COPY
+            COPY,
+            FORWARD
     ));
     private static final Set<String> KNOWN_ACTION_ID_SET = Collections.unmodifiableSet(
             new HashSet<>(KNOWN_ACTION_IDS)
