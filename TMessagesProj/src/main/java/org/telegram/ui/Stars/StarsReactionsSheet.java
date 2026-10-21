@@ -851,6 +851,12 @@ public class StarsReactionsSheet extends BottomSheet implements NotificationCent
             } else {
                 reactionsLayoutInBubble = null;
             }
+            if (reactionsLayoutInBubble != null && reactionsLayoutInBubble.isPresentationHidden()) {
+                if (pushed != null) {
+                    pushed.run();
+                }
+                return;
+            }
             if (_button == null && reactionsLayoutInBubble != null) {
                 MessageObject.GroupedMessages group = chatActivity.getValidGroupedMessage(messageObject);
                 if (group != null && !group.posArray.isEmpty()) {

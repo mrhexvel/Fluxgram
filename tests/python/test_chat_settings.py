@@ -91,13 +91,19 @@ class ChatSettingsTest(unittest.TestCase):
                     public static void main(String[] args) {
                         if (args.length > 0) {
                             MessagesController.preferences.putRaw("fluxgram_hide_send_as", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_message_reactions", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
+                        require(ChatSettings.showsMessageReactions());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
                         require(!ChatSettings.hidesSendAs());
+                        ChatSettings.setShowsMessageReactions(false);
+                        require(!ChatSettings.showsMessageReactions());
+                        ChatSettings.setShowsMessageReactions(true);
+                        require(ChatSettings.showsMessageReactions());
                     }
 
                     private static void require(boolean value) {
@@ -150,6 +156,47 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.hidesSendAs())", activity)
         self.assertIn("ChatSettings.setHidesSendAs(hidden)", activity)
         self.assertIn("parentLayout.rebuildFragments(0)", activity)
+
+    def test_chat_activity_hides_only_message_reaction_badges(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        message_cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        action_cell = (JAVA / "ui/Cells/ChatActionCell.java").read_text()
+        reactions_layout = (
+            JAVA / "ui/Components/Reactions/ReactionsLayoutInBubble.java"
+        ).read_text()
+        stars_sheet = (JAVA / "ui/Stars/StarsReactionsSheet.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        adapter = chat.split("class ChatActivityAdapter", 1)[1]
+        self.assertEqual(
+            2,
+            adapter.count(
+                "setDrawMessageReactions(ChatSettings.showsMessageReactions())"
+            ),
+        )
+        self.assertNotIn("ChatSettings", message_cell)
+        self.assertNotIn("ChatSettings", action_cell)
+        self.assertIn("drawMessageReactions || isTag", message_cell)
+        self.assertIn("drawMessageReactions || isTag", action_cell)
+        self.assertIn("setPresentationHidden(!drawMessageReactions)", message_cell)
+        self.assertIn("setPresentationHidden(!drawMessageReactions)", action_cell)
+        self.assertIn("contentEmpty || isPresentationHidden()", reactions_layout)
+        self.assertIn("for (int i = 0; i < reactionButtons.size(); i++)", reactions_layout)
+        self.assertIn("reactionsLayoutInBubble.isPresentationHidden()", stars_sheet)
+        self.assertIn("pushed.run()", stars_sheet)
+        self.assertIn("reactionsLayoutInBubble.hasUnreadReactions", message_cell)
+        self.assertIn("reactionsLayoutInBubble.hasUnreadReactions", action_cell)
+        self.assertIn(
+            "dummyMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions())",
+            chat,
+        )
+        self.assertNotIn("currentMessageObject.shouldDrawReactions()", message_cell)
+        self.assertNotIn("currentMessageObject.shouldDrawReactions()", action_cell)
+        self.assertIn(
+            ".setChecked(ChatSettings.showsMessageReactions())",
+            activity,
+        )
+        self.assertIn("ChatSettings.setShowsMessageReactions(shown)", activity)
 
 
 if __name__ == "__main__":

@@ -378,6 +378,7 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     private boolean hasReplyMessage;
 
     public final ReactionsLayoutInBubble reactionsLayoutInBubble = new ReactionsLayoutInBubble(this);
+    private boolean drawMessageReactions = true;
     public float starGiftLayoutX, starGiftLayoutY;
     public StarGiftUniqueActionLayout starGiftLayout;
     public WalletActionLayout walletActionLayout;
@@ -392,6 +393,21 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     }
 
     public float getWalletSlidingOffset() { return walletSlidingOffset; }
+
+    public void setDrawMessageReactions(boolean drawMessageReactions) {
+        this.drawMessageReactions = drawMessageReactions;
+        reactionsLayoutInBubble.setPresentationHidden(!drawMessageReactions);
+    }
+
+    private boolean shouldDrawReactions(MessageObject messageObject) {
+        return shouldDrawReactions(messageObject, reactionsLayoutInBubble.tags);
+    }
+
+    private boolean shouldDrawReactions(MessageObject messageObject, boolean isTag) {
+        return messageObject != null
+                && messageObject.shouldDrawReactions()
+                && (drawMessageReactions || isTag);
+    }
 
     public void setWalletSlidingOffset(float offset) {
         setTranslationX(getTranslationX() - walletSlidingOffset + offset);
@@ -4060,7 +4076,7 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
         } else {
             Theme.applyServiceShaderMatrix(getMeasuredWidth(), backgroundHeight, viewTranslationX, viewTop + dp(4));
         }
-        if (currentMessageObject != null && currentMessageObject.shouldDrawReactions() && (!reactionsLayoutInBubble.isSmall || transitionParams.animateChange && reactionsLayoutInBubble.animateHeight)) {
+        if (shouldDrawReactions(currentMessageObject) && (!reactionsLayoutInBubble.isSmall || transitionParams.animateChange && reactionsLayoutInBubble.animateHeight)) {
             reactionsLayoutInBubble.drawServiceShaderBackground = 1.0f;
             if (alpha < 1) {
                 canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), (int) (0xFF * alpha), Canvas.ALL_SAVE_FLAG);
@@ -4079,7 +4095,7 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
         } else {
             Theme.applyServiceShaderMatrix(getMeasuredWidth(), backgroundHeight, viewTranslationX, viewTop + dp(4));
         }
-        if (currentMessageObject != null && currentMessageObject.shouldDrawReactions() && (!reactionsLayoutInBubble.isSmall || transitionParams.animateChange && reactionsLayoutInBubble.animateHeight)) {
+        if (shouldDrawReactions(currentMessageObject) && (!reactionsLayoutInBubble.isSmall || transitionParams.animateChange && reactionsLayoutInBubble.animateHeight)) {
             reactionsLayoutInBubble.drawServiceShaderBackground = 1.0f;
             if (alpha < 1) {
                 canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), (int) (0xFF * alpha), Canvas.ALL_SAVE_FLAG);
@@ -4439,6 +4455,10 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     public boolean checkUnreadReactions(float clipTop, int clipBottom) {
         if (!reactionsLayoutInBubble.hasUnreadReactions) {
             return false;
+        }
+        if (reactionsLayoutInBubble.isPresentationHidden()) {
+            float y = getY() + getHeight() - AndroidUtilities.dp(16);
+            return y > clipTop && y < clipBottom;
         }
         float y = getY() + reactionsLayoutInBubble.y;
         if (y > clipTop && y + reactionsLayoutInBubble.height - AndroidUtilities.dp(16) < clipBottom) {

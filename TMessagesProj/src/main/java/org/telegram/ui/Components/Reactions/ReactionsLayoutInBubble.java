@@ -104,7 +104,9 @@ public class ReactionsLayoutInBubble {
     public int totalHeight;
     public int width;
     public int fromWidth;
-    public boolean isEmpty;
+    public boolean isEmpty = true;
+    private boolean contentEmpty = true;
+    private boolean presentationHidden;
     private float touchSlop;
     public int lastLineX;
     public ArrayList<ReactionButton> reactionButtons = new ArrayList<>();
@@ -145,6 +147,20 @@ public class ReactionsLayoutInBubble {
     }
 
     public boolean tags;
+
+    public void setPresentationHidden(boolean presentationHidden) {
+        this.presentationHidden = presentationHidden;
+        updateIsEmpty();
+    }
+
+    public boolean isPresentationHidden() {
+        return presentationHidden && !tags;
+    }
+
+    private void updateIsEmpty() {
+        isEmpty = contentEmpty || isPresentationHidden();
+    }
+
     public ReactionsLayoutInBubble(View parentView) {
         this.parentView = parentView;
         currentAccount = UserConfig.selectedAccount;
@@ -332,7 +348,8 @@ public class ReactionsLayoutInBubble {
         for (int i = 0; i < oldButtons.size(); i++) {
             oldButtons.get(i).detach();
         }
-        isEmpty = reactionButtons.isEmpty();
+        contentEmpty = reactionButtons.isEmpty();
+        updateIsEmpty();
     }
 
     private final ArrayList<Integer> reactionLineWidths = new ArrayList<>();
@@ -721,7 +738,17 @@ public class ReactionsLayoutInBubble {
                 return button;
             }
         }
-        return lastDrawingReactionButtons.get(hash);
+        ReactionButton button = lastDrawingReactionButtons.get(hash);
+        if (button != null) {
+            return button;
+        }
+        for (int i = 0; i < reactionButtons.size(); i++) {
+            button = reactionButtons.get(i);
+            if (TextUtils.equals(button.key, hash) || TextUtils.equals(button.key, hash + "_")) {
+                return button;
+            }
+        }
+        return null;
     }
 
     public void setScrimReaction(Integer scrimViewReaction) {

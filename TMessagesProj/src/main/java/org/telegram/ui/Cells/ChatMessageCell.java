@@ -483,6 +483,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (!reactionsLayoutInBubble.hasUnreadReactions) {
             return false;
         }
+        if (reactionsLayoutInBubble.isPresentationHidden()) {
+            float y = getY() + getHeight() - dp(16);
+            return y > clipTop && y < clipBottom;
+        }
         float y = getY() + reactionsLayoutInBubble.y;
         if (y > clipTop && y + reactionsLayoutInBubble.height - dp(16) < clipBottom) {
             return true;
@@ -1030,6 +1034,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private MessageObject.GroupedMessagePosition currentPosition;
     private boolean groupPhotoInvisible;
     public final ReactionsLayoutInBubble reactionsLayoutInBubble = new ReactionsLayoutInBubble(this);
+    private boolean drawMessageReactions = true;
     public final GiveawayMessageCell giveawayMessageCell = new GiveawayMessageCell(this);
     public final GiveawayResultsMessageCell giveawayResultsMessageCell = new GiveawayResultsMessageCell(this);
 
@@ -1047,6 +1052,21 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public int bottomActionPadding;
 
     public TopicSeparator topicSeparator;
+
+    public void setDrawMessageReactions(boolean drawMessageReactions) {
+        this.drawMessageReactions = drawMessageReactions;
+        reactionsLayoutInBubble.setPresentationHidden(!drawMessageReactions);
+    }
+
+    private boolean shouldDrawReactions(MessageObject messageObject) {
+        return shouldDrawReactions(messageObject, reactionsLayoutInBubble.tags);
+    }
+
+    private boolean shouldDrawReactions(MessageObject messageObject, boolean isTag) {
+        return messageObject != null
+                && messageObject.shouldDrawReactions()
+                && (drawMessageReactions || isTag);
+    }
     public int topicSeparatorTopPadding;
 
     public int askBotForumBottomPadding;
@@ -7216,13 +7236,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (messageIdChanged || messageObject.reactionsChanged || wasPlayingRound != isPlayingRound) {
                 messageObject.reactionsChanged = false;
                 boolean isTag = messageObject.messageOwner != null && messageObject.messageOwner.reactions != null && messageObject.messageOwner.reactions.reactions_as_tags;
+                if (currentPosition != null && !isTag) {
+                    MessageObject primaryMessage = groupedMessages.findPrimaryMessageObject();
+                    if (primaryMessage.messageOwner != null) {
+                        isTag = primaryMessage.messageOwner.reactions != null && primaryMessage.messageOwner.reactions.reactions_as_tags;
+                    }
+                }
                 if (messageObject.shouldDrawReactions() && !messageObject.isExpiredStory() && (currentPosition == null || ((currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0))) {
                     boolean isSmall = !messageObject.shouldDrawReactionsInLayout();
                     if (currentPosition != null) {
-                        MessageObject primaryMessage = groupedMessages.findPrimaryMessageObject();
-                        if (!isTag && primaryMessage.messageOwner != null) {
-                            isTag = primaryMessage.messageOwner.reactions != null && primaryMessage.messageOwner.reactions.reactions_as_tags;
-                        }
                         reactionsLayoutInBubble.setMessage(groupedMessages.findPrimaryMessageObject(), !messageObject.shouldDrawReactionsInLayout(), isTag, resourcesProvider);
                     } else {
                         reactionsLayoutInBubble.setMessage(messageObject, isSmall, isTag, resourcesProvider);
@@ -15294,7 +15316,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     private void updateReactionLayoutPosition() {
-        if (!currentMessageObject.shouldDrawReactions()) {
+        if (!shouldDrawReactions(currentMessageObject)) {
             return;
         }
         if (!reactionsLayoutInBubble.isEmpty && (currentPosition == null || ((currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0 && (currentPosition.flags & MessageObject.POSITION_FLAG_LEFT) != 0)) && !reactionsLayoutInBubble.isSmall) {
@@ -18584,7 +18606,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 timeWidth += dp(18);
             }
         }
-        if (currentMessageObject.shouldDrawReactions() && reactionsLayoutInBubble.isSmall) {
+        if (shouldDrawReactions(currentMessageObject) && reactionsLayoutInBubble.isSmall) {
             reactionsLayoutInBubble.measure(Integer.MAX_VALUE, Gravity.LEFT);
             timeWidth += reactionsLayoutInBubble.width;
         }
@@ -21661,7 +21683,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     sideStartY -= getTranslationY();
                 }
             }
-            if (currentMessageObject.shouldDrawReactions() && !reactionsLayoutInBubble.isSmall) {
+            if (shouldDrawReactions(currentMessageObject) && !reactionsLayoutInBubble.isSmall) {
                 if (isRoundVideo) {
                     sideStartY -= reactionsLayoutInBubble.getCurrentTotalHeight(transitionParams.animateChangeProgress) * (1f - getVideoTranscriptionProgress());
                 } else if (reactionsLayoutInBubble.drawServiceShaderBackground > 0) {
@@ -23518,7 +23540,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public boolean hasReactionsToDraw() {
-        return currentMessageObject != null && currentMessageObject.shouldDrawReactions() && (currentPosition == null || ((currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0 && (currentPosition.flags & MessageObject.POSITION_FLAG_LEFT) != 0)) && !reactionsLayoutInBubble.isSmall;
+        return shouldDrawReactions(currentMessageObject) && (currentPosition == null || ((currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0 && (currentPosition.flags & MessageObject.POSITION_FLAG_LEFT) != 0)) && !reactionsLayoutInBubble.isSmall;
     }
 
     public void drawReactionsLayout(Canvas canvas, float alpha, Integer only) {
@@ -24020,7 +24042,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             timeX += animationOffsetX;
             timeTitleTimeX += animationOffsetX;
         }
-        if (currentMessageObject.shouldDrawReactions() && reactionsLayoutInBubble.isSmall) {
+        if (shouldDrawReactions(currentMessageObject) && reactionsLayoutInBubble.isSmall) {
             if (transitionParams.animateBackgroundBoundsInner && transitionParams.deltaRight != 0) {
                 timeTitleTimeX += reactionsLayoutInBubble.getCurrentWidth(1f);
             } else {
@@ -24114,7 +24136,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             alpha = oldAlpha3;
 
             float additionalX = -timeLayout.getLineLeft(0) + (currentMessageObject != null && currentMessageObject.isAnyKindOfSticker() ? dp(-STICKER_STATUS_OFFSET) : 0);
-            if (currentMessageObject.shouldDrawReactions() && reactionsLayoutInBubble.isSmall) {
+            if (shouldDrawReactions(currentMessageObject) && reactionsLayoutInBubble.isSmall) {
                 updateReactionLayoutPosition();
                 reactionsLayoutInBubble.setScrimProgress(0, false);
                 reactionsLayoutInBubble.draw(canvas, transitionParams.animateChangeProgress, null);
@@ -24186,7 +24208,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 timeYOffset = -(drawCommentButton ? dp(43) : 0);
             }
             float additionalX = -timeLayout.getLineLeft(0);
-            if (currentMessageObject.shouldDrawReactions() && reactionsLayoutInBubble.isSmall) {
+            if (shouldDrawReactions(currentMessageObject) && reactionsLayoutInBubble.isSmall) {
                 updateReactionLayoutPosition();
                 reactionsLayoutInBubble.setScrimProgress(0, false);
                 reactionsLayoutInBubble.draw(canvas, transitionParams.animateChangeProgress, null);

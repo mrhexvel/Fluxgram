@@ -124,6 +124,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_ALL_RECENT_STICKERS = 51;
     private static final int SHOW_GREETING_STICKER = 52;
     private static final int HIDE_SEND_AS = 53;
+    private static final int SHOW_MESSAGE_REACTIONS = 54;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -545,6 +546,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
             ).setChecked(StickerSettings.showsAllRecent()));
             items.add(UItem.asShadow(LocaleController.getString(
                     R.string.FluxGramShowAllRecentStickersInfo)));
+            addSectionLabel(items, R.string.FluxGramMessages);
+            items.add(UItem.asCheck(
+                    SHOW_MESSAGE_REACTIONS,
+                    LocaleController.getString(R.string.FluxGramShowMessageReactions)
+            ).setChecked(ChatSettings.showsMessageReactions()));
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramShowMessageReactionsInfo)));
             addSectionLabel(items, R.string.FluxGramMessageInput);
             items.add(UItem.asCheck(
                     HIDE_SEND_AS,
@@ -897,6 +905,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean hidden = !ChatSettings.hidesSendAs();
                 ChatSettings.setHidesSendAs(hidden);
                 ((TextCheckCell) view).setChecked(hidden);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_MESSAGE_REACTIONS) {
+                boolean shown = !ChatSettings.showsMessageReactions();
+                ChatSettings.setShowsMessageReactions(shown);
+                ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
             }
 

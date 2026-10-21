@@ -17288,6 +17288,7 @@ public class ChatActivity extends BaseFragment implements
         }
         if (dummyMessageCell == null) {
             dummyMessageCell = new ChatMessageCell(getParentActivity(), currentAccount, true, sharedResources, themeDelegate);
+            dummyMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
         }
         dummyMessageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser);
         dummyMessageCell.isSavedChat = chatMode == MODE_SAVED;
@@ -37872,6 +37873,7 @@ public class ChatActivity extends BaseFragment implements
                 view = new ChatMessageCell(mContext, currentAccount, true, sharedResources, themeDelegate);
                 ChatMessageCell chatMessageCell = (ChatMessageCell) view;
                 chatMessageCell.setResourcesProvider(themeDelegate);
+                chatMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
                 chatMessageCell.shouldCheckVisibleOnScreen = false;
                 chatMessageCell.setDelegate(getChatMessageCellDelegate());
                 chatMessageCell.draftAnimationsPool = botDraftAnimationsPool;
@@ -37888,6 +37890,7 @@ public class ChatActivity extends BaseFragment implements
                         info.setVisibleToUser(true);
                     }
                 };
+                ((ChatActionCell) view).setDrawMessageReactions(ChatSettings.showsMessageReactions());
                 ((ChatActionCell) view).setInvalidateColors(true);
                 ((ChatActionCell) view).setDelegate(new ChatActionCell.ChatActionCellDelegate() {
                     @Override
