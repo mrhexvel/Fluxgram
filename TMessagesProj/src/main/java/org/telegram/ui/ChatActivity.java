@@ -205,6 +205,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.CameraView;
 import org.telegram.messenger.plugins.PluginChatLifecycle;
 import org.telegram.messenger.plugins.PluginUiLifecycle;
+import org.telegram.messenger.fluxgram.MessageActionExecutor;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.TelegramPeerKeyAdapter;
@@ -324,6 +325,7 @@ import org.telegram.ui.Components.spoilers.SpoilerEffect;
 import org.telegram.ui.Components.voip.CellFlickerDrawable;
 import org.telegram.ui.Components.voip.VoIPHelper;
 import org.telegram.ui.fluxgram.appearance.FluxGramChatHeaderAppearanceController;
+import org.telegram.ui.fluxgram.ChatMessageActionController;
 import org.telegram.ui.Delegates.ChatActivityMemberRequestsDelegate;
 import org.telegram.ui.Gifts.GiftSheet;
 import org.telegram.ui.Stars.StarReactionsOverlay;
@@ -519,6 +521,7 @@ public class ChatActivity extends BaseFragment implements
     private ArrayList<View> actionModeViews = new ArrayList<>();
     public ChatAvatarContainer avatarContainer;
     private FluxGramChatHeaderAppearanceController fluxGramChatHeaderAppearanceController;
+    private final ChatMessageActionController fluxGramMessageActions = new ChatMessageActionController();
     private final PluginChatLifecycle pluginChatLifecycle = new PluginChatLifecycle();
     private FluxGramComposerController pluginComposer;
     private ChatSelectionActionController pluginSelectionActions;
@@ -1986,54 +1989,201 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void onDoubleTap(View view, int position, float x, float y) {
-            if (getParentActivity() == null || isSecretChat() || isInScheduleMode() || isInPreviewMode() || isQuickRepliesOrWelcomeMessagesMode()) {
-                return;
-            }
             MessageObject messageObject;
             if (view instanceof ChatMessageCell) {
                 messageObject = ((ChatMessageCell) view).getPrimaryMessageObject();
             } else if (view instanceof ChatActionCell) {
                 messageObject = ((ChatActionCell) view).getMessageObject();
-                if (messageObject.isDateObject) {
-                    return;
-                }
             } else {
-                return;
-            }
-            if (messageObject.isSecret() || !messageObject.canSetReaction() || messageObject.isExpiredStory() || messageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
-                return;
-            }
-            if (!(currentChat == null || ChatObject.isChannelAndNotMegaGroup(currentChat) || ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_SEND_REACTIONS))) {
                 return;
             }
 
-            ReactionsEffectOverlay.removeCurrent(false);
-            String reactionString = getMediaDataController().getDoubleTapReaction();
-            if (reactionString.startsWith("animated_")) {
-                boolean available = dialog_id >= 0;
-                if (!available && chatInfo != null) {
-                    available = ChatObject.reactionIsAvailable(chatInfo, reactionString);
-                }
-                if (!available) {
-                    return;
-                }
-                selectReaction(view, messageObject, null, null, x, y, ReactionsLayoutInBubble.VisibleReaction.fromEmojicon(reactionString), true, false, false, false);
-            } else {
-                TLRPC.TL_availableReaction reaction = getMediaDataController().getReactionsMap().get(reactionString);
-                if (reaction == null || messageObject.isSponsored()) {
-                    return;
-                }
-                boolean available = dialog_id >= 0;
-                if (!available && chatInfo != null) {
-                    available = ChatObject.reactionIsAvailable(chatInfo, reaction.reaction);
-                }
-                if (!available) {
-                    return;
-                }
-                selectReaction(view, messageObject, null, null, x, y, ReactionsLayoutInBubble.VisibleReaction.fromEmojicon(reaction), true, false, false, false);
+            if (messageObject == null) {
+                return;
             }
+
+            MessageActionExecutor.Target target = fluxGramMessageActions.capture(
+                    currentAccount,
+                    getUserConfig().getClientUserId(),
+                    dialog_id,
+                    messageObject.getDialogId(),
+                    messageObject.getId(),
+                    getTopicId()
+            );
+            if (target == null) {
+                return;
+            }
+
+            fluxGramMessageActions.execute(
+                    MessageActionExecutor.REACT_DEFAULT,
+                    MessageActionExecutor.Trigger.DOUBLE_TAP,
+                    target,
+                    (actionId, trigger, expected) -> resolveDefaultReactionAction(
+                            actionId,
+                            trigger,
+                            expected,
+                            view,
+                            x,
+                            y
+                    )
+            );
         }
     };
+
+    private MessageActionExecutor.Resolution resolveDefaultReactionAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View tappedView,
+            float x,
+            float y
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.DOUBLE_TAP
+                && MessageActionExecutor.REACT_DEFAULT.equals(actionId)
+                && !isSecretChat()
+                && !isInScheduleMode()
+                && !isInPreviewMode()
+                && !isQuickRepliesOrWelcomeMessagesMode();
+        boolean permissionGranted = currentChat == null
+                || ChatObject.isChannelAndNotMegaGroup(currentChat)
+                || ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_SEND_REACTIONS);
+        ReactionsLayoutInBubble.VisibleReaction reaction = messageObject == null
+                ? null
+                : resolveDefaultReaction(messageObject);
+        boolean actionAvailable = messageObject != null
+                && !messageObject.isDateObject
+                && !messageObject.isSecret()
+                && !messageObject.isSending()
+                && !messageObject.isEditing()
+                && !messageObject.isExpiredStory()
+                && !messageObject.isSponsored()
+                && messageObject.type != MessageObject.TYPE_JOINED_CHANNEL
+                && messageObject.canSetReaction()
+                && reaction != null
+                && tappedView.isAttachedToWindow()
+                && showsMessageForAction(tappedView, messageObject);
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable ? () -> {
+                    ReactionsEffectOverlay.removeCurrent(false);
+                    selectReaction(
+                            tappedView,
+                            messageObject,
+                            null,
+                            null,
+                            x,
+                            y,
+                            reaction,
+                            true,
+                            false,
+                            false,
+                            false
+                    );
+
+                    return true;
+                } : null
+        );
+    }
+
+    private MessageObject findCurrentMessageForAction(MessageActionExecutor.Target expected) {
+        if (chatAdapter != null && chatAdapter.isFiltered) {
+            for (int index = 0; index < chatAdapter.filteredMessages.size(); index++) {
+                MessageObject messageObject = chatAdapter.filteredMessages.get(index);
+                if (messageObject.getId() == expected.getMessageId()
+                        && messageObject.getDialogId() == expected.getMessageDialogId()) {
+                    return messageObject;
+                }
+            }
+
+            return null;
+        }
+
+        int loadIndex = expected.getMessageDialogId() == dialog_id
+                ? 0
+                : expected.getMessageDialogId() == mergeDialogId ? 1 : -1;
+        if (loadIndex < 0) {
+            return null;
+        }
+
+        MessageObject messageObject = messagesDict[loadIndex].get(expected.getMessageId());
+        if (messageObject == null
+                || messageObject.getId() != expected.getMessageId()
+                || messageObject.getDialogId() != expected.getMessageDialogId()) {
+            return null;
+        }
+
+        return messageObject;
+    }
+
+    private ReactionsLayoutInBubble.VisibleReaction resolveDefaultReaction(MessageObject messageObject) {
+        String reactionString = getMediaDataController().getDoubleTapReaction();
+        if (TextUtils.isEmpty(reactionString)) {
+            return null;
+        }
+
+        if (reactionString.startsWith("animated_")) {
+            if (!isDefaultReactionAvailable(reactionString)) {
+                return null;
+            }
+
+            return ReactionsLayoutInBubble.VisibleReaction.fromEmojicon(reactionString);
+        }
+
+        TLRPC.TL_availableReaction reaction = getMediaDataController()
+                .getReactionsMap()
+                .get(reactionString);
+        if (reaction == null || messageObject.isSponsored()
+                || !isDefaultReactionAvailable(reaction.reaction)) {
+            return null;
+        }
+
+        return ReactionsLayoutInBubble.VisibleReaction.fromEmojicon(reaction);
+    }
+
+    private boolean isDefaultReactionAvailable(String reaction) {
+        return dialog_id >= 0
+                || chatInfo != null && ChatObject.reactionIsAvailable(chatInfo, reaction);
+    }
+
+    private boolean showsMessageForAction(View view, MessageObject messageObject) {
+        MessageObject shownMessage;
+        if (view instanceof ChatMessageCell) {
+            shownMessage = ((ChatMessageCell) view).getPrimaryMessageObject();
+        } else if (view instanceof ChatActionCell) {
+            shownMessage = ((ChatActionCell) view).getMessageObject();
+        } else {
+            return false;
+        }
+
+        return shownMessage != null
+                && shownMessage.getId() == messageObject.getId()
+                && shownMessage.getDialogId() == messageObject.getDialogId();
+    }
 
     private class ChatActivityEnterViewDelegate implements ChatActivityEnterView.ChatActivityEnterViewDelegate {
 
@@ -3426,6 +3576,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         messageMenuMetadataController.cancel();
+        fluxGramMessageActions.destroy();
         pluginChatLifecycle.onDestroyed();
         if (pluginSelectionActions != null) {
             pluginSelectionActions.destroy();
