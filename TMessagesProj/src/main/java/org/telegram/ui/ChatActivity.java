@@ -2113,6 +2113,15 @@ public class ChatActivity extends BaseFragment implements
                 && isForwardActionAvailable(swipedView, messageObject, messages);
     }
 
+    private boolean canStartEditAction(View swipedView, MessageObject messageObject) {
+        MessageObject editMessage = resolveCurrentEditMessage(swipedView, messageObject);
+        return !actionBar.isActionModeShowed()
+                && !hasTextSelection()
+                && isEditGestureChatModeAllowed()
+                && isEditPermissionGranted(messageObject, editMessage)
+                && isEditActionAvailable(swipedView, messageObject, editMessage);
+    }
+
     private String findSwipeAction(View swipedView, MessageObject messageObject) {
         List<String> actionIds = MessageGestureSettings.getState().getSwipeActions();
         for (int index = 0; index < actionIds.size(); index++) {
@@ -2127,6 +2136,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (MessageActionExecutor.FORWARD.equals(actionId)
                     && canStartForwardAction(swipedView, messageObject)) {
+                return actionId;
+            }
+            if (MessageActionExecutor.EDIT.equals(actionId)
+                    && canStartEditAction(swipedView, messageObject)) {
                 return actionId;
             }
         }
@@ -2266,6 +2279,53 @@ public class ChatActivity extends BaseFragment implements
         );
     }
 
+    private MessageActionExecutor.Resolution resolveEditAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View swipedView
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        MessageObject editMessage = resolveCurrentEditMessage(swipedView, messageObject);
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.SWIPE
+                && MessageActionExecutor.EDIT.equals(actionId)
+                && isEditGestureChatModeAllowed();
+        boolean permissionGranted = isEditPermissionGranted(messageObject, editMessage);
+        boolean actionAvailable = isEditActionAvailable(
+                swipedView,
+                messageObject,
+                editMessage
+        );
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable ? () -> performEditAction(swipedView, messageObject) : null
+        );
+    }
+
     private boolean isReplyGestureChatModeAllowed() {
         return !isInPreviewMode()
                 && !isInsideContainer
@@ -2293,6 +2353,15 @@ public class ChatActivity extends BaseFragment implements
                 && !isReport()
                 && !isQuickRepliesOrWelcomeMessagesMode()
                 && chatMode != MODE_SCHEDULED;
+    }
+
+    private boolean isEditGestureChatModeAllowed() {
+        return !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && currentEncryptedChat == null
+                && chatMode == MODE_DEFAULT;
     }
 
     private boolean isReplyPermissionGranted(MessageObject messageObject) {
@@ -2360,6 +2429,18 @@ public class ChatActivity extends BaseFragment implements
         }
 
         return true;
+    }
+
+    private boolean isEditPermissionGranted(
+            MessageObject messageObject,
+            MessageObject editMessage
+    ) {
+        return messageObject != null
+                && editMessage != null
+                && messageObject.messageOwner != null
+                && editMessage.messageOwner != null
+                && messageObject.canEditMessage(currentChat)
+                && editMessage.canEditMessage(currentChat);
     }
 
     private boolean isReplyActionAvailable(
@@ -2509,6 +2590,37 @@ public class ChatActivity extends BaseFragment implements
         return true;
     }
 
+    private boolean isEditActionAvailable(
+            View swipedView,
+            MessageObject messageObject,
+            MessageObject editMessage
+    ) {
+        if (messageObject == null
+                || messageObject.messageOwner == null
+                || editMessage == null
+                || editMessage.messageOwner == null
+                || chatActivityEnterView == null
+                || chatActivityEnterView.hasAudioToSend()
+                || messageObject.getDialogId() == mergeDialogId
+                || messageObject.getId() <= 0
+                || messageObject.isEphemeral()
+                || messageObject.isExpiredStory()
+                || messageObject.isSponsored()
+                || messageObject.type == MessageObject.TYPE_STORY
+                || messageObject.type == MessageObject.TYPE_POLL
+                || threadMessageObjects != null && threadMessageObjects.contains(messageObject)) {
+            return false;
+        }
+
+        return swipedView != null
+                && swipedView.isAttachedToWindow()
+                && showsMessageForReplyAction(
+                        swipedView,
+                        messageObject,
+                        MessageActionExecutor.Trigger.SWIPE
+                );
+    }
+
     private ArrayList<MessageObject> resolveCurrentForwardMessages(
             View swipedView,
             MessageObject messageObject
@@ -2549,6 +2661,52 @@ public class ChatActivity extends BaseFragment implements
         }
 
         return containsTarget ? messages : null;
+    }
+
+    private MessageObject resolveCurrentEditMessage(
+            View swipedView,
+            MessageObject messageObject
+    ) {
+        if (messageObject == null) {
+            return null;
+        }
+        if (messageObject.getGroupId() == 0) {
+            return messageObject;
+        }
+        if (!(swipedView instanceof ChatMessageCell)) {
+            return null;
+        }
+
+        MessageObject.GroupedMessages group = ((ChatMessageCell) swipedView).getCurrentMessagesGroup();
+        if (group == null || group.groupId != messageObject.getGroupId()) {
+            return null;
+        }
+
+        MessageObject editMessage = null;
+        boolean containsTarget = false;
+        int captionsCount = 0;
+        for (int index = 0; index < group.messages.size(); index++) {
+            MessageObject groupedMessage = group.messages.get(index);
+            MessageObject currentMessage = findCurrentMessageForAction(
+                    groupedMessage.getDialogId(),
+                    groupedMessage.getId()
+            );
+            if (currentMessage == null || currentMessage.getGroupId() != messageObject.getGroupId()) {
+                return null;
+            }
+            if (currentMessage.getDialogId() == messageObject.getDialogId()
+                    && currentMessage.getId() == messageObject.getId()) {
+                containsTarget = true;
+            }
+            if (index == 0 || !TextUtils.isEmpty(currentMessage.caption)) {
+                editMessage = currentMessage;
+            }
+            if (!TextUtils.isEmpty(currentMessage.caption)) {
+                captionsCount++;
+            }
+        }
+
+        return containsTarget && captionsCount < 2 ? editMessage : null;
     }
 
     private boolean isCopyableMessageType(MessageObject messageObject) {
@@ -2673,6 +2831,17 @@ public class ChatActivity extends BaseFragment implements
         fragment.setDelegate(this);
         presentFragment(fragment);
 
+        return true;
+    }
+
+    private boolean performEditAction(View swipedView, MessageObject messageObject) {
+        MessageObject editMessage = resolveCurrentEditMessage(swipedView, messageObject);
+        if (!isEditPermissionGranted(messageObject, editMessage)
+                || !isEditActionAvailable(swipedView, messageObject, editMessage)) {
+            return false;
+        }
+
+        startEditingMessageObject(editMessage);
         return true;
     }
 
@@ -6052,6 +6221,8 @@ public class ChatActivity extends BaseFragment implements
 
             private Paint outlineActionBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private Paint outlineActionBackgroundDarkenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private Drawable slidingEditIconDrawable;
+            private int slidingEditIconColor;
 
             private FloatValueHolder slidingDrawableVisibilityProgress = new FloatValueHolder(0);
             private SpringAnimation slidingDrawableVisibilitySpring = new SpringAnimation(slidingDrawableVisibilityProgress)
@@ -6379,10 +6550,24 @@ public class ChatActivity extends BaseFragment implements
                 }
 
                 int alpha = (int) (iconProgress * 0xFF);
-                String actionIconKey = MessageActionExecutor.FORWARD.equals(slidingMessageActionId)
-                        ? Theme.key_drawable_shareIcon
-                        : Theme.key_drawable_replyIcon;
-                Drawable actionIconDrawable = getThemedDrawable(actionIconKey);
+                Drawable actionIconDrawable;
+                if (MessageActionExecutor.EDIT.equals(slidingMessageActionId)) {
+                    int color = getThemedColor(Theme.key_chat_serviceIcon);
+                    if (slidingEditIconDrawable == null || slidingEditIconColor != color) {
+                        slidingEditIconDrawable = Theme.getThemedDrawable(
+                                getContext(),
+                                R.drawable.msg_edit,
+                                color
+                        );
+                        slidingEditIconColor = color;
+                    }
+                    actionIconDrawable = slidingEditIconDrawable;
+                } else {
+                    String actionIconKey = MessageActionExecutor.FORWARD.equals(slidingMessageActionId)
+                            ? Theme.key_drawable_shareIcon
+                            : Theme.key_drawable_replyIcon;
+                    actionIconDrawable = getThemedDrawable(actionIconKey);
+                }
                 actionIconDrawable.setAlpha(alpha);
                 actionIconDrawable.setBounds((int) (x - actionIconDrawable.getIntrinsicWidth() / 2 * scale), (int) (y - actionIconDrawable.getIntrinsicHeight() / 2 * scale), (int) (x + actionIconDrawable.getIntrinsicWidth() / 2 * scale), (int) (y + actionIconDrawable.getIntrinsicHeight() / 2 * scale));
                 actionIconDrawable.draw(canvas);
@@ -6478,6 +6663,14 @@ public class ChatActivity extends BaseFragment implements
                                 (resolvedActionId, trigger, expected) -> {
                                     if (MessageActionExecutor.FORWARD.equals(resolvedActionId)) {
                                         return resolveForwardAction(
+                                                resolvedActionId,
+                                                trigger,
+                                                expected,
+                                                swipedView
+                                        );
+                                    }
+                                    if (MessageActionExecutor.EDIT.equals(resolvedActionId)) {
+                                        return resolveEditAction(
                                                 resolvedActionId,
                                                 trigger,
                                                 expected,

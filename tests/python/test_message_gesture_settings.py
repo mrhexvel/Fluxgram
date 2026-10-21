@@ -162,20 +162,24 @@ class MessageGestureSettingsTest(unittest.TestCase):
                         require(!MessagesController.preferences.getBoolean(
                                 "fluxgram_message_swipe_enabled", true));
                         MessageGestureSettings.setSwipeActions(Arrays.asList(
-                                "unknown",
-                                MessageActionExecutor.FORWARD,
-                                MessageActionExecutor.REPLY,
-                                MessageActionExecutor.FORWARD));
-                        require(MessageGestureSettings.getState().getSwipeActions().size() == 2);
+                                 "unknown",
+                                 MessageActionExecutor.FORWARD,
+                                 MessageActionExecutor.EDIT,
+                                 MessageActionExecutor.REPLY,
+                                 MessageActionExecutor.FORWARD));
+                        require(MessageGestureSettings.getState().getSwipeActions().size() == 3);
                         require(MessageActionExecutor.FORWARD.equals(
-                                MessageGestureSettings.getState().getSwipeActions().get(0)));
+                                 MessageGestureSettings.getState().getSwipeActions().get(0)));
+                        require(MessageActionExecutor.EDIT.equals(
+                                 MessageGestureSettings.getState().getSwipeActions().get(1)));
                         require(MessageActionExecutor.REPLY.equals(
-                                MessageGestureSettings.getState().getSwipeActions().get(1)));
-                        require("forward,reply".equals(MessagesController.preferences.getString(
-                                "fluxgram_message_swipe_actions", null)));
+                                 MessageGestureSettings.getState().getSwipeActions().get(2)));
+                        require("forward,edit,reply".equals(MessagesController.preferences.getString(
+                                 "fluxgram_message_swipe_actions", null)));
                         MessageGestureSettings.setSwipeActions(Arrays.asList("unknown"));
+                        require(MessageGestureSettings.getState().getSwipeActions().size() == 1);
                         require(MessageActionExecutor.REPLY.equals(
-                                MessageGestureSettings.getState().getSwipeActions().get(0)));
+                                 MessageGestureSettings.getState().getSwipeActions().get(0)));
                     }
 
                     private static void require(boolean value) {
@@ -290,6 +294,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("Arrays.asList(", settings)
         self.assertIn("MessageActionExecutor.REPLY", settings)
         self.assertIn("MessageActionExecutor.FORWARD", settings)
+        self.assertIn("MessageActionExecutor.EDIT", settings)
         self.assertIn("getSwipeActions()", settings)
         self.assertIn("setSwipeActions(Collection<String> actionIds)", settings)
         self.assertIn("adapter.reorderSectionStart()", activity)
@@ -297,8 +302,38 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("listView.startReorder(cell)", cell)
         self.assertIn("if (activeActions.size() == 1)", activity)
         self.assertIn("MessageActionExecutor.FORWARD", activity)
+        self.assertIn("MessageActionExecutor.EDIT", activity)
         self.assertNotIn("MessageActionExecutor.COPY", activity)
         self.assertNotIn("MessageActionExecutor.REACT_DEFAULT", activity)
+
+    def test_edit_action_uses_fresh_message_and_album_caption_without_menu_state(self):
+        chat = CHAT_ACTIVITY.read_text()
+        resolution = chat.split("private MessageActionExecutor.Resolution resolveEditAction(", 1)[1]
+        resolution = resolution.split("private boolean isReplyGestureChatModeAllowed()", 1)[0]
+        edit_path = chat.split("private boolean isEditPermissionGranted(", 1)[1]
+        edit_path = edit_path.split("private boolean isReplyActionAvailable(", 1)[0]
+        album = chat.split("private MessageObject resolveCurrentEditMessage(", 1)[1]
+        album = album.split("private boolean isCopyableMessageType(", 1)[0]
+        handler = chat.split("private boolean performEditAction(", 1)[1]
+        handler = handler.split("private boolean performForwardAction(", 1)[0]
+
+        self.assertIn("findCurrentMessageForAction(expected)", resolution)
+        self.assertIn("resolveCurrentEditMessage(swipedView, messageObject)", resolution)
+        self.assertIn("isEditPermissionGranted(messageObject, editMessage)", resolution)
+        self.assertIn("isEditActionAvailable(", resolution)
+        self.assertIn("performEditAction(swipedView, messageObject)", resolution)
+        self.assertIn("messageObject.canEditMessage(currentChat)", edit_path)
+        self.assertIn("editMessage.canEditMessage(currentChat)", edit_path)
+        self.assertIn("chatMode == MODE_DEFAULT", chat)
+        self.assertIn("chatActivityEnterView.hasAudioToSend()", chat)
+        self.assertIn("messageObject.getDialogId() == mergeDialogId", chat)
+        self.assertIn("messageObject.getId() <= 0", chat)
+        self.assertIn("getCurrentMessagesGroup()", album)
+        self.assertIn("findCurrentMessageForAction(", album)
+        self.assertIn("captionsCount < 2 ? editMessage : null", album)
+        self.assertIn("startEditingMessageObject(editMessage)", handler)
+        self.assertNotIn("selectedObject", resolution + edit_path + album + handler)
+        self.assertNotIn("processSelectedOption", resolution + edit_path + album + handler)
 
     def test_forward_action_uses_fresh_group_without_menu_state(self):
         chat = CHAT_ACTIVITY.read_text()

@@ -41,7 +41,8 @@ class MessageActionExecutorTest(unittest.TestCase):
                                  MessageActionExecutor.REPLY,
                                  MessageActionExecutor.REACT_DEFAULT,
                                  MessageActionExecutor.COPY,
-                                 MessageActionExecutor.FORWARD
+                                 MessageActionExecutor.FORWARD,
+                                 MessageActionExecutor.EDIT
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(null).equals(
                                 Collections.singletonList(MessageActionExecutor.REPLY)
@@ -50,14 +51,16 @@ class MessageActionExecutorTest(unittest.TestCase):
                                 "unknown",
                                 MessageActionExecutor.REACT_DEFAULT,
                                  MessageActionExecutor.REACT_DEFAULT,
-                                 MessageActionExecutor.COPY,
-                                 MessageActionExecutor.FORWARD,
-                                 MessageActionExecutor.REPLY
+                                  MessageActionExecutor.COPY,
+                                  MessageActionExecutor.FORWARD,
+                                  MessageActionExecutor.EDIT,
+                                  MessageActionExecutor.REPLY
                          )).equals(Arrays.asList(
                                  MessageActionExecutor.REACT_DEFAULT,
-                                 MessageActionExecutor.COPY,
-                                 MessageActionExecutor.FORWARD,
-                                 MessageActionExecutor.REPLY
+                                  MessageActionExecutor.COPY,
+                                  MessageActionExecutor.FORWARD,
+                                  MessageActionExecutor.EDIT,
+                                  MessageActionExecutor.REPLY
                         )));
                         require(MessageActionExecutor.normalizeSwipeOrder(Arrays.asList(
                                 "unknown",

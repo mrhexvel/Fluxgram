@@ -22,7 +22,8 @@ public final class MessageGestureSettings {
     private static final List<String> PUBLISHED_SWIPE_ACTIONS = Collections.unmodifiableList(
             Arrays.asList(
                     MessageActionExecutor.REPLY,
-                    MessageActionExecutor.FORWARD
+                    MessageActionExecutor.FORWARD,
+                    MessageActionExecutor.EDIT
             )
     );
 
@@ -195,7 +196,7 @@ public final class MessageGestureSettings {
             }
         }
         if (normalized.isEmpty()) {
-            return PUBLISHED_SWIPE_ACTIONS;
+            return Collections.singletonList(MessageActionExecutor.REPLY);
         }
 
         return Collections.unmodifiableList(new ArrayList<>(normalized));
