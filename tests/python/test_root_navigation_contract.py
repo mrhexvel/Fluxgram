@@ -164,14 +164,51 @@ class RootNavigationContractTest(unittest.TestCase):
         self.assertIn("state.fragment instanceof CallLogActivity", stability)
         self.assertIn("state.fragment instanceof SettingsActivity", stability)
 
-    def test_existing_popup_is_not_migrated_in_n4_2(self):
+    def test_root_popup_uses_policy_and_snapshot_navigation(self):
         dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
         popup = dialogs.split("private void showItemOptions()", 1)[1].split(
-            "if (proxyMenuSubItem != null)", 1
+            "final boolean isCurrentThemeDark", 1
+        )[0]
+        policy = dialogs.split("private void addRootMainMenuOptions", 1)[1].split(
+            "private boolean isRootMainMenuContributorAnchor", 1
+        )[0]
+        command = dialogs.split("private void addRootMainMenuCommand", 1)[1].split(
+            "private void addRootMainMenuTheme", 1
         )[0]
 
-        self.assertNotIn("navigateToRootDestination", popup)
-        self.assertNotIn("MainMenuPolicy", popup)
+        self.assertIn("usesFluxGramRootDialogsAppearance()", popup)
+        self.assertIn("getRootNavigationSnapshot()", popup)
+        self.assertIn("snapshot.getAccount() != currentAccount", popup)
+        self.assertIn("RootNavigationSnapshot.CHATS.equals(snapshot.getActiveDestination())", popup)
+        self.assertIn("addRootMainMenuOptions", popup)
+        self.assertIn("MainMenuPolicy.resolve", policy)
+        self.assertIn("MainMenuPolicy.defaults()", policy)
+        self.assertIn("snapshot.canSelectInRoot(RootNavigationSnapshot.SETTINGS)", policy)
+        self.assertIn("snapshot.canSelectInRoot(RootNavigationSnapshot.PROFILE)", policy)
+        self.assertIn("controller.navigateToRootDestination(snapshot, RootNavigationSnapshot.CONTACTS)", command)
+        self.assertIn("controller.navigateToRootDestination(snapshot, RootNavigationSnapshot.CALLS)", command)
+        self.assertIn("controller.navigateToRootDestination(snapshot, RootNavigationSnapshot.SETTINGS)", command)
+        self.assertNotIn("presentFragment(new SettingsActivity", command)
+
+    def test_root_popup_preserves_dynamic_contributor_slot(self):
+        dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
+        policy = dialogs.split("private void addRootMainMenuOptions", 1)[1].split(
+            "private boolean isRootMainMenuContributorAnchor", 1
+        )[0]
+        anchor = dialogs.split("private boolean isRootMainMenuContributorAnchor", 1)[1].split(
+            "private void addRootMainMenuCommand", 1
+        )[0]
+        contributors = dialogs.split("private void addRootMainMenuContributors", 1)[1].split(
+            "private boolean isRootMainMenuProxyAvailable", 1
+        )[0]
+
+        self.assertIn("isRootMainMenuContributorAnchor(id)", policy)
+        self.assertIn("addRootMainMenuContributors", policy)
+        self.assertIn("MainMenuPolicy.WALLET.equals(id)", anchor)
+        self.assertIn("applicationLoaderInstance.addItemOptions(io)", contributors)
+        self.assertIn("if (walletAvailable)", contributors)
+        self.assertIn("io.addBot", contributors)
+        self.assertIn("BotWebViewSheet.deleteBot", contributors)
 
 
 if __name__ == "__main__":

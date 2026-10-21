@@ -134,6 +134,8 @@ import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.BottomNavigationSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
+import org.telegram.messenger.fluxgram.MainMenuPolicy;
+import org.telegram.messenger.fluxgram.RootNavigationSnapshot;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.utils.FBool;
 import org.telegram.messenger.utils.GradientProtectionDrawable;
@@ -14043,6 +14045,20 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
 
+        if (usesFluxGramRootDialogsAppearance() && mainTabsActivityController != null) {
+            RootNavigationSnapshot snapshot = mainTabsActivityController.getRootNavigationSnapshot();
+            if (snapshot == null
+                    || snapshot.getAccount() != currentAccount
+                    || !RootNavigationSnapshot.CHATS.equals(snapshot.getActiveDestination())) {
+                return;
+            }
+
+            addRootMainMenuOptions(io, launchActivity, snapshot, mainTabsActivityController);
+            io.show();
+            io.setTranslationY(-dp(64));
+            return;
+        }
+
         final boolean isCurrentThemeDark;
         if (resourceProvider != null) {
             isCurrentThemeDark = resourceProvider.isDark();
@@ -14164,6 +14180,234 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         io.show();
         io.setTranslationY(-dp(64));
+    }
+
+    private void addRootMainMenuOptions(
+            ItemOptions io,
+            LaunchActivity launchActivity,
+            RootNavigationSnapshot snapshot,
+            MainTabsActivityController controller
+    ) {
+        boolean walletAvailable = getMessagesController().config.walletAvailable.get();
+        boolean proxyAvailable = isRootMainMenuProxyAvailable();
+        ArrayList<String> available = new ArrayList<>(Arrays.asList(
+                MainMenuPolicy.THEME,
+                MainMenuPolicy.NEW_GROUP,
+                MainMenuPolicy.NEW_CHANNEL,
+                MainMenuPolicy.SAVED_MESSAGES,
+                MainMenuPolicy.CONTACTS,
+                MainMenuPolicy.CALLS,
+                MainMenuPolicy.ACCOUNTS,
+                MainMenuPolicy.SETTINGS
+        ));
+        if (walletAvailable) {
+            available.add(MainMenuPolicy.WALLET);
+        }
+        if (proxyAvailable) {
+            available.add(MainMenuPolicy.PROXY);
+        }
+
+        List<String> resolved = MainMenuPolicy.resolve(
+                MainMenuPolicy.defaults(),
+                available,
+                snapshot.canSelectInRoot(RootNavigationSnapshot.SETTINGS),
+                snapshot.canSelectInRoot(RootNavigationSnapshot.PROFILE)
+        );
+        boolean contributorsAdded = false;
+
+        for (String id : resolved) {
+            if (!contributorsAdded && isRootMainMenuContributorAnchor(id)) {
+                addRootMainMenuContributors(io, launchActivity, walletAvailable);
+                contributorsAdded = true;
+            }
+
+            if (MainMenuPolicy.isDivider(id)) {
+                io.addGap();
+            } else {
+                addRootMainMenuCommand(io, id, snapshot, controller);
+            }
+        }
+
+        if (!contributorsAdded) {
+            addRootMainMenuContributors(io, launchActivity, walletAvailable);
+        }
+    }
+
+    private boolean isRootMainMenuContributorAnchor(String id) {
+        return MainMenuPolicy.WALLET.equals(id)
+                || MainMenuPolicy.ACCOUNTS.equals(id)
+                || MainMenuPolicy.SETTINGS.equals(id)
+                || MainMenuPolicy.DIVIDER_SYSTEM.equals(id)
+                || MainMenuPolicy.PROXY.equals(id);
+    }
+
+    private void addRootMainMenuCommand(
+            ItemOptions io,
+            String id,
+            RootNavigationSnapshot snapshot,
+            MainTabsActivityController controller
+    ) {
+        if (MainMenuPolicy.THEME.equals(id)) {
+            addRootMainMenuTheme(io);
+        } else if (MainMenuPolicy.NEW_GROUP.equals(id)) {
+            io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
+                Bundle args = new Bundle();
+                presentFragment(new GroupCreateActivity(args));
+            });
+        } else if (MainMenuPolicy.NEW_CHANNEL.equals(id)) {
+            io.add(R.drawable.msg_channel, getString(R.string.NewChannel), this::openRootMainMenuNewChannel);
+        } else if (MainMenuPolicy.SAVED_MESSAGES.equals(id)) {
+            io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
+                Bundle args = new Bundle();
+                args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                presentFragment(new ChatActivity(args));
+            });
+        } else if (MainMenuPolicy.CONTACTS.equals(id)) {
+            io.add(R.drawable.msg_contacts, getString(R.string.Contacts), () -> {
+                controller.navigateToRootDestination(snapshot, RootNavigationSnapshot.CONTACTS);
+            });
+        } else if (MainMenuPolicy.CALLS.equals(id)) {
+            io.add(R.drawable.msg_calls, getString(R.string.Calls), () -> {
+                controller.navigateToRootDestination(snapshot, RootNavigationSnapshot.CALLS);
+            });
+        } else if (MainMenuPolicy.WALLET.equals(id)) {
+            io.add(R.drawable.ic_gram, LocaleController.getString(R.string.WalletAttachMoney), () -> {
+                presentFragment(new WalletActivity());
+            });
+        } else if (MainMenuPolicy.ACCOUNTS.equals(id)) {
+            io.add(R.drawable.settings_account, getString(R.string.SettingsAccounts), () -> {
+                io.dismiss();
+                controller.openAccountSelector(optionsItem);
+            });
+        } else if (MainMenuPolicy.SETTINGS.equals(id)) {
+            io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
+                controller.navigateToRootDestination(snapshot, RootNavigationSnapshot.SETTINGS);
+            });
+        } else if (MainMenuPolicy.PROXY.equals(id) && proxyMenuSubItem != null) {
+            proxyMenuSubItem.subtextView.setTextColor(getThemedColor(Theme.key_groupcreate_sectionText));
+            proxyMenuSubItem.setOnClickListener(v -> {
+                io.dismiss();
+                presentFragment(new ProxyListActivity());
+            });
+            io.add(proxyMenuSubItem);
+        }
+    }
+
+    private void addRootMainMenuTheme(ItemOptions io) {
+        final boolean isCurrentThemeDark;
+        if (resourceProvider != null) {
+            isCurrentThemeDark = resourceProvider.isDark();
+        } else {
+            isCurrentThemeDark = Theme.isCurrentThemeDark();
+        }
+        io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
+                getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), () -> {
+            if (switchingTheme) {
+                return;
+            }
+            switchingTheme = true;
+            SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
+            String dayThemeName = preferences.getString("lastDayTheme", "Blue");
+            if (Theme.getTheme(dayThemeName) == null || Theme.getTheme(dayThemeName).isDark()) {
+                dayThemeName = "Blue";
+            }
+            String nightThemeName = preferences.getString("lastDarkTheme", "Dark Blue");
+            if (Theme.getTheme(nightThemeName) == null || !Theme.getTheme(nightThemeName).isDark()) {
+                nightThemeName = "Dark Blue";
+            }
+            Theme.ThemeInfo themeInfo = Theme.getActiveTheme();
+            if (dayThemeName.equals(nightThemeName)) {
+                if (themeInfo.isDark() || dayThemeName.equals("Dark Blue") || dayThemeName.equals("Night")) {
+                    dayThemeName = "Blue";
+                } else {
+                    nightThemeName = "Dark Blue";
+                }
+            }
+
+            boolean toDark;
+            if (toDark = dayThemeName.equals(themeInfo.getKey())) {
+                themeInfo = Theme.getTheme(nightThemeName);
+            } else {
+                themeInfo = Theme.getTheme(dayThemeName);
+            }
+            switchTheme(themeInfo, toDark);
+            Theme.turnOffAutoNight(BulletinFactory.of(this), () -> {
+                presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT));
+            });
+        });
+    }
+
+    private void openRootMainMenuNewChannel() {
+        if (MessagesController.getInstance(currentAccount).isFrozen()) {
+            AccountFrozenAlert.show(currentAccount);
+            return;
+        }
+
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        if (!BuildVars.DEBUG_VERSION && preferences.getBoolean("channel_intro", false)) {
+            Bundle args = new Bundle();
+            args.putInt("step", 0);
+            presentFragment(new ChannelCreateActivity(args));
+        } else {
+            presentFragment(new ActionIntroActivity(ActionIntroActivity.ACTION_TYPE_CHANNEL_CREATE));
+            preferences.edit().putBoolean("channel_intro", true).commit();
+        }
+    }
+
+    private void addRootMainMenuContributors(
+            ItemOptions io,
+            LaunchActivity launchActivity,
+            boolean walletAvailable
+    ) {
+        if (ApplicationLoader.applicationLoaderInstance != null) {
+            ApplicationLoader.applicationLoaderInstance.addItemOptions(io);
+        }
+        if (walletAvailable) {
+            return;
+        }
+
+        TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
+        if (launchActivity == null || menuBots == null || menuBots.bots == null || menuBots.bots.isEmpty()) {
+            return;
+        }
+
+        for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
+            if (!attachMenuBot.show_in_side_menu) {
+                continue;
+            }
+
+            io.addBot(attachMenuBot, () -> {
+                if (attachMenuBot.inactive || attachMenuBot.side_menu_disclaimer_needed) {
+                    WebAppDisclaimerAlert.show(getContext(), (allowSendMessage) -> {
+                        TLRPC.TL_messages_toggleBotInAttachMenu botRequest = new TLRPC.TL_messages_toggleBotInAttachMenu();
+                        botRequest.bot = MessagesController.getInstance(currentAccount).getInputUser(attachMenuBot.bot_id);
+                        botRequest.enabled = true;
+                        botRequest.write_allowed = true;
+                        ConnectionsManager.getInstance(currentAccount).sendRequest(botRequest, (response2, error2) -> AndroidUtilities.runOnUIThread(() -> {
+                            attachMenuBot.inactive = attachMenuBot.side_menu_disclaimer_needed = false;
+                            LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
+                            MediaDataController.getInstance(currentAccount).updateAttachMenuBotsInCache();
+                        }), ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
+                    }, null, null);
+                } else {
+                    LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
+                }
+            }, () -> BotWebViewSheet.deleteBot(currentAccount, attachMenuBot.bot_id, null));
+        }
+    }
+
+    private boolean isRootMainMenuProxyAvailable() {
+        if (proxyMenuSubItem == null) {
+            return false;
+        }
+
+        SharedPreferences preferences = ApplicationLoader.applicationContext
+                .getSharedPreferences("mainconfig", Activity.MODE_PRIVATE);
+        String proxyAddress = preferences.getString("proxy_ip", "");
+        boolean proxyEnabled = preferences.getBoolean("proxy_enabled", false);
+
+        return proxyEnabled && !TextUtils.isEmpty(proxyAddress)
+                || getMessagesController().blockedCountry && !SharedConfig.proxyList.isEmpty();
     }
 
     @Override
