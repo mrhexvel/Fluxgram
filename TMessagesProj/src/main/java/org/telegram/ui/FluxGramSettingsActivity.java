@@ -27,6 +27,7 @@ import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.AvatarGeometryWidgets;
 import org.telegram.messenger.fluxgram.BottomNavigationSettings;
+import org.telegram.messenger.fluxgram.ChatSettings;
 import org.telegram.messenger.fluxgram.ExportDestinationSettings;
 import org.telegram.messenger.fluxgram.FontSettings;
 import org.telegram.messenger.fluxgram.FolderSettings;
@@ -122,6 +123,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int MAIN_MENU = 50;
     private static final int SHOW_ALL_RECENT_STICKERS = 51;
     private static final int SHOW_GREETING_STICKER = 52;
+    private static final int HIDE_SEND_AS = 53;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -543,6 +545,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
             ).setChecked(StickerSettings.showsAllRecent()));
             items.add(UItem.asShadow(LocaleController.getString(
                     R.string.FluxGramShowAllRecentStickersInfo)));
+            addSectionLabel(items, R.string.FluxGramMessageInput);
+            items.add(UItem.asCheck(
+                    HIDE_SEND_AS,
+                    LocaleController.getString(R.string.FluxGramHideSendAs)
+            ).setChecked(ChatSettings.hidesSendAs()));
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramHideSendAsInfo)));
 
             return;
         }
@@ -883,6 +892,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !StickerSettings.showsGreeting();
                 StickerSettings.setShowsGreeting(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == HIDE_SEND_AS) {
+                boolean hidden = !ChatSettings.hidesSendAs();
+                ChatSettings.setHidesSendAs(hidden);
+                ((TextCheckCell) view).setChecked(hidden);
                 parentLayout.rebuildFragments(0);
             }
 

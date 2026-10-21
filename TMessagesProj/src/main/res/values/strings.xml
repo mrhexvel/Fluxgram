@@ -11430,6 +11430,9 @@
     <string name="FluxGramShowGreetingSticker">Show greeting sticker</string>
     <string name="FluxGramShowAllRecentStickers">Show all recent stickers</string>
     <string name="FluxGramShowAllRecentStickersInfo">Shows the full locally retained recent sticker list instead of the first 20. Telegram server history and storage limits are unchanged.</string>
+    <string name="FluxGramMessageInput">Message input</string>
+    <string name="FluxGramHideSendAs">Hide sender selection</string>
+    <string name="FluxGramHideSendAsInfo">Hides the sender button in chats. The previously selected sender remains active.</string>
     <string name="FluxGramNavigationInfo">Tablet mode and bottom navigation control the app layout. Screen transition styles apply only to standard navigation and preserve special Telegram animations. Predictive back intensity controls the Android 14+ interactive gesture.</string>
     <string name="FluxGramBottomNavigationRestartMessage">Changing bottom navigation rebuilds the app root pages. FluxGram must restart to apply it.</string>
     <string name="FluxGramBottomNavigationRestartError">Could not save the bottom navigation setting or restart FluxGram.</string>

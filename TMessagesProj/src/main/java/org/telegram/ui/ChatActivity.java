@@ -124,6 +124,7 @@ import androidx.dynamicanimation.animation.SpringForce;
 import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.AvatarGeometry;
+import org.telegram.messenger.fluxgram.ChatSettings;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.messenger.fluxgram.GreetingStickerPolicy;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
@@ -8237,6 +8238,11 @@ public class ChatActivity extends BaseFragment implements
         instantCameraView = null;
 
         chatActivityEnterView = new ChatActivityEnterView(getParentActivity(), contentView, this, chatMode != MODE_EDIT_BUSINESS_LINK, themeDelegate) {
+
+            @Override
+            public void updateSendAsButton(boolean forceHide, boolean animated) {
+                super.updateSendAsButton(forceHide || ChatSettings.hidesSendAs(), animated);
+            }
 
             @Override
             protected void drawComposerText(Canvas canvas, EditTextCaption field, Consumer<Canvas> nativeDraw) {
