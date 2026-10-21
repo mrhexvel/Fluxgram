@@ -189,7 +189,7 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("findCurrentMessageForAction(expected)", resolution)
         self.assertIn("isReplyGestureChatModeAllowed()", resolution)
         self.assertIn("isReplyPermissionGranted(messageObject)", resolution)
-        self.assertIn("isReplyActionAvailable(tappedView, messageObject)", resolution)
+        self.assertIn("isReplyActionAvailable(tappedView, messageObject, trigger)", resolution)
         self.assertIn("performReplyAction(messageObject)", resolution)
         self.assertIn("showFieldPanelForReply(messageObject)", resolution)
         self.assertIn("resolveReplyMessageForDestination(messageObject)", resolution)
@@ -197,11 +197,30 @@ class MessageGestureSettingsTest(unittest.TestCase):
             "getMessagesController().isPeerNoForwards(messageObject.getDialogId())",
             resolution,
         )
+        self.assertIn("if (!shouldSelectReplyDestination(messageObject))", resolution)
+        self.assertIn("return !messageObject.messageOwner.noforwards", resolution)
         self.assertIn("MessageObject.TYPE_PAID_MEDIA", resolution)
         self.assertIn("messageObject.messageOwner.fluxgramDeleted", resolution)
         self.assertIn('args.putBoolean("reply_to", true)', resolution)
         self.assertNotIn("selectedObject", resolution)
         self.assertNotIn("processSelectedOption", resolution)
+
+    def test_swipe_reply_uses_captured_target_and_shared_executor(self):
+        chat = CHAT_ACTIVITY.read_text()
+        touch = chat.split("private void processTouchEvent(MotionEvent e)", 1)[1]
+        touch = touch.split("public boolean onTouchEvent(MotionEvent e)", 1)[0]
+        resolution = chat.split("private MessageActionExecutor.Resolution resolveReplyAction(", 1)[1]
+        resolution = resolution.split("private MessageActionExecutor.Resolution resolveCopyAction(", 1)[0]
+
+        self.assertIn("slidingMessageActionTarget = fluxGramMessageActions.capture(", touch)
+        self.assertIn("MessageActionExecutor.Trigger.SWIPE", touch)
+        self.assertIn("resolveReplyAction(", touch)
+        self.assertIn("slidingMessageActionTarget = null", touch)
+        self.assertNotIn("showFieldPanelForReply(", touch)
+        self.assertNotIn("replyingMessageObject =", touch)
+        self.assertIn("trigger == MessageActionExecutor.Trigger.SWIPE", resolution)
+        self.assertIn("showsMessageForReplyAction(tappedView, messageObject, trigger)", chat)
+        self.assertIn("((ChatMessageCell) view).getMessageObject()", chat)
 
     def test_settings_card_is_between_messages_and_composer(self):
         source = SETTINGS_ACTIVITY.read_text()

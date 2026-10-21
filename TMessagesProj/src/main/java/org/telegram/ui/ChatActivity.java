@@ -1103,6 +1103,7 @@ public class ChatActivity extends BaseFragment implements
     private boolean postponedScrollIsCanceled;
     private ChatActivityTextSelectionHelper textSelectionHelper;
     private View slidingView;
+    private MessageActionExecutor.Target slidingMessageActionTarget;
 
     private final float[] tmpOverlayPos = new float[2];
     private float[] computeArticleOverlayPos(View overlay) {
@@ -2073,7 +2074,11 @@ public class ChatActivity extends BaseFragment implements
                 && !hasTextSelection()
                 && isReplyGestureChatModeAllowed()
                 && isReplyPermissionGranted(messageObject)
-                && isReplyActionAvailable(tappedView, messageObject);
+                && isReplyActionAvailable(
+                        tappedView,
+                        messageObject,
+                        MessageActionExecutor.Trigger.DOUBLE_TAP
+                );
     }
 
     private boolean canStartCopyAction(View tappedView, MessageObject messageObject) {
@@ -2109,11 +2114,12 @@ public class ChatActivity extends BaseFragment implements
                 : hasTextSelection()
                 ? MessageActionExecutor.SelectionState.TEXT
                 : MessageActionExecutor.SelectionState.NONE;
-        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.DOUBLE_TAP
+        boolean chatModeAllowed = (trigger == MessageActionExecutor.Trigger.DOUBLE_TAP
+                || trigger == MessageActionExecutor.Trigger.SWIPE)
                 && MessageActionExecutor.REPLY.equals(actionId)
                 && isReplyGestureChatModeAllowed();
         boolean permissionGranted = isReplyPermissionGranted(messageObject);
-        boolean actionAvailable = isReplyActionAvailable(tappedView, messageObject);
+        boolean actionAvailable = isReplyActionAvailable(tappedView, messageObject, trigger);
 
         return new MessageActionExecutor.Resolution(
                 actual,
@@ -2190,13 +2196,15 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean isReplyPermissionGranted(MessageObject messageObject) {
         if (messageObject == null
-                || messageObject.messageOwner == null
-                || messageObject.messageOwner.noforwards) {
+                || messageObject.messageOwner == null) {
             return false;
         }
+        if (!shouldSelectReplyDestination(messageObject)) {
+            return true;
+        }
 
-        return !shouldSelectReplyDestination(messageObject)
-                || !getMessagesController().isPeerNoForwards(messageObject.getDialogId())
+        return !messageObject.messageOwner.noforwards
+                && !getMessagesController().isPeerNoForwards(messageObject.getDialogId())
                 && messageObject.type != MessageObject.TYPE_PAID_MEDIA;
     }
 
@@ -2223,7 +2231,11 @@ public class ChatActivity extends BaseFragment implements
         return getMessagesController().isPeerNoForwards(messageObject.getDialogId());
     }
 
-    private boolean isReplyActionAvailable(View tappedView, MessageObject messageObject) {
+    private boolean isReplyActionAvailable(
+            View tappedView,
+            MessageObject messageObject,
+            MessageActionExecutor.Trigger trigger
+    ) {
         if (messageObject == null
                 || messageObject.messageOwner == null
                 || messageObject.messageOwner.fluxgramDeleted
@@ -2249,7 +2261,23 @@ public class ChatActivity extends BaseFragment implements
 
         return tappedView != null
                 && tappedView.isAttachedToWindow()
-                && showsMessageForAction(tappedView, messageObject);
+                && showsMessageForReplyAction(tappedView, messageObject, trigger);
+    }
+
+    private boolean showsMessageForReplyAction(
+            View view,
+            MessageObject messageObject,
+            MessageActionExecutor.Trigger trigger
+    ) {
+        if (trigger != MessageActionExecutor.Trigger.SWIPE
+                || !(view instanceof ChatMessageCell)) {
+            return showsMessageForAction(view, messageObject);
+        }
+
+        MessageObject shownMessage = ((ChatMessageCell) view).getMessageObject();
+        return shownMessage != null
+                && shownMessage.getId() == messageObject.getId()
+                && shownMessage.getDialogId() == messageObject.getDialogId();
     }
 
     private boolean isCopyActionAvailable(View tappedView, MessageObject messageObject) {
@@ -6011,6 +6039,19 @@ public class ChatActivity extends BaseFragment implements
                             slidingView = null;
                             return;
                         }
+                        slidingMessageActionTarget = fluxGramMessageActions.capture(
+                                currentAccount,
+                                getUserConfig().getClientUserId(),
+                                dialog_id,
+                                message.getDialogId(),
+                                message.getId(),
+                                getTopicId()
+                        );
+                        if (slidingMessageActionTarget == null) {
+                            slidingViewSetOffset(0);
+                            slidingView = null;
+                            return;
+                        }
                         startedTrackingPointerId = e.getPointerId(0);
                         maybeStartTrackingSlidingView = true;
                         startedTrackingX = (int) e.getX();
@@ -6054,41 +6095,21 @@ public class ChatActivity extends BaseFragment implements
                     }
                 } else if (slidingView != null && (e == null || e.getPointerId(0) == startedTrackingPointerId && (e.getAction() == MotionEvent.ACTION_CANCEL || e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_POINTER_UP))) {
                     if (e != null && e.getAction() != MotionEvent.ACTION_CANCEL && Math.abs(getSlidingNonAnimationTranslationX(false)) >= AndroidUtilities.dp(50)) {
-                        MessageObject message = getSlidingMessageObject();
-                        final boolean allowReplyOnOpenTopic = canSendMessageToTopic(message);
-                        if (
-                            bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && allowReplyOnOpenTopic || message.wasJustSent) ||
-                            currentChat != null && (
-                                ChatObject.isNotInChat(currentChat) && !isThreadChat() ||
-                                ChatObject.isChannel(currentChat) && !ChatObject.canPost(currentChat) && !currentChat.megagroup ||
-                                !ChatObject.canSendMessages(currentChat)
-                            )
-                        ) {
-                            if (message.getGroupId() != 0) {
-                                MessageObject.GroupedMessages group = getGroup(message.getGroupId());
-                                if (group != null && group.captionMessage != null) {
-                                    message = group.captionMessage;
-                                }
-                            }
-                            replyingMessageObject = message;
-                            Bundle args = new Bundle();
-                            args.putBoolean("onlySelect", true);
-                            args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
-                            args.putBoolean("quote", true);
-                            args.putBoolean("reply_to", true);
-                            final long author = DialogObject.getPeerDialogId(message.getFromPeer());
-                            if (author != 0 && author != getDialogId() && author != getUserConfig().getClientUserId() && author > 0) {
-                                args.putLong("reply_to_author", author);
-                            }
-                            args.putInt("messagesCount", 1);
-                            args.putBoolean("canSelectTopics", true);
-                            final DialogsActivity fragment = new DialogsActivity(args);
-                            fragment.setDelegate(ChatActivity.this);
-                            presentFragment(fragment);
-                        } else {
-                            showFieldPanelForReply(getSlidingMessageObject());
-                        }
+                        View swipedView = slidingView;
+                        MessageActionExecutor.Target target = slidingMessageActionTarget;
+                        fluxGramMessageActions.execute(
+                                MessageActionExecutor.REPLY,
+                                MessageActionExecutor.Trigger.SWIPE,
+                                target,
+                                (actionId, trigger, expected) -> resolveReplyAction(
+                                        actionId,
+                                        trigger,
+                                        expected,
+                                        swipedView
+                                )
+                        );
                     }
+                    slidingMessageActionTarget = null;
                     endTrackingX = slidingViewGetOffsetX();
                     if (endTrackingX == 0) {
                         slidingView = null;
@@ -9759,12 +9780,13 @@ public class ChatActivity extends BaseFragment implements
             @Override
             public void onStateChanged(boolean isSelected) {
                 swipeBackEnabled = !isSelected;
-                if (isSelected) {
-                    if (slidingView != null) {
-                        slidingViewSetOffset(0);
-                        slidingView = null;
-                    }
-                    maybeStartTrackingSlidingView = false;
+                    if (isSelected) {
+                        if (slidingView != null) {
+                            slidingViewSetOffset(0);
+                            slidingView = null;
+                        }
+                        slidingMessageActionTarget = null;
+                        maybeStartTrackingSlidingView = false;
                     startedTrackingSlidingView = false;
                     if (textSelectionHint != null) {
                         textSelectionHint.hide();
