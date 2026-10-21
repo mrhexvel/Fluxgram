@@ -92,6 +92,9 @@ public final class MessageGestureSettings {
         if (MessageActionExecutor.REPLY.equals(actionId)) {
             return MessageActionExecutor.REPLY;
         }
+        if (MessageActionExecutor.COPY.equals(actionId)) {
+            return MessageActionExecutor.COPY;
+        }
 
         return MessageActionExecutor.REACT_DEFAULT;
     }

@@ -137,6 +137,10 @@ class MessageGestureSettingsTest(unittest.TestCase):
                         require(MessagesController.preferences.getInt(
                                 "fluxgram_message_gestures_version", 0) == 1);
 
+                        MessageGestureSettings.setDoubleTapAction(MessageActionExecutor.COPY);
+                        require(MessageActionExecutor.COPY.equals(
+                                MessageGestureSettings.getState().getDoubleTapAction()));
+
                         MessageGestureSettings.setDoubleTapAction("unknown");
                         require(MessageActionExecutor.REACT_DEFAULT.equals(
                                 MessageGestureSettings.getState().getDoubleTapAction()));
@@ -218,6 +222,39 @@ class MessageGestureSettingsTest(unittest.TestCase):
         self.assertIn("DOUBLE_TAP_MESSAGE_ACTION", chats)
         self.assertIn("MessageGestureSettings.setDoubleTapEnabled(enabled)", source)
         self.assertIn("MessageGestureSettings.setDoubleTapAction(actionIds[index])", source)
+        self.assertIn("MessageActionExecutor.COPY", source)
+
+    def test_copy_action_uses_fresh_message_and_attached_group(self):
+        chat = CHAT_ACTIVITY.read_text()
+        resolution = chat.split("private MessageActionExecutor.Resolution resolveCopyAction(", 1)[1]
+        resolution = resolution.split("private boolean isReplyGestureChatModeAllowed()", 1)[0]
+        copy_path = chat.split("private boolean isCopyActionAvailable(", 1)[1]
+        copy_path = copy_path.split("private boolean performReplyAction(", 1)[0]
+        menu_copy = chat.split("case OPTION_COPY:", 1)[1]
+        menu_copy = menu_copy.split("case OPTION_SAVE_TO_GALLERY:", 1)[0]
+
+        self.assertIn("findCurrentMessageForAction(expected)", resolution)
+        self.assertIn("isCopyPermissionGranted(messageObject)", resolution)
+        self.assertIn("isCopyActionAvailable(tappedView, messageObject)", resolution)
+        self.assertIn("performCopyAction(tappedView, messageObject)", resolution)
+        self.assertIn("messageObject.messageOwner.fluxgramDeleted", copy_path)
+        self.assertIn("isCopyableUniqueStarGift(messageObject)", copy_path)
+        self.assertIn("isMessagePeerNoForwards(messageObject)", chat)
+        self.assertIn("messageObject.getDialogId() == dialog_id", chat)
+        self.assertIn("int type = getMessageType(messageObject)", copy_path)
+        self.assertIn("if (type == 0)", copy_path)
+        self.assertIn("if (type == 1)", copy_path)
+        self.assertIn("if (type == -1)", copy_path)
+        self.assertIn("currentEncryptedChat == null", copy_path)
+        self.assertIn("getCurrentMessagesGroup()", copy_path)
+        self.assertIn("group.groupId != messageObject.getGroupId()", copy_path)
+        self.assertIn("return containsMessage && captions <= 1", copy_path)
+        self.assertIn("copyMessageToClipboard(messageObject, group)", copy_path)
+        self.assertNotIn("selectedObject", copy_path)
+        self.assertIn(
+            "copyMessageToClipboard(selectedObject, selectedObjectGroup)",
+            menu_copy,
+        )
 
 
 if __name__ == "__main__":

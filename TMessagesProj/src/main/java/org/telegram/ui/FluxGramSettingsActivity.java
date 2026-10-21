@@ -1213,6 +1213,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
         if (MessageActionExecutor.REPLY.equals(actionId)) {
             return LocaleController.getString(R.string.Reply);
         }
+        if (MessageActionExecutor.COPY.equals(actionId)) {
+            return LocaleController.getString(R.string.Copy);
+        }
 
         return LocaleController.getString(R.string.FluxGramQuickReaction);
     }
@@ -1220,11 +1223,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private void showDoubleTapActionDialog() {
         String[] actionIds = {
                 MessageActionExecutor.REACT_DEFAULT,
-                MessageActionExecutor.REPLY
+                MessageActionExecutor.REPLY,
+                MessageActionExecutor.COPY
         };
         CharSequence[] options = {
                 doubleTapActionOption(actionIds[0]),
-                doubleTapActionOption(actionIds[1])
+                doubleTapActionOption(actionIds[1]),
+                doubleTapActionOption(actionIds[2])
         };
         String selected = MessageGestureSettings.getState().getDoubleTapAction();
 

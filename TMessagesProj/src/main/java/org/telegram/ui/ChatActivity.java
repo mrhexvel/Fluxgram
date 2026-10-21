@@ -1979,6 +1979,9 @@ public class ChatActivity extends BaseFragment implements
             if (MessageActionExecutor.REPLY.equals(settings.getDoubleTapAction())) {
                 return canStartReplyAction(view, messageObject);
             }
+            if (MessageActionExecutor.COPY.equals(settings.getDoubleTapAction())) {
+                return canStartCopyAction(view, messageObject);
+            }
             if (!MessageActionExecutor.REACT_DEFAULT.equals(settings.getDoubleTapAction())
                     || isQuickRepliesOrWelcomeMessagesMode()) {
                 return false;
@@ -2043,6 +2046,14 @@ public class ChatActivity extends BaseFragment implements
                                     view
                             );
                         }
+                        if (MessageActionExecutor.COPY.equals(resolvedActionId)) {
+                            return resolveCopyAction(
+                                    resolvedActionId,
+                                    trigger,
+                                    expected,
+                                    view
+                            );
+                        }
 
                         return resolveDefaultReactionAction(
                                 resolvedActionId,
@@ -2063,6 +2074,14 @@ public class ChatActivity extends BaseFragment implements
                 && isReplyGestureChatModeAllowed()
                 && isReplyPermissionGranted(messageObject)
                 && isReplyActionAvailable(tappedView, messageObject);
+    }
+
+    private boolean canStartCopyAction(View tappedView, MessageObject messageObject) {
+        return !actionBar.isActionModeShowed()
+                && !hasTextSelection()
+                && isCopyGestureChatModeAllowed()
+                && isCopyPermissionGranted(messageObject)
+                && isCopyActionAvailable(tappedView, messageObject);
     }
 
     private MessageActionExecutor.Resolution resolveReplyAction(
@@ -2107,6 +2126,48 @@ public class ChatActivity extends BaseFragment implements
         );
     }
 
+    private MessageActionExecutor.Resolution resolveCopyAction(
+            String actionId,
+            MessageActionExecutor.Trigger trigger,
+            MessageActionExecutor.Target expected,
+            View tappedView
+    ) {
+        MessageObject messageObject = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = messageObject == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                messageObject.getDialogId(),
+                messageObject.getId(),
+                getTopicId()
+        );
+        boolean screenActive = getParentActivity() != null
+                && fragmentView != null
+                && !paused
+                && !isFinished;
+        MessageActionExecutor.SelectionState selection = actionBar != null
+                && actionBar.isActionModeShowed()
+                ? MessageActionExecutor.SelectionState.MESSAGE
+                : hasTextSelection()
+                ? MessageActionExecutor.SelectionState.TEXT
+                : MessageActionExecutor.SelectionState.NONE;
+        boolean chatModeAllowed = trigger == MessageActionExecutor.Trigger.DOUBLE_TAP
+                && MessageActionExecutor.COPY.equals(actionId)
+                && isCopyGestureChatModeAllowed();
+        boolean permissionGranted = isCopyPermissionGranted(messageObject);
+        boolean actionAvailable = isCopyActionAvailable(tappedView, messageObject);
+
+        return new MessageActionExecutor.Resolution(
+                actual,
+                screenActive,
+                selection,
+                chatModeAllowed,
+                permissionGranted,
+                actionAvailable,
+                actionAvailable ? () -> performCopyAction(tappedView, messageObject) : null
+        );
+    }
+
     private boolean isReplyGestureChatModeAllowed() {
         return !isInPreviewMode()
                 && !isInsideContainer
@@ -2119,6 +2180,14 @@ public class ChatActivity extends BaseFragment implements
                 && threadMessageId == getUserConfig().getClientUserId());
     }
 
+    private boolean isCopyGestureChatModeAllowed() {
+        return !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && chatMode != MODE_WELCOME_MESSAGES;
+    }
+
     private boolean isReplyPermissionGranted(MessageObject messageObject) {
         if (messageObject == null
                 || messageObject.messageOwner == null
@@ -2129,6 +2198,29 @@ public class ChatActivity extends BaseFragment implements
         return !shouldSelectReplyDestination(messageObject)
                 || !getMessagesController().isPeerNoForwards(messageObject.getDialogId())
                 && messageObject.type != MessageObject.TYPE_PAID_MEDIA;
+    }
+
+    private boolean isCopyPermissionGranted(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null) {
+            return false;
+        }
+        if (messageObject.messageOwner.fluxgramDeleted
+                || messageObject.isEphemeral()
+                || isCopyableUniqueStarGift(messageObject)) {
+            return true;
+        }
+
+        return messageObject.getDialogId() != UserObject.VERIFY
+                && !messageObject.messageOwner.noforwards
+                && !isMessagePeerNoForwards(messageObject);
+    }
+
+    private boolean isMessagePeerNoForwards(MessageObject messageObject) {
+        if (messageObject.getDialogId() == dialog_id) {
+            return isPeerNoForwards();
+        }
+
+        return getMessagesController().isPeerNoForwards(messageObject.getDialogId());
     }
 
     private boolean isReplyActionAvailable(View tappedView, MessageObject messageObject) {
@@ -2158,6 +2250,119 @@ public class ChatActivity extends BaseFragment implements
         return tappedView != null
                 && tappedView.isAttachedToWindow()
                 && showsMessageForAction(tappedView, messageObject);
+    }
+
+    private boolean isCopyActionAvailable(View tappedView, MessageObject messageObject) {
+        if (messageObject == null
+                || messageObject.messageOwner == null
+                || !messageObject.messageOwner.fluxgramDeleted
+                && (messageObject.isExpiredStory()
+                || messageObject.type == MessageObject.TYPE_PAID_MEDIA
+                && !messageObject.isEphemeral()
+                || !isCopyableMessageType(messageObject))
+                || !isCurrentCopyGroupValid(tappedView, messageObject)) {
+            return false;
+        }
+
+        MessageObject.GroupedMessages group = getCurrentCopyGroup(tappedView, messageObject);
+        boolean hasCopyableContent = messageObject.messageOwner.fluxgramDeleted
+                || getMessageType(messageObject) == 20
+                || isCopyableUniqueStarGift(messageObject)
+                || isCopyableMessageContent(messageObject, group);
+
+        return hasCopyableContent
+                && tappedView != null
+                && tappedView.isAttachedToWindow()
+                && showsMessageForAction(tappedView, messageObject);
+    }
+
+    private boolean isCopyableMessageType(MessageObject messageObject) {
+        int type = getMessageType(messageObject);
+        if (type == 0) {
+            return false;
+        }
+        if (type == 1) {
+            return isCopyableUniqueStarGift(messageObject);
+        }
+        if (type == -1) {
+            return !messageObject.isDice();
+        }
+
+        return currentEncryptedChat == null
+                ? !messageObject.sponsoredCanReport
+                : !messageObject.isDice();
+    }
+
+    private boolean isCopyableMessageContent(
+            MessageObject messageObject,
+            MessageObject.GroupedMessages group
+    ) {
+        return messageObject.type == MessageObject.TYPE_TEXT
+                || messageObject.type == MessageObject.TYPE_ARTICLE
+                || messageObject.isDice()
+                || messageObject.isAnimatedEmoji()
+                || messageObject.isAnimatedEmojiStickers()
+                || messageObject.messageOwner.rich_message != null
+                || messageObject.richLayout != null
+                && !TextUtils.isEmpty(messageObject.richLayout.joinedText)
+                || getMessageCaption(messageObject, group) != null;
+    }
+
+    private boolean isCopyableUniqueStarGift(MessageObject messageObject) {
+        return messageObject.messageOwner.action instanceof TLRPC.TL_messageActionStarGiftUnique
+                && ((TLRPC.TL_messageActionStarGiftUnique) messageObject.messageOwner.action).message != null;
+    }
+
+    private boolean performCopyAction(View tappedView, MessageObject messageObject) {
+        if (!isCopyPermissionGranted(messageObject)
+                || !isCopyActionAvailable(tappedView, messageObject)) {
+            return false;
+        }
+
+        MessageObject.GroupedMessages group = getCurrentCopyGroup(tappedView, messageObject);
+        if (!copyMessageToClipboard(messageObject, group)) {
+            return false;
+        }
+
+        showMessageCopiedUndo();
+        return true;
+    }
+
+    private boolean isCurrentCopyGroupValid(View tappedView, MessageObject messageObject) {
+        if (messageObject.getGroupId() == 0) {
+            return true;
+        }
+
+        MessageObject.GroupedMessages group = getCurrentCopyGroup(tappedView, messageObject);
+        if (group == null || group.groupId != messageObject.getGroupId()) {
+            return false;
+        }
+
+        boolean containsMessage = false;
+        int captions = 0;
+        for (int index = 0; index < group.messages.size(); index++) {
+            MessageObject groupedMessage = group.messages.get(index);
+            if (groupedMessage.caption != null) {
+                captions++;
+            }
+            if (groupedMessage.getId() == messageObject.getId()
+                    && groupedMessage.getDialogId() == messageObject.getDialogId()) {
+                containsMessage = true;
+            }
+        }
+
+        return containsMessage && captions <= 1;
+    }
+
+    private MessageObject.GroupedMessages getCurrentCopyGroup(
+            View tappedView,
+            MessageObject messageObject
+    ) {
+        if (messageObject.getGroupId() == 0 || !(tappedView instanceof ChatMessageCell)) {
+            return null;
+        }
+
+        return ((ChatMessageCell) tappedView).getCurrentMessagesGroup();
     }
 
     private boolean performReplyAction(MessageObject messageObject) {
@@ -31798,6 +32003,89 @@ public class ChatActivity extends BaseFragment implements
         return getMessageCaption(messageObject, group, null);
     }
 
+    private boolean copyMessageToClipboard(
+            MessageObject messageObject,
+            MessageObject.GroupedMessages group
+    ) {
+        TL_iv.RichMessage copyRichMessage = messageObject.messageOwner != null
+                ? messageObject.messageOwner.rich_message
+                : null;
+        if (messageObject.isDice()) {
+            return AndroidUtilities.addToClipboard(messageObject.getDiceEmoji());
+        }
+        if (copyRichMessage != null) {
+            String html = null;
+            try {
+                HashMap<Long, TL_iv.RichText> quoteAuthors = new HashMap<>();
+                ArrayList<BlockRow> flat = RichEditorListView.flattenForCopy(
+                        copyRichMessage,
+                        quoteAuthors
+                );
+                if (!flat.isEmpty()) {
+                    html = RichHtml.serialize(
+                            flat,
+                            0,
+                            flat.size() - 1,
+                            0,
+                            Integer.MAX_VALUE,
+                            quoteAuthors
+                    );
+                    org.telegram.ui.iv.RichMediaClipboard.set(
+                            copyRichMessage.photos,
+                            copyRichMessage.documents
+                    );
+                }
+            } catch (Exception exception) {
+                FileLog.e(exception);
+            }
+            CharSequence plain = messageObject.richLayout != null
+                    && !TextUtils.isEmpty(messageObject.richLayout.joinedText)
+                    ? messageObject.richLayout.joinedText
+                    : getMessageContent(messageObject, 0, false);
+            if (!TextUtils.isEmpty(html)) {
+                return AndroidUtilities.addToClipboard(plain, html);
+            }
+
+            return AndroidUtilities.addToClipboard(plain);
+        }
+        if (messageObject.richLayout != null
+                && !TextUtils.isEmpty(messageObject.richLayout.joinedText)) {
+            return AndroidUtilities.addToClipboard(messageObject.richLayout.joinedText);
+        }
+        if (messageObject.messageOwner.action instanceof TLRPC.TL_messageActionStarGiftUnique
+                && ((TLRPC.TL_messageActionStarGiftUnique) messageObject.messageOwner.action).message != null) {
+            TLRPC.TL_textWithEntities textWithEntities =
+                    ((TLRPC.TL_messageActionStarGiftUnique) messageObject.messageOwner.action).message;
+            CharSequence caption = Emoji.replaceEmoji(
+                    textWithEntities.text,
+                    Theme.chat_msgTextPaint.getFontMetricsInt(),
+                    false
+            );
+            caption = MessageObject.replaceAnimatedEmoji(
+                    caption,
+                    textWithEntities.entities,
+                    Theme.chat_msgTextPaint.getFontMetricsInt(),
+                    false
+            );
+
+            return AndroidUtilities.addToClipboard(caption);
+        }
+
+        CharSequence caption = getMessageCaption(messageObject, group);
+        if (caption != null) {
+            return AndroidUtilities.addToClipboard(caption);
+        }
+
+        return AndroidUtilities.addToClipboard(getMessageContent(messageObject, 0, false));
+    }
+
+    private void showMessageCopiedUndo() {
+        createUndoView();
+        if (undoView != null) {
+            undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
+        }
+    }
+
     public static CharSequence getMessageCaption(MessageObject messageObject, MessageObject.GroupedMessages group, int[] msgId) {
         if (messageObject == null) {
             return null;
@@ -34609,49 +34897,8 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_COPY: {
-                final TL_iv.RichMessage copyRichMessage = selectedObject.messageOwner != null ? selectedObject.messageOwner.rich_message : null;
-                if (selectedObject.isDice()) {
-                    AndroidUtilities.addToClipboard(selectedObject.getDiceEmoji());
-                } else if (copyRichMessage != null) {
-                    String html = null;
-                    try {
-                        final HashMap<Long, TL_iv.RichText> quoteAuthors = new HashMap<>();
-                        ArrayList<BlockRow> flat = RichEditorListView.flattenForCopy(copyRichMessage, quoteAuthors);
-                        if (!flat.isEmpty()) {
-                            html = RichHtml.serialize(flat, 0, flat.size() - 1, 0, Integer.MAX_VALUE, quoteAuthors);
-                            org.telegram.ui.iv.RichMediaClipboard.set(copyRichMessage.photos, copyRichMessage.documents);
-                        }
-                    } catch (Exception e) {
-                        FileLog.e(e);
-                    }
-                    CharSequence plain = selectedObject.richLayout != null && !TextUtils.isEmpty(selectedObject.richLayout.joinedText)
-                        ? selectedObject.richLayout.joinedText
-                        : getMessageContent(selectedObject, 0, false);
-                    if (!TextUtils.isEmpty(html)) {
-                        AndroidUtilities.addToClipboard(plain, html);
-                    } else {
-                        AndroidUtilities.addToClipboard(plain);
-                    }
-                } else if (selectedObject.richLayout != null && !TextUtils.isEmpty(selectedObject.richLayout.joinedText)) {
-                    AndroidUtilities.addToClipboard(selectedObject.richLayout.joinedText);
-                } else if (selectedObject.messageOwner.action instanceof TLRPC.TL_messageActionStarGiftUnique && ((TLRPC.TL_messageActionStarGiftUnique) (selectedObject.messageOwner.action)).message != null) {
-                    TLRPC.TL_textWithEntities textWithEntities = ((TLRPC.TL_messageActionStarGiftUnique) (selectedObject.messageOwner.action)).message;
-                    CharSequence caption = Emoji.replaceEmoji(textWithEntities.text, Theme.chat_msgTextPaint.getFontMetricsInt(), false);
-                    caption = MessageObject.replaceAnimatedEmoji(caption, textWithEntities.entities, Theme.chat_msgTextPaint.getFontMetricsInt(), false);
-                    AndroidUtilities.addToClipboard(caption);
-                } else {
-                    CharSequence caption = getMessageCaption(selectedObject, selectedObjectGroup);
-                    if (caption != null) {
-                        AndroidUtilities.addToClipboard(caption);
-                    } else {
-                        AndroidUtilities.addToClipboard(getMessageContent(selectedObject, 0, false));
-                    }
-                }
-                createUndoView();
-                if (undoView == null) {
-                    return;
-                }
-                undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
+                copyMessageToClipboard(selectedObject, selectedObjectGroup);
+                showMessageCopiedUndo();
                 break;
             }
             case OPTION_SAVE_TO_GALLERY: {

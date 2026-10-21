@@ -13,11 +13,13 @@ import java.util.Set;
 public final class MessageActionExecutor {
     public static final String REPLY = "reply";
     public static final String REACT_DEFAULT = "react_default";
+    public static final String COPY = "copy";
 
     private static final int MAX_SWIPE_ACTIONS = 8;
     private static final List<String> KNOWN_ACTION_IDS = Collections.unmodifiableList(Arrays.asList(
             REPLY,
-            REACT_DEFAULT
+            REACT_DEFAULT,
+            COPY
     ));
     private static final Set<String> KNOWN_ACTION_ID_SET = Collections.unmodifiableSet(
             new HashSet<>(KNOWN_ACTION_IDS)
