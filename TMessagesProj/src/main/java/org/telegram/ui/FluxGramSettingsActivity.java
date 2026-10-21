@@ -121,6 +121,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int PREDICTIVE_BACK = 49;
     private static final int MAIN_MENU = 50;
     private static final int SHOW_ALL_RECENT_STICKERS = 51;
+    private static final int SHOW_GREETING_STICKER = 52;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -533,6 +534,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramStickers);
             items.add(UItem.asCheck(
+                    SHOW_GREETING_STICKER,
+                    LocaleController.getString(R.string.FluxGramShowGreetingSticker)
+            ).setChecked(StickerSettings.showsGreeting()));
+            items.add(UItem.asCheck(
                     SHOW_ALL_RECENT_STICKERS,
                     LocaleController.getString(R.string.FluxGramShowAllRecentStickers)
             ).setChecked(StickerSettings.showsAllRecent()));
@@ -874,6 +879,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                         false,
                         MediaDataController.TYPE_IMAGE
                 );
+            } else if (item.id == SHOW_GREETING_STICKER) {
+                boolean enabled = !StickerSettings.showsGreeting();
+                StickerSettings.setShowsGreeting(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                parentLayout.rebuildFragments(0);
             }
 
             return;

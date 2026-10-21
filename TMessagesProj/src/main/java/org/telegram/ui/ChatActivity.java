@@ -125,7 +125,9 @@ import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
+import org.telegram.messenger.fluxgram.GreetingStickerPolicy;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
+import org.telegram.messenger.fluxgram.StickerSettings;
 import org.telegram.ui.fluxgram.MessageMenuMetadataController;
 import org.telegram.ui.fluxgram.FluxGramComposerController;
 import org.telegram.ui.fluxgram.ChatSelectionActionController;
@@ -3639,6 +3641,46 @@ public class ChatActivity extends BaseFragment implements
                 && !ChatObject.isMonoForum(currentChat)
                 && !currentChat.gigagroup
                 && !currentChat.broadcast;
+    }
+
+    private boolean isRandomGreetingStickerPolicyEligible() {
+        if (chatMode != MODE_DEFAULT
+                || currentEncryptedChat != null
+                || isInPreviewMode()
+                || inBubbleMode
+                || isInsideContainer
+                || isTopic
+                || isComments
+                || isThreadChat()
+                || isReplyChatComment()
+                || threadMessageId != 0
+                || quickReplyShortcut != null
+                || businessLink != null
+                || chatInvite != null
+                || isReport()
+                || startLoadFromDate != 0
+                || isInBotForumMode()) {
+            return false;
+        }
+
+        if (currentUser == null || currentChat != null) {
+            return false;
+        }
+
+        long userId = currentUser.id;
+
+        return userId > 0
+                && !UserObject.isDeleted(currentUser)
+                && !UserObject.isUserSelf(currentUser)
+                && !UserObject.isBot(currentUser)
+                && !UserObject.isReplyUser(currentUser)
+                && !UserObject.isAnonymous(currentUser)
+                && !UserObject.isService(userId)
+                && !MessagesController.isSupportUser(currentUser)
+                && userId != UserObject.VERIFY
+                && userId != UserObject.OAUTH
+                && DialogObject.isUserDialog(dialog_id)
+                && dialog_id == userId;
     }
 
     private boolean isFluxGramChatSnowEligible() {
@@ -24523,6 +24565,12 @@ public class ChatActivity extends BaseFragment implements
             Long uid = (Long) args[0];
             if (currentUser != null && currentUser.id == uid) {
                 userInfo = (TLRPC.UserFull) args[1];
+                if (!StickerSettings.showsGreeting()
+                        && emptyViewContainer != null
+                        && isRandomGreetingStickerPolicyEligible()) {
+                    greetingsViewContainer = null;
+                    createEmptyView(true);
+                }
                 updateGreetingLock();
                 updateGreetInfo();
                 updateBottomOverlay();
@@ -33228,6 +33276,26 @@ public class ChatActivity extends BaseFragment implements
         }
         emptyViewContainer.setTranslationX(getSideMenuWidth() / 2f);
 
+        boolean greetingPolicyEligible = isRandomGreetingStickerPolicyEligible();
+        boolean contactRequiresPremium = userInfo != null && userInfo.contact_require_premium;
+        long paidMessageStars = userInfo == null ? 0 : userInfo.send_paid_messages_stars;
+        boolean paidMessageGreetingRequired = paidMessageStars > 0
+                && (greetingPolicyEligible
+                || paidMessageStars > StarsController.getInstance(currentAccount).getBalance().amount);
+        boolean hasGreetingAccessRestriction = userInfo != null
+                && getDialogId() != getUserConfig().getClientUserId()
+                && (contactRequiresPremium && !getUserConfig().isPremium()
+                || paidMessageGreetingRequired);
+        boolean hideRandomGreetingSticker = GreetingStickerPolicy.shouldHideRandomSticker(
+                StickerSettings.showsGreeting(),
+                greetingPolicyEligible,
+                userInfo != null,
+                userInfo != null && userInfo.business_intro != null,
+                contactRequiresPremium,
+                getUserConfig().isPremium(),
+                paidMessageStars
+        );
+
         if (chatAdapter.isFiltered) {
             emptyView = new TextView(getContext());
             emptyView.setText(LocaleController.getString(R.string.NoFilteredMessages));
@@ -33247,7 +33315,10 @@ public class ChatActivity extends BaseFragment implements
             businessLinksEmptyView = new BusinessLinksEmptyView(getContext(), this, businessLink, getResourceProvider());
             businessLinksEmptyView.setBackground(Theme.createServiceDrawable(AndroidUtilities.dp(24), businessLinksEmptyView, contentView, getThemedPaint(Theme.key_paint_chatActionBackground)));
             emptyViewContainer.addView(businessLinksEmptyView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
-        } else if (preloadedGreetingsSticker != null && currentUser != null && !userBlocked || userInfo != null && getDialogId() != getUserConfig().getClientUserId() && (userInfo.contact_require_premium && !getUserConfig().isPremium() || userInfo.send_paid_messages_stars > StarsController.getInstance(currentAccount).getBalance().amount)) {
+        } else if ((!hideRandomGreetingSticker
+                && preloadedGreetingsSticker != null
+                && currentUser != null
+                && !userBlocked) || hasGreetingAccessRestriction) {
             greetingsViewContainer = new ChatGreetingsView(getContext(), currentUser, currentAccount, preloadedGreetingsSticker, themeDelegate) {
                 @Override
                 protected void onLayout(boolean changed, int l, int t, int r, int b) {
@@ -33294,6 +33365,9 @@ public class ChatActivity extends BaseFragment implements
                 } else if (currentUser != null && currentUser.id != 777000 && currentUser.id != 429000 && currentUser.id != 4244000 && MessagesController.isSupportUser(currentUser)) {
                     emptyMessage = LocaleController.getString(R.string.GotAQuestion);
                 } else if (chatMode != MODE_SUGGESTIONS && (currentUser == null || currentUser.self || currentUser.deleted || userBlocked)) {
+                    emptyMessage = LocaleController.getString(R.string.NoMessages);
+                }
+                if (emptyMessage == null && hideRandomGreetingSticker) {
                     emptyMessage = LocaleController.getString(R.string.NoMessages);
                 }
                 if (emptyMessage == null) {

@@ -9,6 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 JAVA = ROOT / "TMessagesProj/src/main/java/org/telegram"
 SETTINGS = JAVA / "messenger/fluxgram/StickerSettings.java"
+POLICY = JAVA / "messenger/fluxgram/GreetingStickerPolicy.java"
 
 
 class StickerSettingsTest(unittest.TestCase):
@@ -84,6 +85,7 @@ class StickerSettingsTest(unittest.TestCase):
                 }
             """))
             check.write_text(textwrap.dedent("""
+                import org.telegram.messenger.fluxgram.GreetingStickerPolicy;
                 import org.telegram.messenger.fluxgram.StickerSettings;
                 import org.telegram.messenger.MessagesController;
 
@@ -94,12 +96,46 @@ class StickerSettingsTest(unittest.TestCase):
                                     "fluxgram_show_all_recent_stickers",
                                     7
                             );
+                            MessagesController.preferences.putRaw(
+                                    "fluxgram_show_greeting_sticker",
+                                    7
+                            );
                         }
                         require(!StickerSettings.showsAllRecent());
+                        require(StickerSettings.showsGreeting());
                         StickerSettings.setShowsAllRecent(true);
                         require(StickerSettings.showsAllRecent());
                         StickerSettings.setShowsAllRecent(false);
                         require(!StickerSettings.showsAllRecent());
+                        StickerSettings.setShowsGreeting(false);
+                        require(!StickerSettings.showsGreeting());
+                        StickerSettings.setShowsGreeting(true);
+                        require(StickerSettings.showsGreeting());
+
+                        require(!GreetingStickerPolicy.shouldHideRandomSticker(
+                                false, true, false, false, false, false, 0
+                        ));
+                        require(!GreetingStickerPolicy.shouldHideRandomSticker(
+                                false, true, true, true, false, false, 0
+                        ));
+                        require(!GreetingStickerPolicy.shouldHideRandomSticker(
+                                false, true, true, false, true, false, 0
+                        ));
+                        require(GreetingStickerPolicy.shouldHideRandomSticker(
+                                false, true, true, false, true, true, 0
+                        ));
+                        require(!GreetingStickerPolicy.shouldHideRandomSticker(
+                                false, true, true, false, false, false, 1
+                        ));
+                        require(!GreetingStickerPolicy.shouldHideRandomSticker(
+                                true, true, true, false, false, false, 0
+                        ));
+                        require(!GreetingStickerPolicy.shouldHideRandomSticker(
+                                false, false, true, false, false, false, 0
+                        ));
+                        require(GreetingStickerPolicy.shouldHideRandomSticker(
+                                false, true, true, false, false, false, 0
+                        ));
                     }
 
                     private static void require(boolean value) {
@@ -118,6 +154,7 @@ class StickerSettingsTest(unittest.TestCase):
                     str(shared_preferences),
                     str(messages_controller),
                     str(SETTINGS),
+                    str(POLICY),
                     str(check),
                 ],
                 check=True,
@@ -165,6 +202,62 @@ class StickerSettingsTest(unittest.TestCase):
         self.assertIn("NotificationCenter.getInstance(currentAccount)", click)
         self.assertIn("NotificationCenter.recentDocumentsDidLoad", click)
         self.assertIn("MediaDataController.TYPE_IMAGE", click)
+
+    def test_greeting_setting_preserves_required_and_business_surfaces(self):
+        settings = SETTINGS.read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        empty_view = chat.split("private void createEmptyView", 1)[1].split(
+            "private void updateGreetingLock", 1
+        )[0]
+
+        self.assertIn('"fluxgram_show_greeting_sticker"', settings)
+        self.assertIn("preferences.getBoolean(SHOW_GREETING, true)", settings)
+        self.assertIn("showGreeting = true", settings)
+        self.assertIn(".setChecked(StickerSettings.showsGreeting())", activity)
+        self.assertIn("StickerSettings.setShowsGreeting(enabled)", activity)
+        self.assertIn("parentLayout.rebuildFragments(0)", activity)
+        self.assertIn("boolean contactRequiresPremium", empty_view)
+        self.assertIn("long paidMessageStars", empty_view)
+        self.assertIn("boolean paidMessageGreetingRequired", empty_view)
+        self.assertIn("paidMessageStars > StarsController.getInstance(currentAccount).getBalance().amount", empty_view)
+        self.assertIn("boolean hasGreetingAccessRestriction", empty_view)
+        self.assertIn("getDialogId() != getUserConfig().getClientUserId()", empty_view)
+        self.assertIn("boolean hideRandomGreetingSticker", empty_view)
+        self.assertIn("GreetingStickerPolicy.shouldHideRandomSticker", empty_view)
+        self.assertIn("StickerSettings.showsGreeting()", empty_view)
+        self.assertIn("isRandomGreetingStickerPolicyEligible()", empty_view)
+        self.assertIn("userInfo != null && userInfo.business_intro != null", empty_view)
+        self.assertIn("paidMessageStars > 0", empty_view)
+        self.assertIn(") || hasGreetingAccessRestriction)", empty_view)
+        self.assertIn("if (emptyMessage == null && hideRandomGreetingSticker)", empty_view)
+        self.assertIn("LocaleController.getString(R.string.NoMessages)", empty_view)
+
+        eligibility = chat.split(
+            "private boolean isRandomGreetingStickerPolicyEligible", 1
+        )[1].split("private boolean isFluxGramChatSnowEligible", 1)[0]
+        self.assertIn("chatMode != MODE_DEFAULT", eligibility)
+        self.assertIn("currentEncryptedChat != null", eligibility)
+        self.assertIn("isInPreviewMode()", eligibility)
+        self.assertIn("inBubbleMode", eligibility)
+        self.assertIn("isInsideContainer", eligibility)
+        self.assertIn("isThreadChat()", eligibility)
+        self.assertIn("quickReplyShortcut != null", eligibility)
+        self.assertIn("businessLink != null", eligibility)
+        self.assertIn("isReport()", eligibility)
+        self.assertIn("UserObject.isBot(currentUser)", eligibility)
+        self.assertIn("MessagesController.isSupportUser(currentUser)", eligibility)
+
+        user_info = chat.split(
+            "} else if (id == NotificationCenter.userInfoDidLoad)", 1
+        )[1].split(
+            "NotificationCenter.didSetNewWallpapper", 1
+        )[0]
+        self.assertIn("userInfo = (TLRPC.UserFull) args[1]", user_info)
+        self.assertIn("!StickerSettings.showsGreeting()", user_info)
+        self.assertIn("isRandomGreetingStickerPolicyEligible()", user_info)
+        self.assertIn("greetingsViewContainer = null", user_info)
+        self.assertIn("createEmptyView(true)", user_info)
 
 
 if __name__ == "__main__":
