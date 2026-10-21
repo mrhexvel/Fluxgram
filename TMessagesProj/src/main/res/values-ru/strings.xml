@@ -421,6 +421,9 @@
     <string name="FluxGramMainMenuResetConfirm">Восстановить порядок и видимость команд по умолчанию?</string>
     <string name="FluxGramMoveUp">Переместить вверх</string>
     <string name="FluxGramMoveDown">Переместить вниз</string>
+    <string name="FluxGramStickers">Стикеры</string>
+    <string name="FluxGramShowAllRecentStickers">Показывать все недавние стикеры</string>
+    <string name="FluxGramShowAllRecentStickersInfo">Показывает весь локально сохранённый список недавних стикеров вместо первых 20. История на сервере Telegram и лимиты хранения не меняются.</string>
     <string name="FluxGramNavigationInfo">Режим планшета и нижняя навигация управляют компоновкой приложения. Стили переходов применяются только к обычной навигации и сохраняют специальные анимации Telegram. Интенсивность предиктивного жеста управляет интерактивным переходом Android 14 и новее.</string>
     <string name="FluxGramBottomNavigationRestartMessage">Изменение нижней навигации перестраивает корневые страницы приложения. Для применения нужен перезапуск FluxGram.</string>
     <string name="FluxGramBottomNavigationRestartError">Не удалось сохранить режим нижней навигации или перезапустить FluxGram.</string>

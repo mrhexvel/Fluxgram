@@ -17,6 +17,8 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MediaDataController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
@@ -32,6 +34,7 @@ import org.telegram.messenger.fluxgram.GeneralSettings;
 import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
+import org.telegram.messenger.fluxgram.StickerSettings;
 import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.messenger.fluxgram.TransferSettings;
 import org.telegram.messenger.plugins.ExternalPlugins;
@@ -117,6 +120,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int TRANSITION_STYLE = 48;
     private static final int PREDICTIVE_BACK = 49;
     private static final int MAIN_MENU = 50;
+    private static final int SHOW_ALL_RECENT_STICKERS = 51;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -527,6 +531,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramDisableUnarchiveSwipe)
             ).setChecked(ArchiveSettings.disablesUnarchiveSwipe()));
             items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramStickers);
+            items.add(UItem.asCheck(
+                    SHOW_ALL_RECENT_STICKERS,
+                    LocaleController.getString(R.string.FluxGramShowAllRecentStickers)
+            ).setChecked(StickerSettings.showsAllRecent()));
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramShowAllRecentStickersInfo)));
 
             return;
         }
@@ -854,6 +865,15 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean disabled = !ArchiveSettings.disablesUnarchiveSwipe();
                 ArchiveSettings.setDisablesUnarchiveSwipe(disabled);
                 ((TextCheckCell) view).setChecked(disabled);
+            } else if (item.id == SHOW_ALL_RECENT_STICKERS) {
+                boolean enabled = !StickerSettings.showsAllRecent();
+                StickerSettings.setShowsAllRecent(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                NotificationCenter.getInstance(currentAccount).postNotificationName(
+                        NotificationCenter.recentDocumentsDidLoad,
+                        false,
+                        MediaDataController.TYPE_IMAGE
+                );
             }
 
             return;
