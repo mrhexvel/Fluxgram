@@ -135,6 +135,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SWIPE_MESSAGES = 60;
     private static final int SWIPE_MESSAGE_ACTIONS = 61;
     private static final int SHOW_STICKER_TIME = 62;
+    private static final int STICKER_SHAPE = 63;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -561,6 +562,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     SHOW_STICKER_TIME,
                     LocaleController.getString(R.string.FluxGramShowStickerTime)
             ).setChecked(StickerSettings.showsStickerTime()));
+            items.add(UItem.asButton(
+                    STICKER_SHAPE,
+                    LocaleController.getString(R.string.FluxGramStickerShape),
+                    stickerShapeOption(StickerSettings.getStickerShape())
+            ));
             items.add(UItem.asCheck(
                     SHOW_ALL_RECENT_STICKERS,
                     LocaleController.getString(R.string.FluxGramShowAllRecentStickers)
@@ -959,11 +965,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !StickerSettings.showsStickerTime();
                 StickerSettings.setShowsStickerTime(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
-                if (AndroidUtilities.isTablet() && getParentActivity() instanceof LaunchActivity) {
-                    ((LaunchActivity) getParentActivity()).rebuildAllFragments(true);
-                } else {
-                    parentLayout.rebuildFragments(0);
-                }
+                rebuildChatPresentation();
+            } else if (item.id == STICKER_SHAPE) {
+                showStickerShapeDialog();
             } else if (item.id == HIDE_SEND_AS) {
                 boolean hidden = !ChatSettings.hidesSendAs();
                 ChatSettings.setHidesSendAs(hidden);
@@ -1391,6 +1395,50 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         return LocaleController.getString(R.string.FluxGramDividerLine);
+    }
+
+    private String stickerShapeOption(int shape) {
+        if (shape == StickerSettings.SHAPE_ROUNDED) {
+            return LocaleController.getString(R.string.FluxGramStickerShapeRounded);
+        }
+        if (shape == StickerSettings.SHAPE_MESSAGE) {
+            return LocaleController.getString(R.string.FluxGramStickerShapeMessage);
+        }
+
+        return LocaleController.getString(R.string.Default);
+    }
+
+    private void showStickerShapeDialog() {
+        CharSequence[] options = {
+                stickerShapeOption(StickerSettings.SHAPE_DEFAULT),
+                stickerShapeOption(StickerSettings.SHAPE_ROUNDED),
+                stickerShapeOption(StickerSettings.SHAPE_MESSAGE)
+        };
+        int selected = StickerSettings.getStickerShape();
+
+        for (int i = 0; i < options.length; i++) {
+            if (i == selected) {
+                options[i] = "✓  " + options[i];
+            }
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramStickerShape))
+                .setItems(options, (dialog, index) -> {
+                    StickerSettings.setStickerShape(index);
+                    listView.adapter.update(true);
+                    rebuildChatPresentation();
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create());
+    }
+
+    private void rebuildChatPresentation() {
+        if (AndroidUtilities.isTablet() && getParentActivity() instanceof LaunchActivity) {
+            ((LaunchActivity) getParentActivity()).rebuildAllFragments(true);
+        } else {
+            parentLayout.rebuildFragments(0);
+        }
     }
 
     private String tabletModeOption(int mode) {

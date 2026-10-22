@@ -30,10 +30,12 @@ class StickerSettingsTest(unittest.TestCase):
 
                 public interface SharedPreferences {
                     boolean getBoolean(String key, boolean fallback);
+                    int getInt(String key, int fallback);
                     Editor edit();
 
                     interface Editor {
                         Editor putBoolean(String key, boolean value);
+                        Editor putInt(String key, int value);
                         void apply();
                     }
                 }
@@ -59,6 +61,10 @@ class StickerSettingsTest(unittest.TestCase):
                             return values.containsKey(key) ? (Boolean) values.get(key) : fallback;
                         }
 
+                        public int getInt(String key, int fallback) {
+                            return values.containsKey(key) ? (Integer) values.get(key) : fallback;
+                        }
+
                         public void putRaw(String key, Object value) {
                             values.put(key, value);
                         }
@@ -69,9 +75,15 @@ class StickerSettingsTest(unittest.TestCase):
 
                         private final class MemoryEditor implements Editor {
                             private String key;
-                            private boolean value;
+                            private Object value;
 
                             public Editor putBoolean(String key, boolean value) {
+                                this.key = key;
+                                this.value = value;
+                                return this;
+                            }
+
+                            public Editor putInt(String key, int value) {
                                 this.key = key;
                                 this.value = value;
                                 return this;
@@ -104,10 +116,15 @@ class StickerSettingsTest(unittest.TestCase):
                                     "fluxgram_show_sticker_time",
                                     7
                             );
+                            MessagesController.preferences.putRaw(
+                                    "fluxgram_sticker_shape",
+                                    "invalid"
+                            );
                         }
                         require(!StickerSettings.showsAllRecent());
                         require(StickerSettings.showsGreeting());
                         require(StickerSettings.showsStickerTime());
+                        require(StickerSettings.getStickerShape() == StickerSettings.SHAPE_DEFAULT);
                         StickerSettings.setShowsAllRecent(true);
                         require(StickerSettings.showsAllRecent());
                         StickerSettings.setShowsAllRecent(false);
@@ -120,6 +137,12 @@ class StickerSettingsTest(unittest.TestCase):
                         require(!StickerSettings.showsStickerTime());
                         StickerSettings.setShowsStickerTime(true);
                         require(StickerSettings.showsStickerTime());
+                        StickerSettings.setStickerShape(StickerSettings.SHAPE_ROUNDED);
+                        require(StickerSettings.getStickerShape() == StickerSettings.SHAPE_ROUNDED);
+                        StickerSettings.setStickerShape(StickerSettings.SHAPE_MESSAGE);
+                        require(StickerSettings.getStickerShape() == StickerSettings.SHAPE_MESSAGE);
+                        StickerSettings.setStickerShape(7);
+                        require(StickerSettings.getStickerShape() == StickerSettings.SHAPE_MESSAGE);
 
                         require(!GreetingStickerPolicy.shouldHideRandomSticker(
                                 false, true, false, false, false, false, 0
@@ -302,14 +325,49 @@ class StickerSettingsTest(unittest.TestCase):
         self.assertIn("isStickerTimeHidden() || !currentMessageObject.isImportedForward()", cell)
         self.assertIn("isStickerTimeHidden() || currentMessageObject == null", cell)
         self.assertIn("isStickerTimeHidden() && reactionsLayoutInBubble.isSmall", cell)
-        self.assertIn("AndroidUtilities.isTablet()", click)
-        self.assertIn("rebuildAllFragments(true)", click)
+        self.assertIn("rebuildChatPresentation()", click)
+        self.assertIn("AndroidUtilities.isTablet()", activity)
+        self.assertIn("rebuildAllFragments(true)", activity)
         self.assertNotIn("setPresentationHidden", cell.split(
             "public void setDrawStickerTime", 1
         )[1].split("private boolean shouldDrawReactions", 1)[0])
-        self.assertEqual(2, chat.count(
-            "setDrawStickerTime(StickerSettings.showsStickerTime())"
-        ))
+        self.assertIn("setDrawStickerTime(StickerSettings.showsStickerTime())", chat)
+        self.assertEqual(3, chat.count("applyStickerPresentation("))
+
+    def test_sticker_shape_clips_only_chat_stickers(self):
+        settings = SETTINGS.read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        draw_photo = cell.split(
+            "protected boolean drawPhotoImage(Canvas canvas)", 1
+        )[1].split("public boolean areTags()", 1)[0]
+
+        self.assertIn('"fluxgram_sticker_shape"', settings)
+        self.assertIn("SHAPE_DEFAULT = 0", settings)
+        self.assertIn("SHAPE_ROUNDED = 1", settings)
+        self.assertIn("SHAPE_MESSAGE = 2", settings)
+        self.assertIn("preferences.getInt(STICKER_SHAPE, SHAPE_DEFAULT)", settings)
+        self.assertIn("StickerSettings.getStickerShape()", activity)
+        self.assertIn("StickerSettings.setStickerShape(index)", activity)
+        self.assertIn("showStickerShapeDialog()", activity)
+        self.assertIn("cornerRadius = nearCornerRadius = dp(6)", chat)
+        self.assertIn("cornerRadius = dp(SharedConfig.bubbleRadius)", chat)
+        self.assertIn("nearCornerRadius = cornerRadius / 3", chat)
+        self.assertIn("setStickerCornerRadii(cornerRadius, nearCornerRadius)", chat)
+        self.assertNotIn("StickerSettings", cell)
+        self.assertIn("documentAttachType == DOCUMENT_ATTACH_TYPE_STICKER", draw_photo)
+        self.assertIn("MessageObject.TYPE_STICKER", draw_photo)
+        self.assertIn("MessageObject.TYPE_ANIMATED_STICKER", draw_photo)
+        self.assertIn("!currentMessageObject.isDice()", draw_photo)
+        self.assertIn("!currentMessageObject.isAnimatedEmoji()", draw_photo)
+        self.assertIn("isStickerShapePresentation() ? stickerCornerRadius : 0", draw_photo)
+        self.assertIn("MessageObject.isPremiumSticker(currentMessageObject.getDocument())", draw_photo)
+        self.assertIn("stickerClipPath.addRoundRect", draw_photo)
+        self.assertIn("canvas.clipPath(stickerClipPath)", draw_photo)
+        self.assertIn("int[] currentRadii = photoImage.getRoundRadius()", draw_photo)
+        self.assertIn("photoImage.setRoundRadius(stickerImageRadii)", draw_photo)
+        self.assertNotIn("drawBackground = true", draw_photo)
 
 
 if __name__ == "__main__":

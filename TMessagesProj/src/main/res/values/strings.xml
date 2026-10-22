@@ -11429,6 +11429,9 @@
     <string name="FluxGramStickers">Stickers</string>
     <string name="FluxGramShowGreetingSticker">Show greeting sticker</string>
     <string name="FluxGramShowStickerTime">Show time on stickers</string>
+    <string name="FluxGramStickerShape">Sticker shape</string>
+    <string name="FluxGramStickerShapeRounded">Rounded</string>
+    <string name="FluxGramStickerShapeMessage">Like messages</string>
     <string name="FluxGramShowAllRecentStickers">Show all recent stickers</string>
     <string name="FluxGramShowAllRecentStickersInfo">Shows the full locally retained recent sticker list instead of the first 20. Telegram server history and storage limits are unchanged.</string>
     <string name="FluxGramMessageInput">Message input</string>

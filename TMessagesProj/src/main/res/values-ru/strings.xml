@@ -424,6 +424,9 @@
     <string name="FluxGramStickers">Стикеры</string>
     <string name="FluxGramShowGreetingSticker">Показывать приветственный стикер</string>
     <string name="FluxGramShowStickerTime">Показывать время у стикеров</string>
+    <string name="FluxGramStickerShape">Форма стикеров</string>
+    <string name="FluxGramStickerShapeRounded">Закруглённые</string>
+    <string name="FluxGramStickerShapeMessage">Как сообщения</string>
     <string name="FluxGramShowAllRecentStickers">Показывать все недавние стикеры</string>
     <string name="FluxGramShowAllRecentStickersInfo">Показывает весь локально сохранённый список недавних стикеров вместо первых 20. История на сервере Telegram и лимиты хранения не меняются.</string>
     <string name="FluxGramMessageInput">Поле ввода</string>

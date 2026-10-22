@@ -19261,7 +19261,7 @@ public class ChatActivity extends BaseFragment implements
         if (dummyMessageCell == null) {
             dummyMessageCell = new ChatMessageCell(getParentActivity(), currentAccount, true, sharedResources, themeDelegate);
             dummyMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
-            dummyMessageCell.setDrawStickerTime(StickerSettings.showsStickerTime());
+            applyStickerPresentation(dummyMessageCell);
         }
         dummyMessageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser);
         dummyMessageCell.isSavedChat = chatMode == MODE_SAVED;
@@ -19272,6 +19272,21 @@ public class ChatActivity extends BaseFragment implements
         dummyMessageCell.isSideMenued = isSideMenued();
         dummyMessageCell.isSideMenuEnabled = isSideMenuEnabled();
         return dummyMessageCell.computeHeight(object, groupedMessagesMap.get(object.getGroupId()), withGroupCaption);
+    }
+
+    private void applyStickerPresentation(ChatMessageCell cell) {
+        cell.setDrawStickerTime(StickerSettings.showsStickerTime());
+
+        int cornerRadius = 0;
+        int nearCornerRadius = 0;
+        int shape = StickerSettings.getStickerShape();
+        if (shape == StickerSettings.SHAPE_ROUNDED) {
+            cornerRadius = nearCornerRadius = dp(6);
+        } else if (shape == StickerSettings.SHAPE_MESSAGE) {
+            cornerRadius = dp(SharedConfig.bubbleRadius);
+            nearCornerRadius = cornerRadius / 3;
+        }
+        cell.setStickerCornerRadii(cornerRadius, nearCornerRadius);
     }
 
     private void startMessageUnselect() {
@@ -39968,7 +39983,7 @@ public class ChatActivity extends BaseFragment implements
                 ChatMessageCell chatMessageCell = (ChatMessageCell) view;
                 chatMessageCell.setResourcesProvider(themeDelegate);
                 chatMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
-                chatMessageCell.setDrawStickerTime(StickerSettings.showsStickerTime());
+                applyStickerPresentation(chatMessageCell);
                 chatMessageCell.shouldCheckVisibleOnScreen = false;
                 chatMessageCell.setDelegate(getChatMessageCellDelegate());
                 chatMessageCell.draftAnimationsPool = botDraftAnimationsPool;

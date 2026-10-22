@@ -1036,6 +1036,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public final ReactionsLayoutInBubble reactionsLayoutInBubble = new ReactionsLayoutInBubble(this);
     private boolean drawMessageReactions = true;
     private boolean drawStickerTime = true;
+    private int stickerCornerRadius;
+    private int stickerNearCornerRadius;
+    private int[] stickerImageRadii;
+    private float[] stickerClipRadii;
+    private RectF stickerClipRect;
+    private Path stickerClipPath;
     public final GiveawayMessageCell giveawayMessageCell = new GiveawayMessageCell(this);
     public final GiveawayResultsMessageCell giveawayResultsMessageCell = new GiveawayResultsMessageCell(this);
 
@@ -1061,6 +1067,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     public void setDrawStickerTime(boolean drawStickerTime) {
         this.drawStickerTime = drawStickerTime;
+    }
+
+    public void setStickerCornerRadii(int cornerRadius, int nearCornerRadius) {
+        stickerCornerRadius = Math.max(0, cornerRadius);
+        stickerNearCornerRadius = Math.max(0, Math.min(stickerCornerRadius, nearCornerRadius));
+
+        if (isStickerShapePresentation()) {
+            applyStickerShapeRadii();
+            invalidate();
+        }
     }
 
     private boolean shouldDrawReactions(MessageObject messageObject) {
@@ -9790,7 +9806,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     availableTimeWidth = photoWidth - dp(14);
                     backgroundWidth = photoWidth + dp(12);
 
-                    photoImage.setRoundRadius(0);
+                    applyStickerShapeRadii();
                     canChangeRadius = false;
                     if (!messageObject.isOutOwner() && MessageObject.isPremiumSticker(messageObject.getDocument())) {
                         flipImage = true;
@@ -29302,7 +29318,72 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
             }
         }
+        if (isStickerShapePresentation() && stickerCornerRadius > 0) {
+            ensureStickerShapeGeometry();
+            int[] currentRadii = photoImage.getRoundRadius();
+            stickerClipRadii[0] = stickerClipRadii[1] = currentRadii[0];
+            stickerClipRadii[2] = stickerClipRadii[3] = currentRadii[1];
+            stickerClipRadii[4] = stickerClipRadii[5] = currentRadii[2];
+            stickerClipRadii[6] = stickerClipRadii[7] = currentRadii[3];
+            stickerClipRect.set(
+                    photoImage.getImageX(),
+                    photoImage.getImageY(),
+                    photoImage.getImageX2(),
+                    photoImage.getImageY2()
+            );
+            stickerClipPath.rewind();
+            stickerClipPath.addRoundRect(stickerClipRect, stickerClipRadii, Path.Direction.CW);
+
+            int save = canvas.save();
+            canvas.clipPath(stickerClipPath);
+            boolean drawn = photoImage.draw(canvas);
+            canvas.restoreToCount(save);
+
+            return drawn;
+        }
         return photoImage.draw(canvas);
+    }
+
+    private boolean isStickerShapePresentation() {
+        return documentAttachType == DOCUMENT_ATTACH_TYPE_STICKER
+                && currentMessageObject != null
+                && (currentMessageObject.type == MessageObject.TYPE_STICKER
+                || currentMessageObject.type == MessageObject.TYPE_ANIMATED_STICKER)
+                && !currentMessageObject.isDice()
+                && !currentMessageObject.isAnimatedEmoji();
+    }
+
+    private void applyStickerShapeRadii() {
+        ensureStickerShapeGeometry();
+
+        int cornerRadius = isStickerShapePresentation() ? stickerCornerRadius : 0;
+        int nearCornerRadius = isStickerShapePresentation() ? stickerNearCornerRadius : 0;
+        int bottomRight = cornerRadius;
+        int bottomLeft = cornerRadius;
+        if (nearCornerRadius != cornerRadius && currentMessageObject != null) {
+            if (currentMessageObject.isOutOwner()) {
+                bottomRight = nearCornerRadius;
+            } else if (MessageObject.isPremiumSticker(currentMessageObject.getDocument())) {
+                bottomRight = nearCornerRadius;
+            } else {
+                bottomLeft = nearCornerRadius;
+            }
+        }
+
+        stickerImageRadii[0] = cornerRadius;
+        stickerImageRadii[1] = cornerRadius;
+        stickerImageRadii[2] = bottomRight;
+        stickerImageRadii[3] = bottomLeft;
+        photoImage.setRoundRadius(stickerImageRadii);
+    }
+
+    private void ensureStickerShapeGeometry() {
+        if (stickerImageRadii == null) {
+            stickerImageRadii = new int[4];
+            stickerClipRadii = new float[8];
+            stickerClipRect = new RectF();
+            stickerClipPath = new Path();
+        }
     }
 
     public boolean areTags() {
