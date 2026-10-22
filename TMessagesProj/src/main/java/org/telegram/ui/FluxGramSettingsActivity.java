@@ -53,6 +53,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.FluxGramAvatarGeometryPreviewCell;
 import org.telegram.ui.Components.FluxGramChatListPreviewCell;
 import org.telegram.ui.Components.FluxGramFabShapePreviewCell;
@@ -1267,22 +1268,27 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 doubleTapActionOption(actionIds[1]),
                 doubleTapActionOption(actionIds[2])
         };
-        String selected = MessageGestureSettings.getState().getDoubleTapAction();
+        String selectedAction = MessageGestureSettings.getState().getDoubleTapAction();
+        int selected = 0;
 
         for (int i = 0; i < actionIds.length; i++) {
-            if (actionIds[i].equals(selected)) {
-                options[i] = "✓  " + options[i];
+            if (actionIds[i].equals(selectedAction)) {
+                selected = i;
+                break;
             }
         }
 
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramDoubleTapAction))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramDoubleTapAction),
+                selected,
+                (dialog, index) -> {
                     MessageGestureSettings.setDoubleTapAction(actionIds[index]);
                     listView.adapter.update(true);
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void showFolderPresentationDialog() {
@@ -1293,20 +1299,17 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = FolderSettings.getPolicy(currentAccount).getPresentationMode();
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramFolderPresentation))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramFolderPresentation),
+                selected,
+                (dialog, index) -> {
                     FolderSettings.setPresentationMode(currentAccount, index);
                     updateFolderPreview();
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private CharSequence folderCounterOption(int mode) {
@@ -1328,20 +1331,17 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = FolderSettings.getPolicy(currentAccount).getCounterMode();
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramFolderCounter))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramFolderCounter),
+                selected,
+                (dialog, index) -> {
                     FolderSettings.setCounterMode(currentAccount, index);
                     updateFolderPreview();
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void updateFolderPreview() {
@@ -1369,21 +1369,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = AppearanceSettings.getTitleMode(currentAccount);
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramActionBarTitle))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramActionBarTitle),
+                selected,
+                (dialog, index) -> {
                     AppearanceSettings.setTitleMode(currentAccount, index);
                     appearancePreview.update(true);
                     listView.adapter.update(true);
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private String dividerStyleOption(int style) {
@@ -1416,21 +1413,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = StickerSettings.getStickerShape();
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramStickerShape))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramStickerShape),
+                selected,
+                (dialog, index) -> {
                     StickerSettings.setStickerShape(index);
                     listView.adapter.update(true);
                     rebuildChatPresentation();
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void rebuildChatPresentation() {
@@ -1482,23 +1476,20 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = SharedConfig.navigationTransitionStyle;
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramTransitionStyle))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramTransitionStyle),
+                selected,
+                (dialog, index) -> {
                     SharedConfig.setNavigationTransitionStyle(index);
                     if (!AndroidUtilities.isTablet()) {
                         NavigationTransitionPolicy.apply(parentLayout, index);
                     }
                     listView.adapter.update(true);
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void confirmPredictiveBackChange(boolean enabled) {
@@ -1542,21 +1533,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = SharedConfig.bottomNavigationMode;
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramBottomNavigation))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramBottomNavigation),
+                selected,
+                (dialog, index) -> {
                     if (index != SharedConfig.bottomNavigationMode) {
                         confirmBottomNavigationChange(index);
                     }
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void confirmBottomNavigationChange(int mode) {
@@ -1600,21 +1588,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = SharedConfig.tabletMode;
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramTabletMode))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramTabletMode),
+                selected,
+                (dialog, index) -> {
                     if (index != SharedConfig.tabletMode) {
                         confirmTabletModeChange(index);
                     }
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void confirmTabletModeChange(int mode) {
@@ -1658,21 +1643,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = AppearanceSettings.getSettingsDividerStyle(currentAccount);
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramDividerStyle))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramDividerStyle),
+                selected,
+                (dialog, index) -> {
                     AppearanceSettings.setSettingsDividerStyle(currentAccount, index);
                     FluxGramSettingsSections.apply(listView, currentAccount);
                     listView.adapter.update(false);
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private String glassOutlineStyleOption(int style) {
@@ -1694,21 +1676,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
         };
         int selected = AppearanceSettings.getGlassOutlineStyle(currentAccount);
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramGlassOutlineStyle))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramGlassOutlineStyle),
+                selected,
+                (dialog, index) -> {
                     AppearanceSettings.setGlassOutlineStyle(currentAccount, index);
                     listView.adapter.update(true);
                     scheduleAppearanceRebuild();
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private boolean preparingShare;

@@ -16,10 +16,10 @@ import org.telegram.messenger.fluxgram.GhostModeSettings;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
-import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
+import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.InviteMembersBottomSheet;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
@@ -203,20 +203,17 @@ public final class FluxGramGhostModeActivity extends BaseFragment {
         };
         int selected = GhostModeSettings.getSilentSendMode(currentAccount);
 
-        for (int i = 0; i < options.length; i++) {
-            if (i == selected) {
-                options[i] = "✓  " + options[i];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(text(R.string.FluxGramGhostModeSendSilently))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                text(R.string.FluxGramGhostModeSendSilently),
+                selected,
+                (dialog, index) -> {
                     GhostModeSettings.setSilentSendMode(currentAccount, index);
                     listView.adapter.update(true);
-                })
-                .setNegativeButton(text(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void showDialogSelection(boolean whitelist) {

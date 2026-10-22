@@ -174,7 +174,8 @@ class GhostModeSettingsTest(unittest.TestCase):
         self.assertIn("GhostModeSettings.setUsesSendDelay", source)
         self.assertIn("GhostModeSettings.setSilentSendMode", source)
         self.assertIn("GhostModeSettings.setSuggestsForStories", source)
-        self.assertIn("new AlertDialog.Builder(getParentActivity(), getResourceProvider())", source)
+        self.assertIn("AlertsCreator.createSingleChoiceDialog(", source)
+        self.assertIn("getResourceProvider()", source)
 
     def test_online_policy_requires_master_and_child_switches(self):
         source = (JAVA / "messenger/fluxgram/GhostModeSettings.java").read_text()

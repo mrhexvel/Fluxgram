@@ -27,6 +27,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextSettingsCell;
+import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LinkSpanDrawable;
 import org.telegram.ui.Components.SeekBarView;
@@ -344,15 +345,21 @@ public final class PluginSettingsActivity extends BaseFragment {
 
                 CharSequence[] options = new CharSequence[setting.optionTitles.size()];
                 Object selected = PluginSettings.getValue(pluginId, setting);
+                int selectedIndex = -1;
 
                 for (int i = 0; i < options.length; i++) {
-                    options[i] = (setting.optionValues.get(i).equals(selected) ? "✓  " : "")
-                            + setting.optionTitles.get(i);
+                    options[i] = setting.optionTitles.get(i);
+                    if (setting.optionValues.get(i).equals(selected)) {
+                        selectedIndex = i;
+                    }
                 }
 
-                showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                        .setTitle(setting.title)
-                        .setItems(options, (dialog, index) -> {
+                showDialog(AlertsCreator.createSingleChoiceDialog(
+                        getParentActivity(),
+                        options,
+                        setting.title,
+                        selectedIndex,
+                        (dialog, index) -> {
                             if (canEdit(adapter, setting.key)) {
                                 String chosen = setting.optionValues.get(index);
 
@@ -360,9 +367,9 @@ public final class PluginSettingsActivity extends BaseFragment {
                                     title.setTextAndValue(setting.title, setting.displayValue(chosen), false);
                                 }
                             }
-                        })
-                        .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                        .create());
+                        },
+                        getResourceProvider()
+                ));
             });
         } else if (setting.type.equals("text")) {
             title.setEnabled(canEdit(adapter, setting.key));

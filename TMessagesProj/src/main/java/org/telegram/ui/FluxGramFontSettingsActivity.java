@@ -17,6 +17,7 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
+import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.FluxGramFontPreviewCell;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
@@ -165,21 +166,18 @@ public final class FluxGramFontSettingsActivity extends BaseFragment {
         };
         int selected = FontSettings.getMode();
 
-        for (int index = 0; index < options.length; index++) {
-            if (index == selected) {
-                options[index] = "✓  " + options[index];
-            }
-        }
-
-        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(LocaleController.getString(R.string.FluxGramFontMode))
-                .setItems(options, (dialog, index) -> {
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramFontMode),
+                selected,
+                (dialog, index) -> {
                     FontSettings.setMode(index);
                     preview.update();
                     listView.adapter.update(true);
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .create());
+                },
+                getResourceProvider()
+        ));
     }
 
     private void showRoleActions(View anchor, FontSettings.Role role) {

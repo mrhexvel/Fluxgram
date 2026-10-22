@@ -339,6 +339,9 @@ class StickerSettingsTest(unittest.TestCase):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        shape_dialog = activity.split(
+            "private void showStickerShapeDialog()", 1
+        )[1].split("private void rebuildChatPresentation()", 1)[0]
         draw_photo = cell.split(
             "protected boolean drawPhotoImage(Canvas canvas)", 1
         )[1].split("public boolean areTags()", 1)[0]
@@ -351,6 +354,9 @@ class StickerSettingsTest(unittest.TestCase):
         self.assertIn("StickerSettings.getStickerShape()", activity)
         self.assertIn("StickerSettings.setStickerShape(index)", activity)
         self.assertIn("showStickerShapeDialog()", activity)
+        self.assertIn("AlertsCreator.createSingleChoiceDialog", shape_dialog)
+        self.assertNotIn('"✓  "', shape_dialog)
+        self.assertNotIn(".setItems(", shape_dialog)
         self.assertIn("cornerRadius = nearCornerRadius = dp(6)", chat)
         self.assertIn("cornerRadius = dp(SharedConfig.bubbleRadius)", chat)
         self.assertIn("nearCornerRadius = cornerRadius / 3", chat)

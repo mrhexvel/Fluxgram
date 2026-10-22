@@ -23,6 +23,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextSettingsCell;
+import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.InviteMembersBottomSheet;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.SlideChooseView;
@@ -136,13 +137,17 @@ public final class FluxGramStealthActivity extends BaseFragment {
         String[] limits = {"10 MB", "50 MB", "100 MB", "500 MB"};
         fileLimit.setTextAndValue(text(R.string.FluxGramAttachmentFileLimit), limits[archive.fileLimitIndex()], false);
         fileLimit.setBackground(Theme.getSelectorDrawable(false));
-        fileLimit.setOnClickListener(view -> showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
-                .setTitle(text(R.string.FluxGramAttachmentFileLimit))
-                .setItems(limits, (dialog, which) -> {
+        fileLimit.setOnClickListener(view -> showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                limits,
+                text(R.string.FluxGramAttachmentFileLimit),
+                archive.fileLimitIndex(),
+                (dialog, which) -> {
                     archive.setFileLimit(which);
                     list.adapter.update(false);
-                })
-                .create()));
+                },
+                getResourceProvider()
+        )));
         items.add(UItem.asCustom(fileLimit, LayoutHelper.WRAP_CONTENT));
         items.add(UItem.asShadow(null));
 

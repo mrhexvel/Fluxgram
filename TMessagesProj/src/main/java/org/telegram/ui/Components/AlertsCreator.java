@@ -7605,14 +7605,18 @@ public class AlertsCreator {
     }
 
     public static Dialog createSingleChoiceDialog(Activity parentActivity, final String[] options, final String title, final int selected, final DialogInterface.OnClickListener listener) {
+        return createSingleChoiceDialog(parentActivity, options, title, selected, listener, null);
+    }
+
+    public static Dialog createSingleChoiceDialog(Activity parentActivity, final CharSequence[] options, final CharSequence title, final int selected, final DialogInterface.OnClickListener listener, Theme.ResourcesProvider resourcesProvider) {
         final LinearLayout linearLayout = new LinearLayout(parentActivity);
         linearLayout.setOrientation(LinearLayout.VERTICAL);
-        AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity);
+        AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity, resourcesProvider);
         for (int a = 0; a < options.length; a++) {
-            RadioColorCell cell = new RadioColorCell(parentActivity);
+            RadioColorCell cell = new RadioColorCell(parentActivity, resourcesProvider);
             cell.setPadding(dp(4), 0, dp(4), 0);
             cell.setTag(a);
-            cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
+            cell.setCheckColor(Theme.getColor(Theme.key_radioBackground, resourcesProvider), Theme.getColor(Theme.key_dialogRadioBackgroundChecked, resourcesProvider));
             cell.setTextAndValue(options[a], selected == a);
             linearLayout.addView(cell);
             cell.setOnClickListener(v -> {
