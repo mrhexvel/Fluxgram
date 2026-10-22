@@ -97,6 +97,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_message_reactions", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_edited_mark", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_tails", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_message_avatar_online", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -106,6 +107,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.showsMessageReactions());
                         require(ChatSettings.showsEditedMark());
                         require(ChatSettings.showsMessageTails());
+                        require(!ChatSettings.showsMessageAvatarOnline());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -134,6 +136,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsMessageTails());
                         ChatSettings.setShowsMessageTails(true);
                         require(ChatSettings.showsMessageTails());
+                        ChatSettings.setShowsMessageAvatarOnline(true);
+                        require(ChatSettings.showsMessageAvatarOnline());
+                        ChatSettings.setShowsMessageAvatarOnline(false);
+                        require(!ChatSettings.showsMessageAvatarOnline());
                     }
 
                     private static void require(boolean value) {
@@ -288,6 +294,43 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.showsMessageTails())", activity)
         self.assertIn("ChatSettings.setShowsMessageTails(shown)", activity)
         handler = activity.split("item.id == SHOW_MESSAGE_TAILS", 1)[1]
+        handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
+        self.assertIn("rebuildChatPresentation()", handler)
+
+    def test_chat_activity_can_show_online_status_on_message_avatars(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        message_cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        indicator = (
+            JAVA / "ui/fluxgram/MessageAvatarOnlineIndicator.java"
+        ).read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertNotIn("MessageAvatarOnlineIndicator", message_cell)
+        self.assertIn(
+            "imageReceiver.draw(canvas) && shouldDrawMessageAvatarOnlineIndicator()",
+            chat,
+        )
+        self.assertIn("messageAvatarOnlineIndicator.draw(", chat)
+        self.assertIn("chatMode == MODE_DEFAULT", chat)
+        self.assertIn("currentEncryptedChat == null", chat)
+        self.assertIn("&& !isTopic", chat)
+        self.assertIn("&& !isComments", chat)
+        self.assertIn("&& !isThreadChat()", chat)
+        self.assertIn("chatListView.invalidate()", chat)
+        self.assertIn("MessagesController.UPDATE_MASK_STATUS", chat)
+        self.assertIn("messageObject.messageOwner.fwd_from != null", indicator)
+        self.assertIn("messageObject.customAvatarDrawable != null", indicator)
+        self.assertIn("cell.getCurrentUser()", indicator)
+        self.assertIn("boundChat.signature_profiles", indicator)
+        self.assertIn("user.status.expires <= 0", indicator)
+        self.assertIn("onlinePrivacy.containsKey(senderId)", indicator)
+        self.assertIn("Theme.key_chats_onlineCircle", indicator)
+        self.assertIn(
+            ".setChecked(ChatSettings.showsMessageAvatarOnline())",
+            activity,
+        )
+        self.assertIn("ChatSettings.setShowsMessageAvatarOnline(shown)", activity)
+        handler = activity.split("item.id == SHOW_MESSAGE_AVATAR_ONLINE", 1)[1]
         handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
         self.assertIn("rebuildChatPresentation()", handler)
 

@@ -133,6 +133,7 @@ import org.telegram.messenger.fluxgram.StickerSettings;
 import org.telegram.ui.fluxgram.MessageMenuMetadataController;
 import org.telegram.ui.fluxgram.FluxGramComposerController;
 import org.telegram.ui.fluxgram.ChatSelectionActionController;
+import org.telegram.ui.fluxgram.MessageAvatarOnlineIndicator;
 import org.telegram.ui.Components.EditTextCaption;
 
 import org.telegram.ui.Wallet.GramWallet;
@@ -524,6 +525,7 @@ public class ChatActivity extends BaseFragment implements
     public ChatAvatarContainer avatarContainer;
     private FluxGramChatHeaderAppearanceController fluxGramChatHeaderAppearanceController;
     private final ChatMessageActionController fluxGramMessageActions = new ChatMessageActionController();
+    private final MessageAvatarOnlineIndicator messageAvatarOnlineIndicator = new MessageAvatarOnlineIndicator();
     private final PluginChatLifecycle pluginChatLifecycle = new PluginChatLifecycle();
     private FluxGramComposerController pluginComposer;
     private ChatSelectionActionController pluginSelectionActions;
@@ -2573,6 +2575,22 @@ public class ChatActivity extends BaseFragment implements
                 || chatMode == MODE_SCHEDULED
                 || chatMode == MODE_PINNED
                 || chatMode == MODE_SAVED);
+    }
+
+    private boolean shouldDrawMessageAvatarOnlineIndicator() {
+        return ChatSettings.showsMessageAvatarOnline()
+                && chatMode == MODE_DEFAULT
+                && currentChat != null
+                && currentEncryptedChat == null
+                && !isInPreviewMode()
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && !isTopic
+                && !isComments
+                && !isThreadChat()
+                && !searching
+                && !isFiltered();
     }
 
     private boolean isReplyPermissionGranted(MessageObject messageObject) {
@@ -8744,7 +8762,15 @@ public class ChatActivity extends BaseFragment implements
                             canvas.scale(1f - getSideMenuAlpha(), 1f - getSideMenuAlpha(), imageReceiver.getImageX2(), imageReceiver.getImageY2());
                             canvas.translate(dp(24) * getSideMenuAlpha(), 0f);
                         }
-                        imageReceiver.draw(canvas);
+                        if (imageReceiver.draw(canvas) && shouldDrawMessageAvatarOnlineIndicator()) {
+                            messageAvatarOnlineIndicator.draw(
+                                    canvas,
+                                    imageReceiver,
+                                    cell,
+                                    currentAccount,
+                                    getResourceProvider()
+                            );
+                        }
                         canvas.restore();
 
                         if (!replaceAnimation && child.getTranslationY() != 0) {
@@ -24493,6 +24519,11 @@ public class ChatActivity extends BaseFragment implements
             }
         } else if (id == NotificationCenter.updateInterfaces) {
             int updateMask = (Integer) args[0];
+            if ((updateMask & MessagesController.UPDATE_MASK_STATUS) != 0
+                    && ChatSettings.showsMessageAvatarOnline()
+                    && chatListView != null) {
+                chatListView.invalidate();
+            }
             if ((updateMask & MessagesController.UPDATE_MASK_NAME) != 0 || (updateMask & MessagesController.UPDATE_MASK_CHAT_NAME) != 0 || (updateMask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0) {
                 if (currentChat != null) {
                     TLRPC.Chat chat = getMessagesController().getChat(currentChat.id);

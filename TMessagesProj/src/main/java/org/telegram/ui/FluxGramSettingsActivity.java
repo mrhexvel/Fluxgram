@@ -146,6 +146,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int STICKER_SHAPE = 68;
     private static final int SHOW_EDITED_MARK = 69;
     private static final int SHOW_MESSAGE_TAILS = 70;
+    private static final int SHOW_MESSAGE_AVATAR_ONLINE = 71;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -632,6 +633,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramShowMessageTails)
             ).setChecked(ChatSettings.showsMessageTails()));
             items.add(UItem.asCheck(
+                    SHOW_MESSAGE_AVATAR_ONLINE,
+                    LocaleController.getString(R.string.FluxGramShowMessageAvatarOnline)
+            ).setChecked(ChatSettings.showsMessageAvatarOnline()));
+            items.add(UItem.asCheck(
                     SHOW_MESSAGE_REACTIONS,
                     LocaleController.getString(R.string.FluxGramShowMessageReactions)
             ).setChecked(ChatSettings.showsMessageReactions()));
@@ -1065,6 +1070,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
             } else if (item.id == SHOW_MESSAGE_TAILS) {
                 boolean shown = !ChatSettings.showsMessageTails();
                 ChatSettings.setShowsMessageTails(shown);
+                ((TextCheckCell) view).setChecked(shown);
+                rebuildChatPresentation();
+            } else if (item.id == SHOW_MESSAGE_AVATAR_ONLINE) {
+                boolean shown = !ChatSettings.showsMessageAvatarOnline();
+                ChatSettings.setShowsMessageAvatarOnline(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 rebuildChatPresentation();
             } else if (item.id == DOUBLE_TAP_MESSAGES) {
