@@ -11,6 +11,7 @@ public final class ChatSettings {
     private static final String QUICK_CHANNEL_TOPIC_TRANSITIONS = "fluxgram_quick_channel_topic_transitions";
     private static final String SHOW_MESSAGE_REACTIONS = "fluxgram_show_message_reactions";
     private static final String SHOW_EDITED_MARK = "fluxgram_show_edited_mark";
+    private static final String SHOW_MESSAGE_TAILS = "fluxgram_show_message_tails";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -19,6 +20,7 @@ public final class ChatSettings {
     private static volatile boolean quickChannelTopicTransitions;
     private static volatile boolean showMessageReactions;
     private static volatile boolean showEditedMark;
+    private static volatile boolean showMessageTails;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -122,6 +124,23 @@ public final class ChatSettings {
         showEditedMark = shown;
     }
 
+    public static boolean showsMessageTails() {
+        ensureLoaded();
+
+        return showMessageTails;
+    }
+
+    public static synchronized void setShowsMessageTails(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_MESSAGE_TAILS, shown)
+                .apply();
+
+        showMessageTails = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -162,6 +181,11 @@ public final class ChatSettings {
                 showEditedMark = preferences.getBoolean(SHOW_EDITED_MARK, true);
             } catch (ClassCastException exception) {
                 showEditedMark = true;
+            }
+            try {
+                showMessageTails = preferences.getBoolean(SHOW_MESSAGE_TAILS, true);
+            } catch (ClassCastException exception) {
+                showMessageTails = true;
             }
             loaded = true;
         }

@@ -96,6 +96,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_quick_channel_topic_transitions", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_reactions", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_edited_mark", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_message_tails", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -104,6 +105,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.allowsQuickChannelTopicTransitions());
                         require(ChatSettings.showsMessageReactions());
                         require(ChatSettings.showsEditedMark());
+                        require(ChatSettings.showsMessageTails());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -128,6 +130,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsEditedMark());
                         ChatSettings.setShowsEditedMark(true);
                         require(ChatSettings.showsEditedMark());
+                        ChatSettings.setShowsMessageTails(false);
+                        require(!ChatSettings.showsMessageTails());
+                        ChatSettings.setShowsMessageTails(true);
+                        require(ChatSettings.showsMessageTails());
                     }
 
                     private static void require(boolean value) {
@@ -237,6 +243,51 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.showsEditedMark())", activity)
         self.assertIn("ChatSettings.setShowsEditedMark(shown)", activity)
         handler = activity.split("item.id == SHOW_EDITED_MARK", 1)[1]
+        handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
+        self.assertIn("rebuildChatPresentation()", handler)
+
+    def test_chat_activity_can_replace_message_tails_with_rounded_corners(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        message_cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertEqual(
+            2,
+            chat.count("setDrawMessageTail(ChatSettings.showsMessageTails())"),
+        )
+        self.assertNotIn("ChatSettings", message_cell)
+        self.assertIn("private boolean drawMessageTail = true;", message_cell)
+        self.assertIn("private boolean isMessageTailSuppressedByGroup()", message_cell)
+        self.assertIn("private boolean hasMessageTail()", message_cell)
+        self.assertIn("private boolean drawsMessageTail()", message_cell)
+        self.assertIn("private boolean shouldUseMessageTailDrawable", message_cell)
+        self.assertEqual(2, message_cell.count("shouldUseMessageTailDrawable("))
+        self.assertEqual(5, message_cell.count("drawsMessageTail()"))
+        self.assertIn("return !drawsMessageTail();", message_cell)
+        self.assertIn(
+            "if (drawMessageTail && !mediaBackground && !pinnedBottom)",
+            message_cell,
+        )
+        self.assertIn(
+            "if (drawMessageTail && transitionParams.changePinnedBottomProgress != 1f",
+            message_cell,
+        )
+        self.assertEqual(3, message_cell.count("hasMessageTail() ? 7 : 1"))
+        self.assertEqual(3, message_cell.count("getBotButtonTouchInset()"))
+        self.assertIn(
+            "return drawMessageTail ? (mediaBackground ? 1 : 7) : 1;",
+            message_cell,
+        )
+        self.assertEqual(
+            3,
+            message_cell.count(
+                "currentMessageObject.isOutOwner() || !hasMessageTail() ? 11 : 17"
+            ),
+        )
+        self.assertNotIn("backgroundDrawableLeft + dp(mediaBackground ? 1 : 7)", message_cell)
+        self.assertIn(".setChecked(ChatSettings.showsMessageTails())", activity)
+        self.assertIn("ChatSettings.setShowsMessageTails(shown)", activity)
+        handler = activity.split("item.id == SHOW_MESSAGE_TAILS", 1)[1]
         handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
         self.assertIn("rebuildChatPresentation()", handler)
 

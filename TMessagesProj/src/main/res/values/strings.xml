@@ -11466,6 +11466,7 @@
     <string name="FluxGramQuickChannelTopicTransitionsInfo">Pull up at the end of a channel or topic to open the next available channel or unread topic.</string>
     <string name="FluxGramShowMessageReactions">Show reactions below messages</string>
     <string name="FluxGramShowEditedMark">Show edited label</string>
+    <string name="FluxGramShowMessageTails">Show message tails</string>
     <string name="FluxGramShowMessageReactionsInfo">Controls only reaction badges below messages. Sending reactions, menus, notifications, and stories remain unchanged.</string>
     <string name="FluxGramMessageGestures">Message gestures</string>
     <string name="FluxGramDoubleTapMessages">Double tap messages</string>

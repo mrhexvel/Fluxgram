@@ -456,6 +456,7 @@
     <string name="FluxGramQuickChannelTopicTransitionsInfo">Потяните вверх в конце канала или темы, чтобы открыть следующий доступный канал или непрочитанную тему.</string>
     <string name="FluxGramShowMessageReactions">Показывать реакции под сообщениями</string>
     <string name="FluxGramShowEditedMark">Показывать метку «изменено»</string>
+    <string name="FluxGramShowMessageTails">Показывать хвосты сообщений</string>
     <string name="FluxGramShowMessageReactionsInfo">Управляет только плашками реакций под сообщениями. Отправка реакций, меню, уведомления и истории не меняются.</string>
     <string name="FluxGramMessageGestures">Жесты сообщений</string>
     <string name="FluxGramDoubleTapMessages">Двойное нажатие на сообщение</string>
