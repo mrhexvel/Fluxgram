@@ -8,16 +8,28 @@ public final class StickerSettings {
     private static final String SHOW_ALL_RECENT = "fluxgram_show_all_recent_stickers";
     private static final String SHOW_GREETING = "fluxgram_show_greeting_sticker";
     private static final String SHOW_STICKER_TIME = "fluxgram_show_sticker_time";
+    private static final String STICKER_TIME_MODE = "fluxgram_sticker_time_mode";
+    private static final String STICKER_SIZE = "fluxgram_sticker_size";
     private static final String STICKER_SHAPE = "fluxgram_sticker_shape";
+
+    public static final int TIME_DEFAULT = 0;
+    public static final int TIME_SIDE = 1;
+    public static final int TIME_HIDDEN = 2;
+
+    public static final int MIN_STICKER_SIZE = 4;
+    public static final int DEFAULT_STICKER_SIZE = 12;
+    public static final int MAX_STICKER_SIZE = 20;
 
     public static final int SHAPE_DEFAULT = 0;
     public static final int SHAPE_ROUNDED = 1;
     public static final int SHAPE_MESSAGE = 2;
+    private static final int DEFAULT_STICKER_SHAPE = SHAPE_DEFAULT;
 
     private static volatile boolean loaded;
     private static volatile boolean showAllRecent;
     private static volatile boolean showGreeting;
-    private static volatile boolean showStickerTime;
+    private static volatile int stickerTimeMode;
+    private static volatile int stickerSize;
     private static volatile int stickerShape;
 
     public static boolean showsAllRecent() {
@@ -55,20 +67,50 @@ public final class StickerSettings {
     }
 
     public static boolean showsStickerTime() {
-        ensureLoaded();
-
-        return showStickerTime;
+        return getStickerTimeMode() != TIME_HIDDEN;
     }
 
     public static synchronized void setShowsStickerTime(boolean enabled) {
+        setStickerTimeMode(enabled ? TIME_DEFAULT : TIME_HIDDEN);
+    }
+
+    public static int getStickerTimeMode() {
+        ensureLoaded();
+
+        return stickerTimeMode;
+    }
+
+    public static synchronized void setStickerTimeMode(int mode) {
+        if (mode < TIME_DEFAULT || mode > TIME_HIDDEN) {
+            return;
+        }
+
         ensureLoaded();
 
         MessagesController.getGlobalMainSettings()
                 .edit()
-                .putBoolean(SHOW_STICKER_TIME, enabled)
+                .putInt(STICKER_TIME_MODE, mode)
                 .apply();
 
-        showStickerTime = enabled;
+        stickerTimeMode = mode;
+    }
+
+    public static int getStickerSize() {
+        ensureLoaded();
+
+        return stickerSize;
+    }
+
+    public static synchronized void setStickerSize(int size) {
+        size = Math.max(MIN_STICKER_SIZE, Math.min(MAX_STICKER_SIZE, size));
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putInt(STICKER_SIZE, size)
+                .apply();
+
+        stickerSize = size;
     }
 
     public static int getStickerShape() {
@@ -114,17 +156,34 @@ public final class StickerSettings {
                 showGreeting = true;
             }
             try {
-                showStickerTime = preferences.getBoolean(SHOW_STICKER_TIME, true);
+                stickerTimeMode = preferences.getInt(STICKER_TIME_MODE, -1);
             } catch (ClassCastException exception) {
-                showStickerTime = true;
+                stickerTimeMode = -1;
+            }
+            if (stickerTimeMode < TIME_DEFAULT || stickerTimeMode > TIME_HIDDEN) {
+                try {
+                    stickerTimeMode = preferences.getBoolean(SHOW_STICKER_TIME, true)
+                            ? TIME_DEFAULT
+                            : TIME_HIDDEN;
+                } catch (ClassCastException exception) {
+                    stickerTimeMode = TIME_DEFAULT;
+                }
             }
             try {
-                stickerShape = preferences.getInt(STICKER_SHAPE, SHAPE_DEFAULT);
+                stickerSize = preferences.getInt(STICKER_SIZE, DEFAULT_STICKER_SIZE);
             } catch (ClassCastException exception) {
-                stickerShape = SHAPE_DEFAULT;
+                stickerSize = DEFAULT_STICKER_SIZE;
+            }
+            if (stickerSize < MIN_STICKER_SIZE || stickerSize > MAX_STICKER_SIZE) {
+                stickerSize = DEFAULT_STICKER_SIZE;
+            }
+            try {
+                stickerShape = preferences.getInt(STICKER_SHAPE, DEFAULT_STICKER_SHAPE);
+            } catch (ClassCastException exception) {
+                stickerShape = DEFAULT_STICKER_SHAPE;
             }
             if (stickerShape < SHAPE_DEFAULT || stickerShape > SHAPE_MESSAGE) {
-                stickerShape = SHAPE_DEFAULT;
+                stickerShape = DEFAULT_STICKER_SHAPE;
             }
             loaded = true;
         }

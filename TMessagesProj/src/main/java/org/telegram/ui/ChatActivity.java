@@ -128,6 +128,7 @@ import org.telegram.messenger.fluxgram.ChatSettings;
 import org.telegram.messenger.fluxgram.DeletedMessagesRetention;
 import org.telegram.messenger.fluxgram.GreetingStickerPolicy;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
+import org.telegram.messenger.fluxgram.ReplyAppearanceSettings;
 import org.telegram.messenger.fluxgram.StickerSettings;
 import org.telegram.ui.fluxgram.MessageMenuMetadataController;
 import org.telegram.ui.fluxgram.FluxGramComposerController;
@@ -19262,6 +19263,7 @@ public class ChatActivity extends BaseFragment implements
             dummyMessageCell = new ChatMessageCell(getParentActivity(), currentAccount, true, sharedResources, themeDelegate);
             dummyMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
             applyStickerPresentation(dummyMessageCell);
+            applyReplyPresentation(dummyMessageCell);
         }
         dummyMessageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser);
         dummyMessageCell.isSavedChat = chatMode == MODE_SAVED;
@@ -19275,7 +19277,8 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void applyStickerPresentation(ChatMessageCell cell) {
-        cell.setDrawStickerTime(StickerSettings.showsStickerTime());
+        cell.setStickerTimeMode(StickerSettings.getStickerTimeMode());
+        cell.setStickerSize(StickerSettings.getStickerSize());
 
         int cornerRadius = 0;
         int nearCornerRadius = 0;
@@ -19287,6 +19290,15 @@ public class ChatActivity extends BaseFragment implements
             nearCornerRadius = cornerRadius / 3;
         }
         cell.setStickerCornerRadii(cornerRadius, nearCornerRadius);
+    }
+
+    private void applyReplyPresentation(ChatMessageCell cell) {
+        ReplyAppearanceSettings.State state = ReplyAppearanceSettings.getState();
+        cell.setReplyPresentation(
+                state.usesPeerColor(),
+                state.showsBackgroundEmoji(),
+                state.showsBackground()
+        );
     }
 
     private void startMessageUnselect() {
@@ -39984,6 +39996,7 @@ public class ChatActivity extends BaseFragment implements
                 chatMessageCell.setResourcesProvider(themeDelegate);
                 chatMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
                 applyStickerPresentation(chatMessageCell);
+                applyReplyPresentation(chatMessageCell);
                 chatMessageCell.shouldCheckVisibleOnScreen = false;
                 chatMessageCell.setDelegate(getChatMessageCellDelegate());
                 chatMessageCell.draftAnimationsPool = botDraftAnimationsPool;

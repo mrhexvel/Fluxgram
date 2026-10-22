@@ -1,20 +1,11 @@
 package org.telegram.ui.fluxgram;
 
-import android.animation.TimeInterpolator;
-
 import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.ui.ActionBar.ActionBarLayout;
 import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 
 public final class NavigationTransitionPolicy {
-    private static final TimeInterpolator SPRING_INTERPOLATOR = input -> {
-        double response = 1.0 - Math.exp(-7.0 * input) * (1.0 + 7.0 * input);
-        double end = 1.0 - Math.exp(-7.0) * 8.0;
-
-        return (float) Math.max(0.0, Math.min(1.0, response / end));
-    };
-
     private NavigationTransitionPolicy() {
     }
 
@@ -28,18 +19,25 @@ public final class NavigationTransitionPolicy {
 
         if (normalizedStyle == NavigationSettings.TRANSITION_AOSP) {
             actionBarLayout.setFallbackTransitionAnimation(
-                    CubicBezierInterpolator.EmphasizedDecelerate,
-                    220,
+                    ActionBarLayout.FALLBACK_TRANSITION_AOSP,
+                    CubicBezierInterpolator.Emphasized,
+                    450,
                     1.0f
             );
         } else if (normalizedStyle == NavigationSettings.TRANSITION_SPRING) {
             actionBarLayout.setFallbackTransitionAnimation(
-                    SPRING_INTERPOLATOR,
-                    260,
-                    1.15f
+                    ActionBarLayout.FALLBACK_TRANSITION_SPRING,
+                    null,
+                    150,
+                    1.0f
             );
         } else {
-            actionBarLayout.setFallbackTransitionAnimation(null, 0, 1.0f);
+            actionBarLayout.setFallbackTransitionAnimation(
+                    ActionBarLayout.FALLBACK_TRANSITION_STANDARD,
+                    null,
+                    150,
+                    1.0f
+            );
         }
     }
 }

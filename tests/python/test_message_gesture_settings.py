@@ -273,9 +273,8 @@ class MessageGestureSettingsTest(unittest.TestCase):
 
     def test_settings_card_is_between_messages_and_composer(self):
         source = SETTINGS_ACTIVITY.read_text()
-        chats = source.split(
-            "if (section == CHATS) {\n            addSectionLabel", 1
-        )[1]
+        chats = source.split("private void fillItems", 1)[1]
+        chats = chats.split("if (section == CHATS) {", 1)[1]
         chats = chats.split("if (section == NAVIGATION)", 1)[0]
 
         self.assertLess(

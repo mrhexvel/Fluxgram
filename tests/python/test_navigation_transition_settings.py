@@ -12,7 +12,7 @@ POLICY = JAVA / "messenger/fluxgram/NavigationSettings.java"
 
 
 class NavigationTransitionSettingsTest(unittest.TestCase):
-    def test_policy_normalizes_styles_and_predictive_progress(self):
+    def test_policy_normalizes_styles(self):
         if not shutil.which("javac") or not shutil.which("java"):
             self.skipTest("java and javac are required")
 
@@ -27,14 +27,6 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
                         require(NavigationSettings.normalizeTransitionStyle(-1) == NavigationSettings.TRANSITION_DEFAULT);
                         require(NavigationSettings.normalizeTransitionStyle(3) == NavigationSettings.TRANSITION_DEFAULT);
                         require(NavigationSettings.normalizeTransitionStyle(1) == NavigationSettings.TRANSITION_AOSP);
-                        require(NavigationSettings.normalizePredictiveBackIntensity(0) == 25);
-                        require(NavigationSettings.normalizePredictiveBackIntensity(120) == 100);
-                        require(close(NavigationSettings.scalePredictiveBackProgress(0.8f, 50), 0.4f));
-                        require(close(NavigationSettings.scalePredictiveBackProgress(2.0f, 100), 1.0f));
-                    }
-
-                    private static boolean close(float first, float second) {
-                        return Math.abs(first - second) < 0.0001f;
                     }
 
                     private static void require(boolean value) {
@@ -59,9 +51,9 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
 
         self.assertIn('"fluxgramNavigationTransitionStyle"', shared)
         self.assertIn('"fluxgramPredictiveBackEnabled"', shared)
-        self.assertIn('"fluxgramPredictiveBackIntensity"', shared)
+        self.assertNotIn('"fluxgramPredictiveBackIntensity"', shared)
         enabled_setter = shared.split("public static boolean setPredictiveBackEnabled", 1)[1].split(
-            "public static void setPredictiveBackIntensity", 1
+            "public static void toggleInappCamera", 1
         )[0]
         self.assertIn("if (!editor.commit())", enabled_setter)
 
@@ -75,6 +67,51 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
         self.assertIn("NavigationTransitionPolicy.apply", setup)
         self.assertNotIn("rightActionBarLayout", setup)
         self.assertNotIn("layersActionBarLayout", setup)
+
+    def test_aosp_transition_uses_complete_window_pipeline(self):
+        policy = (JAVA / "ui/fluxgram/NavigationTransitionPolicy.java").read_text()
+        layout = (JAVA / "ui/ActionBar/ActionBarLayout.java").read_text()
+        renderer = (JAVA / "ui/ActionBar/AospWindowTransition.java").read_text()
+
+        self.assertIn("ActionBarLayout.FALLBACK_TRANSITION_AOSP", policy)
+        self.assertIn("CubicBezierInterpolator.Emphasized,\n                    450,", policy)
+        self.assertIn("ActionBarLayout.FALLBACK_TRANSITION_SPRING", policy)
+        self.assertIn("prepareAospTransition(true)", layout)
+        self.assertIn("prepareAospTransition(false)", layout)
+        self.assertIn("AospWindowTransition.drawBackground", layout)
+        self.assertIn("drawAospEdgeExtension(canvas, child)", layout)
+        self.assertIn("resetTransitionView(containerView)", layout)
+        self.assertIn("resetTransitionView(containerViewBack)", layout)
+        self.assertIn("clearAospTransition()", layout)
+        self.assertIn("Settings.Global.TRANSITION_ANIMATION_SCALE", renderer)
+        self.assertIn("AndroidUtilities.dp(96)", renderer)
+        self.assertIn("new RenderNode", renderer)
+        self.assertIn("discardDisplayList()", renderer)
+        self.assertNotIn("messenger.fluxgram", renderer)
+
+    def test_spring_transition_uses_physics_and_full_window_geometry(self):
+        layout = (JAVA / "ui/ActionBar/ActionBarLayout.java").read_text()
+        renderer = (JAVA / "ui/ActionBar/SpringWindowTransition.java").read_text()
+
+        self.assertIn("new SpringAnimation(valueHolder)", layout)
+        self.assertIn("new SpringForce(SpringWindowTransition.FINAL_VALUE)", layout)
+        self.assertIn("prepareSpringTransition(true)", layout)
+        self.assertIn("prepareSpringTransition(false)", layout)
+        self.assertIn("springTransitionBackground", layout)
+        self.assertIn("springTransitionOpen,\n                            springTransitionProgress", layout)
+        self.assertIn("springTransitionProgress = animationProgress", layout)
+        self.assertIn("clearSpringTransition()", layout)
+        self.assertIn("if (!springTransitionActive && (translationX != 0", layout)
+        self.assertGreaterEqual(
+            layout.count("if (springTransitionActive || aospTransitionActive) {"),
+            2,
+        )
+        self.assertIn("STIFFNESS = 900.0f", renderer)
+        self.assertIn("DAMPING_RATIO = 1.0f", renderer)
+        self.assertIn("AndroidUtilities.lerp(0.85f, 1.0f", renderer)
+        self.assertIn("clampedProgress * 0.35f * width", renderer)
+        self.assertIn("open ? clampedProgress : 1.0f - clampedProgress", renderer)
+        self.assertNotIn("setAlpha(clampedProgress)", renderer)
 
     def test_fallback_transition_preserves_preview_and_custom_slides(self):
         layout = (JAVA / "ui/ActionBar/ActionBarLayout.java").read_text()
@@ -91,7 +128,7 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
         self.assertIn("hasCustomTransition", back)
         self.assertIn("!overrideTransition && !hasCustomTransition", back)
 
-    def test_predictive_callback_mode_is_startup_fixed_and_intensity_is_live(self):
+    def test_predictive_callback_mode_is_startup_fixed_and_uses_platform_progress(self):
         launch = (JAVA / "ui/LaunchActivity.java").read_text()
         registration = launch.split(
             "if (Build.VERSION.SDK_INT >= 34 && SharedConfig.predictiveBackEnabled)", 1
@@ -106,8 +143,8 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
             "Build.VERSION.SDK_INT >= 34 && SharedConfig.predictiveBackEnabled",
             launch,
         )
-        self.assertIn("NavigationSettings.scalePredictiveBackProgress", registration)
-        self.assertIn("SharedConfig.predictiveBackIntensity", registration)
+        self.assertIn("actionBarLayout.onBackProgress(fixedProgress)", registration)
+        self.assertNotIn("predictiveBackIntensity", registration)
         self.assertIn("onBackAnimationCallback instanceof OnBackAnimationCallback", teardown)
         self.assertIn("onBackInvokedCallback instanceof OnBackInvokedCallback", teardown)
 
@@ -121,9 +158,8 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
         self.assertIn("if (!AndroidUtilities.isTablet())", live_style)
         self.assertIn("confirmPredictiveBackChange(!SharedConfig.predictiveBackEnabled)", activity)
         self.assertIn("SharedConfig.setPredictiveBackEnabled(enabled)", activity)
-        self.assertIn("SharedConfig.setPredictiveBackIntensity(intensity)", (
-            JAVA / "ui/Components/FluxGramPredictiveBackIntensityCell.java"
-        ).read_text())
+        self.assertNotIn("predictiveBackIntensity", activity)
+        self.assertFalse((JAVA / "ui/Components/FluxGramPredictiveBackIntensityCell.java").exists())
 
 
 if __name__ == "__main__":

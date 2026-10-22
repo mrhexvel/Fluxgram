@@ -40,7 +40,7 @@ class FluxGramSingleChoiceDialogsTest(unittest.TestCase):
             "showFolderPresentationDialog",
             "showFolderCounterDialog",
             "showAppearanceTitleDialog",
-            "showStickerShapeDialog",
+            "showStickerTimeModeDialog",
             "showTransitionStyleDialog",
             "showBottomNavigationDialog",
             "showTabletModeDialog",

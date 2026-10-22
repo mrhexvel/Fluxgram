@@ -37,6 +37,7 @@ import org.telegram.messenger.fluxgram.MessageGestureSettings;
 import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.messenger.fluxgram.NotificationSettings;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
+import org.telegram.messenger.fluxgram.ReplyAppearanceSettings;
 import org.telegram.messenger.fluxgram.StickerSettings;
 import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.messenger.fluxgram.TransferSettings;
@@ -59,10 +60,11 @@ import org.telegram.ui.Components.FluxGramChatListPreviewCell;
 import org.telegram.ui.Components.FluxGramFabShapePreviewCell;
 import org.telegram.ui.Components.FluxGramFolderPreviewCell;
 import org.telegram.ui.Components.FluxGramFormattingPreviewCell;
+import org.telegram.ui.Components.FluxGramMessageAppearancePreviewCell;
 import org.telegram.ui.Components.FluxGramPluginCell;
-import org.telegram.ui.Components.FluxGramPredictiveBackIntensityCell;
 import org.telegram.ui.Components.FluxGramSectionRadiusCell;
 import org.telegram.ui.Components.FluxGramSettingsHeaderCell;
+import org.telegram.ui.Components.FluxGramStickerShapeCell;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
@@ -135,8 +137,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int DOUBLE_TAP_MESSAGE_ACTION = 59;
     private static final int SWIPE_MESSAGES = 60;
     private static final int SWIPE_MESSAGE_ACTIONS = 61;
-    private static final int SHOW_STICKER_TIME = 62;
-    private static final int STICKER_SHAPE = 63;
+    private static final int STICKER_TIME_MODE = 62;
+    private static final int REPLY_APPEARANCE = 63;
+    private static final int REPLY_PEER_COLOR = 64;
+    private static final int REPLY_BACKGROUND_EMOJI = 65;
+    private static final int REPLY_BACKGROUND = 66;
+    private static final int STICKER_SIZE_PREVIEW = 67;
+    private static final int STICKER_SHAPE = 68;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -147,7 +154,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private FluxGramFabShapePreviewCell fabShapePreview;
     private FluxGramSectionRadiusCell sectionRadiusCell;
     private FluxGramFolderPreviewCell folderPreview;
-    private FluxGramPredictiveBackIntensityCell predictiveBackIntensityCell;
+    private FluxGramMessageAppearancePreviewCell messageAppearancePreview;
+    private FluxGramStickerShapeCell stickerShapeCell;
+    private boolean replyAppearanceExpanded;
     private boolean destroyed;
 
     private final Runnable refresh = () -> {
@@ -264,10 +273,21 @@ public class FluxGramSettingsActivity extends BaseFragment {
             folderPreview = new FluxGramFolderPreviewCell(
                     context, currentAccount, getResourceProvider()
             );
-        } else if (section == NAVIGATION) {
-            predictiveBackIntensityCell = new FluxGramPredictiveBackIntensityCell(
+        } else if (section == CHATS) {
+            messageAppearancePreview = new FluxGramMessageAppearancePreviewCell(
                     context,
-                    getResourceProvider()
+                    currentAccount,
+                    parentLayout,
+                    getResourceProvider(),
+                    this::rebuildChatPresentation
+            );
+            stickerShapeCell = new FluxGramStickerShapeCell(
+                    context,
+                    getResourceProvider(),
+                    () -> {
+                        messageAppearancePreview.updatePresentation();
+                        rebuildChatPresentation();
+                    }
             );
         }
 
@@ -533,6 +553,41 @@ public class FluxGramSettingsActivity extends BaseFragment {
         }
 
         if (section == CHATS) {
+            addSectionLabel(items, "(etg) " + LocaleController.getString(R.string.FluxGramStickerSize));
+            items.add(UItem.asCustom(STICKER_SIZE_PREVIEW, messageAppearancePreview));
+            items.add(UItem.asButton(
+                    STICKER_TIME_MODE,
+                    LocaleController.getString(R.string.FluxGramStickerTimeMode),
+                    stickerTimeModeOption(StickerSettings.getStickerTimeMode())
+            ));
+            ReplyAppearanceSettings.State replyAppearance = ReplyAppearanceSettings.getState();
+            int enabledReplyOptions = countEnabledReplyOptions(replyAppearance);
+            items.add(UItem.asExpandableSwitch(
+                    REPLY_APPEARANCE,
+                    LocaleController.getString(R.string.FluxGramReplies),
+                    enabledReplyOptions + "/3"
+            ).setChecked(enabledReplyOptions > 0)
+                    .setCollapsed(!replyAppearanceExpanded)
+                    .setClickCallback(view -> setAllReplyOptions(enabledReplyOptions == 0)));
+            if (replyAppearanceExpanded) {
+                items.add(UItem.asRoundCheckbox(
+                        REPLY_PEER_COLOR,
+                        LocaleController.getString(R.string.FluxGramReplyPeerColor)
+                ).pad().setChecked(replyAppearance.usesPeerColor()));
+                items.add(UItem.asRoundCheckbox(
+                        REPLY_BACKGROUND_EMOJI,
+                        LocaleController.getString(R.string.FluxGramReplyBackgroundEmoji)
+                ).pad().setChecked(replyAppearance.showsBackgroundEmoji()));
+                items.add(UItem.asRoundCheckbox(
+                        REPLY_BACKGROUND,
+                        LocaleController.getString(R.string.FluxGramReplyBackground)
+                ).pad().setChecked(replyAppearance.showsBackground()));
+            }
+            items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramStickerShape);
+            items.add(UItem.asCustom(STICKER_SHAPE, stickerShapeCell));
+            items.add(UItem.asShadow(null));
+
             addSectionLabel(items, R.string.ArchivedChats);
             items.add(UItem.asCheck(
                     HIDE_ARCHIVE_ABOVE_LIST,
@@ -559,15 +614,6 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     SHOW_GREETING_STICKER,
                     LocaleController.getString(R.string.FluxGramShowGreetingSticker)
             ).setChecked(StickerSettings.showsGreeting()));
-            items.add(UItem.asCheck(
-                    SHOW_STICKER_TIME,
-                    LocaleController.getString(R.string.FluxGramShowStickerTime)
-            ).setChecked(StickerSettings.showsStickerTime()));
-            items.add(UItem.asButton(
-                    STICKER_SHAPE,
-                    LocaleController.getString(R.string.FluxGramStickerShape),
-                    stickerShapeOption(StickerSettings.getStickerShape())
-            ));
             items.add(UItem.asCheck(
                     SHOW_ALL_RECENT_STICKERS,
                     LocaleController.getString(R.string.FluxGramShowAllRecentStickers)
@@ -650,10 +696,6 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     PREDICTIVE_BACK,
                     LocaleController.getString(R.string.FluxGramPredictiveBack)
             ).setChecked(SharedConfig.predictiveBackEnabled));
-            if (SharedConfig.predictiveBackEnabled) {
-                predictiveBackIntensityCell.update();
-                items.add(UItem.asCustom(predictiveBackIntensityCell, 104));
-            }
             items.add(UItem.asShadow(LocaleController.getString(
                     R.string.FluxGramNavigationInfo)));
 
@@ -843,8 +885,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
     }
 
     private void addSectionLabel(ArrayList<UItem> items, int textResource) {
+        addSectionLabel(items, LocaleController.getString(textResource));
+    }
+
+    private void addSectionLabel(ArrayList<UItem> items, CharSequence text) {
         HeaderCell label = new HeaderCell(getParentActivity(), 33, getResourceProvider());
-        label.setText(LocaleController.getString(textResource));
+        label.setText(text);
         items.add(UItem.asCustomShadow(label, LayoutHelper.WRAP_CONTENT));
     }
 
@@ -962,13 +1008,23 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 StickerSettings.setShowsGreeting(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
                 parentLayout.rebuildFragments(0);
-            } else if (item.id == SHOW_STICKER_TIME) {
-                boolean enabled = !StickerSettings.showsStickerTime();
-                StickerSettings.setShowsStickerTime(enabled);
-                ((TextCheckCell) view).setChecked(enabled);
-                rebuildChatPresentation();
-            } else if (item.id == STICKER_SHAPE) {
-                showStickerShapeDialog();
+            } else if (item.id == STICKER_TIME_MODE) {
+                showStickerTimeModeDialog();
+            } else if (item.id == REPLY_APPEARANCE) {
+                replyAppearanceExpanded = !replyAppearanceExpanded;
+                listView.adapter.update(true);
+            } else if (item.id == REPLY_PEER_COLOR) {
+                ReplyAppearanceSettings.setUsePeerColor(
+                        !ReplyAppearanceSettings.getState().usesPeerColor());
+                updateMessageAppearance();
+            } else if (item.id == REPLY_BACKGROUND_EMOJI) {
+                ReplyAppearanceSettings.setShowBackgroundEmoji(
+                        !ReplyAppearanceSettings.getState().showsBackgroundEmoji());
+                updateMessageAppearance();
+            } else if (item.id == REPLY_BACKGROUND) {
+                ReplyAppearanceSettings.setShowBackground(
+                        !ReplyAppearanceSettings.getState().showsBackground());
+                updateMessageAppearance();
             } else if (item.id == HIDE_SEND_AS) {
                 boolean hidden = !ChatSettings.hidesSendAs();
                 ChatSettings.setHidesSendAs(hidden);
@@ -1394,32 +1450,51 @@ public class FluxGramSettingsActivity extends BaseFragment {
         return LocaleController.getString(R.string.FluxGramDividerLine);
     }
 
-    private String stickerShapeOption(int shape) {
-        if (shape == StickerSettings.SHAPE_ROUNDED) {
-            return LocaleController.getString(R.string.FluxGramStickerShapeRounded);
+    private int countEnabledReplyOptions(ReplyAppearanceSettings.State state) {
+        int count = state.usesPeerColor() ? 1 : 0;
+        count += state.showsBackgroundEmoji() ? 1 : 0;
+        count += state.showsBackground() ? 1 : 0;
+        return count;
+    }
+
+    private void setAllReplyOptions(boolean enabled) {
+        ReplyAppearanceSettings.setAll(enabled);
+        updateMessageAppearance();
+    }
+
+    private void updateMessageAppearance() {
+        messageAppearancePreview.updatePresentation();
+        listView.adapter.update(true);
+        rebuildChatPresentation();
+    }
+
+    private String stickerTimeModeOption(int mode) {
+        if (mode == StickerSettings.TIME_SIDE) {
+            return LocaleController.getString(R.string.FluxGramStickerTimeSide);
         }
-        if (shape == StickerSettings.SHAPE_MESSAGE) {
-            return LocaleController.getString(R.string.FluxGramStickerShapeMessage);
+        if (mode == StickerSettings.TIME_HIDDEN) {
+            return LocaleController.getString(R.string.FluxGramStickerTimeHidden);
         }
 
         return LocaleController.getString(R.string.Default);
     }
 
-    private void showStickerShapeDialog() {
+    private void showStickerTimeModeDialog() {
         CharSequence[] options = {
-                stickerShapeOption(StickerSettings.SHAPE_DEFAULT),
-                stickerShapeOption(StickerSettings.SHAPE_ROUNDED),
-                stickerShapeOption(StickerSettings.SHAPE_MESSAGE)
+                stickerTimeModeOption(StickerSettings.TIME_DEFAULT),
+                stickerTimeModeOption(StickerSettings.TIME_SIDE),
+                stickerTimeModeOption(StickerSettings.TIME_HIDDEN)
         };
-        int selected = StickerSettings.getStickerShape();
+        int selected = StickerSettings.getStickerTimeMode();
 
         showDialog(AlertsCreator.createSingleChoiceDialog(
                 getParentActivity(),
                 options,
-                LocaleController.getString(R.string.FluxGramStickerShape),
+                LocaleController.getString(R.string.FluxGramStickerTimeMode),
                 selected,
                 (dialog, index) -> {
-                    StickerSettings.setStickerShape(index);
+                    StickerSettings.setStickerTimeMode(index);
+                    messageAppearancePreview.updatePresentation();
                     listView.adapter.update(true);
                     rebuildChatPresentation();
                 },

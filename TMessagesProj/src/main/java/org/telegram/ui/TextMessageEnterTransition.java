@@ -52,7 +52,6 @@ import org.telegram.ui.Components.ChatActivityEnterView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EmptyStubSpan;
 import org.telegram.ui.Components.RecyclerListView;
-import org.telegram.ui.Components.ReplyMessageLine;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 
@@ -565,10 +564,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             float toReplayX = messageViewX + messageView.replyStartX;
             float toReplayY = messageViewY + messageView.replyStartY;
 
-            if (messageView.replyLine == null) {
-                messageView.replyLine = new ReplyMessageLine(messageView);
-            }
-            messageView.replyLine.check(messageView.getMessageObject(), messageView.getCurrentUser(), messageView.getCurrentChat(), resourcesProvider, ReplyMessageLine.TYPE_REPLY);
+            messageView.checkReplyLinePresentation();
 
             int replyMessageColor;
             int replyOwnerMessageColor;

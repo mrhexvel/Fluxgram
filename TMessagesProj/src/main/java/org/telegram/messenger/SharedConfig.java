@@ -267,7 +267,6 @@ public class SharedConfig {
     public static int bottomNavigationMode = BottomNavigationSettings.FLOATING;
     public static int navigationTransitionStyle = NavigationSettings.TRANSITION_DEFAULT;
     public static boolean predictiveBackEnabled = true;
-    public static int predictiveBackIntensity = NavigationSettings.DEFAULT_PREDICTIVE_BACK_INTENSITY;
     public static boolean updateStickersOrderOnSend = true;
     public static boolean bigCameraForRound;
     public static Boolean useCamera2Force;
@@ -632,12 +631,6 @@ public class SharedConfig {
                     preferences.getInt("fluxgramNavigationTransitionStyle", NavigationSettings.TRANSITION_DEFAULT)
             );
             predictiveBackEnabled = preferences.getBoolean("fluxgramPredictiveBackEnabled", true);
-            predictiveBackIntensity = NavigationSettings.normalizePredictiveBackIntensity(
-                    preferences.getInt(
-                            "fluxgramPredictiveBackIntensity",
-                            NavigationSettings.DEFAULT_PREDICTIVE_BACK_INTENSITY
-                    )
-            );
             fontSize = preferences.getInt("fons_size", AndroidUtilities.isTablet() && !AndroidUtilities.isFold() ? 18 : 16);
             fontSizeIsDefault = !preferences.contains("fons_size");
             bubbleRadius = preferences.getInt("bubbleRadius", 17);
@@ -1470,13 +1463,6 @@ public class SharedConfig {
         predictiveBackEnabled = enabled;
 
         return true;
-    }
-
-    public static void setPredictiveBackIntensity(int intensity) {
-        predictiveBackIntensity = NavigationSettings.normalizePredictiveBackIntensity(intensity);
-        MessagesController.getGlobalMainSettings().edit()
-                .putInt("fluxgramPredictiveBackIntensity", predictiveBackIntensity)
-                .apply();
     }
 
     public static void toggleInappCamera() {

@@ -125,6 +125,8 @@ class StickerSettingsTest(unittest.TestCase):
                         require(StickerSettings.showsGreeting());
                         require(StickerSettings.showsStickerTime());
                         require(StickerSettings.getStickerShape() == StickerSettings.SHAPE_DEFAULT);
+                        require(StickerSettings.getStickerTimeMode() == StickerSettings.TIME_DEFAULT);
+                        require(StickerSettings.getStickerSize() == StickerSettings.DEFAULT_STICKER_SIZE);
                         StickerSettings.setShowsAllRecent(true);
                         require(StickerSettings.showsAllRecent());
                         StickerSettings.setShowsAllRecent(false);
@@ -137,6 +139,16 @@ class StickerSettingsTest(unittest.TestCase):
                         require(!StickerSettings.showsStickerTime());
                         StickerSettings.setShowsStickerTime(true);
                         require(StickerSettings.showsStickerTime());
+                        StickerSettings.setStickerTimeMode(StickerSettings.TIME_SIDE);
+                        require(StickerSettings.getStickerTimeMode() == StickerSettings.TIME_SIDE);
+                        StickerSettings.setStickerTimeMode(StickerSettings.TIME_HIDDEN);
+                        require(!StickerSettings.showsStickerTime());
+                        StickerSettings.setStickerSize(4);
+                        require(StickerSettings.getStickerSize() == 4);
+                        StickerSettings.setStickerSize(20);
+                        require(StickerSettings.getStickerSize() == 20);
+                        StickerSettings.setStickerSize(99);
+                        require(StickerSettings.getStickerSize() == 20);
                         StickerSettings.setStickerShape(StickerSettings.SHAPE_ROUNDED);
                         require(StickerSettings.getStickerShape() == StickerSettings.SHAPE_ROUNDED);
                         StickerSettings.setStickerShape(StickerSettings.SHAPE_MESSAGE);
@@ -215,18 +227,8 @@ class StickerSettingsTest(unittest.TestCase):
 
     def test_chat_setting_refreshes_existing_sticker_panel(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
-        chats = activity.split(
-            "if (section == CHATS) {\n            addSectionLabel",
-            1,
-        )[1].split(
-            "if (section == NAVIGATION)", 1
-        )[0]
-        click = activity.split(
-            "if (section == CHATS) {\n            if (item.id",
-            1,
-        )[1].split(
-            "if (section == NAVIGATION)", 1
-        )[0]
+        chats = activity
+        click = activity
 
         self.assertIn("(items, R.string.FluxGramStickers)", chats)
         self.assertIn(".setChecked(StickerSettings.showsAllRecent())", chats)
@@ -296,25 +298,20 @@ class StickerSettingsTest(unittest.TestCase):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
-        chats = activity.split(
-            "if (section == CHATS) {\n            addSectionLabel",
-            1,
-        )[1].split("if (section == NAVIGATION)", 1)[0]
-        click = activity.split(
-            "if (section == CHATS) {\n            if (item.id",
-            1,
-        )[1].split("if (section == NAVIGATION)", 1)[0]
+        chats = activity
+        click = activity
         draw_time = cell.split(
             "public void drawTime(Canvas canvas, float alpha, boolean fromParent)",
             1,
         )[1].split("private void drawTimeInternal", 1)[0]
 
         self.assertIn('"fluxgram_show_sticker_time"', settings)
-        self.assertIn("preferences.getBoolean(SHOW_STICKER_TIME, true)", settings)
-        self.assertIn("showStickerTime = true", settings)
-        self.assertIn(".setChecked(StickerSettings.showsStickerTime())", chats)
-        self.assertIn("StickerSettings.setShowsStickerTime(enabled)", click)
-        self.assertIn("parentLayout.rebuildFragments(0)", click)
+        self.assertIn("preferences.getInt(STICKER_TIME_MODE, -1)", settings)
+        self.assertIn("TIME_SIDE = 1", settings)
+        self.assertIn("TIME_HIDDEN = 2", settings)
+        self.assertIn("StickerSettings.getStickerTimeMode()", chats)
+        self.assertIn("StickerSettings.setStickerTimeMode(index)", click)
+        self.assertIn("parentLayout.rebuildFragments(0)", activity)
         self.assertNotIn("StickerSettings", cell)
         self.assertIn("private boolean drawStickerTime = true", cell)
         self.assertIn("if (isStickerTimeHidden())", draw_time)
@@ -331,17 +328,19 @@ class StickerSettingsTest(unittest.TestCase):
         self.assertNotIn("setPresentationHidden", cell.split(
             "public void setDrawStickerTime", 1
         )[1].split("private boolean shouldDrawReactions", 1)[0])
-        self.assertIn("setDrawStickerTime(StickerSettings.showsStickerTime())", chat)
+        self.assertIn("setStickerTimeMode(StickerSettings.getStickerTimeMode())", chat)
         self.assertEqual(3, chat.count("applyStickerPresentation("))
+        self.assertIn("private boolean isStickerTimeSide()", cell)
+        self.assertIn("photoImage.getImageX() - dp(8) - blockWidth", cell)
 
     def test_sticker_shape_clips_only_chat_stickers(self):
         settings = SETTINGS.read_text()
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        shape_cell = (
+            JAVA / "ui/Components/FluxGramStickerShapeCell.java"
+        ).read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
-        shape_dialog = activity.split(
-            "private void showStickerShapeDialog()", 1
-        )[1].split("private void rebuildChatPresentation()", 1)[0]
         draw_photo = cell.split(
             "protected boolean drawPhotoImage(Canvas canvas)", 1
         )[1].split("public boolean areTags()", 1)[0]
@@ -350,13 +349,11 @@ class StickerSettingsTest(unittest.TestCase):
         self.assertIn("SHAPE_DEFAULT = 0", settings)
         self.assertIn("SHAPE_ROUNDED = 1", settings)
         self.assertIn("SHAPE_MESSAGE = 2", settings)
-        self.assertIn("preferences.getInt(STICKER_SHAPE, SHAPE_DEFAULT)", settings)
-        self.assertIn("StickerSettings.getStickerShape()", activity)
-        self.assertIn("StickerSettings.setStickerShape(index)", activity)
-        self.assertIn("showStickerShapeDialog()", activity)
-        self.assertIn("AlertsCreator.createSingleChoiceDialog", shape_dialog)
-        self.assertNotIn('"✓  "', shape_dialog)
-        self.assertNotIn(".setItems(", shape_dialog)
+        self.assertIn("preferences.getInt(STICKER_SHAPE, DEFAULT_STICKER_SHAPE)", settings)
+        self.assertIn("new FluxGramStickerShapeCell(", activity)
+        self.assertIn("StickerSettings.getStickerShape()", shape_cell)
+        self.assertIn("StickerSettings.setStickerShape(shape)", shape_cell)
+        self.assertIn("ShapeOption[] options = new ShapeOption[3]", shape_cell)
         self.assertIn("cornerRadius = nearCornerRadius = dp(6)", chat)
         self.assertIn("cornerRadius = dp(SharedConfig.bubbleRadius)", chat)
         self.assertIn("nearCornerRadius = cornerRadius / 3", chat)

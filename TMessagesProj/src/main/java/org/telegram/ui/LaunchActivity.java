@@ -137,7 +137,6 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
-import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.messenger.pip.PipActivityController;
 import org.telegram.messenger.pip.activity.IPipActivity;
 import org.telegram.messenger.pip.activity.IPipActivityHandler;
@@ -808,14 +807,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                         }
 
                         final float fixedProgress = Math.max(0, progress - LAZY_START) / (1 - LAZY_START);
-                        final float scaledProgress = NavigationSettings.scalePredictiveBackProgress(
-                                fixedProgress,
-                                SharedConfig.predictiveBackIntensity
-                        );
 
                         if (AndroidUtilities.isTablet()) return;
                         if (actionBarLayout != null) {
-                            actionBarLayout.onBackProgress(scaledProgress);
+                            actionBarLayout.onBackProgress(fixedProgress);
                         }
                     }
 

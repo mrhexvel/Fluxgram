@@ -62,6 +62,9 @@ import androidx.core.graphics.Insets;
 import androidx.core.math.MathUtils;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.dynamicanimation.animation.FloatValueHolder;
+import androidx.dynamicanimation.animation.SpringAnimation;
+import androidx.dynamicanimation.animation.SpringForce;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.AnimationNotificationsLocker;
@@ -94,6 +97,10 @@ import java.util.Collections;
 import java.util.List;
 
 public class ActionBarLayout extends FrameLayout implements INavigationLayout, FloatingDebugProvider {
+
+    public static final int FALLBACK_TRANSITION_STANDARD = 0;
+    public static final int FALLBACK_TRANSITION_AOSP = 1;
+    public static final int FALLBACK_TRANSITION_SPRING = 2;
 
     public boolean highlightActionButtons = false;
     private boolean attached;
@@ -618,6 +625,17 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     private TimeInterpolator fallbackTransitionInterpolator;
     private int fallbackTransitionDuration = 150;
     private float fallbackBackDurationScale = 1.0f;
+    private int fallbackTransitionStyle = FALLBACK_TRANSITION_STANDARD;
+    private boolean aospTransitionActive;
+    private boolean aospTransitionOpen;
+    private Drawable aospTransitionBackground;
+    private AospWindowTransition.EdgeExtension aospEdgeExtension;
+    private AospWindowTransition.EdgeExtension aospEdgeExtensionBack;
+    private boolean springTransitionActive;
+    private boolean springTransitionOpen;
+    private float springTransitionProgress;
+    private Drawable springTransitionBackground;
+    private SpringAnimation springTransitionAnimation;
 
     public float innerTranslationX;
 
@@ -1075,6 +1093,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             clipPath.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
             canvas.clipPath(clipPath);
         }
+        AospWindowTransition.drawBackground(
+                canvas,
+                springTransitionActive ? springTransitionBackground : aospTransitionBackground,
+                getWidth(),
+                getHeight(),
+                rect
+        );
         super.dispatchDraw(canvas);
         if (isLayersLayout) {
             canvas.restore();
@@ -1112,7 +1137,26 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             bottomSheetTabsClip.clip(canvas, withShadow, isKeyboardVisible, getWidth(), (int) getY() + getHeight(), 1.0f);
             withShadow = false;
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !isSheet && (translationX != 0 || overrideWidthOffset != -1)) {
+        if (aospTransitionActive && (child == containerView || child == containerViewBack)) {
+            drawAospEdgeExtension(canvas, child);
+        }
+        if (springTransitionActive && isSpringForeground(child)) {
+            scrimPaint.setColor(Color.argb(
+                    SpringWindowTransition.getScrimAlpha(
+                            Theme.isCurrentThemeDark(),
+                            springTransitionOpen,
+                            springTransitionProgress
+                    ),
+                    0,
+                    0,
+                    0
+            ));
+            canvas.drawRect(0.0f, 0.0f, getWidth(), getHeight(), scrimPaint);
+        }
+        if (!springTransitionActive
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && !isSheet
+                && (translationX != 0 || overrideWidthOffset != -1)) {
             if (child == containerView) {
                 final WindowInsets insets = getRootWindowInsets();
                 if (insets != null) {
@@ -1181,7 +1225,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         final boolean result = super.drawChild(canvas, child, drawingTime);
         canvas.restoreToCount(restoreCount);
 
-        if (translationX != 0 || overrideWidthOffset != -1) {
+        if (!springTransitionActive && (translationX != 0 || overrideWidthOffset != -1)) {
             int widthOffset = overrideWidthOffset != -1 ? overrideWidthOffset : width - translationX;
             if (child == containerView) {
                 final int alpha = MathUtils.clamp(255 * widthOffset / dp(20), 0, 255);
@@ -1711,6 +1755,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     }
 
     private void onAnimationEndCheck(boolean byCheck) {
+        SpringAnimation endingSpringAnimation = springTransitionAnimation;
+        springTransitionAnimation = null;
         onCloseAnimationEnd();
         onOpenAnimationEnd();
         if (waitingForKeyboardCloseRunnable != null) {
@@ -1727,13 +1773,106 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             AndroidUtilities.cancelRunOnUIThread(animationRunnable);
             animationRunnable = null;
         }
+        if (endingSpringAnimation != null) {
+            endingSpringAnimation.cancel();
+        }
         setAlpha(1.0f);
-        containerView.setAlpha(1.0f);
+        resetTransitionView(containerView);
+        resetTransitionView(containerViewBack);
+        clearAospTransition();
+        clearSpringTransition();
+    }
+
+    private void resetTransitionView(View view) {
+        view.setAlpha(1.0f);
+        view.setScaleX(1.0f);
+        view.setScaleY(1.0f);
+        view.setTranslationX(0.0f);
+        view.setTranslationY(0.0f);
+    }
+
+    private void prepareAospTransition(boolean open) {
+        aospTransitionActive = true;
+        aospTransitionOpen = open;
+        aospTransitionBackground = AospWindowTransition.getBackground(fragmentsStack, getLastFragment());
+        fallbackTransitionDuration = AospWindowTransition.getDuration(getContext());
         containerView.setScaleX(1.0f);
         containerView.setScaleY(1.0f);
-        containerViewBack.setAlpha(1.0f);
         containerViewBack.setScaleX(1.0f);
         containerViewBack.setScaleY(1.0f);
+        AospWindowTransition.apply(containerView, containerViewBack, open, 0.0f);
+        invalidate();
+    }
+
+    private void clearAospTransition() {
+        aospTransitionActive = false;
+        aospTransitionBackground = null;
+        if (aospEdgeExtension != null) {
+            aospEdgeExtension.release();
+        }
+        if (aospEdgeExtensionBack != null) {
+            aospEdgeExtensionBack.release();
+        }
+    }
+
+    private void prepareSpringTransition(boolean open) {
+        springTransitionActive = true;
+        springTransitionOpen = open;
+        springTransitionProgress = 0.0f;
+        springTransitionBackground = AospWindowTransition.getBackground(fragmentsStack, getLastFragment());
+        float width = getWidth() - getPaddingLeft() - getPaddingRight();
+        SpringWindowTransition.apply(containerView, containerViewBack, open, 0.0f, width);
+        setInnerTranslationX(open ? width : 0.0f);
+        invalidate();
+    }
+
+    private void clearSpringTransition() {
+        if (springTransitionActive) {
+            setInnerTranslationX(0.0f);
+        }
+        springTransitionActive = false;
+        springTransitionProgress = 0.0f;
+        springTransitionBackground = null;
+    }
+
+    private boolean isSpringForeground(View child) {
+        return child == (springTransitionOpen ? containerView : containerViewBack);
+    }
+
+    private void drawAospEdgeExtension(Canvas canvas, View view) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return;
+        }
+
+        float translationX = view.getTranslationX();
+        if (translationX == 0.0f) {
+            return;
+        }
+
+        boolean leftEdge = translationX > 0.0f;
+        boolean foreground = view == containerView;
+        AospWindowTransition.EdgeExtension extension = foreground
+                ? aospEdgeExtension
+                : aospEdgeExtensionBack;
+        if (extension == null) {
+            extension = new AospWindowTransition.EdgeExtension();
+            if (foreground) {
+                aospEdgeExtension = extension;
+            } else {
+                aospEdgeExtensionBack = extension;
+            }
+        }
+        if (!extension.isCaptured() && !extension.capture(view, leftEdge)) {
+            return;
+        }
+
+        float distance = AospWindowTransition.getSlideDistance();
+        extension.draw(
+                canvas,
+                leftEdge ? translationX - distance : translationX + view.getWidth(),
+                distance,
+                view.getAlpha()
+        );
     }
 
     public BaseFragment getLastFragment() {
@@ -1821,6 +1960,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             animationProgress = 0.0f;
             lastFrameTime = System.nanoTime() / 1000000;
         }
+        if (springTransitionActive) {
+            if (first) {
+                startSpringLayoutAnimation(open);
+            }
+            return;
+        }
         AndroidUtilities.runOnUIThread(animationRunnable = new Runnable() {
             @Override
             public void run() {
@@ -1835,12 +1980,14 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 long dt = newTime - lastFrameTime;
                 if (dt > 40 && first) {
                     dt = 0;
-                } else if (dt > 18) {
+                } else if (dt > 18 && !aospTransitionActive) {
                     dt = 18;
                 }
                 lastFrameTime = newTime;
                 float duration;
-                if (preview) {
+                if (aospTransitionActive) {
+                    duration = fallbackTransitionDuration;
+                } else if (preview) {
                     duration = open ? 190.0f : 150.0f;
                 } else if (fallbackTransitionInterpolator != null) {
                     duration = fallbackTransitionDuration;
@@ -1857,32 +2004,11 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 if (oldFragment != null) {
                     oldFragment.onTransitionAnimationProgress(false, animationProgress);
                 }
-                Integer oldNavigationBarColor = oldFragment != null ? oldFragment.getNavigationBarColor() : null;
-                Integer newNavigationBarColor = newFragment != null ? newFragment.getNavigationBarColor() : null;
-                if (oldFragment != null && oldFragment.isSupportEdgeToEdge() && newNavigationBarColor != null) {
-                    oldNavigationBarColor = newNavigationBarColor;
-                }
-                if (newFragment != null && newFragment.isSupportEdgeToEdge() && oldNavigationBarColor != null) {
-                    newNavigationBarColor = oldNavigationBarColor;
-                }
-
-                if (newFragment != null && oldNavigationBarColor != null && newNavigationBarColor != null) {
-                    float ratio = MathUtils.clamp(4f * animationProgress, 0f, 1f);
-                    int color = ColorUtils.blendARGB(oldNavigationBarColor, newNavigationBarColor, ratio);
-                    if (sheetFragment != null) {
-                        if (sheetFragment.sheetsStack != null) {
-                            for (int i = 0; i < sheetFragment.sheetsStack.size(); ++i) {
-                                BaseFragment.AttachedSheet sheet = sheetFragment.sheetsStack.get(i);
-                                if (sheet.attachedToParent()) {
-                                    color = sheet.getNavigationBarColor(color);
-                                }
-                            }
-                        }
-                    }
-                    newFragment.setNavigationBarColor(color);
-                }
+                updateTransitionNavigationBarColor(animationProgress);
                 float interpolated;
-                if (preview) {
+                if (aospTransitionActive) {
+                    interpolated = animationProgress;
+                } else if (preview) {
                     if (open) {
                         interpolated = overshootInterpolator.getInterpolation(animationProgress);
                     } else {
@@ -1894,7 +2020,15 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                             : decelerateInterpolator;
                     interpolated = interpolator.getInterpolation(animationProgress);
                 }
-                if (open) {
+                if (aospTransitionActive) {
+                    AospWindowTransition.apply(
+                            containerView,
+                            containerViewBack,
+                            aospTransitionOpen,
+                            interpolated
+                    );
+                    invalidate();
+                } else if (open) {
                     float clampedInterpolated = MathUtils.clamp(interpolated, 0, 1);
                     containerView.setAlpha(clampedInterpolated);
                     if (preview) {
@@ -1936,6 +2070,82 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 }
             }
         });
+    }
+
+    private void startSpringLayoutAnimation(boolean open) {
+        transitionAnimationStartTime = System.currentTimeMillis();
+        FloatValueHolder valueHolder = new FloatValueHolder(0.0f);
+        SpringAnimation animation = new SpringAnimation(valueHolder);
+        animation.setSpring(new SpringForce(SpringWindowTransition.FINAL_VALUE)
+                .setStiffness(SpringWindowTransition.STIFFNESS)
+                .setDampingRatio(SpringWindowTransition.DAMPING_RATIO));
+        animation.setStartVelocity(0.0f);
+        animation.addUpdateListener((spring, value, velocity) -> {
+            if (springTransitionAnimation != spring || !springTransitionActive) {
+                return;
+            }
+
+            animationProgress = MathUtils.clamp(
+                    value / SpringWindowTransition.FINAL_VALUE,
+                    0.0f,
+                    1.0f
+            );
+            springTransitionProgress = animationProgress;
+            if (newFragment != null) {
+                newFragment.onTransitionAnimationProgress(true, animationProgress);
+            }
+            if (oldFragment != null) {
+                oldFragment.onTransitionAnimationProgress(false, animationProgress);
+            }
+            updateTransitionNavigationBarColor(animationProgress);
+            float width = getWidth() - getPaddingLeft() - getPaddingRight();
+            SpringWindowTransition.apply(
+                    containerView,
+                    containerViewBack,
+                    open,
+                    animationProgress,
+                    width
+            );
+            setInnerTranslationX((open ? 1.0f - animationProgress : animationProgress) * width);
+            invalidate();
+        });
+        animation.addEndListener((spring, canceled, value, velocity) -> {
+            if (springTransitionAnimation != spring) {
+                return;
+            }
+
+            springTransitionAnimation = null;
+            if (springTransitionActive) {
+                onAnimationEndCheck(false);
+            }
+        });
+        springTransitionAnimation = animation;
+        animation.start();
+    }
+
+    private void updateTransitionNavigationBarColor(float progress) {
+        Integer oldNavigationBarColor = oldFragment != null ? oldFragment.getNavigationBarColor() : null;
+        Integer newNavigationBarColor = newFragment != null ? newFragment.getNavigationBarColor() : null;
+        if (oldFragment != null && oldFragment.isSupportEdgeToEdge() && newNavigationBarColor != null) {
+            oldNavigationBarColor = newNavigationBarColor;
+        }
+        if (newFragment != null && newFragment.isSupportEdgeToEdge() && oldNavigationBarColor != null) {
+            newNavigationBarColor = oldNavigationBarColor;
+        }
+
+        if (newFragment != null && oldNavigationBarColor != null && newNavigationBarColor != null) {
+            float ratio = MathUtils.clamp(4.0f * progress, 0.0f, 1.0f);
+            int color = ColorUtils.blendARGB(oldNavigationBarColor, newNavigationBarColor, ratio);
+            if (sheetFragment != null && sheetFragment.sheetsStack != null) {
+                for (int i = 0; i < sheetFragment.sheetsStack.size(); ++i) {
+                    BaseFragment.AttachedSheet sheet = sheetFragment.sheetsStack.get(i);
+                    if (sheet.attachedToParent()) {
+                        color = sheet.getNavigationBarColor(color);
+                    }
+                }
+            }
+            newFragment.setNavigationBarColor(color);
+        }
     }
 
     @Override
@@ -2235,8 +2445,18 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     animation = fragment.onCustomTransitionAnimation(true, () -> onAnimationEndCheck(false));
                 }
                 if (animation == null) {
+                    if (!preview && fallbackTransitionStyle == FALLBACK_TRANSITION_AOSP) {
+                        prepareAospTransition(true);
+                    } else if (!preview && fallbackTransitionStyle == FALLBACK_TRANSITION_SPRING) {
+                        prepareSpringTransition(true);
+                    }
                     containerView.setAlpha(0.0f);
-                    if (preview) {
+                    if (springTransitionActive) {
+                        containerView.setAlpha(1.0f);
+                    } else if (aospTransitionActive) {
+                        containerView.setScaleX(1.0f);
+                        containerView.setScaleY(1.0f);
+                    } else if (preview) {
                         containerView.setTranslationX(0.0f);
                         containerView.setScaleX(0.9f);
                         containerView.setScaleY(0.9f);
@@ -2684,6 +2904,15 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     animation = currentFragment.onCustomTransitionAnimation(false, () -> onAnimationEndCheck(false));
                 }
                 if (animation == null) {
+                    if (!inPreviewMode
+                            && !transitionAnimationPreviewMode
+                            && fallbackTransitionStyle == FALLBACK_TRANSITION_AOSP) {
+                        prepareAospTransition(false);
+                    } else if (!inPreviewMode
+                            && !transitionAnimationPreviewMode
+                            && fallbackTransitionStyle == FALLBACK_TRANSITION_SPRING) {
+                        prepareSpringTransition(false);
+                    }
                     if (!inPreviewMode && (containerView.isKeyboardVisible || containerViewBack.isKeyboardVisible)) {
                         waitingForKeyboardCloseRunnable = new Runnable() {
                             @Override
@@ -2848,8 +3077,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     @Override
     public void removeFragmentFromStack(BaseFragment fragment, boolean immediate) {
         if (((fragmentsStack.size() > 0 && fragmentsStack.get(fragmentsStack.size() - 1) == fragment) || (fragmentsStack.size() > 1 && fragmentsStack.get(fragmentsStack.size() - 2) == fragment))) {
-            onOpenAnimationEnd();
-            onCloseAnimationEnd();
+            if (springTransitionActive || aospTransitionActive) {
+                onAnimationEndCheck(true);
+            } else {
+                onOpenAnimationEnd();
+                onCloseAnimationEnd();
+            }
         }
         checkBlackScreen("removeFragmentFromStack " + immediate);
         if (useAlphaAnimations && fragmentsStack.size() == 1 && AndroidUtilities.isTablet()) {
@@ -3252,14 +3485,18 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             return;
         }
         if (transitionAnimationInProgress) {
-            if (currentAnimation != null) {
-                currentAnimation.cancel();
-                currentAnimation = null;
-            }
-            if (onCloseAnimationEndRunnable != null) {
-                onCloseAnimationEnd();
-            } else if (onOpenAnimationEndRunnable != null) {
-                onOpenAnimationEnd();
+            if (springTransitionActive || aospTransitionActive) {
+                onAnimationEndCheck(true);
+            } else {
+                if (currentAnimation != null) {
+                    currentAnimation.cancel();
+                    currentAnimation = null;
+                }
+                if (onCloseAnimationEndRunnable != null) {
+                    onCloseAnimationEnd();
+                } else if (onOpenAnimationEndRunnable != null) {
+                    onOpenAnimationEnd();
+                }
             }
             containerView.invalidate();
         }
@@ -3294,10 +3531,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     }
 
     public void setFallbackTransitionAnimation(
+            int style,
             TimeInterpolator interpolator,
             int duration,
             float backDurationScale
     ) {
+        fallbackTransitionStyle = style;
         fallbackTransitionInterpolator = interpolator;
         fallbackTransitionDuration = Math.max(1, duration);
         fallbackBackDurationScale = Math.max(0.1f, backDurationScale);

@@ -46,6 +46,7 @@ public class TextCheckCell2 extends FrameLayout {
     private AnimatedTextView animatedTextView;
     private View collapsedArrow;
     private View checkBoxClickArea;
+    private boolean collapseArrowCollapsed;
 
     public void setCollapseArrow(String text, boolean collapsed, Runnable onCheckClick) {
         if (collapseViewContainer == null) {
@@ -76,11 +77,25 @@ public class TextCheckCell2 extends FrameLayout {
                 }
             };
             checkBoxClickArea.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), 2));
+            checkBoxClickArea.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+            checkBoxClickArea.setFocusable(true);
+            checkBox.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            checkBoxClickArea.setAccessibilityDelegate(new AccessibilityDelegate() {
+                @Override
+                public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                    super.onInitializeAccessibilityNodeInfo(host, info);
+                    info.setClassName("android.widget.Switch");
+                    info.setCheckable(true);
+                    info.setChecked(checkBox.isChecked());
+                }
+            });
             addView(checkBoxClickArea, LayoutHelper.createFrame(76, LayoutHelper.MATCH_PARENT, LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT));
         }
         animatedTextView.setText(text);
+        collapseArrowCollapsed = collapsed;
         collapsedArrow.animate().cancel();
         collapsedArrow.animate().rotation(collapsed ? 0 : 180).setDuration(340).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
+        checkBoxClickArea.setContentDescription(textView.getText());
         checkBoxClickArea.setOnClickListener(v -> onCheckClick.run());
     }
 
@@ -271,6 +286,17 @@ public class TextCheckCell2 extends FrameLayout {
     @Override
     public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         super.onInitializeAccessibilityNodeInfo(info);
+        if (collapseViewContainer != null && collapseViewContainer.getVisibility() == View.VISIBLE) {
+            info.setClassName("android.widget.Button");
+            info.setCheckable(false);
+            info.setChecked(false);
+            info.setContentDescription(textView.getText() + ", " + LocaleController.getString(
+                    collapseArrowCollapsed
+                            ? R.string.AccDescrCollapsed
+                            : R.string.AccDescrExpanded
+            ));
+            return;
+        }
         info.setClassName("android.widget.Switch");
         info.setCheckable(true);
         info.setChecked(checkBox.isChecked());
