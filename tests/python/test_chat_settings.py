@@ -95,6 +95,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_add_comma_after_mention", 7);
                             MessagesController.preferences.putRaw("fluxgram_quick_channel_topic_transitions", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_reactions", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_edited_mark", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -102,6 +103,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.addsCommaAfterMention());
                         require(!ChatSettings.allowsQuickChannelTopicTransitions());
                         require(ChatSettings.showsMessageReactions());
+                        require(ChatSettings.showsEditedMark());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -122,6 +124,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsMessageReactions());
                         ChatSettings.setShowsMessageReactions(true);
                         require(ChatSettings.showsMessageReactions());
+                        ChatSettings.setShowsEditedMark(false);
+                        require(!ChatSettings.showsEditedMark());
+                        ChatSettings.setShowsEditedMark(true);
+                        require(ChatSettings.showsEditedMark());
                     }
 
                     private static void require(boolean value) {
@@ -215,6 +221,24 @@ class ChatSettingsTest(unittest.TestCase):
             activity,
         )
         self.assertIn("ChatSettings.setShowsMessageReactions(shown)", activity)
+
+    def test_chat_activity_can_hide_only_edited_marker(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        message_cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertEqual(
+            2,
+            chat.count("setDrawEditedMark(ChatSettings.showsEditedMark())"),
+        )
+        self.assertNotIn("ChatSettings", message_cell)
+        self.assertIn("private boolean drawEditedMark = true;", message_cell)
+        self.assertIn("if (!drawEditedMark) {\n            edited = false;", message_cell)
+        self.assertIn(".setChecked(ChatSettings.showsEditedMark())", activity)
+        self.assertIn("ChatSettings.setShowsEditedMark(shown)", activity)
+        handler = activity.split("item.id == SHOW_EDITED_MARK", 1)[1]
+        handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
+        self.assertIn("rebuildChatPresentation()", handler)
 
     def test_chat_activity_hides_keyboard_only_during_message_list_drag(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()

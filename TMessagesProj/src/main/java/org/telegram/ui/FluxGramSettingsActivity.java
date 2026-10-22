@@ -144,6 +144,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int REPLY_BACKGROUND = 66;
     private static final int STICKER_SIZE_PREVIEW = 67;
     private static final int STICKER_SHAPE = 68;
+    private static final int SHOW_EDITED_MARK = 69;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -622,6 +623,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     R.string.FluxGramShowAllRecentStickersInfo)));
             addSectionLabel(items, R.string.FluxGramMessages);
             items.add(UItem.asCheck(
+                    SHOW_EDITED_MARK,
+                    LocaleController.getString(R.string.FluxGramShowEditedMark)
+            ).setChecked(ChatSettings.showsEditedMark()));
+            items.add(UItem.asCheck(
                     SHOW_MESSAGE_REACTIONS,
                     LocaleController.getString(R.string.FluxGramShowMessageReactions)
             ).setChecked(ChatSettings.showsMessageReactions()));
@@ -1047,6 +1052,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ChatSettings.setShowsMessageReactions(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_EDITED_MARK) {
+                boolean shown = !ChatSettings.showsEditedMark();
+                ChatSettings.setShowsEditedMark(shown);
+                ((TextCheckCell) view).setChecked(shown);
+                rebuildChatPresentation();
             } else if (item.id == DOUBLE_TAP_MESSAGES) {
                 boolean enabled = !MessageGestureSettings.getState().isDoubleTapEnabled();
                 MessageGestureSettings.setDoubleTapEnabled(enabled);

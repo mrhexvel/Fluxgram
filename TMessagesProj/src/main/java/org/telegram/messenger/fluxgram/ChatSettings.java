@@ -10,6 +10,7 @@ public final class ChatSettings {
     private static final String ADD_COMMA_AFTER_MENTION = "fluxgram_add_comma_after_mention";
     private static final String QUICK_CHANNEL_TOPIC_TRANSITIONS = "fluxgram_quick_channel_topic_transitions";
     private static final String SHOW_MESSAGE_REACTIONS = "fluxgram_show_message_reactions";
+    private static final String SHOW_EDITED_MARK = "fluxgram_show_edited_mark";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -17,6 +18,7 @@ public final class ChatSettings {
     private static volatile boolean addCommaAfterMention;
     private static volatile boolean quickChannelTopicTransitions;
     private static volatile boolean showMessageReactions;
+    private static volatile boolean showEditedMark;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -103,6 +105,23 @@ public final class ChatSettings {
         showMessageReactions = shown;
     }
 
+    public static boolean showsEditedMark() {
+        ensureLoaded();
+
+        return showEditedMark;
+    }
+
+    public static synchronized void setShowsEditedMark(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_EDITED_MARK, shown)
+                .apply();
+
+        showEditedMark = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -138,6 +157,11 @@ public final class ChatSettings {
                 showMessageReactions = preferences.getBoolean(SHOW_MESSAGE_REACTIONS, true);
             } catch (ClassCastException exception) {
                 showMessageReactions = true;
+            }
+            try {
+                showEditedMark = preferences.getBoolean(SHOW_EDITED_MARK, true);
+            } catch (ClassCastException exception) {
+                showEditedMark = true;
             }
             loaded = true;
         }

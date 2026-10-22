@@ -1035,6 +1035,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean groupPhotoInvisible;
     public final ReactionsLayoutInBubble reactionsLayoutInBubble = new ReactionsLayoutInBubble(this);
     private boolean drawMessageReactions = true;
+    private boolean drawEditedMark = true;
     private boolean drawStickerTime = true;
     private int stickerTimeMode;
     private int stickerSize = 12;
@@ -1070,6 +1071,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public void setDrawMessageReactions(boolean drawMessageReactions) {
         this.drawMessageReactions = drawMessageReactions;
         reactionsLayoutInBubble.setPresentationHidden(!drawMessageReactions);
+    }
+
+    public void setDrawEditedMark(boolean drawEditedMark) {
+        this.drawEditedMark = drawEditedMark;
     }
 
     public void setDrawStickerTime(boolean drawStickerTime) {
@@ -18596,6 +18601,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     }
                 }
             }
+        }
+        if (!drawEditedMark) {
+            edited = false;
         }
         if (currentMessageObject.messageOwner.fluxgramDeleted) {
             edited = false;

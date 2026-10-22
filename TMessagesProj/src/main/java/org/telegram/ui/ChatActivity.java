@@ -19262,6 +19262,7 @@ public class ChatActivity extends BaseFragment implements
         if (dummyMessageCell == null) {
             dummyMessageCell = new ChatMessageCell(getParentActivity(), currentAccount, true, sharedResources, themeDelegate);
             dummyMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
+            dummyMessageCell.setDrawEditedMark(ChatSettings.showsEditedMark());
             applyStickerPresentation(dummyMessageCell);
             applyReplyPresentation(dummyMessageCell);
         }
@@ -39995,6 +39996,7 @@ public class ChatActivity extends BaseFragment implements
                 ChatMessageCell chatMessageCell = (ChatMessageCell) view;
                 chatMessageCell.setResourcesProvider(themeDelegate);
                 chatMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
+                chatMessageCell.setDrawEditedMark(ChatSettings.showsEditedMark());
                 applyStickerPresentation(chatMessageCell);
                 applyReplyPresentation(chatMessageCell);
                 chatMessageCell.shouldCheckVisibleOnScreen = false;
