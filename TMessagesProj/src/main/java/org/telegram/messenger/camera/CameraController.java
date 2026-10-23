@@ -59,6 +59,7 @@ public class CameraController implements MediaRecorder.OnInfoListener {
     private String recordedFile;
     private boolean mirrorRecorderVideo;
     protected volatile ArrayList<CameraInfo> cameraInfos;
+    private volatile CameraCapabilitySnapshot cameraCapabilities = CameraCapabilitySnapshot.empty();
     private VideoTakeCallback onVideoTakeCallback;
     private boolean cameraInitied;
     private boolean loadingCameras;
@@ -117,6 +118,8 @@ public class CameraController implements MediaRecorder.OnInfoListener {
             try {
                 if (cameraInfos == null) {
                     SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+                    CameraCapabilitySnapshot capabilitySnapshot = CameraCapabilityCollector.load(preferences);
+                    ArrayList<CameraCapabilitySnapshot.Device> freshCamera1Capabilities = new ArrayList<>();
                     String cache = preferences.getString("cameraCache", null);
                     Comparator<Size> comparator = (o1, o2) -> {
                         if (o1.mWidth < o2.mWidth) {
@@ -166,6 +169,16 @@ public class CameraController implements MediaRecorder.OnInfoListener {
                             }
                             Camera camera = Camera.open(cameraInfo.getCameraId());
                             Camera.Parameters params = camera.getParameters();
+
+                            try {
+                                freshCamera1Capabilities.add(CameraCapabilityCollector.camera1Device(
+                                        cameraInfo,
+                                        info,
+                                        params
+                                ));
+                            } catch (RuntimeException exception) {
+                                FileLog.e(exception);
+                            }
 
                             List<Camera.Size> list = params.getSupportedPreviewSizes();
                             for (int a = 0; a < list.size(); a++) {
@@ -230,6 +243,17 @@ public class CameraController implements MediaRecorder.OnInfoListener {
                         serializedData.cleanup();
                     }
                     cameraInfos = result;
+                    capabilitySnapshot = CameraCapabilityCollector.reconcileCamera1Inventory(
+                            capabilitySnapshot,
+                            result,
+                            freshCamera1Capabilities
+                    );
+                    capabilitySnapshot = CameraCapabilityCollector.collectCamera2(capabilitySnapshot);
+                    cameraCapabilities = capabilitySnapshot;
+                    CameraCapabilityCollector.save(preferences, capabilitySnapshot);
+                    if (BuildVars.LOGS_ENABLED) {
+                        FileLog.d("Camera capabilities " + capabilitySnapshot);
+                    }
                 }
                 AndroidUtilities.runOnUIThread(() -> {
                     loadingCameras = false;
@@ -302,6 +326,26 @@ public class CameraController implements MediaRecorder.OnInfoListener {
 
     public ArrayList<CameraInfo> getCameras() {
         return cameraInfos;
+    }
+
+    public CameraCapabilitySnapshot getCameraCapabilities() {
+        return cameraCapabilities;
+    }
+
+    public void refreshCameraCapabilities(Runnable callback) {
+        threadPool.execute(() -> {
+            CameraCapabilitySnapshot updated = CameraCapabilityCollector.collectCamera2(
+                    cameraCapabilities
+            );
+            cameraCapabilities = updated;
+            CameraCapabilityCollector.save(MessagesController.getGlobalMainSettings(), updated);
+            if (BuildVars.LOGS_ENABLED) {
+                FileLog.d("Camera capabilities refreshed " + updated);
+            }
+            if (callback != null) {
+                AndroidUtilities.runOnUIThread(callback);
+            }
+        });
     }
 
     private static int getOrientation(byte[] jpeg) {
@@ -552,6 +596,7 @@ public class CameraController implements MediaRecorder.OnInfoListener {
                     camera = session.cameraInfo.camera = Camera.open(session.cameraInfo.cameraId);
                 }
                 Camera.Parameters params = camera.getParameters();
+                updateCameraCapabilities(session.cameraInfo, params);
 
                 List<String> rawFlashModes = params.getSupportedFlashModes();
                 session.availableFlashModes.clear();
@@ -603,6 +648,7 @@ public class CameraController implements MediaRecorder.OnInfoListener {
                 }
                 camera.setErrorCallback(getErrorListener(session));
                 Camera.Parameters params = camera.getParameters();
+                updateCameraCapabilities(session.cameraInfo, params);
 
                 List<String> rawFlashModes = params.getSupportedFlashModes();
                 session.availableFlashModes.clear();
@@ -638,6 +684,35 @@ public class CameraController implements MediaRecorder.OnInfoListener {
                 FileLog.e(e);
             }
         });
+    }
+
+    private void updateCameraCapabilities(CameraInfo cameraInfo, Camera.Parameters parameters) {
+        String cameraId = Integer.toString(cameraInfo.getCameraId());
+        CameraCapabilitySnapshot.Device existing = cameraCapabilities.findDevice(
+                CameraCapabilitySnapshot.Backend.CAMERA1,
+                cameraId
+        );
+        if (existing != null && existing.areDetailsComplete()) {
+            return;
+        }
+
+        try {
+            Camera.CameraInfo systemInfo = new Camera.CameraInfo();
+            Camera.getCameraInfo(cameraInfo.getCameraId(), systemInfo);
+            CameraCapabilitySnapshot.Device device = CameraCapabilityCollector.camera1Device(
+                    cameraInfo,
+                    systemInfo,
+                    parameters
+            );
+            CameraCapabilitySnapshot updated = cameraCapabilities.replaceDevice(device);
+            cameraCapabilities = updated;
+            CameraCapabilityCollector.save(MessagesController.getGlobalMainSettings(), updated);
+            if (BuildVars.LOGS_ENABLED) {
+                FileLog.d("Camera capabilities updated " + device);
+            }
+        } catch (RuntimeException exception) {
+            FileLog.e(exception);
+        }
     }
 
     public void recordVideo(final Object session, final File path, boolean mirror, final VideoTakeCallback callback, final Runnable onVideoStartRecord, ICameraView cameraView) {
