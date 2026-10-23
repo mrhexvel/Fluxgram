@@ -11464,6 +11464,8 @@
     <string name="FluxGramChatNavigation">Chat navigation</string>
     <string name="FluxGramQuickChannelTopicTransitions">Quick channel and topic transitions</string>
     <string name="FluxGramQuickChannelTopicTransitionsInfo">Pull up at the end of a channel or topic to open the next available channel or unread topic.</string>
+    <string name="FluxGramChatAdministration">Chat administration</string>
+    <string name="FluxGramRecentActionsShortcut">Recent actions in chat menu</string>
     <string name="FluxGramShowMessageReactions">Show reactions below messages</string>
     <string name="FluxGramShowEditedMark">Show edited label</string>
     <string name="FluxGramShowMessageTails">Show message tails</string>

@@ -1738,6 +1738,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int charge_fee = 72;
 
     private final static int chat_menu_topic_create = 73;
+    private final static int recent_actions = 75;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -6147,6 +6148,14 @@ public class ChatActivity extends BaseFragment implements
                     } else {
                         getNotificationCenter().postNotificationName(NotificationCenter.openBoostForUsersDialog, dialog_id);
                     }
+                } else if (id == recent_actions) {
+                    if (headerItem != null) {
+                        headerItem.closeSubMenu();
+                    }
+                    if (!canOpenFluxGramRecentActions()) {
+                        return;
+                    }
+                    presentFragment(new ChannelAdminLogActivity(currentChat));
                 } else if (id == report) {
                     ReportBottomSheet.openChat(ChatActivity.this);
                 } else if (id == star) {
@@ -6694,6 +6703,10 @@ public class ChatActivity extends BaseFragment implements
 
             if (searchItem != null) {
                 headerItem.lazilyAddSubItem(search, R.drawable.msg_search, LocaleController.getString(R.string.Search));
+            }
+            if (canHostFluxGramRecentActions()) {
+                headerItem.lazilyAddSubItem(recent_actions, R.drawable.msg_log, LocaleController.getString(R.string.EventLog));
+                headerItem.setSubItemShown(recent_actions, canOpenFluxGramRecentActions());
             }
             if (ChatObject.isBoostSupported(currentChat) && (getUserConfig().isPremium() || ChatObject.isBoosted(chatInfo) || ChatObject.hasAdminRights(currentChat))) {
                 RLottieDrawable drawable = new RLottieDrawable(R.raw.boosts, dp(24), dp(24));
@@ -11429,6 +11442,25 @@ public class ChatActivity extends BaseFragment implements
         Timer.finish(t);
 
         return fragmentView;
+    }
+
+    private boolean canOpenFluxGramRecentActions() {
+        return canHostFluxGramRecentActions()
+                && ChatSettings.showsRecentActionsShortcut()
+                && !ChatObject.isNotInChat(currentChat)
+                && ChatObject.hasAdminRights(currentChat);
+    }
+
+    private boolean canHostFluxGramRecentActions() {
+        return chatMode == MODE_DEFAULT
+                && !inPreviewMode
+                && !isInsideContainer
+                && !inBubbleMode
+                && !isReport()
+                && currentEncryptedChat == null
+                && currentChat != null
+                && dialog_id == -currentChat.id
+                && (ChatObject.isChannel(currentChat) || currentChat.gigagroup);
     }
 
     private void createSearchHashtagViewsIfNeeded() {
@@ -24583,6 +24615,9 @@ public class ChatActivity extends BaseFragment implements
             }
             if (headerItem != null) {
                 headerItem.setSubItemShown(open_direct, ChatObject.isChannel(currentChat) && !ChatObject.isMonoForum(currentChat) && currentChat.linked_monoforum_id != 0 && ChatObject.canManageMonoForum(currentAccount, -currentChat.linked_monoforum_id));
+                if (canHostFluxGramRecentActions()) {
+                    headerItem.setSubItemShown(recent_actions, canOpenFluxGramRecentActions());
+                }
             }
         } else if (id == NotificationCenter.didReceiveNewMessages) {
             FileLog.d("ChatActivity didReceiveNewMessages start");

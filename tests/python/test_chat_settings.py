@@ -102,6 +102,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_message_share_button", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_messages_from_author", 7);
                             MessagesController.preferences.putRaw("fluxgram_group_message_menu_actions", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_recent_actions_shortcut", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -116,6 +117,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.showsMessageShareButton());
                         require(!ChatSettings.showsMessagesFromAuthor());
                         require(ChatSettings.groupsMessageMenuActions());
+                        require(!ChatSettings.showsRecentActionsShortcut());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -164,6 +166,12 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.groupsMessageMenuActions());
                         ChatSettings.setGroupsMessageMenuActions(true);
                         require(ChatSettings.groupsMessageMenuActions());
+                        ChatSettings.setShowsRecentActionsShortcut(true);
+                        require(ChatSettings.showsRecentActionsShortcut());
+                        require(MessagesController.preferences.getBoolean("fluxgram_show_recent_actions_shortcut", false));
+                        ChatSettings.setShowsRecentActionsShortcut(false);
+                        require(!ChatSettings.showsRecentActionsShortcut());
+                        require(!MessagesController.preferences.getBoolean("fluxgram_show_recent_actions_shortcut", true));
                     }
 
                     private static void require(boolean value) {
@@ -574,7 +582,7 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.hidesKeyboardOnScroll())", activity)
         self.assertIn("ChatSettings.setHidesKeyboardOnScroll(hidden)", activity)
         handler = activity.split("item.id == HIDE_KEYBOARD_ON_SCROLL", 1)[1]
-        handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        handler = handler.split("item.id == ADD_COMMA_AFTER_MENTION", 1)[0]
         self.assertNotIn("rebuildFragments", handler)
 
     def test_chat_activity_adds_comma_only_to_human_mentions(self):
@@ -612,7 +620,7 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.addsCommaAfterMention())", activity)
         self.assertIn("ChatSettings.setAddsCommaAfterMention(enabled)", activity)
         handler = activity.split("item.id == ADD_COMMA_AFTER_MENTION", 1)[1]
-        handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        handler = handler.split("item.id == QUICK_CHANNEL_TOPIC_TRANSITIONS", 1)[0]
         self.assertNotIn("rebuildFragments", handler)
 
     def test_chat_activity_gates_only_existing_quick_transitions(self):
@@ -652,8 +660,69 @@ class ChatSettingsTest(unittest.TestCase):
             activity,
         )
         handler = activity.split("item.id == QUICK_CHANNEL_TOPIC_TRANSITIONS", 1)[1]
-        handler = handler.split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        handler = handler.split("item.id == SHOW_RECENT_ACTIONS_SHORTCUT", 1)[0]
         self.assertNotIn("rebuildFragments", handler)
+
+    def test_chat_activity_adds_guarded_recent_actions_shortcut(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        helper = chat.split(
+            "private boolean canOpenFluxGramRecentActions()", 1
+        )[1].split("\n    }", 1)[0]
+        host = chat.split(
+            "private boolean canHostFluxGramRecentActions()", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("ChatSettings.showsRecentActionsShortcut()", helper)
+        self.assertIn("!ChatObject.isNotInChat(currentChat)", helper)
+        self.assertIn("ChatObject.hasAdminRights(currentChat)", helper)
+        self.assertIn("chatMode == MODE_DEFAULT", host)
+        self.assertIn("!inPreviewMode", host)
+        self.assertIn("!isInsideContainer", host)
+        self.assertIn("!inBubbleMode", host)
+        self.assertIn("!isReport()", host)
+        self.assertIn("currentEncryptedChat == null", host)
+        self.assertIn("dialog_id == -currentChat.id", host)
+        self.assertIn("ChatObject.isChannel(currentChat)", host)
+
+        menu = chat.split("if (searchItem != null)", 1)[1]
+        menu = menu.split("if (ChatObject.isBoostSupported", 1)[0]
+        self.assertIn("if (canHostFluxGramRecentActions())", menu)
+        self.assertIn(
+            "setSubItemShown(recent_actions, canOpenFluxGramRecentActions())",
+            menu,
+        )
+        self.assertIn("R.drawable.msg_log", menu)
+        self.assertIn("R.string.EventLog", menu)
+
+        handler = chat.split("id == recent_actions", 1)[1]
+        handler = handler.split("id == report", 1)[0]
+        self.assertLess(
+            handler.index("headerItem.closeSubMenu()"),
+            handler.index("canOpenFluxGramRecentActions()"),
+        )
+        self.assertIn("new ChannelAdminLogActivity(currentChat)", handler)
+        updates = chat.split(
+            "if ((updateMask & MessagesController.UPDATE_MASK_CHAT) != 0", 1
+        )[1]
+        updates = updates.split("NotificationCenter.didReceiveNewMessages", 1)[0]
+        self.assertIn("if (canHostFluxGramRecentActions())", updates)
+        self.assertIn(
+            "setSubItemShown(recent_actions, canOpenFluxGramRecentActions())",
+            updates,
+        )
+        self.assertIn(
+            ".setChecked(ChatSettings.showsRecentActionsShortcut())",
+            activity,
+        )
+        self.assertIn(
+            "ChatSettings.setShowsRecentActionsShortcut(shown)",
+            activity,
+        )
+        settings_handler = activity.split(
+            "item.id == SHOW_RECENT_ACTIONS_SHORTCUT", 1
+        )[1].split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        self.assertIn("parentLayout.rebuildFragments(0)", settings_handler)
 
 
 if __name__ == "__main__":

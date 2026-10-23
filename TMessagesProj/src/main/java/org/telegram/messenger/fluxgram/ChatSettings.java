@@ -17,6 +17,7 @@ public final class ChatSettings {
     private static final String SHOW_MESSAGE_SHARE_BUTTON = "fluxgram_show_message_share_button";
     private static final String SHOW_MESSAGES_FROM_AUTHOR = "fluxgram_show_messages_from_author";
     private static final String GROUP_MESSAGE_MENU_ACTIONS = "fluxgram_group_message_menu_actions";
+    private static final String SHOW_RECENT_ACTIONS_SHORTCUT = "fluxgram_show_recent_actions_shortcut";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -31,6 +32,7 @@ public final class ChatSettings {
     private static volatile boolean showMessageShareButton;
     private static volatile boolean showMessagesFromAuthor;
     private static volatile boolean groupMessageMenuActions;
+    private static volatile boolean showRecentActionsShortcut;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -236,6 +238,23 @@ public final class ChatSettings {
         groupMessageMenuActions = grouped;
     }
 
+    public static boolean showsRecentActionsShortcut() {
+        ensureLoaded();
+
+        return showRecentActionsShortcut;
+    }
+
+    public static synchronized void setShowsRecentActionsShortcut(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_RECENT_ACTIONS_SHORTCUT, shown)
+                .apply();
+
+        showRecentActionsShortcut = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -306,6 +325,11 @@ public final class ChatSettings {
                 groupMessageMenuActions = preferences.getBoolean(GROUP_MESSAGE_MENU_ACTIONS, true);
             } catch (ClassCastException exception) {
                 groupMessageMenuActions = true;
+            }
+            try {
+                showRecentActionsShortcut = preferences.getBoolean(SHOW_RECENT_ACTIONS_SHORTCUT, false);
+            } catch (ClassCastException exception) {
+                showRecentActionsShortcut = false;
             }
             loaded = true;
         }

@@ -454,6 +454,8 @@
     <string name="FluxGramChatNavigation">Навигация в чатах</string>
     <string name="FluxGramQuickChannelTopicTransitions">Быстрые переходы между каналами и темами</string>
     <string name="FluxGramQuickChannelTopicTransitionsInfo">Потяните вверх в конце канала или темы, чтобы открыть следующий доступный канал или непрочитанную тему.</string>
+    <string name="FluxGramChatAdministration">Управление чатами</string>
+    <string name="FluxGramRecentActionsShortcut">Недавние действия в меню чата</string>
     <string name="FluxGramShowMessageReactions">Показывать реакции под сообщениями</string>
     <string name="FluxGramShowEditedMark">Показывать метку «изменено»</string>
     <string name="FluxGramShowMessageTails">Показывать хвосты сообщений</string>
