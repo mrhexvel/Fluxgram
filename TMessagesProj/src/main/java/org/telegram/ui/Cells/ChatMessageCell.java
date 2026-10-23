@@ -1037,6 +1037,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean drawMessageReactions = true;
     private boolean drawEditedMark = true;
     private boolean drawMessageTail = true;
+    private boolean drawMessageViews = true;
     private boolean drawStickerTime = true;
     private int stickerTimeMode;
     private int stickerSize = 12;
@@ -1080,6 +1081,17 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     public void setDrawMessageTail(boolean drawMessageTail) {
         this.drawMessageTail = drawMessageTail;
+    }
+
+    public void setDrawMessageViews(boolean drawMessageViews) {
+        this.drawMessageViews = drawMessageViews;
+    }
+
+    private boolean shouldDrawMessageViews(MessageObject messageObject) {
+        return drawMessageViews
+                && (messageObject.messageOwner.flags & TLRPC.MESSAGE_FLAG_HAS_VIEWS) != 0
+                && (delegate == null
+                || delegate.getChatMode() != ChatActivity.MODE_WELCOME_MESSAGES);
     }
 
     private boolean isMessageTailSuppressedByGroup() {
@@ -13998,8 +14010,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 timeX += dp(14 + 4);
             }
 
-            final boolean isInWelcomeMessages = delegate != null && delegate.getChatMode() == ChatActivity.MODE_WELCOME_MESSAGES;
-            if ((currentMessageObject.messageOwner.flags & TLRPC.MESSAGE_FLAG_HAS_VIEWS) != 0 && !isInWelcomeMessages) {
+            if (shouldDrawMessageViews(currentMessageObject)) {
                 viewsLayout = new StaticLayout(currentViewsString == null ? "" : currentViewsString, Theme.chat_timePaint, viewsTextWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
             } else {
                 viewsLayout = null;
@@ -18721,8 +18732,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             timeWidth -= dp(8);
         }
 
-        final boolean isInWelcomeMessages = delegate != null && delegate.getChatMode() == ChatActivity.MODE_WELCOME_MESSAGES;
-        if ((messageObject.messageOwner.flags & TLRPC.MESSAGE_FLAG_HAS_VIEWS) != 0 && !isInWelcomeMessages) {
+        if (shouldDrawMessageViews(messageObject)) {
             currentViewsString = String.format("%s", LocaleController.formatShortNumber(Math.max(1, messageObject.messageOwner.views), null));
             viewsTextWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentViewsString));
             float drawableWidth = Theme.chat_msgInViewsDrawable.getIntrinsicWidth() * (Theme.chat_timePaint.getTextSize() - dp(2)) / Theme.chat_msgInViewsDrawable.getIntrinsicHeight();

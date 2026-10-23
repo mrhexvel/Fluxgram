@@ -19290,6 +19290,7 @@ public class ChatActivity extends BaseFragment implements
             dummyMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
             dummyMessageCell.setDrawEditedMark(ChatSettings.showsEditedMark());
             dummyMessageCell.setDrawMessageTail(ChatSettings.showsMessageTails());
+            dummyMessageCell.setDrawMessageViews(ChatSettings.showsMessageViews());
             applyStickerPresentation(dummyMessageCell);
             applyReplyPresentation(dummyMessageCell);
         }
@@ -40030,6 +40031,7 @@ public class ChatActivity extends BaseFragment implements
                 chatMessageCell.setDrawMessageReactions(ChatSettings.showsMessageReactions());
                 chatMessageCell.setDrawEditedMark(ChatSettings.showsEditedMark());
                 chatMessageCell.setDrawMessageTail(ChatSettings.showsMessageTails());
+                chatMessageCell.setDrawMessageViews(ChatSettings.showsMessageViews());
                 applyStickerPresentation(chatMessageCell);
                 applyReplyPresentation(chatMessageCell);
                 chatMessageCell.shouldCheckVisibleOnScreen = false;

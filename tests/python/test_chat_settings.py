@@ -98,6 +98,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_edited_mark", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_tails", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_avatar_online", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_message_views", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -108,6 +109,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.showsEditedMark());
                         require(ChatSettings.showsMessageTails());
                         require(!ChatSettings.showsMessageAvatarOnline());
+                        require(ChatSettings.showsMessageViews());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -140,6 +142,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.showsMessageAvatarOnline());
                         ChatSettings.setShowsMessageAvatarOnline(false);
                         require(!ChatSettings.showsMessageAvatarOnline());
+                        ChatSettings.setShowsMessageViews(false);
+                        require(!ChatSettings.showsMessageViews());
+                        ChatSettings.setShowsMessageViews(true);
+                        require(ChatSettings.showsMessageViews());
                     }
 
                     private static void require(boolean value) {
@@ -331,6 +337,32 @@ class ChatSettingsTest(unittest.TestCase):
         )
         self.assertIn("ChatSettings.setShowsMessageAvatarOnline(shown)", activity)
         handler = activity.split("item.id == SHOW_MESSAGE_AVATAR_ONLINE", 1)[1]
+        handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
+        self.assertIn("rebuildChatPresentation()", handler)
+
+    def test_chat_activity_can_hide_message_view_count(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        message_cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        transition = (JAVA / "ui/TextMessageEnterTransition.java").read_text()
+        share_alert = (JAVA / "ui/Components/ShareAlert.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertNotIn("ChatSettings", message_cell)
+        self.assertNotIn("ChatSettings", transition)
+        self.assertNotIn("ChatSettings.showsMessageViews", share_alert)
+        self.assertIn("private boolean drawMessageViews = true;", message_cell)
+        self.assertIn(
+            "private boolean shouldDrawMessageViews(MessageObject messageObject)",
+            message_cell,
+        )
+        self.assertEqual(3, message_cell.count("shouldDrawMessageViews("))
+        self.assertEqual(
+            2,
+            chat.count("setDrawMessageViews(ChatSettings.showsMessageViews())"),
+        )
+        self.assertIn(".setChecked(ChatSettings.showsMessageViews())", activity)
+        self.assertIn("ChatSettings.setShowsMessageViews(shown)", activity)
+        handler = activity.split("item.id == SHOW_MESSAGE_VIEWS", 1)[1]
         handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
         self.assertIn("rebuildChatPresentation()", handler)
 
