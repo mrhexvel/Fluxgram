@@ -20,6 +20,7 @@ public final class ChatSettings {
     private static final String SHOW_RECENT_ACTIONS_SHORTCUT = "fluxgram_show_recent_actions_shortcut";
     private static final String SHOW_ADMINISTRATORS_SHORTCUT = "fluxgram_show_administrators_shortcut";
     private static final String SHOW_PARTICIPANTS_SHORTCUT = "fluxgram_show_participants_shortcut";
+    private static final String SHOW_PERMISSIONS_SHORTCUT = "fluxgram_show_permissions_shortcut";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -37,6 +38,7 @@ public final class ChatSettings {
     private static volatile boolean showRecentActionsShortcut;
     private static volatile boolean showAdministratorsShortcut;
     private static volatile boolean showParticipantsShortcut;
+    private static volatile boolean showPermissionsShortcut;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -293,6 +295,23 @@ public final class ChatSettings {
         showParticipantsShortcut = shown;
     }
 
+    public static boolean showsPermissionsShortcut() {
+        ensureLoaded();
+
+        return showPermissionsShortcut;
+    }
+
+    public static synchronized void setShowsPermissionsShortcut(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_PERMISSIONS_SHORTCUT, shown)
+                .apply();
+
+        showPermissionsShortcut = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -378,6 +397,11 @@ public final class ChatSettings {
                 showParticipantsShortcut = preferences.getBoolean(SHOW_PARTICIPANTS_SHORTCUT, false);
             } catch (ClassCastException exception) {
                 showParticipantsShortcut = false;
+            }
+            try {
+                showPermissionsShortcut = preferences.getBoolean(SHOW_PERMISSIONS_SHORTCUT, false);
+            } catch (ClassCastException exception) {
+                showPermissionsShortcut = false;
             }
             loaded = true;
         }

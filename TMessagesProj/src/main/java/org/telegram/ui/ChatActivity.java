@@ -479,6 +479,7 @@ public class ChatActivity extends BaseFragment implements
     protected ActionBarMenuItem searchItem;
     protected ActionBarMenuItem topicCreateItem;
     private ActionBarMenuItem.Item translateItem;
+    private ActionBarMenuItem.Item fluxGramPermissionsItem;
     private ActionBarMenuItem searchIconItem;
     private ActionBarMenu.LazyItem audioCallIconItem;
     private boolean searchItemVisible;
@@ -1741,6 +1742,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int recent_actions = 75;
     private final static int administrators = 76;
     private final static int participants = 77;
+    private final static int permissions = 78;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -6184,6 +6186,19 @@ public class ChatActivity extends BaseFragment implements
                     ChatUsersActivity fragment = new ChatUsersActivity(args);
                     fragment.setInfo(chatInfo);
                     presentFragment(fragment);
+                } else if (id == permissions) {
+                    if (headerItem != null) {
+                        headerItem.closeSubMenu();
+                    }
+                    if (!canOpenFluxGramPermissions()) {
+                        return;
+                    }
+                    Bundle args = new Bundle();
+                    args.putLong("chat_id", currentChat.id);
+                    args.putInt("type", getFluxGramPermissionsType());
+                    ChatUsersActivity fragment = new ChatUsersActivity(args);
+                    fragment.setInfo(chatInfo);
+                    presentFragment(fragment);
                 } else if (id == report) {
                     ReportBottomSheet.openChat(ChatActivity.this);
                 } else if (id == star) {
@@ -6741,6 +6756,13 @@ public class ChatActivity extends BaseFragment implements
                         LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat)
                                 ? R.string.ChannelSubscribers
                                 : R.string.ChannelMembers)
+                );
+                fluxGramPermissionsItem = headerItem.lazilyAddSubItem(
+                        permissions,
+                        R.drawable.msg_permissions,
+                        LocaleController.getString(getFluxGramPermissionsType() == ChatUsersActivity.TYPE_KICKED
+                                ? R.string.ChannelPermissions
+                                : R.string.ChannelBlacklist)
                 );
                 updateFluxGramAdminShortcutsVisibility();
             }
@@ -11501,6 +11523,19 @@ public class ChatActivity extends BaseFragment implements
                 && ChatObject.hasAdminRights(currentChat);
     }
 
+    private boolean canOpenFluxGramPermissions() {
+        return canHostFluxGramAdminShortcuts()
+                && ChatSettings.showsPermissionsShortcut()
+                && !ChatObject.isNotInChat(currentChat)
+                && ChatObject.hasAdminRights(currentChat);
+    }
+
+    private int getFluxGramPermissionsType() {
+        return !ChatObject.isChannelAndNotMegaGroup(currentChat) && !currentChat.gigagroup
+                ? ChatUsersActivity.TYPE_KICKED
+                : ChatUsersActivity.TYPE_BANNED;
+    }
+
     private boolean canHostFluxGramAdminShortcuts() {
         return chatMode == MODE_DEFAULT
                 && !inPreviewMode
@@ -11523,6 +11558,14 @@ public class ChatActivity extends BaseFragment implements
         headerItem.setSubItemShown(recent_actions, canOpenFluxGramRecentActions());
         headerItem.setSubItemShown(administrators, canOpenFluxGramAdministrators());
         headerItem.setSubItemShown(participants, canOpenFluxGramParticipants());
+        if (fluxGramPermissionsItem != null) {
+            fluxGramPermissionsItem.setText(LocaleController.getString(
+                    getFluxGramPermissionsType() == ChatUsersActivity.TYPE_KICKED
+                            ? R.string.ChannelPermissions
+                            : R.string.ChannelBlacklist
+            ));
+        }
+        headerItem.setSubItemShown(permissions, canOpenFluxGramPermissions());
     }
 
     private void createSearchHashtagViewsIfNeeded() {
