@@ -19,6 +19,7 @@ public final class ChatSettings {
     private static final String GROUP_MESSAGE_MENU_ACTIONS = "fluxgram_group_message_menu_actions";
     private static final String SHOW_RECENT_ACTIONS_SHORTCUT = "fluxgram_show_recent_actions_shortcut";
     private static final String SHOW_ADMINISTRATORS_SHORTCUT = "fluxgram_show_administrators_shortcut";
+    private static final String SHOW_PARTICIPANTS_SHORTCUT = "fluxgram_show_participants_shortcut";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -35,6 +36,7 @@ public final class ChatSettings {
     private static volatile boolean groupMessageMenuActions;
     private static volatile boolean showRecentActionsShortcut;
     private static volatile boolean showAdministratorsShortcut;
+    private static volatile boolean showParticipantsShortcut;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -274,6 +276,23 @@ public final class ChatSettings {
         showAdministratorsShortcut = shown;
     }
 
+    public static boolean showsParticipantsShortcut() {
+        ensureLoaded();
+
+        return showParticipantsShortcut;
+    }
+
+    public static synchronized void setShowsParticipantsShortcut(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_PARTICIPANTS_SHORTCUT, shown)
+                .apply();
+
+        showParticipantsShortcut = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -354,6 +373,11 @@ public final class ChatSettings {
                 showAdministratorsShortcut = preferences.getBoolean(SHOW_ADMINISTRATORS_SHORTCUT, false);
             } catch (ClassCastException exception) {
                 showAdministratorsShortcut = false;
+            }
+            try {
+                showParticipantsShortcut = preferences.getBoolean(SHOW_PARTICIPANTS_SHORTCUT, false);
+            } catch (ClassCastException exception) {
+                showParticipantsShortcut = false;
             }
             loaded = true;
         }

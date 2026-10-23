@@ -104,6 +104,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_group_message_menu_actions", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_recent_actions_shortcut", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_administrators_shortcut", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_participants_shortcut", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -120,6 +121,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.groupsMessageMenuActions());
                         require(!ChatSettings.showsRecentActionsShortcut());
                         require(!ChatSettings.showsAdministratorsShortcut());
+                        require(!ChatSettings.showsParticipantsShortcut());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -180,6 +182,12 @@ class ChatSettingsTest(unittest.TestCase):
                         ChatSettings.setShowsAdministratorsShortcut(false);
                         require(!ChatSettings.showsAdministratorsShortcut());
                         require(!MessagesController.preferences.getBoolean("fluxgram_show_administrators_shortcut", true));
+                        ChatSettings.setShowsParticipantsShortcut(true);
+                        require(ChatSettings.showsParticipantsShortcut());
+                        require(MessagesController.preferences.getBoolean("fluxgram_show_participants_shortcut", false));
+                        ChatSettings.setShowsParticipantsShortcut(false);
+                        require(!ChatSettings.showsParticipantsShortcut());
+                        require(!MessagesController.preferences.getBoolean("fluxgram_show_participants_shortcut", true));
                     }
 
                     private static void require(boolean value) {
@@ -691,7 +699,10 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("!isReport()", host)
         self.assertIn("currentEncryptedChat == null", host)
         self.assertIn("dialog_id == -currentChat.id", host)
+        self.assertIn("!ChatObject.isCommunity(currentChat)", host)
+        self.assertIn("!ChatObject.isMonoForum(currentChat)", host)
         self.assertIn("ChatObject.isChannel(currentChat)", host)
+        self.assertNotIn("!isTopic", host)
 
         menu = chat.split("if (searchItem != null)", 1)[1]
         menu = menu.split("if (ChatObject.isBoostSupported", 1)[0]
@@ -802,6 +813,57 @@ class ChatSettingsTest(unittest.TestCase):
         )
         settings_handler = activity.split(
             "item.id == SHOW_ADMINISTRATORS_SHORTCUT", 1
+        )[1].split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
+        self.assertIn("parentLayout.rebuildFragments(0)", settings_handler)
+
+    def test_chat_activity_adds_guarded_participants_shortcut(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        helper = chat.split(
+            "private boolean canOpenFluxGramParticipants()", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("canHostFluxGramAdminShortcuts()", helper)
+        self.assertIn("ChatSettings.showsParticipantsShortcut()", helper)
+        self.assertIn("!ChatObject.isNotInChat(currentChat)", helper)
+        self.assertIn("ChatObject.hasAdminRights(currentChat)", helper)
+
+        menu = chat.split("if (searchItem != null)", 1)[1]
+        menu = menu.split("if (ChatObject.isBoostSupported", 1)[0]
+        self.assertIn("R.drawable.msg_groups", menu)
+        self.assertIn("ChatObject.isChannelAndNotMegaGroup(currentChat)", menu)
+        self.assertIn("R.string.ChannelSubscribers", menu)
+        self.assertIn("R.string.ChannelMembers", menu)
+
+        handler = chat.split("id == participants", 1)[1]
+        handler = handler.split("id == report", 1)[0]
+        self.assertLess(
+            handler.index("headerItem.closeSubMenu()"),
+            handler.index("canOpenFluxGramParticipants()"),
+        )
+        self.assertIn('args.putLong("chat_id", currentChat.id)', handler)
+        self.assertIn('args.putInt("type", ChatUsersActivity.TYPE_USERS)', handler)
+        self.assertNotIn("ARG_FLUXGRAM_GROUP_SETTINGS", handler)
+        self.assertIn("fragment.setInfo(chatInfo)", handler)
+        self.assertIn("presentFragment(fragment)", handler)
+
+        visibility = chat.split(
+            "private void updateFluxGramAdminShortcutsVisibility()", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn(
+            "setSubItemShown(participants, canOpenFluxGramParticipants())",
+            visibility,
+        )
+        self.assertIn(
+            ".setChecked(ChatSettings.showsParticipantsShortcut())",
+            activity,
+        )
+        self.assertIn(
+            "ChatSettings.setShowsParticipantsShortcut(shown)",
+            activity,
+        )
+        settings_handler = activity.split(
+            "item.id == SHOW_PARTICIPANTS_SHORTCUT", 1
         )[1].split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
         self.assertIn("parentLayout.rebuildFragments(0)", settings_handler)
 

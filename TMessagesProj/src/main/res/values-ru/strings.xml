@@ -457,6 +457,7 @@
     <string name="FluxGramChatAdministration">Управление чатами</string>
     <string name="FluxGramRecentActionsShortcut">Недавние действия в меню чата</string>
     <string name="FluxGramAdministratorsShortcut">Администраторы в меню чата</string>
+    <string name="FluxGramParticipantsShortcut">Участники в меню чата</string>
     <string name="FluxGramShowMessageReactions">Показывать реакции под сообщениями</string>
     <string name="FluxGramShowEditedMark">Показывать метку «изменено»</string>
     <string name="FluxGramShowMessageTails">Показывать хвосты сообщений</string>

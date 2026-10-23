@@ -11467,6 +11467,7 @@
     <string name="FluxGramChatAdministration">Chat administration</string>
     <string name="FluxGramRecentActionsShortcut">Recent actions in chat menu</string>
     <string name="FluxGramAdministratorsShortcut">Administrators in chat menu</string>
+    <string name="FluxGramParticipantsShortcut">Members in chat menu</string>
     <string name="FluxGramShowMessageReactions">Show reactions below messages</string>
     <string name="FluxGramShowEditedMark">Show edited label</string>
     <string name="FluxGramShowMessageTails">Show message tails</string>
