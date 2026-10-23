@@ -55,6 +55,8 @@ import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 
+import java.util.ArrayList;
+
 public class TextMessageEnterTransition implements MessageEnterTransitionContainer.Transition {
     float fromRadius;
     float progress;
@@ -107,6 +109,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     private final int currentAccount;
     private AnimationNotificationsLocker notificationsLocker = new AnimationNotificationsLocker();
     MessageObject.TextLayoutBlock textLayoutBlock;
+    private ArrayList<MessageObject.TextLayoutBlock> textLayoutBlocks;
     Drawable fromMessageDrawable;
     ChatActivityEnterView enterView;
     private AnimatedEmojiSpan.EmojiGroupedSpans animatedEmojiStack;
@@ -126,7 +129,8 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     public TextMessageEnterTransition(ChatMessageCell messageView, ChatActivity chatActivity, RecyclerListView listView, MessageEnterTransitionContainer container, Theme.ResourcesProvider resourcesProvider) {
         this.resourcesProvider = resourcesProvider;
         currentAccount = UserConfig.selectedAccount;
-        if (messageView.getMessageObject().textLayoutBlocks == null || messageView.getMessageObject().textLayoutBlocks.size() > 1 || messageView.getMessageObject().textLayoutBlocks.isEmpty() || messageView.getMessageObject().textLayoutBlocks.get(0).textLayout.getLineCount() > 10) {
+        textLayoutBlocks = messageView.getActiveTextLayoutBlocks();
+        if (textLayoutBlocks == null || textLayoutBlocks.size() > 1 || textLayoutBlocks.isEmpty() || textLayoutBlocks.get(0).textLayout.getLineCount() > 10) {
             return;
         }
         this.messageView = messageView;
@@ -250,7 +254,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             drawableFromTop -= dp(12);
         }
         drawableFromBottom = textViewY + chatActivityEnterView.getEditField().getMeasuredHeight();
-        textLayoutBlock = messageView.getMessageObject().textLayoutBlocks.get(0);
+        textLayoutBlock = textLayoutBlocks.get(0);
         StaticLayout messageTextLayout = textLayoutBlock.textLayout;
         int normalLinesCount = 0;
         int rtlLinesCount = 0;
@@ -314,7 +318,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             }
         }
 
-        toXOffsetRtl = layout.getWidth() - messageView.getMessageObject().textLayoutBlocks.get(0).textLayout.getWidth();
+        toXOffsetRtl = layout.getWidth() - textLayoutBlocks.get(0).textLayout.getWidth();
 
         try {
             if (drawBitmaps) {
@@ -438,6 +442,12 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     private float listViewTargetBottomPadding;
 
     public void onDraw(Canvas canvas) {
+        if (messageView.getActiveTextLayoutBlocks() != textLayoutBlocks) {
+            if (animator != null && animator.isRunning()) {
+                animator.end();
+            }
+            return;
+        }
         if (drawBitmaps && !initBitmaps && crossfadeTextBitmap != null && messageView.getTransitionParams().wasDraw) {
             initBitmaps = true;
             Canvas bitmapCanvas = new Canvas(crossfadeTextBitmap);
@@ -445,7 +455,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             if (messageView.animatedEmojiStack != null) {
                 messageView.animatedEmojiStack.clearPositions();
             }
-            messageView.drawMessageText(bitmapCanvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true);
+            messageView.drawMessageText(bitmapCanvas, textLayoutBlocks, true, 1f, true);
             messageView.drawAnimatedEmojis(bitmapCanvas, 1f);
         }
         float listViewBottom = listView.getY() - container.getY() + listView.getMeasuredHeight();
@@ -770,7 +780,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         }
 
         canvas.save();
-        canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
+        canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(textLayoutBlocks, messageView.transitionParams)) * progress);
         canvas.scale(scale, scale * scale2, 0, 0);
 
         if (drawBitmaps) {
@@ -801,7 +811,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
         if (rtlLayout != null) {
             canvas.save();
-            canvas.translate(fromX * (1f - progressX) + (toX - toXOffsetRtl) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
+            canvas.translate(fromX * (1f - progressX) + (toX - toXOffsetRtl) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(textLayoutBlocks, messageView.transitionParams)) * progress);
             canvas.scale(scale, scale * scale2, 0, 0);
             if (drawBitmaps) {
                 if (crossfade) {
@@ -839,7 +849,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             } else {
                 int oldColor = Theme.chat_msgTextPaint.getColor();
                 Theme.chat_msgTextPaint.setColor(toColor);
-                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);
+                messageView.drawMessageText(canvas, textLayoutBlocks, true, alphaProgress, true);
                 messageView.drawAnimatedEmojis(canvas, alphaProgress);
                 if (Theme.chat_msgTextPaint.getColor() != oldColor) {
                     Theme.chat_msgTextPaint.setColor(oldColor);

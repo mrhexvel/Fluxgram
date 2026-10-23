@@ -517,8 +517,8 @@ public class ScrimOptions extends Dialog {
         if (textblocks == null) {
             x = cell.getTextX();
             y = cell.getTextY() + cell.transitionYOffsetForDrawables;
-            textblocks = messageObject.textLayoutBlocks;
-            rtloffset = messageObject.textXOffset;
+            textblocks = cell.getActiveTextLayoutBlocks();
+            rtloffset = cell.getActiveTextXOffset();
         }
         if (textblocks != null) {
             for (int i = 0; i < textblocks.size(); ++i) {

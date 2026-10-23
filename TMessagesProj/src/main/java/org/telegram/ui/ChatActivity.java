@@ -19365,6 +19365,10 @@ public class ChatActivity extends BaseFragment implements
             return 0;
         }
 
+        if (dummyMessageCell == null || dummyMessageCell.getMessageObject() != object) {
+            getHeightForMessage(object, true);
+        }
+
         int offsetY;
         CharSequence text;
         ArrayList<MessageObject.TextLayoutBlock> textLayoutBlocks;
@@ -19387,7 +19391,9 @@ public class ChatActivity extends BaseFragment implements
         } else {
             offsetY = 0;
             text = object.messageText;
-            textLayoutBlocks = object.textLayoutBlocks;
+            textLayoutBlocks = dummyMessageCell == null || dummyMessageCell.getMessageObject() != object
+                    ? object.textLayoutBlocks
+                    : dummyMessageCell.getActiveTextLayoutBlocks();
             if (dummyMessageCell != null && dummyMessageCell.linkPreviewAbove) {
                 offsetY += dummyMessageCell.linkPreviewHeight + AndroidUtilities.dp(10);
             }

@@ -2156,8 +2156,8 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                     }
                 } else if (selectedView.hasCaptionLayout()) {
                     layout = selectedView.getCaptionLayout().textLayoutBlocks.get(0).textLayout;
-                } else if (object.textLayoutBlocks != null) {
-                    layout = object.textLayoutBlocks.get(0).textLayout;
+                } else if (selectedView.getActiveTextLayoutBlocks() != null) {
+                    layout = selectedView.getActiveTextLayoutBlocks().get(0).textLayout;
                 }
                 if (layout == null) {
                     return 0;
@@ -2200,12 +2200,12 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                         maybeTextX + block.textLayout.getWidth(),
                         (int) (maybeTextY + block.textYOffset(chatMessageCell.getCaptionLayout().textLayoutBlocks, chatMessageCell.transitionParams) + block.padTop + block.textLayout.getHeight())
                 );
-            } else if (messageObject != null && messageObject.textLayoutBlocks != null && messageObject.textLayoutBlocks.size() > 0) {
-                MessageObject.TextLayoutBlock block = messageObject.textLayoutBlocks.get(messageObject.textLayoutBlocks.size() - 1);
+            } else if (messageObject != null && chatMessageCell.getActiveTextLayoutBlocks() != null && chatMessageCell.getActiveTextLayoutBlocks().size() > 0) {
+                MessageObject.TextLayoutBlock block = chatMessageCell.getActiveTextLayoutBlocks().get(chatMessageCell.getActiveTextLayoutBlocks().size() - 1);
                 textArea.set(
                         maybeTextX, maybeTextY,
                         maybeTextX + block.textLayout.getWidth(),
-                        (int) (maybeTextY + block.textYOffset(messageObject.textLayoutBlocks, chatMessageCell.transitionParams) + block.padTop + block.textLayout.getHeight())
+                        (int) (maybeTextY + block.textYOffset(chatMessageCell.getActiveTextLayoutBlocks(), chatMessageCell.transitionParams) + block.padTop + block.textLayout.getHeight())
                 );
             } else {
                 this.maybeSelectedView = null;
@@ -2296,7 +2296,7 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
             }
 
             MessageObject selectedMessageObject = selectedView.getMessageObject();
-            if (selectedMessageObject == null || selectedMessageObject.textLayoutBlocks == null) {
+            if (selectedMessageObject == null || selectedView.getActiveTextLayoutBlocks() == null) {
                 return;
             }
 
@@ -2390,9 +2390,9 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                 lastLayout = lastBlock.textLayout;
                 yOffset = lastBlock.textYOffset(cell.getCaptionLayout().textLayoutBlocks) + lastBlock.padTop;
             } else {
-                MessageObject.TextLayoutBlock lastBlock = cell.getMessageObject().textLayoutBlocks.get(cell.getMessageObject().textLayoutBlocks.size() - 1);
+                MessageObject.TextLayoutBlock lastBlock = cell.getActiveTextLayoutBlocks().get(cell.getActiveTextLayoutBlocks().size() - 1);
                 lastLayout = lastBlock.textLayout;
-                yOffset = lastBlock.textYOffset(cell.getMessageObject().textLayoutBlocks) + lastBlock.padTop;
+                yOffset = lastBlock.textYOffset(cell.getActiveTextLayoutBlocks()) + lastBlock.padTop;
             }
 
             if (lastLayout == null) {
@@ -2516,18 +2516,18 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                 return;
             }
 
-            for (int i = 0; i < messageObject.textLayoutBlocks.size(); i++) {
-                MessageObject.TextLayoutBlock block = messageObject.textLayoutBlocks.get(i);
-                if (y >= block.textYOffset(messageObject.textLayoutBlocks) && y <= block.textYOffset(messageObject.textLayoutBlocks) + block.padTop + block.height(cell.transitionParams)) {
+            for (int i = 0; i < cell.getActiveTextLayoutBlocks().size(); i++) {
+                MessageObject.TextLayoutBlock block = cell.getActiveTextLayoutBlocks().get(i);
+                if (y >= block.textYOffset(cell.getActiveTextLayoutBlocks()) && y <= block.textYOffset(cell.getActiveTextLayoutBlocks()) + block.padTop + block.height(cell.transitionParams)) {
                     layoutBlock.layout = block.textLayout;
-                    layoutBlock.yOffset = block.textYOffset(messageObject.textLayoutBlocks) + block.padTop;
+                    layoutBlock.yOffset = block.textYOffset(cell.getActiveTextLayoutBlocks()) + block.padTop;
                     int offsetX = 0;
                     if (block.quote) {
                         offsetX = dp(10);
                     } else if (block.code) {
                         offsetX = dp(0);
                     }
-                    layoutBlock.xOffset = -(block.isRtl() ? (int) Math.ceil(messageObject.textXOffset) - offsetX : 0);
+                    layoutBlock.xOffset = -(block.isRtl() ? (int) Math.ceil(cell.getActiveTextXOffset()) - offsetX : 0);
                     if (block.code && !block.quote) {
                         layoutBlock.xOffset += dp(8);
                     }
@@ -2623,21 +2623,21 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                 return;
             }
 
-            if (messageObject.textLayoutBlocks == null) {
+            if (selectedView.getActiveTextLayoutBlocks() == null) {
                 layoutBlock.layout = null;
                 return;
             }
 
-            if (messageObject.textLayoutBlocks.size() == 1) {
-                MessageObject.TextLayoutBlock textLayoutBlock = messageObject.textLayoutBlocks.get(0);
+            if (selectedView.getActiveTextLayoutBlocks().size() == 1) {
+                MessageObject.TextLayoutBlock textLayoutBlock = selectedView.getActiveTextLayoutBlocks().get(0);
                 layoutBlock.layout = textLayoutBlock.textLayout;
                 layoutBlock.yOffset = textLayoutBlock.padTop;
-                MessageObject.TextLayoutBlock firstBlock = messageObject.textLayoutBlocks.get(0);
+                MessageObject.TextLayoutBlock firstBlock = selectedView.getActiveTextLayoutBlocks().get(0);
                 int offsetX = 0;
                 if (firstBlock.quote) {
                     offsetX = dp(10);
                 }
-                layoutBlock.xOffset = -(firstBlock.isRtl() ? (int) Math.ceil(messageObject.textXOffset) - offsetX : 0);
+                layoutBlock.xOffset = -(firstBlock.isRtl() ? (int) Math.ceil(selectedView.getActiveTextXOffset()) - offsetX : 0);
                 if (firstBlock.code && !firstBlock.quote) {
                     layoutBlock.xOffset += dp(8);
                 }
@@ -2645,17 +2645,17 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                 return;
             }
 
-            for (int i = 0; i < messageObject.textLayoutBlocks.size(); i++) {
-                MessageObject.TextLayoutBlock block = messageObject.textLayoutBlocks.get(i);
+            for (int i = 0; i < selectedView.getActiveTextLayoutBlocks().size(); i++) {
+                MessageObject.TextLayoutBlock block = selectedView.getActiveTextLayoutBlocks().get(i);
                 int blockOffset = offset - block.charactersOffset;
                 if (blockOffset >= 0 && blockOffset <= block.textLayout.getText().length()) {
                     layoutBlock.layout = block.textLayout;
-                    layoutBlock.yOffset = block.textYOffset(messageObject.textLayoutBlocks) + block.padTop;
+                    layoutBlock.yOffset = block.textYOffset(selectedView.getActiveTextLayoutBlocks()) + block.padTop;
                     int offsetX = 0;
                     if (block.quote) {
                         offsetX = dp(10);
                     }
-                    layoutBlock.xOffset = -(block.isRtl() ? (int) Math.ceil(messageObject.textXOffset) - offsetX : 0);
+                    layoutBlock.xOffset = -(block.isRtl() ? (int) Math.ceil(selectedView.getActiveTextXOffset()) - offsetX : 0);
                     if (block.code && !block.quote) {
                         layoutBlock.xOffset += dp(8);
                     }

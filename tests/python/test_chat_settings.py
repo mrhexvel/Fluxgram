@@ -933,7 +933,7 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("linkPreviewMaxWidth = maxWidth", cell)
         self.assertIn("drawSideButton != 0 && !wideTextPost", cell)
         self.assertIn("backgroundWidth = maxWidth + dp(31)", cell)
-        self.assertIn("cell.wideTextPost = wideTextPost", cell)
+        self.assertIn("cell.setWideTextPost(wideTextPost)", cell)
         self.assertIn("cell.wideMediaPost = wideMediaPost", cell)
         self.assertIn("else if (wideMediaPost)", cell)
         self.assertIn("photoWidth = getWidePostContentWidth()", cell)
@@ -1046,6 +1046,103 @@ class ChatSettingsTest(unittest.TestCase):
         )[1].split("item.id == SHOW_EDITED_MARK", 1)[0]
         self.assertIn("ChatSettings.setUsesWideChannelPosts(enabled)", settings_handler)
         self.assertIn("rebuildChatPresentation()", settings_handler)
+
+    def test_wide_text_post_uses_cell_local_canonical_layout(self):
+        message = (JAVA / "messenger/MessageObject.java").read_text()
+        cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        selection = (JAVA / "ui/Cells/TextSelectionHelper.java").read_text()
+        transition = (JAVA / "ui/TextMessageEnterTransition.java").read_text()
+        scrim = (JAVA / "ui/Components/ScrimOptions.java").read_text()
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+
+        canonical = message.split(
+            "public static TextLayoutBlocks createCanonical", 1
+        )[1].split("private TextLayoutBlocks", 1)[0]
+        self.assertIn("ZalgoDisplayFilter.filter(messageObject.messageText)", canonical)
+        self.assertIn("Theme.chat_msgGameTextPaint", canonical)
+        self.assertIn("new TextLayoutBlocks(messageObject, text, paint, width, true)", canonical)
+        self.assertIn("layout.valid && !layout.textLayoutBlocks.isEmpty() ? layout : null", canonical)
+
+        canonical_mode = message.split(
+            "private TextLayoutBlocks(MessageObject messageObject", 1
+        )[1].split("\n        }\n\n    }", 1)[0]
+        for contract in (
+            "messageObject.totalAnimatedEmojiCount >= 4",
+            "messageObject.totalAnimatedEmojiCount >= 50",
+            "messageObject.emojiOnlyCount > 0",
+            "cutIntoRanges(text, textRanges, !canonical)",
+            "block.layoutCode(range.language, range.end - range.start, noforwards)",
+            "block.messageObject = messageObject",
+            "SpoilerEffect.addSpoilers",
+            "blockMaxWidth -= dp(canonical ? 24 : 32)",
+        ):
+            self.assertIn(contract, canonical_mode)
+
+        local_layout = cell.split("private void updateWideTextLayout()", 1)[1]
+        local_layout = local_layout.split("public ArrayList<MessageObject.TextLayoutBlock>", 1)[0]
+        self.assertIn("MessageObject.TextLayoutBlocks.createCanonical", local_layout)
+        self.assertIn("layout.bounceFrom(previous)", local_layout)
+        self.assertIn("if (layout == null)", local_layout)
+        self.assertIn("wideTextLayoutMessage == currentMessageObject", local_layout)
+        self.assertIn("wideTextLayoutWidth == width", local_layout)
+        self.assertIn("updateWideTextLayout();", cell)
+        self.assertIn("widthChanged && (messageObject.isPoll() || wideTextPost)", cell)
+        self.assertIn("wideTextLayoutWidth != getWidePostContentWidth()", cell)
+        self.assertIn("transitionParams.animateOutTextXOffset", cell)
+
+        for accessor in (
+            "getActiveTextLayoutBlocks()",
+            "getActiveTextWidth()",
+            "getActiveTextHeight()",
+            "getActiveTextHeight(TransitionParams transitionParams)",
+            "getActiveTextXOffset()",
+            "getActiveLastLineWidth()",
+            "hasActiveCodeAtTop()",
+            "hasActiveCodeAtBottom()",
+            "hasActiveQuoteAtBottom()",
+        ):
+            self.assertIn(accessor, cell)
+
+        self.assertNotIn("currentMessageObject.textLayoutBlocks =", cell)
+        self.assertNotIn("currentMessageObject.textWidth =", cell)
+        self.assertNotIn("currentMessageObject.textXOffset =", cell)
+        self.assertNotIn("currentMessageObject.lastLineWidth =", cell)
+        self.assertNotIn("currentMessageObject.messageText = ", cell)
+        self.assertNotIn("new MessageObject(", local_layout)
+
+        cell_consumers = cell.split(
+            "private boolean isSideButtonAllowedByPresentation", 1
+        )[1]
+        for shared_geometry in (
+            "currentMessageObject.textLayoutBlocks",
+            "currentMessageObject.textWidth",
+            "currentMessageObject.textXOffset",
+            "currentMessageObject.textHeight(",
+            "currentMessageObject.getLastLineWidth(",
+            "messageObject.textLayoutBlocks",
+            "messageObject.textWidth",
+            "messageObject.textXOffset",
+            "messageObject.textHeight(",
+            "messageObject.getLastLineWidth(",
+        ):
+            self.assertNotIn(shared_geometry, cell_consumers)
+
+        self.assertIn("getActiveTextLayoutBlocks()", selection)
+        self.assertIn("getActiveTextXOffset()", selection)
+        self.assertNotIn("messageObject.textLayoutBlocks", selection)
+        self.assertNotIn("messageObject.textXOffset", selection)
+        self.assertIn("messageView.getActiveTextLayoutBlocks()", transition)
+        self.assertNotIn("messageView.getMessageObject().textLayoutBlocks", transition)
+        self.assertIn("textblocks = cell.getActiveTextLayoutBlocks()", scrim)
+        self.assertIn("rtloffset = cell.getActiveTextXOffset()", scrim)
+        self.assertIn(
+            "dummyMessageCell.getActiveTextLayoutBlocks()",
+            chat.split("private int scrollOffsetForQuote", 1)[1].split(
+                "private int getScrollOffsetForMessage", 1
+            )[0],
+        )
+        self.assertIn("dummyMessageCell.getMessageObject() != object", chat)
+        self.assertIn("textLayoutBlocks = messageView.getActiveTextLayoutBlocks()", transition)
 
     def test_chat_activity_adds_guarded_administrators_shortcut(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()

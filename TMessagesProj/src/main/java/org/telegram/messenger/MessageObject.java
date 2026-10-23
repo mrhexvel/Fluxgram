@@ -9187,6 +9187,7 @@ public class MessageObject {
         public final ArrayList<TextLayoutBlock> textLayoutBlocks = new ArrayList<>();
         public boolean hasCode, hasCodeAtTop, hasCodeAtBottom, hasSingleCode;
         public boolean hasQuote, hasQuoteAtBottom, hasSingleQuote;
+        private boolean valid = true;
 
         public int textHeight() {
             int h = 0;
@@ -9212,6 +9213,27 @@ public class MessageObject {
         }
 
         public TextLayoutBlocks(MessageObject messageObject, @NonNull CharSequence text, TextPaint textPaint, int width) {
+            this(messageObject, text, textPaint, width, false);
+        }
+
+        public static TextLayoutBlocks createCanonical(MessageObject messageObject, int width) {
+            TextPaint paint;
+            if (getMedia(messageObject.messageOwner) instanceof TLRPC.TL_messageMediaGame) {
+                paint = Theme.chat_msgGameTextPaint;
+            } else {
+                paint = Theme.chat_msgTextPaint;
+            }
+            CharSequence text = ZalgoDisplayFilter.filter(messageObject.messageText);
+            try {
+                TextLayoutBlocks layout = new TextLayoutBlocks(messageObject, text, paint, width, true);
+                return layout.valid && !layout.textLayoutBlocks.isEmpty() ? layout : null;
+            } catch (Exception e) {
+                FileLog.e(e);
+                return null;
+            }
+        }
+
+        private TextLayoutBlocks(MessageObject messageObject, @NonNull CharSequence text, TextPaint textPaint, int width, boolean canonical) {
             this.text = text;
             textWidth = 0;
             boolean noforwards = messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards;
@@ -9228,8 +9250,10 @@ public class MessageObject {
             if (text instanceof Spanned) {
                 Spanned spanned = (Spanned) text;
                 QuoteSpan[] quoteSpans = spanned.getSpans(0, spanned.length(), QuoteSpan.class);
-                for (int i = 0; i < quoteSpans.length; ++i) {
-                    quoteSpans[i].adaptLineHeight = false;
+                if (!canonical) {
+                    for (int i = 0; i < quoteSpans.length; ++i) {
+                        quoteSpans[i].adaptLineHeight = false;
+                    }
                 }
                 hasSingleQuote = quoteSpans.length == 1 && spanned.getSpanStart(quoteSpans[0]) == 0 && spanned.getSpanEnd(quoteSpans[0]) == spanned.length();
 
@@ -9247,9 +9271,10 @@ public class MessageObject {
 
             int textLayoutOriginalWidth;
             try {
-                textLayout = makeStaticLayout(text, textPaint, textLayoutOriginalWidth = width, 1f, 0f, false);
+                textLayout = makeStaticLayout(text, textPaint, textLayoutOriginalWidth = width, 1f, canonical && messageObject.totalAnimatedEmojiCount >= 4 ? -1 : 0, canonical && messageObject.emojiOnlyCount > 0);
             } catch (Exception e) {
                 FileLog.e(e);
+                valid = false;
                 return;
             }
             if (messageObject != null && messageObject.isRepostPreview) {
@@ -9292,9 +9317,10 @@ public class MessageObject {
 
                     try {
                         textLayoutOriginalWidth = width;
-                        textLayout = makeStaticLayout(text, textPaint, width, 1f, 0f, false);
+                        textLayout = makeStaticLayout(text, textPaint, width, 1f, canonical && messageObject.totalAnimatedEmojiCount >= 4 ? -1 : 0, canonical && messageObject.emojiOnlyCount > 0);
                     } catch (Exception e) {
                         FileLog.e(e);
+                        valid = false;
                         return;
                     }
                 }
@@ -9307,10 +9333,10 @@ public class MessageObject {
             }
 
             int linesCount = textLayout.getLineCount();
-            int linesPreBlock = LINES_PER_BLOCK;
+            int linesPreBlock = canonical && messageObject.totalAnimatedEmojiCount >= 50 ? LINES_PER_BLOCK_WITH_EMOJI : LINES_PER_BLOCK;
 
             int blocksCount;
-            boolean singleLayout = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N;
+            boolean singleLayout = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && (!canonical || messageObject.totalAnimatedEmojiCount < 50);
             if (singleLayout) {
                 blocksCount = 1;
             } else {
@@ -9322,7 +9348,7 @@ public class MessageObject {
             ArrayList<TextRange> textRanges = new ArrayList<>();
             if (text instanceof Spanned && (hasQuote || hasCode)) {
                 singleLayout = false;
-                cutIntoRanges(text, textRanges);
+                cutIntoRanges(text, textRanges, !canonical);
             } else if (singleLayout || blocksCount == 1) {
                 textRanges.add(new TextRange(0, textLayout.getText().length()));
             } else {
@@ -9331,6 +9357,9 @@ public class MessageObject {
 
                     int startCharacter = textLayout.getLineStart(linesOffset);
                     int endCharacter = textLayout.getLineEnd(linesOffset + currentBlockLinesCount - 1);
+                    if (canonical && endCharacter - 1 >= 0 && endCharacter - 1 < textLayout.getText().length() && textLayout.getText().charAt(endCharacter - 1) == '\n') {
+                        endCharacter--;
+                    }
                     if (endCharacter < startCharacter) {
                         continue;
                     }
@@ -9346,6 +9375,9 @@ public class MessageObject {
             hasCodeAtBottom = false;
             hasQuoteAtBottom = false;
             hasSingleQuote = false;
+            if (canonical) {
+                hasSingleCode = false;
+            }
             for (int a = 0; a < textRanges.size(); a++) {
                 TextLayoutBlock block = new TextLayoutBlock();
 
@@ -9371,6 +9403,9 @@ public class MessageObject {
                     hasCodeAtBottom = block.code;
                 }
                 hasSingleQuote = block.first && block.last && block.quote;
+                if (canonical) {
+                    hasSingleCode = block.first && block.last && !block.quote && block.code;
+                }
 
                 if (block.quote) {
                     if (block.first && block.last) {
@@ -9399,7 +9434,7 @@ public class MessageObject {
 
                 int blockMaxWidth = width;
                 if (block.quote) {
-                    blockMaxWidth -= dp(32);
+                    blockMaxWidth -= dp(canonical ? 24 : 32);
                 } else if (block.code) {
                     blockMaxWidth -= dp(15);
                 }
@@ -9409,10 +9444,10 @@ public class MessageObject {
                         if (!TextUtils.isEmpty(range.language)) {
                             sb = CodeHighlighting.getHighlighted(text.subSequence(range.start, range.end).toString(), range.language);
                         } else {
-                            sb = new SpannableString(text.subSequence(range.start, range.end));
+                            sb = new SpannableString(canonical ? text.subSequence(range.start, range.end).toString() : text.subSequence(range.start, range.end));
                         }
                         block.originalWidth = textLayoutOriginalWidth = blockMaxWidth;
-                        textLayout = makeStaticLayout(sb, layoutPaint, blockMaxWidth, 1f, 0f, false);
+                        textLayout = makeStaticLayout(sb, layoutPaint, blockMaxWidth, 1f, canonical && messageObject.totalAnimatedEmojiCount >= 4 ? -1 : 0, canonical && messageObject.emojiOnlyCount > 0);
                     } else {
                         block.originalWidth = textLayoutOriginalWidth;
                     }
@@ -9423,6 +9458,19 @@ public class MessageObject {
 
                     block.height = textLayout.getHeight();
                     block.collapsedHeight = (int) Math.min(textPaint.getTextSize() * 1.4f * 3, block.height);
+                    if (canonical && messageObject.emojiOnlyCount != 0) {
+                        switch (messageObject.emojiOnlyCount) {
+                            case 1:
+                                block.padTop -= dp(5.3f);
+                                break;
+                            case 2:
+                                block.padTop -= dp(4.5f);
+                                break;
+                            case 3:
+                                block.padTop -= dp(4.2f);
+                                break;
+                        }
+                    }
                 } else {
                     int startCharacter = range.start;
                     int endCharacter = range.end;
@@ -9439,12 +9487,16 @@ public class MessageObject {
                             sb = SpannableString.valueOf(text.subSequence(startCharacter, endCharacter));
                         }
                         block.originalWidth = blockMaxWidth;
-                        block.textLayout = makeStaticLayout(sb, layoutPaint, blockMaxWidth, 1f, 0f, false);
+                        block.textLayout = makeStaticLayout(sb, layoutPaint, blockMaxWidth, 1f, canonical && messageObject.totalAnimatedEmojiCount >= 4 ? -1 : 0, false);
 
                         block.height = block.textLayout.getHeight();
                         block.collapsedHeight = (int) Math.min(textPaint.getTextSize() * 1.4f * 3, block.height);
                     } catch (Exception e) {
                         FileLog.e(e);
+                        if (canonical) {
+                            valid = false;
+                            return;
+                        }
                         continue;
                     }
                 }
@@ -9477,6 +9529,13 @@ public class MessageObject {
                 } catch (Exception e) {
                     lastLine = 0;
                     FileLog.e(e);
+                }
+                if (canonical) {
+                    if (block.quote) {
+                        lastLine += AndroidUtilities.dp(32);
+                    } else if (block.code) {
+                        lastLine += AndroidUtilities.dp(15);
+                    }
                 }
 
                 int linesMaxWidth = (int) Math.ceil(lastLine);
@@ -12926,6 +12985,10 @@ public class MessageObject {
     }
 
     public static void cutIntoRanges(CharSequence text, ArrayList<TextRange> ranges) {
+        cutIntoRanges(text, ranges, true);
+    }
+
+    private static void cutIntoRanges(CharSequence text, ArrayList<TextRange> ranges, boolean adaptQuoteLineHeight) {
         if (text == null) {
             return;
         }
@@ -12946,7 +13009,9 @@ public class MessageObject {
         Spanned spanned = (Spanned) text;
         QuoteSpan.QuoteStyleSpan[] quoteSpans = spanned.getSpans(0, spanned.length(), QuoteSpan.QuoteStyleSpan.class);
         for (int i = 0; i < quoteSpans.length; ++i) {
-            quoteSpans[i].span.adaptLineHeight = false;
+            if (adaptQuoteLineHeight) {
+                quoteSpans[i].span.adaptLineHeight = false;
+            }
 
             int start = spanned.getSpanStart(quoteSpans[i]);
             int end = spanned.getSpanEnd(quoteSpans[i]);
