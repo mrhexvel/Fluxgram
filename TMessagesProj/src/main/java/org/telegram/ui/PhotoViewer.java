@@ -7657,9 +7657,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         compressItem.setPhotoState(photoEntry.isHighQuality());
                         showPhotoQualityHint(photoEntry.isHighQuality());
 
-                        SharedConfig.photoHighQualityDefault = photoEntry.isHighQuality();
-                        final SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Activity.MODE_PRIVATE);
-                        prefs.edit().putBoolean("photoHighQualityDefault", SharedConfig.photoHighQualityDefault).apply();
+                        SharedConfig.setPhotoHighQualityDefault(photoEntry.isHighQuality());
                         return;
                     }
                 }

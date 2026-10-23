@@ -11431,6 +11431,9 @@
     <string name="FluxGramMainMenuResetConfirm">Restore the default command order and visibility?</string>
     <string name="FluxGramMoveUp">Move up</string>
     <string name="FluxGramMoveDown">Move down</string>
+    <string name="FluxGramAttachments">Attachments</string>
+    <string name="FluxGramPhotoHdDefault">HD photos by default</string>
+    <string name="FluxGramPhotoHdDefaultInfo">Applies to newly selected photos and Live Photos. A manual quality choice remains available. Videos and sending as a file are unchanged.</string>
     <string name="FluxGramStickers">Stickers</string>
     <string name="FluxGramStickerPreviewDescription">Sticker appearance preview</string>
     <string name="FluxGramStickerPreviewUnavailable">Open a sticker first to show its local preview</string>

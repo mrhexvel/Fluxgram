@@ -1326,6 +1326,14 @@ public class SharedConfig {
         editor.apply();
     }
 
+    public static void setPhotoHighQualityDefault(boolean enabled) {
+        photoHighQualityDefault = enabled;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putBoolean("photoHighQualityDefault", photoHighQualityDefault);
+        editor.apply();
+    }
+
     public static void toggleLocalInstantView() {
         onlyLocalInstantView = !onlyLocalInstantView;
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();

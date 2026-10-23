@@ -156,6 +156,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_PARTICIPANTS_SHORTCUT = 78;
     private static final int SHOW_PERMISSIONS_SHORTCUT = 79;
     private static final int WIDE_CHANNEL_POSTS = 80;
+    private static final int PHOTO_HD_DEFAULT = 81;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -639,6 +640,13 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramPermissionsShortcut)
             ).setChecked(ChatSettings.showsPermissionsShortcut()));
             items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramAttachments);
+            items.add(UItem.asCheck(
+                    PHOTO_HD_DEFAULT,
+                    LocaleController.getString(R.string.FluxGramPhotoHdDefault)
+            ).setChecked(SharedConfig.photoHighQualityDefault));
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramPhotoHdDefaultInfo)));
             addSectionLabel(items, R.string.FluxGramStickers);
             items.add(UItem.asCheck(
                     SHOW_GREETING_STICKER,
@@ -1126,6 +1134,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ChatSettings.setShowsPermissionsShortcut(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == PHOTO_HD_DEFAULT) {
+                boolean enabled = !SharedConfig.photoHighQualityDefault;
+                SharedConfig.setPhotoHighQualityDefault(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
             } else if (item.id == SHOW_MESSAGE_REACTIONS) {
                 boolean shown = !ChatSettings.showsMessageReactions();
                 ChatSettings.setShowsMessageReactions(shown);

@@ -1144,6 +1144,54 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("dummyMessageCell.getMessageObject() != object", chat)
         self.assertIn("textLayoutBlocks = messageView.getActiveTextLayoutBlocks()", transition)
 
+    def test_photo_hd_default_reuses_telegram_quality_state(self):
+        shared = (JAVA / "messenger/SharedConfig.java").read_text()
+        media = (JAVA / "messenger/MediaController.java").read_text()
+        viewer = (JAVA / "ui/PhotoViewer.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        attachment = (JAVA / "ui/Components/ChatAttachAlertPhotoLayout.java").read_text()
+        sender = (JAVA / "messenger/SendMessagesHelper.java").read_text()
+        strings = (ROOT / "TMessagesProj/src/main/res/values/strings.xml").read_text()
+        strings_ru = (ROOT / "TMessagesProj/src/main/res/values-ru/strings.xml").read_text()
+
+        setter = shared.split(
+            "public static void setPhotoHighQualityDefault", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("photoHighQualityDefault = enabled", setter)
+        self.assertIn('putBoolean("photoHighQualityDefault", photoHighQualityDefault)', setter)
+        self.assertIn("return SharedConfig.photoHighQualityDefault", media)
+        self.assertIn(
+            "SharedConfig.setPhotoHighQualityDefault(photoEntry.isHighQuality())",
+            viewer,
+        )
+        photo_quality = viewer.split(
+            "if (!photoEntry.isVideo || photoEntry.isLivePhoto())", 1
+        )[1].split("return;", 1)[0]
+        self.assertIn("photoEntry.highQuality = !photoEntry.isHighQuality()", photo_quality)
+        self.assertIn("SharedConfig.setPhotoHighQualityDefault", photo_quality)
+
+        selection = attachment.split(
+            "private int addToSelectedPhotos", 1
+        )[1].split("private void updateCheckedPhotos", 1)[0]
+        self.assertIn("object.highQuality = null", selection)
+        self.assertIn("object.highQuality = object.isHighQuality()", selection)
+        self.assertIn("if (!forceDocument && groupMediaFinal)", sender)
+        self.assertIn("!info.isVideo && info.videoEditedInfo == null", sender)
+
+        self.assertIn("R.string.FluxGramAttachments", activity)
+        self.assertIn("R.string.FluxGramPhotoHdDefault", activity)
+        self.assertIn(".setChecked(SharedConfig.photoHighQualityDefault)", activity)
+        handler = activity.split("item.id == PHOTO_HD_DEFAULT", 1)[1].split(
+            "item.id == SHOW_MESSAGE_REACTIONS", 1
+        )[0]
+        self.assertIn("SharedConfig.setPhotoHighQualityDefault(enabled)", handler)
+        self.assertNotIn("rebuildFragments", handler)
+        self.assertNotIn("rebuildChatPresentation", handler)
+
+        self.assertNotIn("photoHighQualityDefault", SETTINGS.read_text())
+        self.assertIn('name="FluxGramPhotoHdDefault"', strings)
+        self.assertIn('name="FluxGramPhotoHdDefault"', strings_ru)
+
     def test_chat_activity_adds_guarded_administrators_shortcut(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
