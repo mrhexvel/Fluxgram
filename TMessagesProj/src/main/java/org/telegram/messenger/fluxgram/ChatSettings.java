@@ -18,6 +18,7 @@ public final class ChatSettings {
     private static final String SHOW_MESSAGES_FROM_AUTHOR = "fluxgram_show_messages_from_author";
     private static final String GROUP_MESSAGE_MENU_ACTIONS = "fluxgram_group_message_menu_actions";
     private static final String SHOW_RECENT_ACTIONS_SHORTCUT = "fluxgram_show_recent_actions_shortcut";
+    private static final String SHOW_ADMINISTRATORS_SHORTCUT = "fluxgram_show_administrators_shortcut";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -33,6 +34,7 @@ public final class ChatSettings {
     private static volatile boolean showMessagesFromAuthor;
     private static volatile boolean groupMessageMenuActions;
     private static volatile boolean showRecentActionsShortcut;
+    private static volatile boolean showAdministratorsShortcut;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -255,6 +257,23 @@ public final class ChatSettings {
         showRecentActionsShortcut = shown;
     }
 
+    public static boolean showsAdministratorsShortcut() {
+        ensureLoaded();
+
+        return showAdministratorsShortcut;
+    }
+
+    public static synchronized void setShowsAdministratorsShortcut(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_ADMINISTRATORS_SHORTCUT, shown)
+                .apply();
+
+        showAdministratorsShortcut = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -330,6 +349,11 @@ public final class ChatSettings {
                 showRecentActionsShortcut = preferences.getBoolean(SHOW_RECENT_ACTIONS_SHORTCUT, false);
             } catch (ClassCastException exception) {
                 showRecentActionsShortcut = false;
+            }
+            try {
+                showAdministratorsShortcut = preferences.getBoolean(SHOW_ADMINISTRATORS_SHORTCUT, false);
+            } catch (ClassCastException exception) {
+                showAdministratorsShortcut = false;
             }
             loaded = true;
         }

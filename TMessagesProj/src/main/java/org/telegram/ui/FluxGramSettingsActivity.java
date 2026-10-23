@@ -152,6 +152,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_MESSAGES_FROM_AUTHOR = 74;
     private static final int GROUP_MESSAGE_MENU_ACTIONS = 75;
     private static final int SHOW_RECENT_ACTIONS_SHORTCUT = 76;
+    private static final int SHOW_ADMINISTRATORS_SHORTCUT = 77;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -622,6 +623,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     SHOW_RECENT_ACTIONS_SHORTCUT,
                     LocaleController.getString(R.string.FluxGramRecentActionsShortcut)
             ).setChecked(ChatSettings.showsRecentActionsShortcut()));
+            items.add(UItem.asCheck(
+                    SHOW_ADMINISTRATORS_SHORTCUT,
+                    LocaleController.getString(R.string.FluxGramAdministratorsShortcut)
+            ).setChecked(ChatSettings.showsAdministratorsShortcut()));
             items.add(UItem.asShadow(null));
             addSectionLabel(items, R.string.FluxGramStickers);
             items.add(UItem.asCheck(
@@ -1089,6 +1094,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
             } else if (item.id == SHOW_RECENT_ACTIONS_SHORTCUT) {
                 boolean shown = !ChatSettings.showsRecentActionsShortcut();
                 ChatSettings.setShowsRecentActionsShortcut(shown);
+                ((TextCheckCell) view).setChecked(shown);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_ADMINISTRATORS_SHORTCUT) {
+                boolean shown = !ChatSettings.showsAdministratorsShortcut();
+                ChatSettings.setShowsAdministratorsShortcut(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
             } else if (item.id == SHOW_MESSAGE_REACTIONS) {
