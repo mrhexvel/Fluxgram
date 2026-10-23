@@ -22,6 +22,7 @@ public final class ChatSettings {
     private static final String SHOW_PARTICIPANTS_SHORTCUT = "fluxgram_show_participants_shortcut";
     private static final String SHOW_PERMISSIONS_SHORTCUT = "fluxgram_show_permissions_shortcut";
     private static final String WIDE_CHANNEL_POSTS = "fluxgram_wide_channel_posts";
+    private static final String SHOW_ATTACH_CAMERA_TILE = "fluxgram_show_attach_camera_tile";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -41,6 +42,7 @@ public final class ChatSettings {
     private static volatile boolean showParticipantsShortcut;
     private static volatile boolean showPermissionsShortcut;
     private static volatile boolean wideChannelPosts;
+    private static volatile boolean showAttachCameraTile;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -331,6 +333,23 @@ public final class ChatSettings {
         wideChannelPosts = enabled;
     }
 
+    public static boolean showsAttachCameraTile() {
+        ensureLoaded();
+
+        return showAttachCameraTile;
+    }
+
+    public static synchronized void setShowsAttachCameraTile(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_ATTACH_CAMERA_TILE, shown)
+                .apply();
+
+        showAttachCameraTile = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -426,6 +445,11 @@ public final class ChatSettings {
                 wideChannelPosts = preferences.getBoolean(WIDE_CHANNEL_POSTS, false);
             } catch (ClassCastException exception) {
                 wideChannelPosts = false;
+            }
+            try {
+                showAttachCameraTile = preferences.getBoolean(SHOW_ATTACH_CAMERA_TILE, true);
+            } catch (ClassCastException exception) {
+                showAttachCameraTile = true;
             }
             loaded = true;
         }

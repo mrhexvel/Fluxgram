@@ -424,6 +424,8 @@
     <string name="FluxGramAttachments">Вложения</string>
     <string name="FluxGramPhotoHdDefault">Фото в HD по умолчанию</string>
     <string name="FluxGramPhotoHdDefaultInfo">Применяется к новым выбранным фотографиям и Live Photo. Качество можно изменить вручную. Видео и отправка как файл не меняются.</string>
+    <string name="FluxGramShowAttachCameraTile">Показывать плитку встроенной камеры</string>
+    <string name="FluxGramShowAttachCameraTileInfo">Строка разрешения камеры и системная камера при необходимости остаются доступны.</string>
     <string name="FluxGramStickers">Стикеры</string>
     <string name="FluxGramStickerPreviewDescription">Предпросмотр оформления стикера</string>
     <string name="FluxGramStickerPreviewUnavailable">Сначала откройте стикер, чтобы увидеть локальный предпросмотр</string>

@@ -1294,6 +1294,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
     @SuppressLint("ClickableViewAccessibility")
     public ChatAttachAlert(Context context, final @Nullable BaseFragment parentFragment, boolean forceDarkTheme, boolean showingFromDialog, boolean needCamera, Theme.ResourcesProvider resourcesProvider) {
+        this(context, parentFragment, forceDarkTheme, showingFromDialog, needCamera, true, resourcesProvider);
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    public ChatAttachAlert(Context context, final @Nullable BaseFragment parentFragment, boolean forceDarkTheme, boolean showingFromDialog, boolean needCamera, boolean showCameraTile, Theme.ResourcesProvider resourcesProvider) {
         super(context, false, resourcesProvider);
         occupyNavigationBarWithoutKeyboard = true;
 
@@ -2550,7 +2555,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
         headerView.addView(mediaPreviewView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
 
-        layouts[0] = photoLayout = new ChatAttachAlertPhotoLayout(this, context, forceDarkTheme, needCamera, resourcesProvider);
+        layouts[0] = photoLayout = new ChatAttachAlertPhotoLayout(this, context, forceDarkTheme, needCamera, showCameraTile, resourcesProvider);
         photoLayout.setTranslationX(0);
         currentAttachLayout = photoLayout;
         selectedId = 1;

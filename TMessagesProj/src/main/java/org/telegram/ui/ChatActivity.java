@@ -15223,7 +15223,7 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
         if (chatAttachAlert == null) {
-            chatAttachAlert = new ChatAttachAlert(getParentActivity(), this, false, false, true, themeDelegate) {
+            chatAttachAlert = new ChatAttachAlert(getParentActivity(), this, false, false, true, ChatSettings.showsAttachCameraTile(), themeDelegate) {
                 @Override
                 public void dismissInternal() {
                     if (chatAttachAlert != null && (chatAttachAlert.isShowing() || isGramSendDismissalInProgress())) {

@@ -157,6 +157,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_PERMISSIONS_SHORTCUT = 79;
     private static final int WIDE_CHANNEL_POSTS = 80;
     private static final int PHOTO_HD_DEFAULT = 81;
+    private static final int SHOW_ATTACH_CAMERA_TILE = 82;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -645,8 +646,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     PHOTO_HD_DEFAULT,
                     LocaleController.getString(R.string.FluxGramPhotoHdDefault)
             ).setChecked(SharedConfig.photoHighQualityDefault));
-            items.add(UItem.asShadow(LocaleController.getString(
-                    R.string.FluxGramPhotoHdDefaultInfo)));
+            items.add(UItem.asCheck(
+                    SHOW_ATTACH_CAMERA_TILE,
+                    LocaleController.getString(R.string.FluxGramShowAttachCameraTile)
+            ).setChecked(ChatSettings.showsAttachCameraTile()));
+            items.add(UItem.asShadow(
+                    LocaleController.getString(R.string.FluxGramPhotoHdDefaultInfo)
+                            + "\n\n"
+                            + LocaleController.getString(R.string.FluxGramShowAttachCameraTileInfo)));
             addSectionLabel(items, R.string.FluxGramStickers);
             items.add(UItem.asCheck(
                     SHOW_GREETING_STICKER,
@@ -1138,6 +1145,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !SharedConfig.photoHighQualityDefault;
                 SharedConfig.setPhotoHighQualityDefault(enabled);
                 ((TextCheckCell) view).setChecked(enabled);
+            } else if (item.id == SHOW_ATTACH_CAMERA_TILE) {
+                boolean shown = !ChatSettings.showsAttachCameraTile();
+                ChatSettings.setShowsAttachCameraTile(shown);
+                ((TextCheckCell) view).setChecked(shown);
+                parentLayout.rebuildFragments(0);
             } else if (item.id == SHOW_MESSAGE_REACTIONS) {
                 boolean shown = !ChatSettings.showsMessageReactions();
                 ChatSettings.setShowsMessageReactions(shown);

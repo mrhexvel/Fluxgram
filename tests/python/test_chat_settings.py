@@ -107,6 +107,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_participants_shortcut", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_permissions_shortcut", 7);
                             MessagesController.preferences.putRaw("fluxgram_wide_channel_posts", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_attach_camera_tile", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -126,6 +127,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsParticipantsShortcut());
                         require(!ChatSettings.showsPermissionsShortcut());
                         require(!ChatSettings.usesWideChannelPosts());
+                        require(ChatSettings.showsAttachCameraTile());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -204,6 +206,12 @@ class ChatSettingsTest(unittest.TestCase):
                         ChatSettings.setUsesWideChannelPosts(false);
                         require(!ChatSettings.usesWideChannelPosts());
                         require(!MessagesController.preferences.getBoolean("fluxgram_wide_channel_posts", true));
+                        ChatSettings.setShowsAttachCameraTile(false);
+                        require(!ChatSettings.showsAttachCameraTile());
+                        require(!MessagesController.preferences.getBoolean("fluxgram_show_attach_camera_tile", true));
+                        ChatSettings.setShowsAttachCameraTile(true);
+                        require(ChatSettings.showsAttachCameraTile());
+                        require(MessagesController.preferences.getBoolean("fluxgram_show_attach_camera_tile", false));
                     }
 
                     private static void require(boolean value) {
@@ -1182,7 +1190,7 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("R.string.FluxGramPhotoHdDefault", activity)
         self.assertIn(".setChecked(SharedConfig.photoHighQualityDefault)", activity)
         handler = activity.split("item.id == PHOTO_HD_DEFAULT", 1)[1].split(
-            "item.id == SHOW_MESSAGE_REACTIONS", 1
+            "item.id == SHOW_ATTACH_CAMERA_TILE", 1
         )[0]
         self.assertIn("SharedConfig.setPhotoHighQualityDefault(enabled)", handler)
         self.assertNotIn("rebuildFragments", handler)
@@ -1191,6 +1199,90 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertNotIn("photoHighQualityDefault", SETTINGS.read_text())
         self.assertIn('name="FluxGramPhotoHdDefault"', strings)
         self.assertIn('name="FluxGramPhotoHdDefault"', strings_ru)
+
+    def test_chat_attach_camera_tile_is_scoped_and_keeps_fallback_routes(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        alert = (JAVA / "ui/Components/ChatAttachAlert.java").read_text()
+        photo = (JAVA / "ui/Components/ChatAttachAlertPhotoLayout.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        strings = (ROOT / "TMessagesProj/src/main/res/values/strings.xml").read_text()
+        strings_ru = (ROOT / "TMessagesProj/src/main/res/values-ru/strings.xml").read_text()
+
+        self.assertIn(
+            "true, ChatSettings.showsAttachCameraTile(), themeDelegate",
+            chat,
+        )
+        self.assertEqual(1, chat.count("ChatSettings.showsAttachCameraTile()"))
+        self.assertNotIn("ChatSettings", alert)
+        self.assertNotIn("ChatSettings", photo)
+
+        old_constructor = alert.split(
+            "boolean needCamera, Theme.ResourcesProvider resourcesProvider", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("needCamera, true, resourcesProvider", old_constructor)
+        self.assertIn(
+            "needCamera, showCameraTile, resourcesProvider",
+            alert,
+        )
+        self.assertIn(
+            "this(alert, context, forceDarkTheme, needCamera, true, resourcesProvider)",
+            photo,
+        )
+
+        predicate = photo.split("private boolean hasCameraEntry()", 1)[1].split(
+            "\n    }", 1
+        )[0]
+        self.assertIn("needCamera", predicate)
+        self.assertIn("selectedAlbumEntry == galleryAlbumEntry", predicate)
+        self.assertIn(
+            "showCameraTile || noCameraPermissions || !SharedConfig.inappCamera",
+            predicate,
+        )
+        camera_surface_predicate = photo.split(
+            "private boolean shouldShowInAppCamera()", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("SharedConfig.inappCamera", camera_surface_predicate)
+        self.assertIn("showCameraTile || noGalleryPermissions", camera_surface_predicate)
+        self.assertIn("else if (!shouldShowInAppCamera())", photo)
+        self.assertIn("!mediaEnabled || !shouldShowInAppCamera()", photo)
+        self.assertIn("cameraView != null && shouldShowInAppCamera()", photo)
+        self.assertIn("!noCameraPermissions && shouldShowInAppCamera()", photo)
+        self.assertNotIn(
+            "if (needCamera && selectedAlbumEntry == galleryAlbumEntry)",
+            photo,
+        )
+        self.assertNotIn(
+            "if (selectedAlbumEntry == galleryAlbumEntry && needCamera)",
+            photo,
+        )
+        self.assertIn("if (position == 0 && adapter.hasCameraEntry())", photo)
+        self.assertIn("if (hasCameraEntry() && position == 0)", photo)
+        self.assertIn("if (hasCameraEntry()) {\n                hasCamera = true", photo)
+        self.assertIn("if (adapter.hasCameraEntry()) {\n                        updateIndex++", photo)
+        self.assertIn("if (hasCameraEntry() && !noCameraPermissions)", photo)
+        self.assertIn("!adapter.hasCamera || noCameraPermissions || noGalleryPermissions", photo)
+
+        self.assertIn("cameraPhotos.size()", photo)
+        self.assertIn("arrayList.addAll(cameraPhotos)", photo)
+        self.assertIn("GalleryEmptyView", photo)
+        self.assertIn(
+            "emptyView.doOnCameraAccess(ChatAttachAlertPhotoLayout.this::openCameraWithPermissionCheck)",
+            photo,
+        )
+        self.assertIn("if (SharedConfig.inappCamera)", photo)
+        self.assertIn("parentAlert.delegate.didPressedButton(0, false", photo)
+
+        self.assertIn("R.string.FluxGramShowAttachCameraTile", activity)
+        self.assertIn(".setChecked(ChatSettings.showsAttachCameraTile())", activity)
+        handler = activity.split("item.id == SHOW_ATTACH_CAMERA_TILE", 1)[1].split(
+            "item.id == SHOW_MESSAGE_REACTIONS", 1
+        )[0]
+        self.assertIn("ChatSettings.setShowsAttachCameraTile(shown)", handler)
+        self.assertIn("parentLayout.rebuildFragments(0)", handler)
+        self.assertIn('name="FluxGramShowAttachCameraTile"', strings)
+        self.assertIn('name="FluxGramShowAttachCameraTileInfo"', strings)
+        self.assertIn('name="FluxGramShowAttachCameraTile"', strings_ru)
+        self.assertIn('name="FluxGramShowAttachCameraTileInfo"', strings_ru)
 
     def test_chat_activity_adds_guarded_administrators_shortcut(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()
