@@ -94,6 +94,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.camera.CameraController;
+import org.telegram.messenger.camera.CameraInfo;
 import org.telegram.messenger.camera.CameraView;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -2596,13 +2597,44 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         return includeVideosInGallery || !parentAlert.isPhotoPicker && (parentAlert.baseFragment instanceof ChatActivity || parentAlert.storyMediaPicker || parentAlert.avatarPicker == 2);
     }
 
+    private boolean resolveCameraFacing(boolean preferredFront) {
+        ArrayList<CameraInfo> cameras = CameraController.getInstance().getCameras();
+        if (cameras == null || cameras.isEmpty()) {
+            return preferredFront;
+        }
+
+        boolean hasBack = false;
+        boolean hasFront = false;
+        for (int i = 0; i < cameras.size(); i++) {
+            if (cameras.get(i).isFrontface()) {
+                hasFront = true;
+            } else {
+                hasBack = true;
+            }
+        }
+
+        if (preferredFront && hasFront || !preferredFront && hasBack) {
+            return preferredFront;
+        }
+
+        return hasFront;
+    }
+
+    public void resetCameraFacingOverride() {
+        isCameraFrontfaceBeforeEnteringEditMode = null;
+    }
+
     public void showCamera() {
         if (parentAlert.paused || !mediaEnabled || !shouldShowInAppCamera() || !CameraView.isCameraAllowed()) {
             return;
         }
         if (cameraView == null) {
             final boolean lazy = !LiteMode.isEnabled(LiteMode.FLAGS_CHAT);
-            cameraView = new CameraViewInternal(getContext(), isCameraFrontfaceBeforeEnteringEditMode != null ? isCameraFrontfaceBeforeEnteringEditMode : parentAlert.openWithFrontFaceCamera, lazy);
+            boolean preferredFront = isCameraFrontfaceBeforeEnteringEditMode != null
+                    ? isCameraFrontfaceBeforeEnteringEditMode
+                    : parentAlert.openWithFrontFaceCamera;
+            cameraView = new CameraViewInternal(getContext(), resolveCameraFacing(preferredFront), lazy);
+            isCameraFrontfaceBeforeEnteringEditMode = null;
             //if (lazy) {
             //    cameraView.setThumbDrawable(cameraViewItemDecoration.placeholderDrawable);
             //}

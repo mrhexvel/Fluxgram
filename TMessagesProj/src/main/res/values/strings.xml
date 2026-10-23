@@ -11436,6 +11436,10 @@
     <string name="FluxGramPhotoHdDefaultInfo">Applies to newly selected photos and Live Photos. A manual quality choice remains available. Videos and sending as a file are unchanged.</string>
     <string name="FluxGramShowAttachCameraTile">Show built-in camera tile</string>
     <string name="FluxGramShowAttachCameraTileInfo">The camera permission row and system camera remain available when needed.</string>
+    <string name="FluxGramAttachCameraInitialFacing">Initial camera</string>
+    <string name="FluxGramAttachCameraBack">Back camera</string>
+    <string name="FluxGramAttachCameraFront">Front camera</string>
+    <string name="FluxGramAttachCameraInitialFacingInfo">Applies the next time the built-in camera opens. Switching cameras manually does not change this setting.</string>
     <string name="FluxGramStickers">Stickers</string>
     <string name="FluxGramStickerPreviewDescription">Sticker appearance preview</string>
     <string name="FluxGramStickerPreviewUnavailable">Open a sticker first to show its local preview</string>

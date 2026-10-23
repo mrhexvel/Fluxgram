@@ -16250,6 +16250,7 @@ public class ChatActivity extends BaseFragment implements
         } else {
             chatAttachAlert.setMaxSelectedPhotos(-1, true);
         }
+        chatAttachAlert.setOpenWithFrontFaceCamera(ChatSettings.opensAttachCameraFront());
         chatAttachAlert.enableDefaultMode();
         chatAttachAlert.init();
         chatAttachAlert.getCommentView().setText(chatActivityEnterView.getFieldText());

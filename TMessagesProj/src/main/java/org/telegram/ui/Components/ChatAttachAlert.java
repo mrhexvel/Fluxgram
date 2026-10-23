@@ -6461,6 +6461,9 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
     public void setOpenWithFrontFaceCamera(boolean value) {
         openWithFrontFaceCamera = value;
+        if (photoLayout != null) {
+            photoLayout.resetCameraFacingOverride();
+        }
     }
 
     public ChatAttachAlertPhotoLayout getPhotoLayout() {

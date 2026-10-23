@@ -158,6 +158,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int WIDE_CHANNEL_POSTS = 80;
     private static final int PHOTO_HD_DEFAULT = 81;
     private static final int SHOW_ATTACH_CAMERA_TILE = 82;
+    private static final int ATTACH_CAMERA_INITIAL_FACING = 83;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -650,10 +651,19 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     SHOW_ATTACH_CAMERA_TILE,
                     LocaleController.getString(R.string.FluxGramShowAttachCameraTile)
             ).setChecked(ChatSettings.showsAttachCameraTile()));
+            items.add(UItem.asButton(
+                    ATTACH_CAMERA_INITIAL_FACING,
+                    LocaleController.getString(R.string.FluxGramAttachCameraInitialFacing),
+                    LocaleController.getString(ChatSettings.opensAttachCameraFront()
+                            ? R.string.FluxGramAttachCameraFront
+                            : R.string.FluxGramAttachCameraBack)
+            ));
             items.add(UItem.asShadow(
                     LocaleController.getString(R.string.FluxGramPhotoHdDefaultInfo)
                             + "\n\n"
-                            + LocaleController.getString(R.string.FluxGramShowAttachCameraTileInfo)));
+                            + LocaleController.getString(R.string.FluxGramShowAttachCameraTileInfo)
+                            + "\n\n"
+                            + LocaleController.getString(R.string.FluxGramAttachCameraInitialFacingInfo)));
             addSectionLabel(items, R.string.FluxGramStickers);
             items.add(UItem.asCheck(
                     SHOW_GREETING_STICKER,
@@ -1150,6 +1160,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ChatSettings.setShowsAttachCameraTile(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == ATTACH_CAMERA_INITIAL_FACING) {
+                showAttachCameraInitialFacingDialog();
             } else if (item.id == SHOW_MESSAGE_REACTIONS) {
                 boolean shown = !ChatSettings.showsMessageReactions();
                 ChatSettings.setShowsMessageReactions(shown);
@@ -1487,6 +1499,26 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 selected,
                 (dialog, index) -> {
                     MessageGestureSettings.setDoubleTapAction(actionIds[index]);
+                    listView.adapter.update(true);
+                },
+                getResourceProvider()
+        ));
+    }
+
+    private void showAttachCameraInitialFacingDialog() {
+        CharSequence[] options = {
+                LocaleController.getString(R.string.FluxGramAttachCameraBack),
+                LocaleController.getString(R.string.FluxGramAttachCameraFront)
+        };
+        int selected = ChatSettings.opensAttachCameraFront() ? 1 : 0;
+
+        showDialog(AlertsCreator.createSingleChoiceDialog(
+                getParentActivity(),
+                options,
+                LocaleController.getString(R.string.FluxGramAttachCameraInitialFacing),
+                selected,
+                (dialog, index) -> {
+                    ChatSettings.setOpensAttachCameraFront(index == 1);
                     listView.adapter.update(true);
                 },
                 getResourceProvider()

@@ -23,6 +23,7 @@ public final class ChatSettings {
     private static final String SHOW_PERMISSIONS_SHORTCUT = "fluxgram_show_permissions_shortcut";
     private static final String WIDE_CHANNEL_POSTS = "fluxgram_wide_channel_posts";
     private static final String SHOW_ATTACH_CAMERA_TILE = "fluxgram_show_attach_camera_tile";
+    private static final String OPEN_ATTACH_CAMERA_FRONT = "fluxgram_open_attach_camera_front";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -43,6 +44,7 @@ public final class ChatSettings {
     private static volatile boolean showPermissionsShortcut;
     private static volatile boolean wideChannelPosts;
     private static volatile boolean showAttachCameraTile;
+    private static volatile boolean openAttachCameraFront;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -350,6 +352,23 @@ public final class ChatSettings {
         showAttachCameraTile = shown;
     }
 
+    public static boolean opensAttachCameraFront() {
+        ensureLoaded();
+
+        return openAttachCameraFront;
+    }
+
+    public static synchronized void setOpensAttachCameraFront(boolean front) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(OPEN_ATTACH_CAMERA_FRONT, front)
+                .apply();
+
+        openAttachCameraFront = front;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -450,6 +469,11 @@ public final class ChatSettings {
                 showAttachCameraTile = preferences.getBoolean(SHOW_ATTACH_CAMERA_TILE, true);
             } catch (ClassCastException exception) {
                 showAttachCameraTile = true;
+            }
+            try {
+                openAttachCameraFront = preferences.getBoolean(OPEN_ATTACH_CAMERA_FRONT, false);
+            } catch (ClassCastException exception) {
+                openAttachCameraFront = false;
             }
             loaded = true;
         }
