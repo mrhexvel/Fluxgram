@@ -99,6 +99,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_message_tails", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_avatar_online", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_views", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_message_share_button", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -110,6 +111,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.showsMessageTails());
                         require(!ChatSettings.showsMessageAvatarOnline());
                         require(ChatSettings.showsMessageViews());
+                        require(ChatSettings.showsMessageShareButton());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -146,6 +148,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsMessageViews());
                         ChatSettings.setShowsMessageViews(true);
                         require(ChatSettings.showsMessageViews());
+                        ChatSettings.setShowsMessageShareButton(false);
+                        require(!ChatSettings.showsMessageShareButton());
+                        ChatSettings.setShowsMessageShareButton(true);
+                        require(ChatSettings.showsMessageShareButton());
                     }
 
                     private static void require(boolean value) {
@@ -363,6 +369,50 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn(".setChecked(ChatSettings.showsMessageViews())", activity)
         self.assertIn("ChatSettings.setShowsMessageViews(shown)", activity)
         handler = activity.split("item.id == SHOW_MESSAGE_VIEWS", 1)[1]
+        handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
+        self.assertIn("rebuildChatPresentation()", handler)
+
+    def test_chat_activity_can_hide_only_message_share_side_button(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        message_cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        message_object = (JAVA / "messenger/MessageObject.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertNotIn("ChatSettings", message_cell)
+        self.assertIn("private boolean drawMessageShareButton = true;", message_cell)
+        self.assertIn(
+            "return drawSideButton != 1 || drawMessageShareButton;",
+            message_cell,
+        )
+        self.assertEqual(
+            2,
+            chat.count(
+                "setDrawMessageShareButton(ChatSettings.showsMessageShareButton())"
+            ),
+        )
+        self.assertIn(
+            "cell.drawMessageShareButton = drawMessageShareButton;",
+            message_cell,
+        )
+        self.assertGreaterEqual(
+            message_cell.count("isSideButtonAllowedByPresentation()"),
+            7,
+        )
+        self.assertIn("return null;", message_cell.split("virtualViewId == SHARE", 2)[2])
+        self.assertIn(
+            "virtualViewId == SHARE && !isSideButtonAllowedByPresentation()",
+            message_cell,
+        )
+        self.assertIn("drawSideButton == 2", message_cell)
+        self.assertIn("drawSideButton == 3", message_cell)
+        self.assertIn("SIDE_BUTTON_SPONSORED_CLOSE", message_cell)
+        self.assertNotIn("ChatSettings", message_object)
+        self.assertIn(
+            ".setChecked(ChatSettings.showsMessageShareButton())",
+            activity,
+        )
+        self.assertIn("ChatSettings.setShowsMessageShareButton(shown)", activity)
+        handler = activity.split("item.id == SHOW_MESSAGE_SHARE_BUTTON", 1)[1]
         handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
         self.assertIn("rebuildChatPresentation()", handler)
 

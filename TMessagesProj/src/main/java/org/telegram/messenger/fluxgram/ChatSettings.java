@@ -14,6 +14,7 @@ public final class ChatSettings {
     private static final String SHOW_MESSAGE_TAILS = "fluxgram_show_message_tails";
     private static final String SHOW_MESSAGE_AVATAR_ONLINE = "fluxgram_show_message_avatar_online";
     private static final String SHOW_MESSAGE_VIEWS = "fluxgram_show_message_views";
+    private static final String SHOW_MESSAGE_SHARE_BUTTON = "fluxgram_show_message_share_button";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -25,6 +26,7 @@ public final class ChatSettings {
     private static volatile boolean showMessageTails;
     private static volatile boolean showMessageAvatarOnline;
     private static volatile boolean showMessageViews;
+    private static volatile boolean showMessageShareButton;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -179,6 +181,23 @@ public final class ChatSettings {
         showMessageViews = shown;
     }
 
+    public static boolean showsMessageShareButton() {
+        ensureLoaded();
+
+        return showMessageShareButton;
+    }
+
+    public static synchronized void setShowsMessageShareButton(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_MESSAGE_SHARE_BUTTON, shown)
+                .apply();
+
+        showMessageShareButton = shown;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -234,6 +253,11 @@ public final class ChatSettings {
                 showMessageViews = preferences.getBoolean(SHOW_MESSAGE_VIEWS, true);
             } catch (ClassCastException exception) {
                 showMessageViews = true;
+            }
+            try {
+                showMessageShareButton = preferences.getBoolean(SHOW_MESSAGE_SHARE_BUTTON, true);
+            } catch (ClassCastException exception) {
+                showMessageShareButton = true;
             }
             loaded = true;
         }
