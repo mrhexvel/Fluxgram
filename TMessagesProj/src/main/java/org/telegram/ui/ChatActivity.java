@@ -36259,6 +36259,8 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private static final int OPTION_FLUXGRAM_EDIT_HISTORY = 10001;
+    private static final int OPTION_FLUXGRAM_MESSAGES_FROM_AUTHOR = 10002;
+    private MessageActionExecutor.Target messagesFromAuthorTarget;
 
     private void processSelectedOption(int option) {
         if (selectedObject == null || getParentActivity() == null) {
@@ -36292,6 +36294,17 @@ public class ChatActivity extends BaseFragment implements
 
         if (option == OPTION_FLUXGRAM_EDIT_HISTORY) {
             presentFragment(new EditHistoryActivity(currentAccount, selectedObject));
+            return;
+        }
+
+        if (option == OPTION_FLUXGRAM_MESSAGES_FROM_AUTHOR) {
+            MessageActionExecutor.Target target = messagesFromAuthorTarget;
+            messagesFromAuthorTarget = null;
+            selectedObject = null;
+            selectedObjectGroup = null;
+            selectedObjectToEditCaption = null;
+            closeMenu(true);
+            openMessagesFromAuthor(target);
             return;
         }
 
@@ -38327,6 +38340,82 @@ public class ChatActivity extends BaseFragment implements
         }
         searchUserMessages(null, chat);
         updatePinnedMessageView(true);
+    }
+
+    private boolean canSearchMessagesFromAuthor(MessageObject message) {
+        if (!ChatSettings.showsMessagesFromAuthor()
+                || message == null
+                || message.currentAccount != currentAccount
+                || message.messageOwner == null
+                || message.messageOwner.from_id == null
+                || message.messageOwner.action != null
+                || message.messageOwner.fluxgramDeleted
+                || (message.getDialogId() != dialog_id && message.getDialogId() != mergeDialogId)
+                || message.getId() <= 0
+                || message.isEphemeral()
+                || message.isSponsored()
+                || currentChat == null
+                || (ChatObject.isChannel(currentChat) && !currentChat.megagroup)
+                || ChatObject.isMonoForum(currentChat)
+                || (threadMessageId != 0 && !isTopic)
+                || currentEncryptedChat != null
+                || chatMode != MODE_DEFAULT
+                || isInPreviewMode()
+                || isInsideContainer
+                || inBubbleMode
+                || isReport()) {
+            return false;
+        }
+
+        TLRPC.Peer author = message.messageOwner.from_id;
+        if (author.user_id != 0) {
+            TLRPC.User user = getMessagesController().getUser(author.user_id);
+
+            return user != null
+                    && !UserObject.isService(user.id)
+                    && !UserObject.isReplyUser(user);
+        }
+
+        long chatId = author.chat_id != 0 ? author.chat_id : author.channel_id;
+
+        return chatId != 0 && getMessagesController().getChat(chatId) != null;
+    }
+
+    private void openMessagesFromAuthor(MessageActionExecutor.Target expected) {
+        if (expected == null
+                || getParentActivity() == null
+                || fragmentView == null
+                || paused
+                || isFinished) {
+            return;
+        }
+
+        MessageObject message = findCurrentMessageForAction(expected);
+        MessageActionExecutor.Target actual = message == null ? null : fluxGramMessageActions.capture(
+                currentAccount,
+                getUserConfig().getClientUserId(),
+                dialog_id,
+                message.getDialogId(),
+                message.getId(),
+                getTopicId()
+        );
+        if (!expected.equals(actual) || !canSearchMessagesFromAuthor(message)) {
+            return;
+        }
+
+        TLRPC.Peer author = message.messageOwner.from_id;
+        if (author.user_id != 0) {
+            TLRPC.User user = getMessagesController().getUser(author.user_id);
+            if (user != null) {
+                openSearchWithUser(user);
+            }
+        } else {
+            long chatId = author.chat_id != 0 ? author.chat_id : author.channel_id;
+            TLRPC.Chat chat = getMessagesController().getChat(chatId);
+            if (chat != null) {
+                openSearchWithChat(chat);
+            }
+        }
     }
 
     private void updateSearchListEmptyView() {
@@ -48767,6 +48856,7 @@ public class ChatActivity extends BaseFragment implements
         final int type = getMessageType(message);
         final boolean isEphemeral = message.isEphemeral();
         final boolean isEphemeralFromBot = isEphemeral && !message.isOut();
+        messagesFromAuthorTarget = null;
 
         if (message.messageOwner.fluxgramDeleted) {
             items.add(LocaleController.getString(R.string.Copy));
@@ -48798,6 +48888,23 @@ public class ChatActivity extends BaseFragment implements
             items.add(LocaleController.getString(R.string.FluxGramEditHistory));
             options.add(OPTION_FLUXGRAM_EDIT_HISTORY);
             icons.add(R.drawable.msg_recent);
+        }
+
+        if (canSearchMessagesFromAuthor(message)) {
+            MessageActionExecutor.Target target = fluxGramMessageActions.capture(
+                    currentAccount,
+                    getUserConfig().getClientUserId(),
+                    dialog_id,
+                    message.getDialogId(),
+                    message.getId(),
+                    getTopicId()
+            );
+            if (target != null) {
+                messagesFromAuthorTarget = target;
+                items.add(LocaleController.getString(R.string.FluxGramMessagesFromAuthor));
+                options.add(OPTION_FLUXGRAM_MESSAGES_FROM_AUTHOR);
+                icons.add(R.drawable.msg_search);
+            }
         }
 
 

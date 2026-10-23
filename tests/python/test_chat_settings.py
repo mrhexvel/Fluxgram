@@ -100,6 +100,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_message_avatar_online", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_views", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_share_button", 7);
+                            MessagesController.preferences.putRaw("fluxgram_show_messages_from_author", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -112,6 +113,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsMessageAvatarOnline());
                         require(ChatSettings.showsMessageViews());
                         require(ChatSettings.showsMessageShareButton());
+                        require(!ChatSettings.showsMessagesFromAuthor());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -152,6 +154,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsMessageShareButton());
                         ChatSettings.setShowsMessageShareButton(true);
                         require(ChatSettings.showsMessageShareButton());
+                        ChatSettings.setShowsMessagesFromAuthor(true);
+                        require(ChatSettings.showsMessagesFromAuthor());
+                        ChatSettings.setShowsMessagesFromAuthor(false);
+                        require(!ChatSettings.showsMessagesFromAuthor());
                     }
 
                     private static void require(boolean value) {
@@ -415,6 +421,44 @@ class ChatSettingsTest(unittest.TestCase):
         handler = activity.split("item.id == SHOW_MESSAGE_SHARE_BUTTON", 1)[1]
         handler = handler.split("item.id == DOUBLE_TAP_MESSAGES", 1)[0]
         self.assertIn("rebuildChatPresentation()", handler)
+
+    def test_chat_activity_can_search_messages_from_fresh_author(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        self.assertIn(
+            "private static final int OPTION_FLUXGRAM_MESSAGES_FROM_AUTHOR = 10002;",
+            chat,
+        )
+        self.assertIn("messagesFromAuthorTarget = target;", chat)
+        self.assertIn("findCurrentMessageForAction(expected)", chat)
+        self.assertIn("!expected.equals(actual)", chat)
+        action = chat.split(
+            "option == OPTION_FLUXGRAM_MESSAGES_FROM_AUTHOR", 1
+        )[1].split("boolean preserveDim", 1)[0]
+        self.assertIn("selectedObject = null;", action)
+        self.assertIn("selectedObjectGroup = null;", action)
+        self.assertIn("closeMenu(true);", action)
+        self.assertIn("message.messageOwner.from_id", chat)
+        self.assertIn("message.messageOwner.action != null", chat)
+        self.assertIn(
+            "(message.getDialogId() != dialog_id && message.getDialogId() != mergeDialogId)",
+            chat,
+        )
+        self.assertIn("message.getId() <= 0", chat)
+        self.assertIn("(ChatObject.isChannel(currentChat) && !currentChat.megagroup)", chat)
+        self.assertIn("ChatObject.isMonoForum(currentChat)", chat)
+        self.assertIn("(threadMessageId != 0 && !isTopic)", chat)
+        self.assertIn("currentEncryptedChat != null", chat)
+        self.assertIn("chatMode != MODE_DEFAULT", chat)
+        self.assertIn("openSearchWithUser(user)", chat)
+        self.assertIn("openSearchWithChat(chat)", chat)
+        self.assertIn("R.drawable.msg_search", chat)
+        self.assertIn(
+            ".setChecked(ChatSettings.showsMessagesFromAuthor())",
+            activity,
+        )
+        self.assertIn("ChatSettings.setShowsMessagesFromAuthor(shown)", activity)
 
     def test_chat_activity_hides_keyboard_only_during_message_list_drag(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()

@@ -11470,6 +11470,8 @@
     <string name="FluxGramShowMessageAvatarOnline">Show online status on message avatars</string>
     <string name="FluxGramShowMessageViews">Show message view count</string>
     <string name="FluxGramShowMessageShareButton">Show Share button on messages</string>
+    <string name="FluxGramMessageMenu">Message menu</string>
+    <string name="FluxGramMessagesFromAuthor">Messages from author</string>
     <string name="FluxGramShowMessageReactionsInfo">Controls only reaction badges below messages. Sending reactions, menus, notifications, and stories remain unchanged.</string>
     <string name="FluxGramMessageGestures">Message gestures</string>
     <string name="FluxGramDoubleTapMessages">Double tap messages</string>

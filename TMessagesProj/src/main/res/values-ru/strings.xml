@@ -460,6 +460,8 @@
     <string name="FluxGramShowMessageAvatarOnline">Показывать статус «в сети» на аватарах сообщений</string>
     <string name="FluxGramShowMessageViews">Показывать счётчик просмотров</string>
     <string name="FluxGramShowMessageShareButton">Показывать кнопку «Поделиться» у сообщений</string>
+    <string name="FluxGramMessageMenu">Меню сообщения</string>
+    <string name="FluxGramMessagesFromAuthor">Сообщения автора</string>
     <string name="FluxGramShowMessageReactionsInfo">Управляет только плашками реакций под сообщениями. Отправка реакций, меню, уведомления и истории не меняются.</string>
     <string name="FluxGramMessageGestures">Жесты сообщений</string>
     <string name="FluxGramDoubleTapMessages">Двойное нажатие на сообщение</string>
