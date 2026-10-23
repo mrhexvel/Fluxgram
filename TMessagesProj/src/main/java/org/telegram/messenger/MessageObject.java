@@ -1278,7 +1278,19 @@ public class MessageObject {
             return pos;
         }
 
+        private int layoutWidth = 800;
         private int maxSizeWidth = 800;
+
+        public boolean setLayoutWidth(int width) {
+            int boundedWidth = Math.max(800, Math.min(900, width));
+            if (layoutWidth == boundedWidth) {
+                return false;
+            }
+
+            layoutWidth = boundedWidth;
+            cachedWidthForCaption = -1;
+            return true;
+        }
 
         public final TransitionParams transitionParams = new TransitionParams();
 
@@ -1319,8 +1331,8 @@ public class MessageObject {
             positionsArray.clear();
             captionMessage = null;
 
-            maxSizeWidth = 800;
-            int firstSpanAdditionalSize = 200;
+            maxSizeWidth = layoutWidth;
+            int firstSpanAdditionalSize = 1000 - maxSizeWidth;
 
             int count = messages.size();
             if (count == 1) {
@@ -1339,6 +1351,7 @@ public class MessageObject {
             boolean needShare = false;
             boolean isMusic = false;
             hasSibling = false;
+            isDocuments = false;
 
             hasCaption = false;
             boolean checkCaption = true;
@@ -1426,7 +1439,7 @@ public class MessageObject {
                 return;
             }
 
-            if (needShare) {
+            if (needShare && layoutWidth == 800) {
                 maxSizeWidth -= 50;
                 firstSpanAdditionalSize += 50;
             }

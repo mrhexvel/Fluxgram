@@ -844,7 +844,6 @@ class ChatSettingsTest(unittest.TestCase):
             "isTopic",
             "filtered",
             "isMessagesSearchListVisible()",
-            "groupedMessages != null",
             "message.preview",
             "message.isSponsored()",
             "message.getDialogId() != dialog_id",
@@ -856,6 +855,7 @@ class ChatSettingsTest(unittest.TestCase):
             "private boolean shouldUseWideChannelTextPost(", 1
         )[1].split("\n    }", 1)[0]
         self.assertIn("shouldUseWideChannelPostSurface", text_policy)
+        self.assertIn("groupedMessages != null", text_policy)
         self.assertIn("message.type != MessageObject.TYPE_TEXT", text_policy)
         self.assertIn("TLRPC.TL_messageMediaEmpty", text_policy)
         self.assertIn("TLRPC.TL_messageMediaWebPage", text_policy)
@@ -865,8 +865,21 @@ class ChatSettingsTest(unittest.TestCase):
         )[1].split("\n    }", 1)[0]
         for gate in (
             "shouldUseWideChannelPostSurface",
+            "groupedMessages != null",
             "message.getGroupId() != 0",
+            "isOrdinaryWideChannelMedia(message)",
+        ):
+            self.assertIn(gate, media_policy)
+
+        ordinary_media = chat.split(
+            "private boolean isOrdinaryWideChannelMedia(", 1
+        )[1].split("\n    }", 1)[0]
+        for gate in (
             "message.isLivePhoto()",
+            "message.messageOwner.media",
+            "message.isPaid()",
+            "message.isPaidSuggestedPost()",
+            "!media.extended_media.isEmpty()",
             "message.type == MessageObject.TYPE_PHOTO",
             "TLRPC.TL_messageMediaPhoto",
             "message.isPhoto()",
@@ -877,7 +890,23 @@ class ChatSettingsTest(unittest.TestCase):
             "!message.isGif()",
             "!message.isAnyKindOfSticker()",
         ):
-            self.assertIn(gate, media_policy)
+            self.assertIn(gate, ordinary_media)
+        self.assertNotIn("MessageObject.getMedia", ordinary_media)
+
+        album_policy = chat.split(
+            "private boolean shouldUseWideChannelMediaAlbum(", 1
+        )[1].split("\n    }", 1)[0]
+        for gate in (
+            "groupedMessages.groupId == 0",
+            "groupedMessages.messages.size() < 2",
+            "groupedMessages.messages.get(i)",
+            "shouldUseWideChannelPostSurface(message, filtered)",
+            "message.getGroupId() != groupedMessages.groupId",
+            "!isOrdinaryWideChannelMedia(message)",
+            "!TextUtils.isEmpty(message.caption)",
+            "++captions > 1",
+        ):
+            self.assertIn(gate, album_policy)
 
         bind = chat.split(
             "} else if (position >= messagesStartRow && position < messagesEndRow) {",
@@ -886,13 +915,15 @@ class ChatSettingsTest(unittest.TestCase):
             "MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);",
             1,
         )[1].split("messageCell.setMessageObject", 1)[0]
+        self.assertIn("ensureGroupedMessagesLayout(groupedMessages, isFiltered)", bind)
         self.assertIn("shouldUseWideChannelTextPost(message, groupedMessages, isFiltered)", bind)
         self.assertIn("shouldUseWideChannelMediaPost(message, groupedMessages, isFiltered)", bind)
+        self.assertIn("shouldUseWideChannelMediaAlbum(groupedMessages, isFiltered)", bind)
         self.assertIn("messageCell.setWideTextPost(wideTextPost)", bind)
         self.assertIn("messageCell.setWideMediaPost(wideMediaPost)", bind)
         self.assertIn("ChatSettings.showsMessageTails() && !wideTextPost", bind)
         self.assertIn(
-            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost",
+            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum",
             bind,
         )
 
@@ -922,18 +953,89 @@ class ChatSettingsTest(unittest.TestCase):
         )[1].split("return dummyMessageCell.computeHeight", 1)[0]
         self.assertIn("dummyMessageCell.hasDiscussion =", dummy)
         self.assertIn("dummyMessageCell.linkedChatId =", dummy)
+        self.assertIn("ensureGroupedMessagesLayout(groupedMessages, filtered)", dummy)
         self.assertIn("shouldUseWideChannelTextPost(", dummy)
         self.assertIn("shouldUseWideChannelMediaPost(", dummy)
+        self.assertIn("shouldUseWideChannelMediaAlbum(groupedMessages, filtered)", dummy)
         self.assertIn("dummyMessageCell.setWideTextPost(wideTextPost)", dummy)
         self.assertIn("dummyMessageCell.setWideMediaPost(wideMediaPost)", dummy)
         self.assertIn(
-            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost",
+            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum",
             dummy,
         )
         self.assertIn(
             "MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(object)",
             chat,
         )
+
+        grouped_layout = message.split("public static class GroupedMessages", 1)[1]
+        grouped_layout = grouped_layout.split("public int getMaxEditDate()", 1)[0]
+        self.assertIn("public boolean setLayoutWidth(int width)", grouped_layout)
+        self.assertIn("Math.max(800, Math.min(900, width))", grouped_layout)
+        self.assertIn("maxSizeWidth = layoutWidth", grouped_layout)
+        self.assertIn("firstSpanAdditionalSize = 1000 - maxSizeWidth", grouped_layout)
+        self.assertIn("needShare && layoutWidth == 800", grouped_layout)
+        self.assertIn("cachedWidthForCaption = -1", grouped_layout)
+        self.assertIn("isDocuments = false", grouped_layout)
+
+        calculate_group = chat.split(
+            "private void calculateGroupedMessages(", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("shouldUseWideChannelMediaAlbum", calculate_group)
+        self.assertIn("? 900 : 800", calculate_group)
+        self.assertIn("cachedWidthForCaption = -1", calculate_group)
+        self.assertIn("groupedMessages.calculate()", calculate_group)
+
+        notify_group = chat.split(
+            "private void recalculateAndNotifyGroupedMessages(", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("calculateGroupedMessages(groupedMessages, filtered)", notify_group)
+        self.assertIn("chatAdapter.notifyItemRangeChanged", notify_group)
+        self.assertIn(
+            "recalculateAndNotifyGroupedMessages(getValidGroupedMessage(obj)",
+            chat,
+        )
+        self.assertIn(
+            "recalculateAndNotifyGroupedMessages(getValidGroupedMessage(existMessageObject)",
+            chat,
+        )
+
+        server_ack = chat.split(
+            "id == NotificationCenter.messageReceivedByServer", 1
+        )[1].split("id == NotificationCenter.messageReceivedByAck", 1)[0]
+        duplicate_ack = server_ack.split(
+            "messagesDict[0].indexOfKey(newMsgId) >= 0", 1
+        )[1].split("TLRPC.Message newMsgObj", 1)[0]
+        self.assertIn("removedGroup.messages.remove(removed)", duplicate_ack)
+        self.assertIn("calculateGroupedMessages(removedGroup", duplicate_ack)
+        self.assertIn(
+            "recalculateAndNotifyGroupedMessages(getValidGroupedMessage(obj)",
+            server_ack,
+        )
+
+        media_update = chat.split(
+            "id == NotificationCenter.updateMessageMedia", 1
+        )[1].split("id == NotificationCenter.voiceTranscriptionUpdate", 1)[0]
+        self.assertIn(
+            "recalculateAndNotifyGroupedMessages(getValidGroupedMessage(existMessageObject)",
+            media_update,
+        )
+
+        ensure_group = chat.split(
+            "private void ensureGroupedMessagesLayout(", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("shouldUseWideChannelMediaAlbum", ensure_group)
+        self.assertIn("groupedMessages.setLayoutWidth(layoutWidth)", ensure_group)
+        self.assertIn("groupedMessages.calculate()", ensure_group)
+
+        span_lookup = chat.split(
+            "chatLayoutManager.setSpanSizeLookup", 1
+        )[1].split("chatListView.setLayoutManager", 1)[0]
+        self.assertLess(
+            span_lookup.index("ensureGroupedMessagesLayout"),
+            span_lookup.index("groupedPosition.spanSize"),
+        )
+        self.assertEqual(chat.count(".calculate();"), 2)
 
         self.assertIn(
             ".setChecked(ChatSettings.usesWideChannelPosts())",

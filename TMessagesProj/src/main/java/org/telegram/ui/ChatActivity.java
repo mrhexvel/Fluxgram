@@ -9194,7 +9194,11 @@ public class ChatActivity extends BaseFragment implements
                         MessageObject message = chatAdapter.getMessages().get(idx);
                         MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
                         if (groupedMessages != null) {
-                            return groupedMessages.getPosition(message).spanSize;
+                            ensureGroupedMessagesLayout(groupedMessages, chatAdapter.isFiltered);
+                            MessageObject.GroupedMessagePosition groupedPosition = groupedMessages.getPosition(message);
+                            if (groupedPosition != null) {
+                                return groupedPosition.spanSize;
+                            }
                         }
                     }
                 }
@@ -12101,7 +12105,7 @@ public class ChatActivity extends BaseFragment implements
             for (int i = 0; i < newGroups.size(); ++i) {
                 MessageObject.GroupedMessages group = newGroups.valueAt(i);
                 Collections.sort(group.messages, (a, b) -> a.getId() - b.getId());
-                group.calculate();
+                calculateGroupedMessages(group, true);
             }
         }
         ArrayList<MessageObject> messagesResults = new ArrayList<>();
@@ -19446,20 +19450,23 @@ public class ChatActivity extends BaseFragment implements
         dummyMessageCell.hasDiscussion = chatMode != MODE_SCHEDULED && chatMode != MODE_WELCOME_MESSAGES && ChatObject.isChannel(currentChat) && currentChat.has_link && !currentChat.megagroup;
         dummyMessageCell.linkedChatId = chatMode != MODE_SCHEDULED && chatMode != MODE_WELCOME_MESSAGES && chatInfo != null ? chatInfo.linked_chat_id : 0;
         MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(object);
+        boolean filtered = chatAdapter != null && chatAdapter.isFiltered;
+        ensureGroupedMessagesLayout(groupedMessages, filtered);
         boolean wideTextPost = shouldUseWideChannelTextPost(
                 object,
                 groupedMessages,
-                chatAdapter != null && chatAdapter.isFiltered
+                filtered
         );
         boolean wideMediaPost = shouldUseWideChannelMediaPost(
                 object,
                 groupedMessages,
-                chatAdapter != null && chatAdapter.isFiltered
+                filtered
         );
+        boolean wideMediaAlbum = shouldUseWideChannelMediaAlbum(groupedMessages, filtered);
         dummyMessageCell.setWideTextPost(wideTextPost);
         dummyMessageCell.setWideMediaPost(wideMediaPost);
         dummyMessageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
-        dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost);
+        dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum);
         return dummyMessageCell.computeHeight(object, groupedMessages, withGroupCaption);
     }
 
@@ -24365,7 +24372,7 @@ public class ChatActivity extends BaseFragment implements
         if (newGroups != null) {
             for (int a = 0; a < newGroups.size(); a++) {
                 MessageObject.GroupedMessages groupedMessages = newGroups.valueAt(a);
-                groupedMessages.calculate();
+                calculateGroupedMessages(groupedMessages, chatAdapter != null && chatAdapter.isFiltered);
                 if (chatAdapter != null && !universalNotify && !chatAdapter.isFiltered && changedGroups != null && changedGroups.indexOfKey(newGroups.keyAt(a)) >= 0) {
                     MessageObject messageObject = groupedMessages.messages.get(groupedMessages.messages.size() - 1);
                     int idx = messages.indexOf(messageObject);
@@ -25207,6 +25214,17 @@ public class ChatActivity extends BaseFragment implements
                     if (removed != null) {
                         int index = messages.indexOf(removed);
                         messages.remove(index);
+                        if (removed.getGroupId() != 0) {
+                            MessageObject.GroupedMessages removedGroup = groupedMessagesMap.get(removed.getGroupId());
+                            if (removedGroup != null) {
+                                removedGroup.messages.remove(removed);
+                                if (removedGroup.messages.isEmpty()) {
+                                    groupedMessagesMap.remove(removedGroup.groupId);
+                                } else {
+                                    calculateGroupedMessages(removedGroup, chatAdapter != null && chatAdapter.isFiltered);
+                                }
+                            }
+                        }
                         MessageObject conversionMsg = conversionMessages.get(removed.getId());
                         if (conversionMsg != null) {
                             conversionMessages.remove(removed.getId());
@@ -25303,6 +25321,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                     chatAdapter.updateRowWithMessageObject(obj, animateSendingViews.contains(cell), false);
                 }
+                recalculateAndNotifyGroupedMessages(getValidGroupedMessage(obj), chatAdapter != null && chatAdapter.isFiltered);
                 if (chatLayoutManager != null) {
                     if (mediaUpdated && chatLayoutManager.findFirstVisibleItemPosition() == 0) {
                         moveScrollToLastMessage(false);
@@ -26063,7 +26082,7 @@ public class ChatActivity extends BaseFragment implements
                                 }
                                 groupedMessagesMap.put(slicedGroup.groupId, slicedGroup);
                                 messageObject = slicedGroup.messages.get(slicedGroup.messages.size() - 1);
-                                slicedGroup.calculate();
+                                calculateGroupedMessages(slicedGroup, chatAdapter != null && chatAdapter.isFiltered);
                             }
                             groupedMessages.messages.remove(idx);
                             if (groupedMessages.messages.isEmpty()) {
@@ -26072,7 +26091,7 @@ public class ChatActivity extends BaseFragment implements
                                 if (messageObject == null) {
                                     messageObject = groupedMessages.messages.get(groupedMessages.messages.size() - 1);
                                 }
-                                groupedMessages.calculate();
+                                calculateGroupedMessages(groupedMessages, chatAdapter != null && chatAdapter.isFiltered);
                                 int index = messages.indexOf(messageObject);
                                 if (chatAdapter != null && !chatAdapter.isFiltered && index >= 0) {
                                     chatAdapter.notifyItemRangeChanged(index + chatAdapter.messagesStartRow, updateCount);
@@ -26089,6 +26108,7 @@ public class ChatActivity extends BaseFragment implements
                 } else {
                     updateVisibleRows();
                 }
+                recalculateAndNotifyGroupedMessages(getValidGroupedMessage(existMessageObject), chatAdapter != null && chatAdapter.isFiltered);
             }
         } else if (id == NotificationCenter.voiceTranscriptionUpdate) {
             if (chatAdapter != null) {
@@ -28712,7 +28732,7 @@ public class ChatActivity extends BaseFragment implements
                     migrateToNewChat(obj);
                     if (newGroups != null) {
                         for (int b = 0; b < newGroups.size(); b++) {
-                            newGroups.valueAt(b).calculate();
+                            calculateGroupedMessages(newGroups.valueAt(b), chatAdapter != null && chatAdapter.isFiltered);
                         }
                     }
                     return;
@@ -28890,7 +28910,7 @@ public class ChatActivity extends BaseFragment implements
                 for (int a = 0; a < newGroups.size(); a++) {
                     MessageObject.GroupedMessages groupedMessages = newGroups.valueAt(a);
                     int oldCount = groupedMessages.posArray.size();
-                    groupedMessages.calculate();
+                    calculateGroupedMessages(groupedMessages, chatAdapter != null && chatAdapter.isFiltered);
                     int newCount = groupedMessages.posArray.size();
                     if (newCount - oldCount > 0 && chatAdapter != null) {
                         int index = messages.indexOf(groupedMessages.messages.get(groupedMessages.messages.size() - 1));
@@ -29356,7 +29376,7 @@ public class ChatActivity extends BaseFragment implements
                 if (groupedMessages.messages.isEmpty()) {
                     groupedMessagesMap.remove(groupedMessages.groupId);
                 } else {
-                    groupedMessages.calculate();
+                    calculateGroupedMessages(groupedMessages, chatAdapter != null && chatAdapter.isFiltered);
                     MessageObject messageObject = groupedMessages.messages.get(groupedMessages.messages.size() - 1);
                     int index = chatAdapter.getMessages().indexOf(messageObject);
                     if (index >= 0) {
@@ -29712,7 +29732,7 @@ public class ChatActivity extends BaseFragment implements
                 if (groupedMessages.messages.isEmpty()) {
                     groupedMessagesMap.remove(groupedMessages.groupId);
                 } else {
-                    groupedMessages.calculate();
+                    calculateGroupedMessages(groupedMessages, chatAdapter != null && chatAdapter.isFiltered);
                     final MessageObject messageObject = groupedMessages.messages.get(groupedMessages.messages.size() - 1);
                     final int index = messages.indexOf(messageObject);
                     if (index >= 0) {
@@ -40973,12 +40993,14 @@ public class ChatActivity extends BaseFragment implements
                 if (view instanceof ChatMessageCell) {
                     final ChatMessageCell messageCell = (ChatMessageCell) view;
                     MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
+                    ensureGroupedMessagesLayout(groupedMessages, isFiltered);
                     boolean wideTextPost = shouldUseWideChannelTextPost(message, groupedMessages, isFiltered);
                     boolean wideMediaPost = shouldUseWideChannelMediaPost(message, groupedMessages, isFiltered);
+                    boolean wideMediaAlbum = shouldUseWideChannelMediaAlbum(groupedMessages, isFiltered);
                     messageCell.setWideTextPost(wideTextPost);
                     messageCell.setWideMediaPost(wideMediaPost);
                     messageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
-                    messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost);
+                    messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum);
                     messageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser) || UserObject.isReplyUser(currentUser) || (chatMode == MODE_SEARCH);
                     messageCell.setSponsoredMessageVisible(true, false);
                     messageCell.isBotForum = UserObject.isBotForum(currentUser);
@@ -41961,7 +41983,6 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean shouldUseWideChannelPostSurface(
             MessageObject message,
-            MessageObject.GroupedMessages groupedMessages,
             boolean filtered
     ) {
         if (!ChatSettings.usesWideChannelPosts()
@@ -41980,7 +42001,6 @@ public class ChatActivity extends BaseFragment implements
                 || isTopic
                 || filtered
                 || isMessagesSearchListVisible()
-                || groupedMessages != null
                 || message == null
                 || message.messageOwner == null
                 || message.preview
@@ -41999,7 +42019,8 @@ public class ChatActivity extends BaseFragment implements
             MessageObject.GroupedMessages groupedMessages,
             boolean filtered
     ) {
-        if (!shouldUseWideChannelPostSurface(message, groupedMessages, filtered)
+        if (!shouldUseWideChannelPostSurface(message, filtered)
+                || groupedMessages != null
                 || message.type != MessageObject.TYPE_TEXT) {
             return false;
         }
@@ -42015,13 +42036,28 @@ public class ChatActivity extends BaseFragment implements
             MessageObject.GroupedMessages groupedMessages,
             boolean filtered
     ) {
-        if (!shouldUseWideChannelPostSurface(message, groupedMessages, filtered)
+        if (!shouldUseWideChannelPostSurface(message, filtered)
+                || groupedMessages != null
                 || message.getGroupId() != 0
-                || message.isLivePhoto()) {
+                || !isOrdinaryWideChannelMedia(message)) {
             return false;
         }
 
-        TLRPC.MessageMedia media = MessageObject.getMedia(message.messageOwner);
+        return true;
+    }
+
+    private boolean isOrdinaryWideChannelMedia(MessageObject message) {
+        if (message == null || message.messageOwner == null || message.isLivePhoto()) {
+            return false;
+        }
+
+        TLRPC.MessageMedia media = message.messageOwner.media;
+        if (media == null
+                || message.isPaid()
+                || message.isPaidSuggestedPost()
+                || !media.extended_media.isEmpty()) {
+            return false;
+        }
         if (message.type == MessageObject.TYPE_PHOTO) {
             return media instanceof TLRPC.TL_messageMediaPhoto && message.isPhoto();
         }
@@ -42032,6 +42068,82 @@ public class ChatActivity extends BaseFragment implements
                 && !message.isRoundVideo()
                 && !message.isGif()
                 && !message.isAnyKindOfSticker();
+    }
+
+    private boolean shouldUseWideChannelMediaAlbum(
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (groupedMessages == null
+                || groupedMessages.groupId == 0
+                || groupedMessages.messages.size() < 2) {
+            return false;
+        }
+
+        int captions = 0;
+        for (int i = 0; i < groupedMessages.messages.size(); i++) {
+            MessageObject message = groupedMessages.messages.get(i);
+            if (!shouldUseWideChannelPostSurface(message, filtered)
+                    || message.getGroupId() != groupedMessages.groupId
+                    || !isOrdinaryWideChannelMedia(message)) {
+                return false;
+            }
+            if (!TextUtils.isEmpty(message.caption) && ++captions > 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void calculateGroupedMessages(
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (groupedMessages == null) {
+            return;
+        }
+
+        groupedMessages.cachedWidthForCaption = -1;
+        groupedMessages.setLayoutWidth(shouldUseWideChannelMediaAlbum(groupedMessages, filtered) ? 900 : 800);
+        groupedMessages.calculate();
+    }
+
+    private void recalculateAndNotifyGroupedMessages(
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (groupedMessages == null) {
+            return;
+        }
+
+        calculateGroupedMessages(groupedMessages, filtered);
+        if (chatAdapter == null || groupedMessages.messages.isEmpty()) {
+            return;
+        }
+
+        MessageObject lastMessage = groupedMessages.messages.get(groupedMessages.messages.size() - 1);
+        int index = chatAdapter.getMessages().indexOf(lastMessage);
+        if (index >= 0) {
+            chatAdapter.notifyItemRangeChanged(
+                    index + chatAdapter.messagesStartRow,
+                    groupedMessages.messages.size()
+            );
+        }
+    }
+
+    private void ensureGroupedMessagesLayout(
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (groupedMessages == null) {
+            return;
+        }
+
+        int layoutWidth = shouldUseWideChannelMediaAlbum(groupedMessages, filtered) ? 900 : 800;
+        if (groupedMessages.setLayoutWidth(layoutWidth)) {
+            groupedMessages.calculate();
+        }
     }
 
     boolean searchWas;
