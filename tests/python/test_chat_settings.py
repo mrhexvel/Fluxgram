@@ -819,14 +819,14 @@ class ChatSettingsTest(unittest.TestCase):
         )[1].split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
         self.assertIn("parentLayout.rebuildFragments(0)", settings_handler)
 
-    def test_chat_activity_limits_wide_posts_to_channel_text(self):
+    def test_chat_activity_limits_wide_posts_to_supported_channel_content(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
         message = (JAVA / "messenger/MessageObject.java").read_text()
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
 
-        policy = chat.split(
-            "private boolean shouldUseWideChannelPost(", 1
+        surface_policy = chat.split(
+            "private boolean shouldUseWideChannelPostSurface(", 1
         )[1].split("\n    }", 1)[0]
         for gate in (
             "ChatSettings.usesWideChannelPosts()",
@@ -845,24 +845,56 @@ class ChatSettingsTest(unittest.TestCase):
             "filtered",
             "isMessagesSearchListVisible()",
             "groupedMessages != null",
-            "message.type != MessageObject.TYPE_TEXT",
             "message.preview",
             "message.isSponsored()",
             "message.getDialogId() != dialog_id",
             "message.messageOwner.peer_id.channel_id != currentChat.id",
         ):
-            self.assertIn(gate, policy)
-        self.assertIn("TLRPC.TL_messageMediaEmpty", policy)
-        self.assertIn("TLRPC.TL_messageMediaWebPage", policy)
+            self.assertIn(gate, surface_policy)
+
+        text_policy = chat.split(
+            "private boolean shouldUseWideChannelTextPost(", 1
+        )[1].split("\n    }", 1)[0]
+        self.assertIn("shouldUseWideChannelPostSurface", text_policy)
+        self.assertIn("message.type != MessageObject.TYPE_TEXT", text_policy)
+        self.assertIn("TLRPC.TL_messageMediaEmpty", text_policy)
+        self.assertIn("TLRPC.TL_messageMediaWebPage", text_policy)
+
+        media_policy = chat.split(
+            "private boolean shouldUseWideChannelMediaPost(", 1
+        )[1].split("\n    }", 1)[0]
+        for gate in (
+            "shouldUseWideChannelPostSurface",
+            "message.getGroupId() != 0",
+            "message.isLivePhoto()",
+            "message.type == MessageObject.TYPE_PHOTO",
+            "TLRPC.TL_messageMediaPhoto",
+            "message.isPhoto()",
+            "message.type == MessageObject.TYPE_VIDEO",
+            "TLRPC.TL_messageMediaDocument",
+            "message.isVideo()",
+            "!message.isRoundVideo()",
+            "!message.isGif()",
+            "!message.isAnyKindOfSticker()",
+        ):
+            self.assertIn(gate, media_policy)
 
         bind = chat.split(
+            "} else if (position >= messagesStartRow && position < messagesEndRow) {",
+            1,
+        )[1].split(
             "MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);",
             1,
         )[1].split("messageCell.setMessageObject", 1)[0]
-        self.assertIn("shouldUseWideChannelPost(message, groupedMessages, isFiltered)", bind)
+        self.assertIn("shouldUseWideChannelTextPost(message, groupedMessages, isFiltered)", bind)
+        self.assertIn("shouldUseWideChannelMediaPost(message, groupedMessages, isFiltered)", bind)
         self.assertIn("messageCell.setWideTextPost(wideTextPost)", bind)
+        self.assertIn("messageCell.setWideMediaPost(wideMediaPost)", bind)
         self.assertIn("ChatSettings.showsMessageTails() && !wideTextPost", bind)
-        self.assertIn("ChatSettings.showsMessageShareButton() && !wideTextPost", bind)
+        self.assertIn(
+            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost",
+            bind,
+        )
 
         self.assertNotIn("messageTextWidthOverride", message)
         self.assertNotIn("setMessageTextWidthOverride", cell)
@@ -871,6 +903,33 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("drawSideButton != 0 && !wideTextPost", cell)
         self.assertIn("backgroundWidth = maxWidth + dp(31)", cell)
         self.assertIn("cell.wideTextPost = wideTextPost", cell)
+        self.assertIn("cell.wideMediaPost = wideMediaPost", cell)
+        self.assertIn("else if (wideMediaPost)", cell)
+        self.assertIn("photoWidth = getWidePostContentWidth()", cell)
+        self.assertIn("useFullWidth = true", cell)
+        self.assertIn("wideMediaPost && imageH > imageW", cell)
+        self.assertIn(
+            "photoHeight = Math.min(defaultPhotoWidth + dp(100), AndroidUtilities.getPhotoSize())",
+            cell,
+        )
+        self.assertIn("int fittedPhotoWidth = w", cell)
+        self.assertIn("wideMediaPost && photoWidth > fittedPhotoWidth", cell)
+        self.assertIn("photoImage.setAspectFit(true)", cell)
+
+        dummy = chat.split(
+            "private int getHeightForMessage(MessageObject object, boolean withGroupCaption)",
+            1,
+        )[1].split("return dummyMessageCell.computeHeight", 1)[0]
+        self.assertIn("dummyMessageCell.hasDiscussion =", dummy)
+        self.assertIn("dummyMessageCell.linkedChatId =", dummy)
+        self.assertIn("shouldUseWideChannelTextPost(", dummy)
+        self.assertIn("shouldUseWideChannelMediaPost(", dummy)
+        self.assertIn("dummyMessageCell.setWideTextPost(wideTextPost)", dummy)
+        self.assertIn("dummyMessageCell.setWideMediaPost(wideMediaPost)", dummy)
+        self.assertIn(
+            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost",
+            dummy,
+        )
         self.assertIn(
             "MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(object)",
             chat,

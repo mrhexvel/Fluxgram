@@ -19443,15 +19443,23 @@ public class ChatActivity extends BaseFragment implements
         dummyMessageCell.isAllChats = isAllChats();
         dummyMessageCell.isSideMenued = isSideMenued();
         dummyMessageCell.isSideMenuEnabled = isSideMenuEnabled();
+        dummyMessageCell.hasDiscussion = chatMode != MODE_SCHEDULED && chatMode != MODE_WELCOME_MESSAGES && ChatObject.isChannel(currentChat) && currentChat.has_link && !currentChat.megagroup;
+        dummyMessageCell.linkedChatId = chatMode != MODE_SCHEDULED && chatMode != MODE_WELCOME_MESSAGES && chatInfo != null ? chatInfo.linked_chat_id : 0;
         MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(object);
-        boolean wideTextPost = shouldUseWideChannelPost(
+        boolean wideTextPost = shouldUseWideChannelTextPost(
+                object,
+                groupedMessages,
+                chatAdapter != null && chatAdapter.isFiltered
+        );
+        boolean wideMediaPost = shouldUseWideChannelMediaPost(
                 object,
                 groupedMessages,
                 chatAdapter != null && chatAdapter.isFiltered
         );
         dummyMessageCell.setWideTextPost(wideTextPost);
+        dummyMessageCell.setWideMediaPost(wideMediaPost);
         dummyMessageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
-        dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost);
+        dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost);
         return dummyMessageCell.computeHeight(object, groupedMessages, withGroupCaption);
     }
 
@@ -40965,10 +40973,12 @@ public class ChatActivity extends BaseFragment implements
                 if (view instanceof ChatMessageCell) {
                     final ChatMessageCell messageCell = (ChatMessageCell) view;
                     MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
-                    boolean wideTextPost = shouldUseWideChannelPost(message, groupedMessages, isFiltered);
+                    boolean wideTextPost = shouldUseWideChannelTextPost(message, groupedMessages, isFiltered);
+                    boolean wideMediaPost = shouldUseWideChannelMediaPost(message, groupedMessages, isFiltered);
                     messageCell.setWideTextPost(wideTextPost);
+                    messageCell.setWideMediaPost(wideMediaPost);
                     messageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
-                    messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost);
+                    messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost);
                     messageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser) || UserObject.isReplyUser(currentUser) || (chatMode == MODE_SEARCH);
                     messageCell.setSponsoredMessageVisible(true, false);
                     messageCell.isBotForum = UserObject.isBotForum(currentUser);
@@ -41949,7 +41959,7 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    private boolean shouldUseWideChannelPost(
+    private boolean shouldUseWideChannelPostSurface(
             MessageObject message,
             MessageObject.GroupedMessages groupedMessages,
             boolean filtered
@@ -41973,7 +41983,6 @@ public class ChatActivity extends BaseFragment implements
                 || groupedMessages != null
                 || message == null
                 || message.messageOwner == null
-                || message.type != MessageObject.TYPE_TEXT
                 || message.preview
                 || message.isSponsored()
                 || message.getDialogId() != dialog_id
@@ -41982,10 +41991,47 @@ public class ChatActivity extends BaseFragment implements
             return false;
         }
 
+        return true;
+    }
+
+    private boolean shouldUseWideChannelTextPost(
+            MessageObject message,
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (!shouldUseWideChannelPostSurface(message, groupedMessages, filtered)
+                || message.type != MessageObject.TYPE_TEXT) {
+            return false;
+        }
+
         TLRPC.MessageMedia media = MessageObject.getMedia(message.messageOwner);
         return media == null
                 || media instanceof TLRPC.TL_messageMediaEmpty
                 || media instanceof TLRPC.TL_messageMediaWebPage;
+    }
+
+    private boolean shouldUseWideChannelMediaPost(
+            MessageObject message,
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (!shouldUseWideChannelPostSurface(message, groupedMessages, filtered)
+                || message.getGroupId() != 0
+                || message.isLivePhoto()) {
+            return false;
+        }
+
+        TLRPC.MessageMedia media = MessageObject.getMedia(message.messageOwner);
+        if (message.type == MessageObject.TYPE_PHOTO) {
+            return media instanceof TLRPC.TL_messageMediaPhoto && message.isPhoto();
+        }
+
+        return message.type == MessageObject.TYPE_VIDEO
+                && media instanceof TLRPC.TL_messageMediaDocument
+                && message.isVideo()
+                && !message.isRoundVideo()
+                && !message.isGif()
+                && !message.isAnyKindOfSticker();
     }
 
     boolean searchWas;

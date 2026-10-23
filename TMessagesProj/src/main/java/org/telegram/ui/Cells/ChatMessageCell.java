@@ -1040,6 +1040,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean drawMessageViews = true;
     private boolean drawMessageShareButton = true;
     private boolean wideTextPost;
+    private boolean wideMediaPost;
     private boolean drawStickerTime = true;
     private int stickerTimeMode;
     private int stickerSize = 12;
@@ -1097,7 +1098,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         this.wideTextPost = wideTextPost;
     }
 
-    private int getWideTextPostContentWidth() {
+    public void setWideMediaPost(boolean wideMediaPost) {
+        this.wideMediaPost = wideMediaPost;
+    }
+
+    private int getWidePostContentWidth() {
         int availableWidth = AndroidUtilities.isTablet()
                 ? AndroidUtilities.getMinTabletSide()
                 : getParentWidth();
@@ -5985,6 +5990,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         cell.sideMenuAlpha = sideMenuAlpha;
         cell.sideMenuWidth = sideMenuWidth;
         cell.wideTextPost = wideTextPost;
+        cell.wideMediaPost = wideMediaPost;
         cell.drawMessageTail = drawMessageTail;
         cell.drawMessageShareButton = drawMessageShareButton;
     }
@@ -7581,7 +7587,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
                 final boolean isArticle = messageObject.type == MessageObject.TYPE_ARTICLE;
                 if (wideTextPost) {
-                    maxWidth = getWideTextPostContentWidth();
+                    maxWidth = getWidePostContentWidth();
                 } else if (AndroidUtilities.isTablet()) {
                     maxWidth = AndroidUtilities.getMinTabletSide() - dp((isArticle ? 40 : 80) + (isSideMenuEnabled ? ChatActivity.SIDE_MENU_WIDTH : drawAvatar ? 42 : 0));
                 } else {
@@ -10016,6 +10022,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     if (messageObject.type == MessageObject.TYPE_ROUND_VIDEO) {
                         documentAttach = messageObject.getDocument();
                         documentAttachType = DOCUMENT_ATTACH_TYPE_ROUND;
+                    } else if (wideMediaPost) {
+                        photoWidth = getWidePostContentWidth();
+                        useFullWidth = true;
                     } else {
                         if (AndroidUtilities.isTablet()) {
                             photoWidth = (int) (AndroidUtilities.getMinTabletSide() * 0.7f);
@@ -10105,10 +10114,17 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                 }
                             }
                         }
+                        if (wideMediaPost && imageH > imageW) {
+                            int defaultPhotoWidth = AndroidUtilities.isTablet()
+                                    ? (int) (AndroidUtilities.getMinTabletSide() * 0.7f)
+                                    : (int) (Math.min(getParentWidth(), AndroidUtilities.displaySize.y) * 0.7f);
+                            photoHeight = Math.min(defaultPhotoWidth + dp(100), AndroidUtilities.getPhotoSize());
+                        }
                         PointF point = getMessageSize(imageW, imageH, photoWidth, photoHeight);
                         w = (int) point.x;
                         h = (int) point.y;
                     }
+                    int fittedPhotoWidth = w;
                     if (currentPhotoObject != null && "s".equals(currentPhotoObject.type)) {
                         currentPhotoObject = null;
                     }
@@ -10475,6 +10491,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         if (!mediaBackground) {
                             backgroundWidth += dp(9);
                         }
+                    }
+                    if (wideMediaPost && photoWidth > fittedPhotoWidth) {
+                        fitPhotoImage = true;
+                        photoImage.setAspectFit(true);
                     }
                     if (messageChanged || messageIdChanged || dataChanged) {
                         currentPhotoFilter = currentPhotoFilterThumb = String.format(Locale.US, "%d_%d", (int) (w / AndroidUtilities.density), (int) (h / AndroidUtilities.density));
