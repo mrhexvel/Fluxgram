@@ -459,6 +459,7 @@
     <string name="FluxGramAdministratorsShortcut">Администраторы в меню чата</string>
     <string name="FluxGramParticipantsShortcut">Участники в меню чата</string>
     <string name="FluxGramPermissionsShortcut">Разрешения в меню чата</string>
+    <string name="FluxGramWideChannelPosts">Широкие публикации в каналах</string>
     <string name="FluxGramShowMessageReactions">Показывать реакции под сообщениями</string>
     <string name="FluxGramShowEditedMark">Показывать метку «изменено»</string>
     <string name="FluxGramShowMessageTails">Показывать хвосты сообщений</string>

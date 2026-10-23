@@ -19443,7 +19443,16 @@ public class ChatActivity extends BaseFragment implements
         dummyMessageCell.isAllChats = isAllChats();
         dummyMessageCell.isSideMenued = isSideMenued();
         dummyMessageCell.isSideMenuEnabled = isSideMenuEnabled();
-        return dummyMessageCell.computeHeight(object, groupedMessagesMap.get(object.getGroupId()), withGroupCaption);
+        MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(object);
+        boolean wideTextPost = shouldUseWideChannelPost(
+                object,
+                groupedMessages,
+                chatAdapter != null && chatAdapter.isFiltered
+        );
+        dummyMessageCell.setWideTextPost(wideTextPost);
+        dummyMessageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
+        dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost);
+        return dummyMessageCell.computeHeight(object, groupedMessages, withGroupCaption);
     }
 
     private void applyStickerPresentation(ChatMessageCell cell) {
@@ -40956,6 +40965,10 @@ public class ChatActivity extends BaseFragment implements
                 if (view instanceof ChatMessageCell) {
                     final ChatMessageCell messageCell = (ChatMessageCell) view;
                     MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
+                    boolean wideTextPost = shouldUseWideChannelPost(message, groupedMessages, isFiltered);
+                    messageCell.setWideTextPost(wideTextPost);
+                    messageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
+                    messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost);
                     messageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser) || UserObject.isReplyUser(currentUser) || (chatMode == MODE_SEARCH);
                     messageCell.setSponsoredMessageVisible(true, false);
                     messageCell.isBotForum = UserObject.isBotForum(currentUser);
@@ -41934,6 +41947,45 @@ public class ChatActivity extends BaseFragment implements
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             return false;
         }
+    }
+
+    private boolean shouldUseWideChannelPost(
+            MessageObject message,
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (!ChatSettings.usesWideChannelPosts()
+                || chatMode != MODE_DEFAULT
+                || inPreviewMode
+                || isInsideContainer
+                || inBubbleMode
+                || isReport()
+                || currentEncryptedChat != null
+                || currentChat == null
+                || dialog_id != -currentChat.id
+                || !ChatObject.isChannelAndNotMegaGroup(currentChat)
+                || ChatObject.isCommunity(currentChat)
+                || ChatObject.isMonoForum(currentChat)
+                || threadMessageId != 0
+                || isTopic
+                || filtered
+                || isMessagesSearchListVisible()
+                || groupedMessages != null
+                || message == null
+                || message.messageOwner == null
+                || message.type != MessageObject.TYPE_TEXT
+                || message.preview
+                || message.isSponsored()
+                || message.getDialogId() != dialog_id
+                || message.messageOwner.peer_id == null
+                || message.messageOwner.peer_id.channel_id != currentChat.id) {
+            return false;
+        }
+
+        TLRPC.MessageMedia media = MessageObject.getMedia(message.messageOwner);
+        return media == null
+                || media instanceof TLRPC.TL_messageMediaEmpty
+                || media instanceof TLRPC.TL_messageMediaWebPage;
     }
 
     boolean searchWas;

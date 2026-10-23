@@ -21,6 +21,7 @@ public final class ChatSettings {
     private static final String SHOW_ADMINISTRATORS_SHORTCUT = "fluxgram_show_administrators_shortcut";
     private static final String SHOW_PARTICIPANTS_SHORTCUT = "fluxgram_show_participants_shortcut";
     private static final String SHOW_PERMISSIONS_SHORTCUT = "fluxgram_show_permissions_shortcut";
+    private static final String WIDE_CHANNEL_POSTS = "fluxgram_wide_channel_posts";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -39,6 +40,7 @@ public final class ChatSettings {
     private static volatile boolean showAdministratorsShortcut;
     private static volatile boolean showParticipantsShortcut;
     private static volatile boolean showPermissionsShortcut;
+    private static volatile boolean wideChannelPosts;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -312,6 +314,23 @@ public final class ChatSettings {
         showPermissionsShortcut = shown;
     }
 
+    public static boolean usesWideChannelPosts() {
+        ensureLoaded();
+
+        return wideChannelPosts;
+    }
+
+    public static synchronized void setUsesWideChannelPosts(boolean enabled) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(WIDE_CHANNEL_POSTS, enabled)
+                .apply();
+
+        wideChannelPosts = enabled;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -402,6 +421,11 @@ public final class ChatSettings {
                 showPermissionsShortcut = preferences.getBoolean(SHOW_PERMISSIONS_SHORTCUT, false);
             } catch (ClassCastException exception) {
                 showPermissionsShortcut = false;
+            }
+            try {
+                wideChannelPosts = preferences.getBoolean(WIDE_CHANNEL_POSTS, false);
+            } catch (ClassCastException exception) {
+                wideChannelPosts = false;
             }
             loaded = true;
         }

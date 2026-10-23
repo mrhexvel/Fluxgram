@@ -106,6 +106,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_administrators_shortcut", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_participants_shortcut", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_permissions_shortcut", 7);
+                            MessagesController.preferences.putRaw("fluxgram_wide_channel_posts", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -124,6 +125,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsAdministratorsShortcut());
                         require(!ChatSettings.showsParticipantsShortcut());
                         require(!ChatSettings.showsPermissionsShortcut());
+                        require(!ChatSettings.usesWideChannelPosts());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -196,6 +198,12 @@ class ChatSettingsTest(unittest.TestCase):
                         ChatSettings.setShowsPermissionsShortcut(false);
                         require(!ChatSettings.showsPermissionsShortcut());
                         require(!MessagesController.preferences.getBoolean("fluxgram_show_permissions_shortcut", true));
+                        ChatSettings.setUsesWideChannelPosts(true);
+                        require(ChatSettings.usesWideChannelPosts());
+                        require(MessagesController.preferences.getBoolean("fluxgram_wide_channel_posts", false));
+                        ChatSettings.setUsesWideChannelPosts(false);
+                        require(!ChatSettings.usesWideChannelPosts());
+                        require(!MessagesController.preferences.getBoolean("fluxgram_wide_channel_posts", true));
                     }
 
                     private static void require(boolean value) {
@@ -810,6 +818,73 @@ class ChatSettingsTest(unittest.TestCase):
             "item.id == SHOW_PERMISSIONS_SHORTCUT", 1
         )[1].split("item.id == SHOW_MESSAGE_REACTIONS", 1)[0]
         self.assertIn("parentLayout.rebuildFragments(0)", settings_handler)
+
+    def test_chat_activity_limits_wide_posts_to_channel_text(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        cell = (JAVA / "ui/Cells/ChatMessageCell.java").read_text()
+        message = (JAVA / "messenger/MessageObject.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+
+        policy = chat.split(
+            "private boolean shouldUseWideChannelPost(", 1
+        )[1].split("\n    }", 1)[0]
+        for gate in (
+            "ChatSettings.usesWideChannelPosts()",
+            "chatMode != MODE_DEFAULT",
+            "inPreviewMode",
+            "isInsideContainer",
+            "inBubbleMode",
+            "isReport()",
+            "currentEncryptedChat != null",
+            "dialog_id != -currentChat.id",
+            "!ChatObject.isChannelAndNotMegaGroup(currentChat)",
+            "ChatObject.isCommunity(currentChat)",
+            "ChatObject.isMonoForum(currentChat)",
+            "threadMessageId != 0",
+            "isTopic",
+            "filtered",
+            "isMessagesSearchListVisible()",
+            "groupedMessages != null",
+            "message.type != MessageObject.TYPE_TEXT",
+            "message.preview",
+            "message.isSponsored()",
+            "message.getDialogId() != dialog_id",
+            "message.messageOwner.peer_id.channel_id != currentChat.id",
+        ):
+            self.assertIn(gate, policy)
+        self.assertIn("TLRPC.TL_messageMediaEmpty", policy)
+        self.assertIn("TLRPC.TL_messageMediaWebPage", policy)
+
+        bind = chat.split(
+            "MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);",
+            1,
+        )[1].split("messageCell.setMessageObject", 1)[0]
+        self.assertIn("shouldUseWideChannelPost(message, groupedMessages, isFiltered)", bind)
+        self.assertIn("messageCell.setWideTextPost(wideTextPost)", bind)
+        self.assertIn("ChatSettings.showsMessageTails() && !wideTextPost", bind)
+        self.assertIn("ChatSettings.showsMessageShareButton() && !wideTextPost", bind)
+
+        self.assertNotIn("messageTextWidthOverride", message)
+        self.assertNotIn("setMessageTextWidthOverride", cell)
+        self.assertIn("AndroidUtilities.getMinTabletSide()", cell)
+        self.assertIn("linkPreviewMaxWidth = maxWidth", cell)
+        self.assertIn("drawSideButton != 0 && !wideTextPost", cell)
+        self.assertIn("backgroundWidth = maxWidth + dp(31)", cell)
+        self.assertIn("cell.wideTextPost = wideTextPost", cell)
+        self.assertIn(
+            "MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(object)",
+            chat,
+        )
+
+        self.assertIn(
+            ".setChecked(ChatSettings.usesWideChannelPosts())",
+            activity,
+        )
+        settings_handler = activity.split(
+            "item.id == WIDE_CHANNEL_POSTS", 1
+        )[1].split("item.id == SHOW_EDITED_MARK", 1)[0]
+        self.assertIn("ChatSettings.setUsesWideChannelPosts(enabled)", settings_handler)
+        self.assertIn("rebuildChatPresentation()", settings_handler)
 
     def test_chat_activity_adds_guarded_administrators_shortcut(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()

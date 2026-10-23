@@ -155,6 +155,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_ADMINISTRATORS_SHORTCUT = 77;
     private static final int SHOW_PARTICIPANTS_SHORTCUT = 78;
     private static final int SHOW_PERMISSIONS_SHORTCUT = 79;
+    private static final int WIDE_CHANNEL_POSTS = 80;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -651,6 +652,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     R.string.FluxGramShowAllRecentStickersInfo)));
             addSectionLabel(items, R.string.FluxGramMessages);
             items.add(UItem.asCheck(
+                    WIDE_CHANNEL_POSTS,
+                    LocaleController.getString(R.string.FluxGramWideChannelPosts)
+            ).setChecked(ChatSettings.usesWideChannelPosts()));
+            items.add(UItem.asCheck(
                     SHOW_EDITED_MARK,
                     LocaleController.getString(R.string.FluxGramShowEditedMark)
             ).setChecked(ChatSettings.showsEditedMark()));
@@ -1126,6 +1131,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ChatSettings.setShowsMessageReactions(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == WIDE_CHANNEL_POSTS) {
+                boolean enabled = !ChatSettings.usesWideChannelPosts();
+                ChatSettings.setUsesWideChannelPosts(enabled);
+                ((TextCheckCell) view).setChecked(enabled);
+                rebuildChatPresentation();
             } else if (item.id == SHOW_EDITED_MARK) {
                 boolean shown = !ChatSettings.showsEditedMark();
                 ChatSettings.setShowsEditedMark(shown);
