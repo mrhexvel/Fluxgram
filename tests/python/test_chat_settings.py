@@ -101,6 +101,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_message_views", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_message_share_button", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_messages_from_author", 7);
+                            MessagesController.preferences.putRaw("fluxgram_group_message_menu_actions", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -114,6 +115,7 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.showsMessageViews());
                         require(ChatSettings.showsMessageShareButton());
                         require(!ChatSettings.showsMessagesFromAuthor());
+                        require(ChatSettings.groupsMessageMenuActions());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -158,6 +160,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.showsMessagesFromAuthor());
                         ChatSettings.setShowsMessagesFromAuthor(false);
                         require(!ChatSettings.showsMessagesFromAuthor());
+                        ChatSettings.setGroupsMessageMenuActions(false);
+                        require(!ChatSettings.groupsMessageMenuActions());
+                        ChatSettings.setGroupsMessageMenuActions(true);
+                        require(ChatSettings.groupsMessageMenuActions());
                     }
 
                     private static void require(boolean value) {
@@ -459,6 +465,64 @@ class ChatSettingsTest(unittest.TestCase):
             activity,
         )
         self.assertIn("ChatSettings.setShowsMessagesFromAuthor(shown)", activity)
+
+    def test_chat_activity_can_group_primary_message_menu_actions(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        action_row = (
+            JAVA / "ui/Components/FluxGramMessageMenuActionRow.java"
+        ).read_text()
+
+        grouping = chat.split(
+            "&& ChatSettings.groupsMessageMenuActions()", 1
+        )[1].split("if (options.isEmpty()", 1)[0]
+        self.assertIn("knownVisibleActionCount > 5", grouping)
+        self.assertIn("options.contains(OPTION_TRANSLATE)", chat)
+        self.assertIn("welcomeMessageRevert && options.contains(OPTION_DELETE)", chat)
+        self.assertIn("welcomeMessageRevert && priority[0] == OPTION_DELETE", grouping)
+        self.assertIn("selectedObject.messageOwner.originalLanguage", chat)
+        self.assertIn("knownVisibleActionCount == 5", chat)
+        self.assertIn("&& !menuLanguageResolved", chat)
+        self.assertIn("createMenu(v, singleMessageMenu, listView, x, y, searchGroup, longpress, suggestEdit, true, language)", chat)
+        self.assertIn("detectionSequence != messageMenuLanguageDetectionSequence", chat)
+        self.assertIn("!isMessageMenuSourceCurrent(v, message)", chat)
+        self.assertIn("actualMessage.getDialogId() == expectedMessage.getDialogId()", chat)
+        self.assertIn("actualMessage.getId() == expectedMessage.getId()", chat)
+        self.assertGreaterEqual(
+            chat.count("messageMenuLanguageDetectionSequence++"),
+            3,
+        )
+        self.assertIn("{OPTION_REPLY}", grouping)
+        self.assertIn("{OPTION_DELETE}", grouping)
+        self.assertIn("{OPTION_COPY, OPTION_COPY_PHONE_NUMBER}", grouping)
+        self.assertIn("{OPTION_EDIT}", grouping)
+        self.assertIn("{OPTION_COPY_LINK}", grouping)
+        self.assertIn("{OPTION_FORWARD}", grouping)
+        self.assertIn("groupedActionIcons.add(icons.remove(index))", grouping)
+        self.assertIn("groupedActionItems.add(items.remove(index))", grouping)
+        self.assertIn("groupedActionOptions.add(options.remove(index))", grouping)
+        self.assertIn("groupedActionOptions.size() == 4", grouping)
+        self.assertIn("processSelectedOption(actionOption)", chat)
+        self.assertIn("scrimPopupContainerLayout.applyViewBottom(popupBottomLayout)", chat)
+        self.assertIn("button.setContentDescription(label)", action_row)
+        self.assertIn("button.setEnabled(enabled)", action_row)
+        self.assertIn("Theme.key_actionBarDefaultSubmenuBackground", action_row)
+        self.assertIn("public void updateColors()", action_row)
+        self.assertIn("setMinimumWidth(AndroidUtilities.dp(224))", action_row)
+        scrim = (
+            JAVA / "ui/Components/ChatScrimPopupContainerLayout.java"
+        ).read_text()
+        self.assertIn("popupParams.weight = 1f", scrim)
+        self.assertIn("if (LocaleController.isRTL)", scrim)
+        self.assertIn("leftMargin = widthDiff + dp(36)", scrim)
+        self.assertIn(
+            ".setChecked(ChatSettings.groupsMessageMenuActions())",
+            activity,
+        )
+        self.assertIn(
+            "ChatSettings.setGroupsMessageMenuActions(grouped)",
+            activity,
+        )
 
     def test_chat_activity_hides_keyboard_only_during_message_list_drag(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()

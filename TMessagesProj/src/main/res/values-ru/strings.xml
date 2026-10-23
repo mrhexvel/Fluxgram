@@ -461,6 +461,7 @@
     <string name="FluxGramShowMessageViews">Показывать счётчик просмотров</string>
     <string name="FluxGramShowMessageShareButton">Показывать кнопку «Поделиться» у сообщений</string>
     <string name="FluxGramMessageMenu">Меню сообщения</string>
+    <string name="FluxGramGroupMessageMenuActions">Группировать действия меню</string>
     <string name="FluxGramMessagesFromAuthor">Сообщения автора</string>
     <string name="FluxGramShowMessageReactionsInfo">Управляет только плашками реакций под сообщениями. Отправка реакций, меню, уведомления и истории не меняются.</string>
     <string name="FluxGramMessageGestures">Жесты сообщений</string>

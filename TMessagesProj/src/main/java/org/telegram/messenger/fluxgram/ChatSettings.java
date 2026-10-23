@@ -16,6 +16,7 @@ public final class ChatSettings {
     private static final String SHOW_MESSAGE_VIEWS = "fluxgram_show_message_views";
     private static final String SHOW_MESSAGE_SHARE_BUTTON = "fluxgram_show_message_share_button";
     private static final String SHOW_MESSAGES_FROM_AUTHOR = "fluxgram_show_messages_from_author";
+    private static final String GROUP_MESSAGE_MENU_ACTIONS = "fluxgram_group_message_menu_actions";
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -29,6 +30,7 @@ public final class ChatSettings {
     private static volatile boolean showMessageViews;
     private static volatile boolean showMessageShareButton;
     private static volatile boolean showMessagesFromAuthor;
+    private static volatile boolean groupMessageMenuActions;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -217,6 +219,23 @@ public final class ChatSettings {
         showMessagesFromAuthor = shown;
     }
 
+    public static boolean groupsMessageMenuActions() {
+        ensureLoaded();
+
+        return groupMessageMenuActions;
+    }
+
+    public static synchronized void setGroupsMessageMenuActions(boolean grouped) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(GROUP_MESSAGE_MENU_ACTIONS, grouped)
+                .apply();
+
+        groupMessageMenuActions = grouped;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -282,6 +301,11 @@ public final class ChatSettings {
                 showMessagesFromAuthor = preferences.getBoolean(SHOW_MESSAGES_FROM_AUTHOR, false);
             } catch (ClassCastException exception) {
                 showMessagesFromAuthor = false;
+            }
+            try {
+                groupMessageMenuActions = preferences.getBoolean(GROUP_MESSAGE_MENU_ACTIONS, true);
+            } catch (ClassCastException exception) {
+                groupMessageMenuActions = true;
             }
             loaded = true;
         }

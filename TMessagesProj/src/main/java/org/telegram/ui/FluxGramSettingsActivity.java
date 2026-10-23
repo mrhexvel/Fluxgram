@@ -150,6 +150,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int SHOW_MESSAGE_VIEWS = 72;
     private static final int SHOW_MESSAGE_SHARE_BUTTON = 73;
     private static final int SHOW_MESSAGES_FROM_AUTHOR = 74;
+    private static final int GROUP_MESSAGE_MENU_ACTIONS = 75;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -655,6 +656,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     R.string.FluxGramShowMessageReactionsInfo)));
             addSectionLabel(items, R.string.FluxGramMessageMenu);
             items.add(UItem.asCheck(
+                    GROUP_MESSAGE_MENU_ACTIONS,
+                    LocaleController.getString(R.string.FluxGramGroupMessageMenuActions)
+            ).setChecked(ChatSettings.groupsMessageMenuActions()));
+            items.add(UItem.asCheck(
                     SHOW_MESSAGES_FROM_AUTHOR,
                     LocaleController.getString(R.string.FluxGramMessagesFromAuthor)
             ).setChecked(ChatSettings.showsMessagesFromAuthor()));
@@ -1108,6 +1113,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean shown = !ChatSettings.showsMessagesFromAuthor();
                 ChatSettings.setShowsMessagesFromAuthor(shown);
                 ((TextCheckCell) view).setChecked(shown);
+            } else if (item.id == GROUP_MESSAGE_MENU_ACTIONS) {
+                boolean grouped = !ChatSettings.groupsMessageMenuActions();
+                ChatSettings.setGroupsMessageMenuActions(grouped);
+                ((TextCheckCell) view).setChecked(grouped);
             } else if (item.id == DOUBLE_TAP_MESSAGES) {
                 boolean enabled = !MessageGestureSettings.getState().isDoubleTapEnabled();
                 MessageGestureSettings.setDoubleTapEnabled(enabled);

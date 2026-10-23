@@ -3,12 +3,10 @@ package org.telegram.ui.Components;
 import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.content.Context;
-import android.util.Log;
 import android.view.View;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LocaleController;
 import org.telegram.ui.ActionBar.ActionBarPopupWindow;
 
 public class ChatScrimPopupContainerLayout extends LinearLayout {
@@ -36,6 +34,14 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (maxHeight != 0) {
+            if (bottomView != null
+                    && getMeasuredHeight() > maxHeight
+                    && popupWindowLayout != null
+                    && popupWindowLayout.getParent() == this) {
+                LayoutParams popupParams = (LayoutParams) popupWindowLayout.getLayoutParams();
+                popupParams.height = 0;
+                popupParams.weight = 1f;
+            }
             heightMeasureSpec = MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.AT_MOST);
         }
         if (reactionsLayout != null && popupWindowLayout != null) {
@@ -113,9 +119,17 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
                     bottomView.getLayoutParams().width = LayoutHelper.MATCH_PARENT;
                 }
                 if (popupWindowLayout.getSwipeBack() != null) {
-                    ((LayoutParams) bottomView.getLayoutParams()).rightMargin = widthDiff + dp(36);
+                    if (LocaleController.isRTL) {
+                        ((LayoutParams) bottomView.getLayoutParams()).leftMargin = widthDiff + dp(36);
+                    } else {
+                        ((LayoutParams) bottomView.getLayoutParams()).rightMargin = widthDiff + dp(36);
+                    }
                 } else {
-                    ((LayoutParams) bottomView.getLayoutParams()).rightMargin = dp(36);
+                    if (LocaleController.isRTL) {
+                        ((LayoutParams) bottomView.getLayoutParams()).leftMargin = dp(36);
+                    } else {
+                        ((LayoutParams) bottomView.getLayoutParams()).rightMargin = dp(36);
+                    }
                 }
             }
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -133,7 +147,7 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
         }
     }
 
-    public void applyViewBottom(FrameLayout bottomView) {
+    public void applyViewBottom(View bottomView) {
         this.bottomView = bottomView;
     }
 

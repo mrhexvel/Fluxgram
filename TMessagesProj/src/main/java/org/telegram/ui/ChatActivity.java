@@ -1079,6 +1079,8 @@ public class ChatActivity extends BaseFragment implements
     private boolean scrimPopupWindowHideDimOnDismiss = true;
     private int scrimPopupX, scrimPopupY;
     private ActionBarMenuSubItem[] scrimPopupWindowItems;
+    private FluxGramMessageMenuActionRow scrimPopupActionRow;
+    private int messageMenuLanguageDetectionSequence;
     private ActionBarMenuSubItem menuDeleteItem;
     private final Runnable updateDeleteItemRunnable = new Runnable() {
         @Override
@@ -5270,6 +5272,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onFragmentDestroy() {
+        messageMenuLanguageDetectionSequence++;
         messageMenuMetadataController.cancel();
         fluxGramMessageActions.destroy();
         pluginChatLifecycle.onDestroyed();
@@ -32696,6 +32699,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onPause() {
+        messageMenuLanguageDetectionSequence++;
         messageMenuMetadataController.cancel();
 
         super.onPause();
@@ -33536,8 +33540,43 @@ public class ChatActivity extends BaseFragment implements
         return createMenu(v, single, listView, x, y, searchGroup, longpress, false);
     }
 
+    private boolean isMessageMenuSourceCurrent(View view, MessageObject expectedMessage) {
+        if (isPaused || isFinishing() || fragmentView == null || getParentActivity() == null) {
+            return false;
+        }
+
+        MessageObject actualMessage;
+        if (view instanceof ChatMessageCell) {
+            actualMessage = ((ChatMessageCell) view).getMessageObject();
+        } else if (view instanceof ChatActionCell) {
+            actualMessage = ((ChatActionCell) view).getMessageObject();
+        } else {
+            return false;
+        }
+
+        return actualMessage != null
+                && actualMessage.getDialogId() == expectedMessage.getDialogId()
+                && actualMessage.getId() == expectedMessage.getId();
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private boolean createMenu(View v, boolean single, boolean listView, float x, float y, boolean searchGroup, boolean longpress, boolean suggestEdit) {
+        messageMenuLanguageDetectionSequence++;
+        return createMenu(v, single, listView, x, y, searchGroup, longpress, suggestEdit, false, null);
+    }
+
+    private boolean createMenu(
+            View v,
+            boolean single,
+            boolean listView,
+            float x,
+            float y,
+            boolean searchGroup,
+            boolean longpress,
+            boolean suggestEdit,
+            boolean menuLanguageResolved,
+            String menuDetectedLanguage
+    ) {
         if (actionBar.isActionModeShowed() || isReport()) {
             return false;
         }
@@ -33563,7 +33602,7 @@ public class ChatActivity extends BaseFragment implements
         final boolean singleMessageMenu = single;
 
         if (prepareMessageMenu(v, message, !suggestEdit,
-                () -> createMenu(v, singleMessageMenu, listView, x, y, searchGroup, longpress, suggestEdit))) {
+                () -> createMenu(v, singleMessageMenu, listView, x, y, searchGroup, longpress, suggestEdit, menuLanguageResolved, menuDetectedLanguage))) {
             return true;
         }
 
@@ -33758,6 +33797,9 @@ public class ChatActivity extends BaseFragment implements
             ArrayList<Integer> icons = new ArrayList<>();
             ArrayList<CharSequence> items = new ArrayList<>();
             final ArrayList<Integer> options = new ArrayList<>();
+            final ArrayList<Integer> groupedActionIcons = new ArrayList<>();
+            final ArrayList<CharSequence> groupedActionItems = new ArrayList<>();
+            final ArrayList<Integer> groupedActionOptions = new ArrayList<>();
             View optionsView = null;
 
             if (AndroidUtilities.isAccessibilityScreenReaderEnabled() && message.messageOwner != null && message.messageOwner.from_id != null && message.messageOwner.from_id.user_id != getUserConfig().clientUserId && chatMode != MODE_SAVED) {
@@ -33856,6 +33898,113 @@ public class ChatActivity extends BaseFragment implements
                 icons.add(R.drawable.msg_calendar2);
             }
 
+            boolean welcomeMessageRevert = showWelcomeMessageRevertOption(selectedObject);
+            int knownVisibleActionCount = options.size();
+            if (welcomeMessageRevert && options.contains(OPTION_DELETE)) {
+                knownVisibleActionCount--;
+            }
+            if (options.contains(OPTION_TRANSLATE)) {
+                boolean translateVisible = false;
+                if (selectedObject != null && selectedObject.messageOwner != null) {
+                    TL_iv.RichMessage richMessage = selectedObject.type == MessageObject.TYPE_ARTICLE
+                            ? selectedObject.messageOwner.rich_message
+                            : null;
+                    if (richMessage != null) {
+                        translateVisible = true;
+                    } else if (selectedObject.messageOwner.originalLanguage != null
+                            || menuLanguageResolved && menuDetectedLanguage != null) {
+                        String fromLang = selectedObject.messageOwner.originalLanguage != null
+                                ? selectedObject.messageOwner.originalLanguage
+                                : menuDetectedLanguage;
+                        String toLangDefault = LocaleController.getInstance().getCurrentLocale().getLanguage();
+                        String toLang = TranslateAlert2.getToLanguage();
+                        boolean translateEnabled = getMessagesController().getTranslateController().isContextTranslateEnabled();
+                        translateVisible = (!fromLang.equals(toLang)
+                                || !fromLang.equals(toLangDefault)
+                                || fromLang.equals(TranslateController.UNKNOWN_LANGUAGE))
+                                && (translateEnabled && !RestrictedLanguagesSelectActivity.getRestrictedLanguages().contains(fromLang)
+                                || (currentChat != null && (currentChat.has_link || ChatObject.isPublic(currentChat))
+                                || selectedObject.messageOwner.fwd_from != null)
+                                && ("uk".equals(fromLang) || "ru".equals(fromLang)));
+                    } else if (!menuLanguageResolved && !LanguageDetector.hasSupport()) {
+                        translateVisible = getMessagesController().getTranslateController().isContextTranslateEnabled();
+                    }
+                }
+                if (!translateVisible) {
+                    knownVisibleActionCount--;
+                }
+            }
+
+            if (optionsView == null
+                    && !suggestEdit
+                    && ChatSettings.groupsMessageMenuActions()
+                    && options.contains(OPTION_TRANSLATE)
+                    && knownVisibleActionCount == 5
+                    && !menuLanguageResolved
+                    && selectedObject != null
+                    && selectedObject.messageOwner != null
+                    && selectedObject.messageOwner.originalLanguage == null
+                    && LanguageDetector.hasSupport()) {
+                int[] messageIdToTranslate = new int[]{message.getId()};
+                CharSequence messageText = message.getMessageTextToTranslate(groupedMessages, messageIdToTranslate);
+                int detectionSequence = messageMenuLanguageDetectionSequence;
+                LanguageDetector.detectLanguage(
+                        messageText.toString(),
+                        language -> {
+                            if (detectionSequence != messageMenuLanguageDetectionSequence
+                                    || !isMessageMenuSourceCurrent(v, message)) {
+                                return;
+                            }
+                            createMenu(v, singleMessageMenu, listView, x, y, searchGroup, longpress, suggestEdit, true, language);
+                        },
+                        exception -> {
+                            if (detectionSequence != messageMenuLanguageDetectionSequence
+                                    || !isMessageMenuSourceCurrent(v, message)) {
+                                return;
+                            }
+                            createMenu(v, singleMessageMenu, listView, x, y, searchGroup, longpress, suggestEdit, true, null);
+                        }
+                );
+                return true;
+            }
+
+            if (optionsView == null
+                    && !suggestEdit
+                    && ChatSettings.groupsMessageMenuActions()
+                    && knownVisibleActionCount > 5) {
+                int[][] groupedActionPriorities = {
+                        {OPTION_REPLY},
+                        {OPTION_DELETE},
+                        {OPTION_COPY, OPTION_COPY_PHONE_NUMBER},
+                        {OPTION_EDIT},
+                        {OPTION_COPY_LINK},
+                        {OPTION_FORWARD}
+                };
+
+                for (int[] priority : groupedActionPriorities) {
+                    if (welcomeMessageRevert && priority[0] == OPTION_DELETE) {
+                        continue;
+                    }
+                    int index = -1;
+                    for (int option : priority) {
+                        index = options.indexOf(option);
+                        if (index >= 0) {
+                            break;
+                        }
+                    }
+                    if (index < 0) {
+                        continue;
+                    }
+
+                    groupedActionIcons.add(icons.remove(index));
+                    groupedActionItems.add(items.remove(index));
+                    groupedActionOptions.add(options.remove(index));
+                    if (groupedActionOptions.size() == 4) {
+                        break;
+                    }
+                }
+            }
+
             if (options.isEmpty() && optionsView == null) {
                 return false;
             }
@@ -33927,7 +34076,9 @@ public class ChatActivity extends BaseFragment implements
             }
 
             ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert4, themeDelegate, flags);
-            popupLayout.setMinimumWidth(AndroidUtilities.dp(200));
+            popupLayout.setMinimumWidth(AndroidUtilities.dp(
+                    groupedActionOptions.isEmpty() ? 200 : 224
+            ));
             Rect backgroundPaddings = new Rect();
             Drawable shadowDrawable = getParentActivity().getResources().getDrawable(R.drawable.popup_fixed_alert4).mutate();
             shadowDrawable.getPadding(backgroundPaddings);
@@ -33942,6 +34093,7 @@ public class ChatActivity extends BaseFragment implements
                 .setPadding(dp(8)));
 
             boolean addGap = false;
+            FluxGramMessageMenuActionRow groupedActionRow = null;
 
             if (optionsView == null) {
                 if (showWelcomeMessageRevertOption(selectedObject)) {
@@ -34688,6 +34840,28 @@ public class ChatActivity extends BaseFragment implements
                         popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
                     }
                 }
+                if (!groupedActionOptions.isEmpty()) {
+                    groupedActionRow = new FluxGramMessageMenuActionRow(
+                            contentView.getContext(),
+                            themeDelegate
+                    );
+                    for (int i = 0; i < groupedActionOptions.size(); i++) {
+                        final int actionOption = groupedActionOptions.get(i);
+                        groupedActionRow.addAction(
+                                groupedActionIcons.get(i),
+                                groupedActionItems.get(i),
+                                true,
+                                view -> {
+                                    if (selectedObject == null) {
+                                        return;
+                                    }
+                                    processSelectedOption(actionOption);
+                                }
+                        );
+                    }
+                }
+                scrimPopupActionRow = groupedActionRow;
+
                 scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];
                 for (int a = 0, N = items.size(); a < N; a++) {
                     final Integer option = options.get(a);
@@ -34769,9 +34943,14 @@ public class ChatActivity extends BaseFragment implements
                                     updateTopPanel(true);
                                 }
                             });
-                        } else if (selectedObject != null && selectedObject.messageOwner != null && selectedObject.messageOwner.originalLanguage != null) {
+                        } else if (selectedObject != null
+                                && selectedObject.messageOwner != null
+                                && (selectedObject.messageOwner.originalLanguage != null
+                                || menuLanguageResolved && menuDetectedLanguage != null)) {
                             waitForLangDetection.set(false);
-                            String fromLang = selectedObject.messageOwner.originalLanguage;
+                            String fromLang = selectedObject.messageOwner.originalLanguage != null
+                                    ? selectedObject.messageOwner.originalLanguage
+                                    : menuDetectedLanguage;
                             cell.setVisibility(
                                 fromLang != null && (!fromLang.equals(toLang) || !fromLang.equals(toLangDefault) || fromLang.equals(TranslateController.UNKNOWN_LANGUAGE)) && (
                                     translateEnabled && !RestrictedLanguagesSelectActivity.getRestrictedLanguages().contains(fromLang) ||
@@ -34808,7 +34987,7 @@ public class ChatActivity extends BaseFragment implements
                                     updateTopPanel(true);
                                 }
                             });
-                        } else if (LanguageDetector.hasSupport()) {
+                        } else if (!menuLanguageResolved && LanguageDetector.hasSupport()) {
                             final String[] fromLang = {null};
                             cell.setVisibility(View.GONE);
                             waitForLangDetection.set(true);
@@ -34871,7 +35050,7 @@ public class ChatActivity extends BaseFragment implements
                                     onLangDetectionDone.getAndSet(null).run();
                                 }
                             }, 250);
-                        } else if (translateEnabled) {
+                        } else if (!menuLanguageResolved && translateEnabled) {
                             cell.setOnClickListener(e -> {
                                 if (selectedObject == null || i >= options.size() || getParentActivity() == null) {
                                     return;
@@ -35075,6 +35254,29 @@ public class ChatActivity extends BaseFragment implements
                 boolean showNoForwards = (isPeerNoForwards() || message.messageOwner.noforwards && currentUser != null && currentUser.bot) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY;
                 scrimPopupContainerLayout.addView(popupLayout, LayoutHelper.createLinearRelatively(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, 0, isReactionsAvailable ? 36 : 0, 0));
                 scrimPopupContainerLayout.setPopupWindowLayout(popupLayout);
+                LinearLayout popupBottomLayout = null;
+                if (groupedActionRow != null) {
+                    popupBottomLayout = new LinearLayout(contentView.getContext());
+                    popupBottomLayout.setOrientation(LinearLayout.VERTICAL);
+                    popupBottomLayout.addView(groupedActionRow, LayoutHelper.createLinear(
+                            LayoutHelper.MATCH_PARENT,
+                            LayoutHelper.WRAP_CONTENT,
+                            0,
+                            -8,
+                            0,
+                            0
+                    ));
+                    scrimPopupContainerLayout.addView(popupBottomLayout, LayoutHelper.createLinearRelatively(
+                            LayoutHelper.MATCH_PARENT,
+                            LayoutHelper.WRAP_CONTENT,
+                            Gravity.LEFT,
+                            isReactionsAvailable ? 16 : 0,
+                            0,
+                            isReactionsAvailable ? 36 : 0,
+                            0
+                    ));
+                    scrimPopupContainerLayout.applyViewBottom(popupBottomLayout);
+                }
                 if (showNoForwards) {
                     popupLayout.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
                     boolean isChannel = ChatObject.isChannel(currentChat) && !currentChat.megagroup;
@@ -35107,8 +35309,19 @@ public class ChatActivity extends BaseFragment implements
                     FrameLayout fl = new FrameLayout(contentView.getContext());
                     fl.setBackground(shadowDrawable2);
                     fl.addView(tv, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 11, 11, 11, 11));
-                    scrimPopupContainerLayout.addView(fl, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, -8, isReactionsAvailable ? 36 : 0, 0));
-                    scrimPopupContainerLayout.applyViewBottom(fl);
+                    if (popupBottomLayout != null) {
+                        popupBottomLayout.addView(fl, LayoutHelper.createLinear(
+                                LayoutHelper.MATCH_PARENT,
+                                LayoutHelper.WRAP_CONTENT,
+                                0,
+                                -8,
+                                0,
+                                0
+                        ));
+                    } else {
+                        scrimPopupContainerLayout.addView(fl, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, -8, isReactionsAvailable ? 36 : 0, 0));
+                        scrimPopupContainerLayout.applyViewBottom(fl);
+                    }
                 }
 
                 if (message.isSendError() && message.messageOwner != null && message.messageOwner.errorNewPriceStars > 0) {
@@ -35130,8 +35343,19 @@ public class ChatActivity extends BaseFragment implements
                     FrameLayout fl = new FrameLayout(contentView.getContext());
                     fl.setBackground(shadowDrawable2);
                     fl.addView(tv, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 11, 11, 11, 11));
-                    scrimPopupContainerLayout.addView(fl, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, -8, isReactionsAvailable ? 36 : 0, 0));
-                    scrimPopupContainerLayout.applyViewBottom(fl);
+                    if (popupBottomLayout != null) {
+                        popupBottomLayout.addView(fl, LayoutHelper.createLinear(
+                                LayoutHelper.MATCH_PARENT,
+                                LayoutHelper.WRAP_CONTENT,
+                                0,
+                                -8,
+                                0,
+                                0
+                        ));
+                    } else {
+                        scrimPopupContainerLayout.addView(fl, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, -8, isReactionsAvailable ? 36 : 0, 0));
+                        scrimPopupContainerLayout.applyViewBottom(fl);
+                    }
                 }
 
                 if (message.contentType == 0) {
@@ -35206,6 +35430,7 @@ public class ChatActivity extends BaseFragment implements
                     scrimPopupWindow = null;
                     menuDeleteItem = null;
                     scrimPopupWindowItems = null;
+                    scrimPopupActionRow = null;
                     chatLayoutManager.setCanScrollVertically(true);
                     if (scrimPopupWindowHideDimOnDismiss) {
                         dimBehindView(false);
@@ -45640,6 +45865,9 @@ public class ChatActivity extends BaseFragment implements
                     scrimPopupWindowItems[a].setColors(getThemedColor(Theme.key_actionBarDefaultSubmenuItem), getThemedColor(Theme.key_actionBarDefaultSubmenuItemIcon));
                     scrimPopupWindowItems[a].setSelectorColor(getThemedColor(Theme.key_dialogButtonSelector));
                 }
+            }
+            if (scrimPopupActionRow != null) {
+                scrimPopupActionRow.updateColors();
             }
             if (scrimPopupWindow != null) {
                 final View contentView = scrimPopupWindow.getContentView();
