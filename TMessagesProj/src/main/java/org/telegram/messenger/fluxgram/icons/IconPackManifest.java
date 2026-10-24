@@ -90,8 +90,12 @@ public final class IconPackManifest {
 
             reader.endObject();
             require(reader.peek() == JsonToken.END_DOCUMENT, "Trailing manifest data");
-        } catch (IllegalStateException | NumberFormatException error) {
-            throw new IOException("Invalid icon pack manifest", error);
+        } catch (IconPackArchiveValidator.InvalidArchiveException error) {
+            throw error;
+        } catch (IOException | IllegalStateException | NumberFormatException error) {
+            throw new IconPackArchiveValidator.InvalidArchiveException(
+                    "Invalid icon pack manifest",
+                    error);
         } finally {
             reader.close();
         }
@@ -159,7 +163,7 @@ public final class IconPackManifest {
 
     static void require(boolean condition, String message) throws IOException {
         if (!condition) {
-            throw new IOException(message);
+            throw new IconPackArchiveValidator.InvalidArchiveException(message);
         }
     }
 

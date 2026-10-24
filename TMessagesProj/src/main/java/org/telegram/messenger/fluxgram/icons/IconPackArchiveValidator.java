@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -35,6 +36,16 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public final class IconPackArchiveValidator {
+    public static final class InvalidArchiveException extends IOException {
+        InvalidArchiveException(String message) {
+            super(message);
+        }
+
+        InvalidArchiveException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     public static final long MAX_ARCHIVE_BYTES = 16L * 1024 * 1024;
     public static final long MAX_UNPACKED_BYTES = 64L * 1024 * 1024;
     public static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
@@ -238,7 +249,6 @@ public final class IconPackArchiveValidator {
                 IconPackManifest manifest = IconPackManifest.parse(decodeUtf8(metadata));
 
                 Map<String, String> iconHashes = validateIcons(zip, paths, manifest, catalog);
-                rejectExtraFiles(paths, iconHashes.keySet());
 
                 Result result = new Result(
                         manifest,
@@ -251,6 +261,8 @@ public final class IconPackArchiveValidator {
                 keep = true;
 
                 return new Snapshot(snapshot, result);
+            } catch (ZipException error) {
+                throw new InvalidArchiveException("Invalid icon pack archive", error);
             }
         } finally {
             if (!keep && !snapshot.delete() && snapshot.exists()) {
@@ -414,22 +426,34 @@ public final class IconPackArchiveValidator {
             Map<String, Boolean> paths,
             IconPackManifest manifest,
             Catalog catalog) throws IOException {
-        Set<String> checkedPaths = new HashSet<>();
+        Set<String> supportedPaths = new HashSet<>();
         LinkedHashMap<String, String> hashes = new LinkedHashMap<>();
 
         for (Map.Entry<String, String> icon : manifest.icons.entrySet()) {
-            IconPackManifest.require(
-                    catalog != null && catalog.contains(icon.getKey()),
-                    "Unsupported icon resource: " + icon.getKey());
-            IconPackManifest.require(
-                    Boolean.FALSE.equals(paths.get(icon.getValue())),
-                    "Missing icon file: " + icon.getValue());
-
-            if (!checkedPaths.add(icon.getValue())) {
+            if (catalog == null || !catalog.contains(icon.getKey())) {
                 continue;
             }
 
-            ZipEntry entry = zip.getEntry(icon.getValue());
+            IconPackManifest.require(
+                    Boolean.FALSE.equals(paths.get(icon.getValue())),
+                    "Missing icon file: " + icon.getValue());
+            supportedPaths.add(icon.getValue());
+        }
+
+        IconPackManifest.require(!supportedPaths.isEmpty(), "Icon pack has no supported resources");
+
+        for (Map.Entry<String, Boolean> path : paths.entrySet()) {
+            if (path.getValue() || path.getKey().equals("metadata.json")) {
+                continue;
+            }
+
+            IconPackManifest.validateIconPath(path.getKey());
+
+            if (!supportedPaths.contains(path.getKey())) {
+                continue;
+            }
+
+            ZipEntry entry = zip.getEntry(path.getKey());
 
             try (InputStream input = zip.getInputStream(entry);
                     ByteArrayOutputStream output = new ByteArrayOutputStream()) {
@@ -445,23 +469,12 @@ public final class IconPackArchiveValidator {
 
                 byte[] bytes = output.toByteArray();
 
-                validateIcon(bytes, icon.getValue(), catalog);
-                hashes.put(icon.getValue(), hex(digest().digest(bytes)));
+                validateIcon(bytes, path.getKey(), catalog);
+                hashes.put(path.getKey(), hex(digest().digest(bytes)));
             }
         }
 
         return hashes;
-    }
-
-    private static void rejectExtraFiles(Map<String, Boolean> paths, Set<String> iconPaths)
-            throws IOException {
-        for (Map.Entry<String, Boolean> path : paths.entrySet()) {
-            if (!path.getValue()) {
-                IconPackManifest.require(
-                        path.getKey().equals("metadata.json") || iconPaths.contains(path.getKey()),
-                        "Unexpected icon pack file: " + path.getKey());
-            }
-        }
     }
 
     private static int[] validatePng(byte[] bytes) throws IOException {
@@ -507,7 +520,7 @@ public final class IconPackArchiveValidator {
             offset += (int) length + 12;
 
             if (type.equals("IEND")) {
-                IconPackManifest.require(length == 0 && offset == bytes.length, "Invalid PNG end");
+                IconPackManifest.require(length == 0, "Invalid PNG end");
                 end = true;
                 break;
             }
@@ -603,7 +616,7 @@ public final class IconPackArchiveValidator {
 
             validateSvgElement(root, 0, count);
         } catch (ParserConfigurationException | SAXException error) {
-            throw new IOException("Invalid SVG icon", error);
+            throw new InvalidArchiveException("Invalid SVG icon", error);
         }
     }
 
@@ -696,7 +709,7 @@ public final class IconPackArchiveValidator {
 
             return number;
         } catch (NumberFormatException error) {
-            throw new IOException(message, error);
+            throw new InvalidArchiveException(message, error);
         }
     }
 
@@ -839,7 +852,7 @@ public final class IconPackArchiveValidator {
                     .decode(java.nio.ByteBuffer.wrap(bytes))
                     .toString();
         } catch (CharacterCodingException error) {
-            throw new IOException("Invalid UTF-8", error);
+            throw new InvalidArchiveException("Invalid UTF-8", error);
         }
     }
 

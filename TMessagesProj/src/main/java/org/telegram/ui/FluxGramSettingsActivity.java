@@ -41,6 +41,8 @@ import org.telegram.messenger.fluxgram.ReplyAppearanceSettings;
 import org.telegram.messenger.fluxgram.StickerSettings;
 import org.telegram.messenger.fluxgram.TabletModeSettings;
 import org.telegram.messenger.fluxgram.TransferSettings;
+import org.telegram.messenger.fluxgram.icons.IconPackManifest;
+import org.telegram.messenger.fluxgram.icons.IconPackRepository;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.Plugin;
 import org.telegram.messenger.plugins.PluginDeveloperBridge;
@@ -161,7 +163,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int ATTACH_CAMERA_INITIAL_FACING = 83;
     private static final int MIRROR_ATTACH_FRONT_PHOTOS = 84;
     private static final int RESET_ATTACH_CAMERA_ZOOM = 85;
+    private static final int IMPORT_ICON_PACK = 86;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
+    private static final int ICON_PACK_REQUEST = 1002;
 
     private final int section;
     private UniversalRecyclerView listView;
@@ -175,6 +179,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private FluxGramStickerShapeCell stickerShapeCell;
     private boolean replyAppearanceExpanded;
     private boolean destroyed;
+    private int iconPackImportState;
+    private int iconPackRequestGeneration;
+    private IconPackRepository.Review iconPackReview;
 
     private final Runnable refresh = () -> {
         if (listView != null && !destroyed) {
@@ -220,6 +227,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
     @Override
     public void onFragmentDestroy() {
         destroyed = true;
+        iconPackRequestGeneration++;
+        IconPackRepository.discard(iconPackReview);
+        iconPackReview = null;
         AndroidUtilities.cancelRunOnUIThread(rebuildFormattingFragments);
         AndroidUtilities.cancelRunOnUIThread(rebuildFolderFragments);
         AndroidUtilities.cancelRunOnUIThread(rebuildAppearanceFragments);
@@ -469,6 +479,19 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramUseSystemEmoji)
             ).setChecked(SharedConfig.useSystemEmoji));
             items.add(UItem.asShadow(null));
+            addSectionLabel(items, R.string.FluxGramInterfaceIcons);
+            items.add(UItem.asButton(
+                    IMPORT_ICON_PACK,
+                    R.drawable.msg_download,
+                    LocaleController.getString(R.string.FluxGramImportIconPack),
+                    iconPackImportState == 1
+                            ? LocaleController.getString(R.string.FluxGramIconPackChecking)
+                            : iconPackImportState == 2
+                                    ? LocaleController.getString(R.string.FluxGramIconPackInstalling)
+                                    : null
+            ).setEnabled(iconPackImportState == 0));
+            items.add(UItem.asShadow(LocaleController.getString(
+                    R.string.FluxGramImportIconPackInfo)));
             addSectionLabel(items, R.string.FluxGramChatList);
             items.add(UItem.asCustom(appearancePreview, 88));
             items.add(UItem.asButton(
@@ -1261,6 +1284,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
         if (section == APPEARANCE) {
             if (item.id == FONTS) {
                 presentFragment(new FluxGramFontSettingsActivity());
+            } else if (item.id == IMPORT_ICON_PACK) {
+                selectIconPack();
             } else if (item.id == USE_SYSTEM_EMOJI) {
                 SharedConfig.toggleUseSystemEmoji();
                 ((TextCheckCell) view).setChecked(SharedConfig.useSystemEmoji);
@@ -1402,6 +1427,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
 
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (requestCode == ICON_PACK_REQUEST) {
+            handleIconPackResult(resultCode, data);
+
+            return;
+        }
+
         if (requestCode != DOWNLOADS_DIRECTORY_REQUEST) {
             return;
         }
@@ -1428,6 +1459,173 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 .setMessage(LocaleController.getString(R.string.FluxGramFolderAccessError))
                 .setPositiveButton(LocaleController.getString(R.string.OK), null)
                 .create());
+    }
+
+    private void selectIconPack() {
+        if (iconPackImportState != 0) {
+            return;
+        }
+
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.setType("*/*");
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                    "application/zip",
+                    "application/octet-stream"
+            });
+            startActivityForResult(intent, ICON_PACK_REQUEST);
+        } catch (RuntimeException error) {
+            showIconPackError(R.string.FluxGramIconPackReadFailed);
+        }
+    }
+
+    private void handleIconPackResult(int resultCode, Intent data) {
+        if (section != APPEARANCE
+                || resultCode != Activity.RESULT_OK
+                || data == null
+                || data.getData() == null) {
+            return;
+        }
+
+        Uri uri = data.getData();
+        int generation = ++iconPackRequestGeneration;
+        iconPackImportState = 1;
+        updateIconPackRow();
+
+        IconPackRepository.review(uri, (review, error) -> {
+            if (destroyed || generation != iconPackRequestGeneration) {
+                IconPackRepository.discard(review);
+
+                return;
+            }
+
+            iconPackImportState = 0;
+            updateIconPackRow();
+
+            if (!isLastFragment() || isPaused()) {
+                IconPackRepository.discard(review);
+
+                return;
+            }
+
+            if (error != null || review == null) {
+                showIconPackError(iconPackReviewError(error));
+
+                return;
+            }
+
+            showIconPackReview(review, generation);
+        });
+    }
+
+    private void showIconPackReview(IconPackRepository.Review review, int generation) {
+        iconPackReview = review;
+        IconPackManifest manifest = review.result.manifest;
+        String details = review.isUpdate()
+                ? LocaleController.formatString(
+                        R.string.FluxGramIconPackUpdateDetails,
+                        review.previousVersion,
+                        manifest.version,
+                        manifest.author,
+                        manifest.icons.size())
+                : LocaleController.formatString(
+                        R.string.FluxGramIconPackDetails,
+                        manifest.version,
+                        manifest.author,
+                        manifest.icons.size());
+        AlertDialog dialog = new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(manifest.name)
+                .setMessage(details)
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .setPositiveButton(LocaleController.getString(review.isUpdate()
+                                ? R.string.FluxGramUpdateIconPack
+                                : R.string.FluxGramInstallIconPack),
+                        (ignored, which) -> installIconPack(review, generation))
+                .create();
+        if (showDialog(dialog, ignored -> {
+            if (iconPackReview == review) {
+                iconPackReview = null;
+                IconPackRepository.discard(review);
+            }
+        }) == null) {
+            iconPackReview = null;
+            IconPackRepository.discard(review);
+        }
+    }
+
+    private void installIconPack(IconPackRepository.Review review, int generation) {
+        if (destroyed
+                || generation != iconPackRequestGeneration
+                || iconPackReview != review) {
+            IconPackRepository.discard(review);
+
+            return;
+        }
+
+        iconPackReview = null;
+        iconPackImportState = 2;
+        updateIconPackRow();
+
+        IconPackRepository.install(review, (installed, error) -> {
+            if (destroyed || generation != iconPackRequestGeneration) {
+                return;
+            }
+
+            iconPackImportState = 0;
+            updateIconPackRow();
+
+            if (!isLastFragment() || isPaused()) {
+                return;
+            }
+
+            if (error != null || installed == null) {
+                showIconPackError(R.string.FluxGramIconPackInstallFailed);
+
+                return;
+            }
+
+            showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                    .setTitle(LocaleController.getString(R.string.FluxGramInterfaceIcons))
+                    .setMessage(LocaleController.getString(R.string.FluxGramIconPackInstalled))
+                    .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                    .create());
+        });
+    }
+
+    private void updateIconPackRow() {
+        if (listView != null && !destroyed) {
+            listView.adapter.update(true);
+        }
+    }
+
+    private void showIconPackError(int message) {
+        if (destroyed || getParentActivity() == null) {
+            return;
+        }
+
+        showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
+                .setTitle(LocaleController.getString(R.string.FluxGramIconPackError))
+                .setMessage(LocaleController.getString(message))
+                .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                .create());
+    }
+
+    private int iconPackReviewError(Exception error) {
+        if (error instanceof IconPackRepository.ImportException) {
+            IconPackRepository.Failure failure =
+                    ((IconPackRepository.ImportException) error).failure;
+
+            if (failure == IconPackRepository.Failure.READ) {
+                return R.string.FluxGramIconPackReadFailed;
+            }
+            if (failure == IconPackRepository.Failure.STORAGE) {
+                return R.string.FluxGramIconPackStorageFailed;
+            }
+        }
+
+        return R.string.FluxGramIconPackInvalid;
     }
 
     private void updateFormattingPreview(boolean updateHeader, boolean updateMessages) {

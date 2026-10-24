@@ -155,8 +155,28 @@ class IconPacksTest(unittest.TestCase):
         self.assertEqual(["example.pack", "Example"], fields[:2])
         self.assertEqual(hashlib.sha256(data).hexdigest(), fields[2])
 
-    def test_rejects_unknown_resource_missing_payload_and_unsafe_svg(self):
+    def test_ignores_unknown_resources_but_requires_supported_payload(self):
+        self.inspect(
+            self.archive(
+                icons={
+                    "msg_add": "icons/add.svg",
+                    "upstream_only": "icons/upstream.svg",
+                },
+                files={
+                    "icons/add.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h2v2z"/></svg>',
+                    "icons/upstream.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 2h4v4z"/></svg>',
+                },
+                extra_entries=[
+                    (
+                        "unused.svg",
+                        b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 3h5v5z"/></svg>',
+                    )
+                ],
+            )
+        )
         self.inspect(self.archive(), allowed="msg_delete", accepted=False)
+
+    def test_rejects_missing_payload_and_unsafe_svg(self):
         self.inspect(
             self.archive(icons={"msg_add": "icons/missing.svg"}),
             accepted=False,
@@ -177,10 +197,7 @@ class IconPacksTest(unittest.TestCase):
             ),
             accepted=False,
         )
-        self.inspect(
-            self.archive(extra_entries=[("unused.svg", b"<svg/>")]),
-            accepted=False,
-        )
+        self.inspect(self.archive(extra_entries=[("notes.txt", b"not an icon")]), accepted=False)
         self.inspect(
             self.archive(
                 files={
@@ -253,6 +270,12 @@ class IconPacksTest(unittest.TestCase):
             self.archive(
                 icons={"msg_add": "icons/add.png"},
                 files={"icons/add.png": valid},
+            )
+        )
+        self.inspect(
+            self.archive(
+                icons={"msg_add": "icons/add.png"},
+                files={"icons/add.png": valid + b'\x00[{"effectName":"TransformEffect"}]'},
             )
         )
         self.inspect(
