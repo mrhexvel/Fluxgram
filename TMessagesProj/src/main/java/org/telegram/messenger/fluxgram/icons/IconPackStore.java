@@ -55,6 +55,10 @@ public final class IconPackStore {
             this.generation = generation;
             this.iconHashes = iconHashes;
         }
+
+        String generation() {
+            return generation;
+        }
     }
 
     private final File root;
