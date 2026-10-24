@@ -159,6 +159,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int PHOTO_HD_DEFAULT = 81;
     private static final int SHOW_ATTACH_CAMERA_TILE = 82;
     private static final int ATTACH_CAMERA_INITIAL_FACING = 83;
+    private static final int MIRROR_ATTACH_FRONT_PHOTOS = 84;
+    private static final int RESET_ATTACH_CAMERA_ZOOM = 85;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -656,12 +658,24 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramAttachCameraInitialFacing),
                     attachCameraInitialFacingOption(ChatSettings.getAttachCameraInitialFacing())
             ));
+            items.add(UItem.asCheck(
+                    MIRROR_ATTACH_FRONT_PHOTOS,
+                    LocaleController.getString(R.string.FluxGramMirrorAttachFrontPhotos)
+            ).setChecked(ChatSettings.mirrorsAttachFrontPhotos()));
+            items.add(UItem.asCheck(
+                    RESET_ATTACH_CAMERA_ZOOM,
+                    LocaleController.getString(R.string.FluxGramResetAttachCameraZoom)
+            ).setChecked(ChatSettings.resetsAttachCameraZoom()));
             items.add(UItem.asShadow(
                     LocaleController.getString(R.string.FluxGramPhotoHdDefaultInfo)
                             + "\n\n"
                             + LocaleController.getString(R.string.FluxGramShowAttachCameraTileInfo)
                             + "\n\n"
-                            + LocaleController.getString(R.string.FluxGramAttachCameraInitialFacingInfo)));
+                            + LocaleController.getString(R.string.FluxGramAttachCameraInitialFacingInfo)
+                            + "\n\n"
+                            + LocaleController.getString(R.string.FluxGramMirrorAttachFrontPhotosInfo)
+                            + "\n\n"
+                            + LocaleController.getString(R.string.FluxGramResetAttachCameraZoomInfo)));
             addSectionLabel(items, R.string.FluxGramStickers);
             items.add(UItem.asCheck(
                     SHOW_GREETING_STICKER,
@@ -1160,6 +1174,14 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 parentLayout.rebuildFragments(0);
             } else if (item.id == ATTACH_CAMERA_INITIAL_FACING) {
                 showAttachCameraInitialFacingDialog();
+            } else if (item.id == MIRROR_ATTACH_FRONT_PHOTOS) {
+                boolean mirror = !ChatSettings.mirrorsAttachFrontPhotos();
+                ChatSettings.setMirrorsAttachFrontPhotos(mirror);
+                ((TextCheckCell) view).setChecked(mirror);
+            } else if (item.id == RESET_ATTACH_CAMERA_ZOOM) {
+                boolean reset = !ChatSettings.resetsAttachCameraZoom();
+                ChatSettings.setResetsAttachCameraZoom(reset);
+                ((TextCheckCell) view).setChecked(reset);
             } else if (item.id == SHOW_MESSAGE_REACTIONS) {
                 boolean shown = !ChatSettings.showsMessageReactions();
                 ChatSettings.setShowsMessageReactions(shown);

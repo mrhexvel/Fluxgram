@@ -111,6 +111,8 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_show_attach_camera_tile", 7);
                             MessagesController.preferences.putRaw("fluxgram_open_attach_camera_front", 7);
                             MessagesController.preferences.putRaw("fluxgram_remember_attach_camera_facing", 7);
+                            MessagesController.preferences.putRaw("fluxgram_mirror_attach_front_photos", 7);
+                            MessagesController.preferences.putRaw("fluxgram_reset_attach_camera_zoom", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -135,6 +137,8 @@ class ChatSettingsTest(unittest.TestCase):
                         require(ChatSettings.getAttachCameraInitialFacing() == (legacyFront
                                 ? ChatSettings.ATTACH_CAMERA_FRONT
                                 : ChatSettings.ATTACH_CAMERA_BACK));
+                        require(ChatSettings.mirrorsAttachFrontPhotos());
+                        require(ChatSettings.resetsAttachCameraZoom());
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -240,6 +244,18 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.opensAttachCameraFront());
                         ChatSettings.setAttachCameraInitialFacing(99);
                         require(ChatSettings.getAttachCameraInitialFacing() == ChatSettings.ATTACH_CAMERA_BACK);
+                        ChatSettings.setMirrorsAttachFrontPhotos(false);
+                        require(!ChatSettings.mirrorsAttachFrontPhotos());
+                        require(!MessagesController.preferences.getBoolean("fluxgram_mirror_attach_front_photos", true));
+                        ChatSettings.setMirrorsAttachFrontPhotos(true);
+                        require(ChatSettings.mirrorsAttachFrontPhotos());
+                        require(MessagesController.preferences.getBoolean("fluxgram_mirror_attach_front_photos", false));
+                        ChatSettings.setResetsAttachCameraZoom(false);
+                        require(!ChatSettings.resetsAttachCameraZoom());
+                        require(!MessagesController.preferences.getBoolean("fluxgram_reset_attach_camera_zoom", true));
+                        ChatSettings.setResetsAttachCameraZoom(true);
+                        require(ChatSettings.resetsAttachCameraZoom());
+                        require(MessagesController.preferences.getBoolean("fluxgram_reset_attach_camera_zoom", false));
                     }
 
                     private static void require(boolean value) {
@@ -1408,6 +1424,65 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn('name="FluxGramAttachCameraBack"', strings_ru)
         self.assertIn('name="FluxGramAttachCameraFront"', strings_ru)
         self.assertIn('name="FluxGramAttachCameraLastUsed"', strings_ru)
+
+    def test_attachment_camera_mirror_and_zoom_policies_are_scoped(self):
+        chat = (JAVA / "ui/ChatActivity.java").read_text()
+        alert = (JAVA / "ui/Components/ChatAttachAlert.java").read_text()
+        photo = (JAVA / "ui/Components/ChatAttachAlertPhotoLayout.java").read_text()
+        camera_view = (JAVA / "messenger/camera/CameraView.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        strings = (ROOT / "TMessagesProj/src/main/res/values/strings.xml").read_text()
+        strings_ru = (ROOT / "TMessagesProj/src/main/res/values-ru/strings.xml").read_text()
+
+        regular_open = chat.split("private void openAttachMenu()", 1)[1].split(
+            "public void openAttachMenuForCreatingSticker()", 1
+        )[0]
+        sticker_open = chat.split(
+            "public void openAttachMenuForCreatingSticker()", 1
+        )[1].split("private boolean isQuickRepliesOrWelcomeMessagesMode()", 1)[0]
+
+        self.assertEqual(1, chat.count("ChatSettings.mirrorsAttachFrontPhotos()"))
+        self.assertEqual(1, chat.count("ChatSettings.resetsAttachCameraZoom()"))
+        self.assertIn(
+            "setFrontCameraPhotoMirroring(ChatSettings.mirrorsAttachFrontPhotos())",
+            regular_open,
+        )
+        self.assertIn(
+            "setResetCameraZoomOnOpen(ChatSettings.resetsAttachCameraZoom())",
+            regular_open,
+        )
+        self.assertIn("setFrontCameraPhotoMirroring(null)", sticker_open)
+        self.assertIn("setResetCameraZoomOnOpen(true)", sticker_open)
+        self.assertNotIn("ChatSettings", alert)
+        self.assertNotIn("ChatSettings", photo)
+
+        shutter = photo.split("public void shutterReleased()", 1)[1].split(
+            "public boolean onTranslationChanged", 1
+        )[0]
+        self.assertIn("shouldMirrorFrontCameraPhoto", shutter)
+        self.assertIn("parentAlert.avatarPicker == 2", shutter)
+        self.assertIn("parentAlert.resetCameraZoomOnOpen", photo)
+        self.assertIn("applyCameraZoom(parentAlert.resetCameraZoomOnOpen)", photo)
+        self.assertIn("public void resetCameraZoom()", photo)
+
+        camera_zoom = camera_view.split("public void setZoom(float value)", 1)[1].split(
+            "public void focusToPoint", 1
+        )[0]
+        self.assertIn("zoom = Math.max(0.0f, Math.min(1.0f, value))", camera_zoom)
+        camera_init = camera_view.split("private void createCamera", 1)[1].split(
+            "protected void receivedAmplitude", 1
+        )[0]
+        self.assertIn("session.setZoom(zoom)", camera_init)
+        self.assertIn("sessionWrapper.setZoom(zoom)", camera_init)
+
+        self.assertIn("R.string.FluxGramMirrorAttachFrontPhotos", activity)
+        self.assertIn("R.string.FluxGramResetAttachCameraZoom", activity)
+        self.assertIn("ChatSettings.setMirrorsAttachFrontPhotos(mirror)", activity)
+        self.assertIn("ChatSettings.setResetsAttachCameraZoom(reset)", activity)
+        self.assertIn('name="FluxGramMirrorAttachFrontPhotos"', strings)
+        self.assertIn('name="FluxGramResetAttachCameraZoom"', strings)
+        self.assertIn('name="FluxGramMirrorAttachFrontPhotos"', strings_ru)
+        self.assertIn('name="FluxGramResetAttachCameraZoom"', strings_ru)
 
     def test_chat_activity_adds_guarded_administrators_shortcut(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()

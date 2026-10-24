@@ -431,6 +431,10 @@
     <string name="FluxGramAttachCameraFront">Фронтальная камера</string>
     <string name="FluxGramAttachCameraLastUsed">Последняя использованная</string>
     <string name="FluxGramAttachCameraInitialFacingInfo">Применяется при следующем открытии встроенной камеры. Вариант «Последняя использованная» запоминает только успешно открытую камеру в обычном окне вложений.</string>
+    <string name="FluxGramMirrorAttachFrontPhotos">Зеркалить фото с фронтальной камеры</string>
+    <string name="FluxGramMirrorAttachFrontPhotosInfo">Зеркально сохраняются только новые фотографии со встроенной фронтальной камеры. Предпросмотр, видео и другие экраны камеры не меняются.</string>
+    <string name="FluxGramResetAttachCameraZoom">Сбрасывать масштаб камеры до 1×</string>
+    <string name="FluxGramResetAttachCameraZoomInfo">При включении масштаб возвращается к 1× для новой сессии камеры, после переключения стороны и после снимка. При выключении масштаб сохраняется только в текущем экране чата.</string>
     <string name="FluxGramStickers">Стикеры</string>
     <string name="FluxGramStickerPreviewDescription">Предпросмотр оформления стикера</string>
     <string name="FluxGramStickerPreviewUnavailable">Сначала откройте стикер, чтобы увидеть локальный предпросмотр</string>

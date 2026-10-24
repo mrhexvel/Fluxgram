@@ -25,6 +25,8 @@ public final class ChatSettings {
     private static final String SHOW_ATTACH_CAMERA_TILE = "fluxgram_show_attach_camera_tile";
     private static final String OPEN_ATTACH_CAMERA_FRONT = "fluxgram_open_attach_camera_front";
     private static final String REMEMBER_ATTACH_CAMERA_FACING = "fluxgram_remember_attach_camera_facing";
+    private static final String MIRROR_ATTACH_FRONT_PHOTOS = "fluxgram_mirror_attach_front_photos";
+    private static final String RESET_ATTACH_CAMERA_ZOOM = "fluxgram_reset_attach_camera_zoom";
 
     public static final int ATTACH_CAMERA_BACK = 0;
     public static final int ATTACH_CAMERA_FRONT = 1;
@@ -51,6 +53,8 @@ public final class ChatSettings {
     private static volatile boolean showAttachCameraTile;
     private static volatile boolean openAttachCameraFront;
     private static volatile boolean rememberAttachCameraFacing;
+    private static volatile boolean mirrorAttachFrontPhotos;
+    private static volatile boolean resetAttachCameraZoom;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -410,6 +414,40 @@ public final class ChatSettings {
         openAttachCameraFront = front;
     }
 
+    public static boolean mirrorsAttachFrontPhotos() {
+        ensureLoaded();
+
+        return mirrorAttachFrontPhotos;
+    }
+
+    public static synchronized void setMirrorsAttachFrontPhotos(boolean mirror) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(MIRROR_ATTACH_FRONT_PHOTOS, mirror)
+                .apply();
+
+        mirrorAttachFrontPhotos = mirror;
+    }
+
+    public static boolean resetsAttachCameraZoom() {
+        ensureLoaded();
+
+        return resetAttachCameraZoom;
+    }
+
+    public static synchronized void setResetsAttachCameraZoom(boolean reset) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(RESET_ATTACH_CAMERA_ZOOM, reset)
+                .apply();
+
+        resetAttachCameraZoom = reset;
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -520,6 +558,16 @@ public final class ChatSettings {
                 rememberAttachCameraFacing = preferences.getBoolean(REMEMBER_ATTACH_CAMERA_FACING, false);
             } catch (ClassCastException exception) {
                 rememberAttachCameraFacing = false;
+            }
+            try {
+                mirrorAttachFrontPhotos = preferences.getBoolean(MIRROR_ATTACH_FRONT_PHOTOS, true);
+            } catch (ClassCastException exception) {
+                mirrorAttachFrontPhotos = true;
+            }
+            try {
+                resetAttachCameraZoom = preferences.getBoolean(RESET_ATTACH_CAMERA_ZOOM, true);
+            } catch (ClassCastException exception) {
+                resetAttachCameraZoom = true;
             }
             loaded = true;
         }

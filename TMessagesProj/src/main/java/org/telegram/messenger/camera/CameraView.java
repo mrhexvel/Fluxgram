@@ -127,6 +127,7 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
     private CameraSessionWrapper cameraSessionRecording;
 
     private boolean useMaxPreview;
+    private float zoom;
 
     private long lastDrawTime;
     private float focusProgress = 1.0f;
@@ -992,8 +993,9 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
     }
 
     public void setZoom(float value) {
+        zoom = Math.max(0.0f, Math.min(1.0f, value));
         if (cameraSession[0] != null) {
-            cameraSession[0].setZoom(value);
+            cameraSession[0].setZoom(zoom);
         }
     }
 
@@ -2319,10 +2321,14 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
             if (useCamera2) {
                 Camera2Session session = Camera2Session.create(i == 0 ? isFrontface : !isFrontface, surfaceWidth, surfaceHeight);
                 if (session == null) return;
-                cameraSession[i] = CameraSessionWrapper.of(session);
+                CameraSessionWrapper sessionWrapper = CameraSessionWrapper.of(session);
+                cameraSession[i] = sessionWrapper;
                 previewSize[i] = new Size(session.getPreviewWidth(), session.getPreviewHeight());
                 cameraThread.setCurrentSession(cameraSession[i], i);
                 session.whenDone(() -> {
+                    if (i == 0 && cameraSession[i] == sessionWrapper) {
+                        sessionWrapper.setZoom(zoom);
+                    }
                     requestLayout();
                     if (dual && i == 1 && initFirstCameraAfterSecond) {
                         initFirstCameraAfterSecond = false;
@@ -2344,6 +2350,9 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
                 surfaceTexture.setDefaultBufferSize(previewSize[i].getWidth(), previewSize[i].getHeight());
                 CameraSession session = new CameraSession(info[i], previewSize[i], pictureSize[i], ImageFormat.JPEG, false);
                 session.setCurrentFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+                if (i == 0) {
+                    session.setZoom(zoom);
+                }
                 cameraSession[i] = CameraSessionWrapper.of(session);
                 cameraThread.setCurrentSession(cameraSession[i], i);
                 requestLayout();

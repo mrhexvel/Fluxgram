@@ -1145,6 +1145,8 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     protected boolean allowOrder = true;
     protected boolean openWithFrontFaceCamera;
     protected Utilities.Callback<Boolean> cameraInitializationListener;
+    protected Boolean frontCameraPhotoMirroring;
+    protected boolean resetCameraZoomOnOpen = true;
     private float captionEditTextTopOffset;
     private float chatActivityEnterViewAnimateFromTop;
     private ValueAnimator topBackgroundAnimator;
@@ -6471,6 +6473,21 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         cameraInitializationListener = listener;
         if (photoLayout != null) {
             photoLayout.clearPendingCameraInitialization();
+        }
+    }
+
+    public void setFrontCameraPhotoMirroring(Boolean mirror) {
+        frontCameraPhotoMirroring = mirror;
+    }
+
+    protected boolean shouldMirrorFrontCameraPhoto(boolean fallback) {
+        return frontCameraPhotoMirroring != null ? frontCameraPhotoMirroring : fallback;
+    }
+
+    public void setResetCameraZoomOnOpen(boolean reset) {
+        resetCameraZoomOnOpen = reset;
+        if (reset && photoLayout != null) {
+            photoLayout.resetCameraZoom();
         }
     }
 

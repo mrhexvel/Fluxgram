@@ -16263,6 +16263,8 @@ public class ChatActivity extends BaseFragment implements
         } else {
             currentAttachAlert.setCameraInitializationListener(null);
         }
+        currentAttachAlert.setFrontCameraPhotoMirroring(ChatSettings.mirrorsAttachFrontPhotos());
+        currentAttachAlert.setResetCameraZoomOnOpen(ChatSettings.resetsAttachCameraZoom());
         chatAttachAlert.setOpenWithFrontFaceCamera(ChatSettings.opensAttachCameraFront());
         chatAttachAlert.enableDefaultMode();
         chatAttachAlert.init();
@@ -16283,6 +16285,8 @@ public class ChatActivity extends BaseFragment implements
         }
         chatAttachAlert.setMaxSelectedPhotos(1, false);
         chatAttachAlert.setCameraInitializationListener(null);
+        chatAttachAlert.setFrontCameraPhotoMirroring(null);
+        chatAttachAlert.setResetCameraZoomOnOpen(true);
         chatAttachAlert.setOpenWithFrontFaceCamera(true);
         chatAttachAlert.enableStickerMode(null);
         chatAttachAlert.init();
