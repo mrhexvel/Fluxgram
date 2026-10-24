@@ -1144,6 +1144,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     protected int maxSelectedPhotos = -1;
     protected boolean allowOrder = true;
     protected boolean openWithFrontFaceCamera;
+    protected Utilities.Callback<Boolean> cameraInitializationListener;
     private float captionEditTextTopOffset;
     private float chatActivityEnterViewAnimateFromTop;
     private ValueAnimator topBackgroundAnimator;
@@ -6463,6 +6464,13 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         openWithFrontFaceCamera = value;
         if (photoLayout != null) {
             photoLayout.resetCameraFacingOverride();
+        }
+    }
+
+    public void setCameraInitializationListener(Utilities.Callback<Boolean> listener) {
+        cameraInitializationListener = listener;
+        if (photoLayout != null) {
+            photoLayout.clearPendingCameraInitialization();
         }
     }
 

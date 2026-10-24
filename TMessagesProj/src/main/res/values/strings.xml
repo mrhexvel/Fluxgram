@@ -11439,7 +11439,8 @@
     <string name="FluxGramAttachCameraInitialFacing">Initial camera</string>
     <string name="FluxGramAttachCameraBack">Back camera</string>
     <string name="FluxGramAttachCameraFront">Front camera</string>
-    <string name="FluxGramAttachCameraInitialFacingInfo">Applies the next time the built-in camera opens. Switching cameras manually does not change this setting.</string>
+    <string name="FluxGramAttachCameraLastUsed">Last used</string>
+    <string name="FluxGramAttachCameraInitialFacingInfo">Applies the next time the built-in camera opens. “Last used” remembers only a successfully opened camera in the regular attachment window.</string>
     <string name="FluxGramStickers">Stickers</string>
     <string name="FluxGramStickerPreviewDescription">Sticker appearance preview</string>
     <string name="FluxGramStickerPreviewUnavailable">Open a sticker first to show its local preview</string>

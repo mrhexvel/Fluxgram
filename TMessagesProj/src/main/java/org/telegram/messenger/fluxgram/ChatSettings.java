@@ -24,6 +24,11 @@ public final class ChatSettings {
     private static final String WIDE_CHANNEL_POSTS = "fluxgram_wide_channel_posts";
     private static final String SHOW_ATTACH_CAMERA_TILE = "fluxgram_show_attach_camera_tile";
     private static final String OPEN_ATTACH_CAMERA_FRONT = "fluxgram_open_attach_camera_front";
+    private static final String REMEMBER_ATTACH_CAMERA_FACING = "fluxgram_remember_attach_camera_facing";
+
+    public static final int ATTACH_CAMERA_BACK = 0;
+    public static final int ATTACH_CAMERA_FRONT = 1;
+    public static final int ATTACH_CAMERA_LAST_USED = 2;
 
     private static volatile boolean loaded;
     private static volatile boolean hideSendAs;
@@ -45,6 +50,7 @@ public final class ChatSettings {
     private static volatile boolean wideChannelPosts;
     private static volatile boolean showAttachCameraTile;
     private static volatile boolean openAttachCameraFront;
+    private static volatile boolean rememberAttachCameraFacing;
 
     public static boolean hidesSendAs() {
         ensureLoaded();
@@ -358,8 +364,43 @@ public final class ChatSettings {
         return openAttachCameraFront;
     }
 
-    public static synchronized void setOpensAttachCameraFront(boolean front) {
+    public static int getAttachCameraInitialFacing() {
         ensureLoaded();
+
+        if (rememberAttachCameraFacing) {
+            return ATTACH_CAMERA_LAST_USED;
+        }
+
+        return openAttachCameraFront ? ATTACH_CAMERA_FRONT : ATTACH_CAMERA_BACK;
+    }
+
+    public static synchronized void setAttachCameraInitialFacing(int mode) {
+        ensureLoaded();
+
+        if (mode < ATTACH_CAMERA_BACK || mode > ATTACH_CAMERA_LAST_USED) {
+            mode = ATTACH_CAMERA_BACK;
+        }
+
+        boolean remember = mode == ATTACH_CAMERA_LAST_USED;
+        SharedPreferences.Editor editor = MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(REMEMBER_ATTACH_CAMERA_FACING, remember);
+
+        if (!remember) {
+            openAttachCameraFront = mode == ATTACH_CAMERA_FRONT;
+            editor.putBoolean(OPEN_ATTACH_CAMERA_FRONT, openAttachCameraFront);
+        }
+
+        editor.apply();
+        rememberAttachCameraFacing = remember;
+    }
+
+    public static synchronized void rememberAttachCameraFacing(boolean front) {
+        ensureLoaded();
+
+        if (!rememberAttachCameraFacing || openAttachCameraFront == front) {
+            return;
+        }
 
         MessagesController.getGlobalMainSettings()
                 .edit()
@@ -474,6 +515,11 @@ public final class ChatSettings {
                 openAttachCameraFront = preferences.getBoolean(OPEN_ATTACH_CAMERA_FRONT, false);
             } catch (ClassCastException exception) {
                 openAttachCameraFront = false;
+            }
+            try {
+                rememberAttachCameraFacing = preferences.getBoolean(REMEMBER_ATTACH_CAMERA_FACING, false);
+            } catch (ClassCastException exception) {
+                rememberAttachCameraFacing = false;
             }
             loaded = true;
         }

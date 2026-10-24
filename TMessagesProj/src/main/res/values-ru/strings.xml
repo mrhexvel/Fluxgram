@@ -429,7 +429,8 @@
     <string name="FluxGramAttachCameraInitialFacing">Начальная камера</string>
     <string name="FluxGramAttachCameraBack">Задняя камера</string>
     <string name="FluxGramAttachCameraFront">Фронтальная камера</string>
-    <string name="FluxGramAttachCameraInitialFacingInfo">Применяется при следующем открытии встроенной камеры. Ручное переключение камер не изменяет эту настройку.</string>
+    <string name="FluxGramAttachCameraLastUsed">Последняя использованная</string>
+    <string name="FluxGramAttachCameraInitialFacingInfo">Применяется при следующем открытии встроенной камеры. Вариант «Последняя использованная» запоминает только успешно открытую камеру в обычном окне вложений.</string>
     <string name="FluxGramStickers">Стикеры</string>
     <string name="FluxGramStickerPreviewDescription">Предпросмотр оформления стикера</string>
     <string name="FluxGramStickerPreviewUnavailable">Сначала откройте стикер, чтобы увидеть локальный предпросмотр</string>

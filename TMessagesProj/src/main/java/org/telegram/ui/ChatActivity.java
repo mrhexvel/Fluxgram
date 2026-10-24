@@ -16250,6 +16250,19 @@ public class ChatActivity extends BaseFragment implements
         } else {
             chatAttachAlert.setMaxSelectedPhotos(-1, true);
         }
+        ChatAttachAlert currentAttachAlert = chatAttachAlert;
+        if (ChatSettings.getAttachCameraInitialFacing() == ChatSettings.ATTACH_CAMERA_LAST_USED) {
+            currentAttachAlert.setCameraInitializationListener(front -> {
+                if (chatAttachAlert != currentAttachAlert) {
+                    return;
+                }
+
+                ChatSettings.rememberAttachCameraFacing(front);
+                currentAttachAlert.setOpenWithFrontFaceCamera(front);
+            });
+        } else {
+            currentAttachAlert.setCameraInitializationListener(null);
+        }
         chatAttachAlert.setOpenWithFrontFaceCamera(ChatSettings.opensAttachCameraFront());
         chatAttachAlert.enableDefaultMode();
         chatAttachAlert.init();
@@ -16269,6 +16282,7 @@ public class ChatActivity extends BaseFragment implements
             chatActivityEnterView.closeKeyboard();
         }
         chatAttachAlert.setMaxSelectedPhotos(1, false);
+        chatAttachAlert.setCameraInitializationListener(null);
         chatAttachAlert.setOpenWithFrontFaceCamera(true);
         chatAttachAlert.enableStickerMode(null);
         chatAttachAlert.init();

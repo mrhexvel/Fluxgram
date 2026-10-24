@@ -67,17 +67,15 @@ class ChatSettingsTest(unittest.TestCase):
                         }
 
                         private final class MemoryEditor implements Editor {
-                            private String key;
-                            private boolean value;
+                            private final Map<String, Object> pending = new HashMap<>();
 
                             public Editor putBoolean(String key, boolean value) {
-                                this.key = key;
-                                this.value = value;
+                                pending.put(key, value);
                                 return this;
                             }
 
                             public void apply() {
-                                values.put(key, value);
+                                values.putAll(pending);
                             }
                         }
                     }
@@ -89,7 +87,10 @@ class ChatSettingsTest(unittest.TestCase):
 
                 public final class ChatSettingsCheck {
                     public static void main(String[] args) {
-                        if (args.length > 0) {
+                        boolean legacyFront = args.length > 0 && "legacy_front".equals(args[0]);
+                        if (legacyFront) {
+                            MessagesController.preferences.putRaw("fluxgram_open_attach_camera_front", true);
+                        } else if (args.length > 0) {
                             MessagesController.preferences.putRaw("fluxgram_hide_send_as", 7);
                             MessagesController.preferences.putRaw("fluxgram_hide_keyboard_on_scroll", 7);
                             MessagesController.preferences.putRaw("fluxgram_add_comma_after_mention", 7);
@@ -109,6 +110,7 @@ class ChatSettingsTest(unittest.TestCase):
                             MessagesController.preferences.putRaw("fluxgram_wide_channel_posts", 7);
                             MessagesController.preferences.putRaw("fluxgram_show_attach_camera_tile", 7);
                             MessagesController.preferences.putRaw("fluxgram_open_attach_camera_front", 7);
+                            MessagesController.preferences.putRaw("fluxgram_remember_attach_camera_facing", 7);
                         }
 
                         require(!ChatSettings.hidesSendAs());
@@ -129,7 +131,10 @@ class ChatSettingsTest(unittest.TestCase):
                         require(!ChatSettings.showsPermissionsShortcut());
                         require(!ChatSettings.usesWideChannelPosts());
                         require(ChatSettings.showsAttachCameraTile());
-                        require(!ChatSettings.opensAttachCameraFront());
+                        require(ChatSettings.opensAttachCameraFront() == legacyFront);
+                        require(ChatSettings.getAttachCameraInitialFacing() == (legacyFront
+                                ? ChatSettings.ATTACH_CAMERA_FRONT
+                                : ChatSettings.ATTACH_CAMERA_BACK));
                         ChatSettings.setHidesSendAs(true);
                         require(ChatSettings.hidesSendAs());
                         ChatSettings.setHidesSendAs(false);
@@ -214,12 +219,27 @@ class ChatSettingsTest(unittest.TestCase):
                         ChatSettings.setShowsAttachCameraTile(true);
                         require(ChatSettings.showsAttachCameraTile());
                         require(MessagesController.preferences.getBoolean("fluxgram_show_attach_camera_tile", false));
-                        ChatSettings.setOpensAttachCameraFront(true);
+                        ChatSettings.setAttachCameraInitialFacing(ChatSettings.ATTACH_CAMERA_BACK);
+                        ChatSettings.rememberAttachCameraFacing(true);
+                        require(!ChatSettings.opensAttachCameraFront());
+                        ChatSettings.setAttachCameraInitialFacing(ChatSettings.ATTACH_CAMERA_FRONT);
                         require(ChatSettings.opensAttachCameraFront());
+                        require(ChatSettings.getAttachCameraInitialFacing() == ChatSettings.ATTACH_CAMERA_FRONT);
                         require(MessagesController.preferences.getBoolean("fluxgram_open_attach_camera_front", false));
-                        ChatSettings.setOpensAttachCameraFront(false);
+                        require(!MessagesController.preferences.getBoolean("fluxgram_remember_attach_camera_facing", true));
+                        ChatSettings.setAttachCameraInitialFacing(ChatSettings.ATTACH_CAMERA_LAST_USED);
+                        require(ChatSettings.getAttachCameraInitialFacing() == ChatSettings.ATTACH_CAMERA_LAST_USED);
+                        require(ChatSettings.opensAttachCameraFront());
+                        require(MessagesController.preferences.getBoolean("fluxgram_remember_attach_camera_facing", false));
+                        ChatSettings.rememberAttachCameraFacing(false);
                         require(!ChatSettings.opensAttachCameraFront());
                         require(!MessagesController.preferences.getBoolean("fluxgram_open_attach_camera_front", true));
+                        ChatSettings.setAttachCameraInitialFacing(ChatSettings.ATTACH_CAMERA_BACK);
+                        require(ChatSettings.getAttachCameraInitialFacing() == ChatSettings.ATTACH_CAMERA_BACK);
+                        ChatSettings.rememberAttachCameraFacing(true);
+                        require(!ChatSettings.opensAttachCameraFront());
+                        ChatSettings.setAttachCameraInitialFacing(99);
+                        require(ChatSettings.getAttachCameraInitialFacing() == ChatSettings.ATTACH_CAMERA_BACK);
                     }
 
                     private static void require(boolean value) {
@@ -248,6 +268,10 @@ class ChatSettingsTest(unittest.TestCase):
             )
             subprocess.run(
                 ["java", "-cp", str(root), "ChatSettingsCheck", "malformed"],
+                check=True,
+            )
+            subprocess.run(
+                ["java", "-cp", str(root), "ChatSettingsCheck", "legacy_front"],
                 check=True,
             )
 
@@ -1296,6 +1320,7 @@ class ChatSettingsTest(unittest.TestCase):
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         alert = (JAVA / "ui/Components/ChatAttachAlert.java").read_text()
         photo = (JAVA / "ui/Components/ChatAttachAlertPhotoLayout.java").read_text()
+        camera_view = (JAVA / "messenger/camera/CameraView.java").read_text()
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
         strings = (ROOT / "TMessagesProj/src/main/res/values/strings.xml").read_text()
         strings_ru = (ROOT / "TMessagesProj/src/main/res/values-ru/strings.xml").read_text()
@@ -1312,6 +1337,14 @@ class ChatSettingsTest(unittest.TestCase):
             "setOpenWithFrontFaceCamera(ChatSettings.opensAttachCameraFront())",
             regular_open,
         )
+        self.assertIn("ChatSettings.ATTACH_CAMERA_LAST_USED", regular_open)
+        self.assertIn("setCameraInitializationListener(front ->", regular_open)
+        self.assertIn("ChatSettings.rememberAttachCameraFacing(front)", regular_open)
+        self.assertLess(
+            regular_open.index("setCameraInitializationListener(front ->"),
+            regular_open.index("setOpenWithFrontFaceCamera(ChatSettings.opensAttachCameraFront())"),
+        )
+        self.assertIn("setCameraInitializationListener(null)", sticker_open)
         self.assertIn("setOpenWithFrontFaceCamera(true)", sticker_open)
         self.assertNotIn("ChatSettings", alert)
         self.assertNotIn("ChatSettings", photo)
@@ -1327,9 +1360,40 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("!preferredFront && hasBack", resolver)
         self.assertIn("return hasFront", resolver)
 
+        switch = photo.split("switchCameraButton.setOnClickListener", 1)[1].split(
+            "switchCameraButton.setContentDescription", 1
+        )[0]
+        self.assertLess(
+            switch.index("setPendingCameraInitialization"),
+            switch.index("cameraView.switchCamera()"),
+        )
+        show_camera = photo.split("public void showCamera()", 1)[1].split(
+            "public void hideCamera", 1
+        )[0]
+        self.assertIn("restoringCameraFacing ? null", show_camera)
+        on_init = show_camera.split("public void onCameraInit()", 1)[1]
+        self.assertLess(
+            on_init.index("listener.run(initializedCameraView.isActiveCameraFrontface())"),
+            on_init.index("getCurrentFlashMode()"),
+        )
+        self.assertIn("cameraView.hasMultipleCameraFacings()", on_init)
+        active_facing = camera_view.split("public boolean isActiveCameraFrontface()", 1)[1].split(
+            "public TextureView getTextureView()", 1
+        )[0]
+        self.assertIn("info[0].isFrontface()", active_facing)
+        multiple_facings = camera_view.split("public boolean hasMultipleCameraFacings()", 1)[1].split(
+            "private Integer shape", 1
+        )[0]
+        self.assertIn("hasBack && hasFront", multiple_facings)
+        hide_camera = photo.split("public void hideCamera", 1)[1].split(
+            "private void saveLastCameraBitmap", 1
+        )[0]
+        self.assertIn("clearPendingCameraInitialization()", hide_camera)
+
         self.assertIn("R.string.FluxGramAttachCameraInitialFacing", activity)
         self.assertIn("showAttachCameraInitialFacingDialog()", activity)
-        self.assertIn("ChatSettings.setOpensAttachCameraFront(index == 1)", activity)
+        self.assertIn("ChatSettings.setAttachCameraInitialFacing(index)", activity)
+        self.assertIn("R.string.FluxGramAttachCameraLastUsed", activity)
         self.assertNotIn(
             "rebuildFragments",
             activity.split("private void showAttachCameraInitialFacingDialog()", 1)[1].split(
@@ -1339,9 +1403,11 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn('name="FluxGramAttachCameraInitialFacing"', strings)
         self.assertIn('name="FluxGramAttachCameraBack"', strings)
         self.assertIn('name="FluxGramAttachCameraFront"', strings)
+        self.assertIn('name="FluxGramAttachCameraLastUsed"', strings)
         self.assertIn('name="FluxGramAttachCameraInitialFacing"', strings_ru)
         self.assertIn('name="FluxGramAttachCameraBack"', strings_ru)
         self.assertIn('name="FluxGramAttachCameraFront"', strings_ru)
+        self.assertIn('name="FluxGramAttachCameraLastUsed"', strings_ru)
 
     def test_chat_activity_adds_guarded_administrators_shortcut(self):
         chat = (JAVA / "ui/ChatActivity.java").read_text()

@@ -654,9 +654,7 @@ public class FluxGramSettingsActivity extends BaseFragment {
             items.add(UItem.asButton(
                     ATTACH_CAMERA_INITIAL_FACING,
                     LocaleController.getString(R.string.FluxGramAttachCameraInitialFacing),
-                    LocaleController.getString(ChatSettings.opensAttachCameraFront()
-                            ? R.string.FluxGramAttachCameraFront
-                            : R.string.FluxGramAttachCameraBack)
+                    attachCameraInitialFacingOption(ChatSettings.getAttachCameraInitialFacing())
             ));
             items.add(UItem.asShadow(
                     LocaleController.getString(R.string.FluxGramPhotoHdDefaultInfo)
@@ -1508,9 +1506,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private void showAttachCameraInitialFacingDialog() {
         CharSequence[] options = {
                 LocaleController.getString(R.string.FluxGramAttachCameraBack),
-                LocaleController.getString(R.string.FluxGramAttachCameraFront)
+                LocaleController.getString(R.string.FluxGramAttachCameraFront),
+                LocaleController.getString(R.string.FluxGramAttachCameraLastUsed)
         };
-        int selected = ChatSettings.opensAttachCameraFront() ? 1 : 0;
+        int selected = ChatSettings.getAttachCameraInitialFacing();
 
         showDialog(AlertsCreator.createSingleChoiceDialog(
                 getParentActivity(),
@@ -1518,11 +1517,22 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 LocaleController.getString(R.string.FluxGramAttachCameraInitialFacing),
                 selected,
                 (dialog, index) -> {
-                    ChatSettings.setOpensAttachCameraFront(index == 1);
+                    ChatSettings.setAttachCameraInitialFacing(index);
                     listView.adapter.update(true);
                 },
                 getResourceProvider()
         ));
+    }
+
+    private CharSequence attachCameraInitialFacingOption(int mode) {
+        if (mode == ChatSettings.ATTACH_CAMERA_FRONT) {
+            return LocaleController.getString(R.string.FluxGramAttachCameraFront);
+        }
+        if (mode == ChatSettings.ATTACH_CAMERA_LAST_USED) {
+            return LocaleController.getString(R.string.FluxGramAttachCameraLastUsed);
+        }
+
+        return LocaleController.getString(R.string.FluxGramAttachCameraBack);
     }
 
     private void showFolderPresentationDialog() {

@@ -564,6 +564,14 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
         return isFrontface;
     }
 
+    public boolean isActiveCameraFrontface() {
+        if (!useCamera2 && info[0] != null) {
+            return info[0].isFrontface();
+        }
+
+        return isFrontface;
+    }
+
     public TextureView getTextureView() {
         return textureView;
     }
@@ -580,6 +588,25 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
             }
         }
         return false;
+    }
+
+    public boolean hasMultipleCameraFacings() {
+        ArrayList<CameraInfo> cameraInfos = CameraController.getInstance().getCameras();
+        if (cameraInfos == null) {
+            return false;
+        }
+
+        boolean hasBack = false;
+        boolean hasFront = false;
+        for (int i = 0; i < cameraInfos.size(); i++) {
+            if (cameraInfos.get(i).isFrontface()) {
+                hasFront = true;
+            } else {
+                hasBack = true;
+            }
+        }
+
+        return hasBack && hasFront;
     }
 
     private Integer shape;

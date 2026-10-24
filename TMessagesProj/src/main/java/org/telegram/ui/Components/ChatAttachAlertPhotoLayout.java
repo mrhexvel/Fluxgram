@@ -182,6 +182,8 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
     private Runnable zoomControlHideRunnable;
     private Runnable afterCameraInitRunnable;
     private Boolean isCameraFrontfaceBeforeEnteringEditMode = null;
+    private CameraViewInternal pendingCameraInitializationView;
+    private Utilities.Callback<Boolean> pendingCameraInitializationListener;
     private TextView counterTextView;
     private TextView tooltipTextView;
     private ImageView switchCameraButton;
@@ -1427,6 +1429,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                 return;
             }
             canSaveCameraPreview = false;
+            setPendingCameraInitialization(cameraView, parentAlert.cameraInitializationListener);
             cameraView.switchCamera();
             ObjectAnimator animator = ObjectAnimator.ofFloat(switchCameraButton, View.SCALE_X, 0.0f).setDuration(100);
             animator.addListener(new AnimatorListenerAdapter() {
@@ -2622,6 +2625,20 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
 
     public void resetCameraFacingOverride() {
         isCameraFrontfaceBeforeEnteringEditMode = null;
+        clearPendingCameraInitialization();
+    }
+
+    private void setPendingCameraInitialization(
+            CameraViewInternal view,
+            Utilities.Callback<Boolean> listener
+    ) {
+        pendingCameraInitializationView = listener == null ? null : view;
+        pendingCameraInitializationListener = listener;
+    }
+
+    public void clearPendingCameraInitialization() {
+        pendingCameraInitializationView = null;
+        pendingCameraInitializationListener = null;
     }
 
     public void showCamera() {
@@ -2630,10 +2647,19 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         }
         if (cameraView == null) {
             final boolean lazy = !LiteMode.isEnabled(LiteMode.FLAGS_CHAT);
-            boolean preferredFront = isCameraFrontfaceBeforeEnteringEditMode != null
+            boolean restoringCameraFacing = isCameraFrontfaceBeforeEnteringEditMode != null;
+            boolean preferredFront = restoringCameraFacing
                     ? isCameraFrontfaceBeforeEnteringEditMode
                     : parentAlert.openWithFrontFaceCamera;
-            cameraView = new CameraViewInternal(getContext(), resolveCameraFacing(preferredFront), lazy);
+            final CameraViewInternal initializedCameraView = cameraView = new CameraViewInternal(
+                    getContext(),
+                    resolveCameraFacing(preferredFront),
+                    lazy
+            );
+            setPendingCameraInitialization(
+                    initializedCameraView,
+                    restoringCameraFacing ? null : parentAlert.cameraInitializationListener
+            );
             isCameraFrontfaceBeforeEnteringEditMode = null;
             //if (lazy) {
             //    cameraView.setThumbDrawable(cameraViewItemDecoration.placeholderDrawable);
@@ -2667,6 +2693,13 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
             cameraView.setDelegate(new CameraView.CameraViewDelegate() {
                 @Override
                 public void onCameraInit() {
+                    if (pendingCameraInitializationView == initializedCameraView) {
+                        Utilities.Callback<Boolean> listener = pendingCameraInitializationListener;
+                        clearPendingCameraInitialization();
+                        if (listener != null) {
+                            listener.run(initializedCameraView.isActiveCameraFrontface());
+                        }
+                    }
                     String current = cameraView.getCameraSession().getCurrentFlashMode();
                     String next = cameraView.getCameraSession().getNextFlashMode();
                     if (current == null || next == null) return;
@@ -2685,7 +2718,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                         }
                     }
                     switchCameraButton.setImageResource(cameraView.isFrontface() ? R.drawable.camera_revert1 : R.drawable.camera_revert2);
-                    switchCameraButton.setVisibility(cameraView.hasFrontFaceCamera() ? View.VISIBLE : View.INVISIBLE);
+                    switchCameraButton.setVisibility(cameraView.hasMultipleCameraFacings() ? View.VISIBLE : View.INVISIBLE);
                     if (!cameraOpened) {
                         cameraInitAnimation = new AnimatorSet();
                         cameraInitAnimation.playTogether(
@@ -2741,6 +2774,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
     }
 
     public void hideCamera(boolean async) {
+        clearPendingCameraInitialization();
         if (!deviceHasGoodCamera || cameraView == null) {
             return;
         }
@@ -3668,6 +3702,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
 
     @Override
     public void onDestroy() {
+        clearPendingCameraInitialization();
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.cameraInitied);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.albumsDidLoad);
     }
