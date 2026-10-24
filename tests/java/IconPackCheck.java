@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.imageio.ImageIO;
 
@@ -108,6 +109,37 @@ public final class IconPackCheck {
             byte[] icon = second.resolve(installed, args[5]);
 
             System.out.println(icon == null ? "NONE" : icon.length);
+        } else if (command.equals("inspect-rejected-svg-callback")) {
+            IconPackArchiveValidator.Catalog delegate = catalog(args[3]);
+            AtomicInteger callbacks = new AtomicInteger();
+            IconPackArchiveValidator.Catalog guarded = new IconPackArchiveValidator.Catalog() {
+                @Override
+                public boolean contains(String resourceName) {
+                    return delegate.contains(resourceName);
+                }
+
+                @Override
+                public boolean decodesRaster(
+                        byte[] bytes,
+                        String path,
+                        int width,
+                        int height) {
+                    return delegate.decodesRaster(bytes, path, width, height);
+                }
+
+                @Override
+                public boolean decodesSvg(byte[] bytes, String path) {
+                    callbacks.incrementAndGet();
+                    return true;
+                }
+            };
+
+            try {
+                IconPackArchiveValidator.inspect(new File(args[1]), new File(args[2]), guarded);
+                throw new AssertionError("Unsafe SVG was accepted");
+            } catch (IOException expected) {
+                System.out.println(callbacks.get());
+            }
         } else {
             throw new IllegalArgumentException(command);
         }
@@ -137,6 +169,11 @@ public final class IconPackCheck {
                 } catch (IOException ignored) {
                     return false;
                 }
+            }
+
+            @Override
+            public boolean decodesSvg(byte[] bytes, String path) {
+                return true;
             }
         };
     }

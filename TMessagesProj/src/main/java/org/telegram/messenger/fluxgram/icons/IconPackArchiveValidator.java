@@ -55,6 +55,10 @@ public final class IconPackArchiveValidator {
         default boolean decodesRaster(byte[] bytes, String path, int width, int height) {
             return false;
         }
+
+        default boolean decodesSvg(byte[] bytes, String path) {
+            return false;
+        }
     }
 
     public static final class Snapshot implements AutoCloseable {
@@ -352,6 +356,9 @@ public final class IconPackArchiveValidator {
                     "Unsafe SVG icon");
             IconPackManifest.require(normalized.contains("<svg"), "Invalid SVG icon");
             validateSvg(bytes);
+            IconPackManifest.require(
+                    catalog != null && catalog.decodesSvg(bytes, path),
+                    "SVG icon cannot be decoded");
         }
     }
 

@@ -228,14 +228,22 @@ class IconPacksTest(unittest.TestCase):
             self.assertEqual("IO", result.stdout.strip())
 
     def test_rejects_svg_processing_instruction(self):
-        self.inspect(
-            self.archive(
-                files={
-                    "icons/add.svg": b'<?xml-stylesheet href="https://example.com/a.css"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h2v2z"/></svg>'
-                }
-            ),
-            accepted=False,
+        data = self.archive(
+            files={
+                "icons/add.svg": b'<?xml-stylesheet href="https://example.com/a.css"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h2v2z"/></svg>'
+            }
         )
+        archive = self.write_archive(data)
+
+        self.inspect(data, accepted=False)
+        result = self.run_check(
+            "inspect-rejected-svg-callback",
+            archive,
+            self.cache,
+            "msg_add",
+        )
+
+        self.assertEqual("0", result.stdout.strip())
 
     def test_raster_icon_must_decode_with_declared_dimensions(self):
         valid = self.png(zlib.compress(b"\x00\xff\x00\x00\xff"))
