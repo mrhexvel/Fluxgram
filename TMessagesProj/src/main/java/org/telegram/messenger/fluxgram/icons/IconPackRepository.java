@@ -10,6 +10,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,6 +36,64 @@ public final class IconPackRepository {
 
     public interface Callback<T> {
         void complete(T value, Exception error);
+    }
+
+    public static final class Pack {
+        public final String id;
+        public final String name;
+        public final String author;
+        public final String version;
+        public final int iconCount;
+
+        private Pack(IconPackStore.Installed installed) {
+            IconPackManifest manifest = installed.manifest;
+            id = manifest.id;
+            name = manifest.name;
+            author = manifest.author;
+            version = manifest.version;
+            iconCount = manifest.icons.size();
+        }
+    }
+
+    public static final class State {
+        public final List<Pack> packs;
+        public final List<String> activeIds;
+
+        private State(List<Pack> packs, List<String> activeIds) {
+            this.packs = Collections.unmodifiableList(new ArrayList<>(packs));
+            this.activeIds = Collections.unmodifiableList(new ArrayList<>(activeIds));
+        }
+
+        public boolean isActive(String id) {
+            return activeIds.contains(id);
+        }
+
+        public State withActive(String id, boolean active) {
+            boolean installed = false;
+
+            for (Pack pack : packs) {
+                if (pack.id.equals(id)) {
+                    installed = true;
+                    break;
+                }
+            }
+
+            if (!installed) {
+                throw new IllegalArgumentException("Installed icon pack is required");
+            }
+
+            ArrayList<String> updated = new ArrayList<>(activeIds);
+
+            if (active) {
+                if (!updated.contains(id)) {
+                    updated.add(id);
+                }
+            } else {
+                updated.remove(id);
+            }
+
+            return new State(packs, updated);
+        }
     }
 
     public static final class Review {
@@ -217,6 +278,66 @@ public final class IconPackRepository {
         });
     }
 
+    public static void load(Callback<State> callback) {
+        requireCallback(callback);
+        submitStateOperation(null, callback);
+    }
+
+    public static void setActive(String id, boolean active, Callback<State> callback) {
+        if (!IconPackManifest.isValidId(id)) {
+            throw new IllegalArgumentException("Valid icon pack ID is required");
+        }
+
+        requireCallback(callback);
+        submitStateOperation(currentStore -> {
+            List<String> current = IconPackSettings.getActiveIds(currentStore);
+            ArrayList<String> updated = new ArrayList<>(current);
+
+            if (active) {
+                if (!contains(currentStore.list(), id)) {
+                    throw new IOException("Icon pack is not installed");
+                }
+                if (!updated.contains(id)) {
+                    updated.add(id);
+                }
+            } else {
+                updated.remove(id);
+            }
+
+            IconPackSettings.setActiveIds(updated, currentStore);
+        }, callback);
+    }
+
+    public static void move(String id, int direction, Callback<State> callback) {
+        if (!IconPackManifest.isValidId(id) || (direction != -1 && direction != 1)) {
+            throw new IllegalArgumentException("Valid icon pack move is required");
+        }
+
+        requireCallback(callback);
+        submitStateOperation(currentStore -> {
+            ArrayList<String> active = new ArrayList<>(IconPackSettings.getActiveIds(currentStore));
+            int index = active.indexOf(id);
+            int target = index + direction;
+
+            if (index < 0 || target < 0 || target >= active.size()) {
+                throw new IOException("Icon pack priority cannot be changed");
+            }
+
+            active.remove(index);
+            active.add(target, id);
+            IconPackSettings.setActiveIds(active, currentStore);
+        }, callback);
+    }
+
+    public static void delete(String id, Callback<State> callback) {
+        if (!IconPackManifest.isValidId(id)) {
+            throw new IllegalArgumentException("Valid icon pack ID is required");
+        }
+
+        requireCallback(callback);
+        submitStateOperation(currentStore -> IconPackSettings.delete(currentStore, id), callback);
+    }
+
     public static void discard(Review review) {
         if (review == null || !review.canDiscard()) {
             return;
@@ -249,6 +370,76 @@ public final class IconPackRepository {
                 retrySelectedCleanup(selected, attempt + 1);
             }
         }, 1, TimeUnit.SECONDS);
+    }
+
+    private interface StateOperation {
+        void run(IconPackStore store) throws Exception;
+    }
+
+    private static void submitStateOperation(
+            StateOperation operation,
+            Callback<State> callback) {
+        WORKER.execute(() -> {
+            State state = null;
+            Exception failure = null;
+
+            try {
+                IconPackStore currentStore = store(ApplicationLoader.applicationContext);
+
+                if (operation != null) {
+                    operation.run(currentStore);
+                }
+
+                state = state(currentStore);
+            } catch (Exception error) {
+                failure = error;
+            }
+
+            State value = state;
+            Exception error = failure;
+            AndroidUtilities.runOnUIThread(() -> callback.complete(value, error));
+        });
+    }
+
+    private static State state(IconPackStore store) throws IOException {
+        List<IconPackStore.Installed> installed = store.list();
+        List<String> activeIds = IconPackSettings.getActiveIds(store);
+        ArrayList<Pack> packs = new ArrayList<>();
+        HashSet<String> added = new HashSet<>();
+
+        for (String id : activeIds) {
+            for (IconPackStore.Installed pack : installed) {
+                if (pack.manifest.id.equals(id)) {
+                    packs.add(new Pack(pack));
+                    added.add(id);
+                    break;
+                }
+            }
+        }
+
+        for (IconPackStore.Installed pack : installed) {
+            if (added.add(pack.manifest.id)) {
+                packs.add(new Pack(pack));
+            }
+        }
+
+        return new State(packs, activeIds);
+    }
+
+    private static boolean contains(List<IconPackStore.Installed> installed, String id) {
+        for (IconPackStore.Installed pack : installed) {
+            if (pack.manifest.id.equals(id)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void requireCallback(Callback<?> callback) {
+        if (callback == null) {
+            throw new IllegalArgumentException("Icon pack callback is required");
+        }
     }
 
     private static IconPackStore store(Context context) throws IOException {

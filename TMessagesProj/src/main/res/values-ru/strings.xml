@@ -265,6 +265,7 @@
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
     <string name="FluxGramSettings">Настройки FluxGram</string>
     <string name="FluxGramInterfaceIcons">Иконки интерфейса</string>
+    <string name="FluxGramInterfaceIconsInfo">Установка внешних пакетов и настройка порядка их будущего применения. Подмена иконок интерфейса пока не подключена.</string>
     <string name="FluxGramImportIconPack">Импортировать пакет иконок</string>
     <string name="FluxGramImportIconPackInfo">Выберите совместимый архив .icons. Импортированный пакет будет сохранён, но не включится автоматически.</string>
     <string name="FluxGramIconPackChecking">Проверка…</string>
@@ -279,6 +280,19 @@
     <string name="FluxGramIconPackInvalid">Выбранный файл не является совместимым пакетом иконок.</string>
     <string name="FluxGramIconPackInstallFailed">Не удалось установить пакет иконок.</string>
     <string name="FluxGramIconPackStorageFailed">Хранилище пакетов иконок временно недоступно.</string>
+    <string name="FluxGramInstalledIconPacks">Установленные пакеты</string>
+    <string name="FluxGramActiveIconPacks">Активные пакеты</string>
+    <string name="FluxGramInactiveIconPacks">Неактивные пакеты</string>
+    <string name="FluxGramNoInstalledIconPacks">Нет установленных пакетов иконок</string>
+    <string name="FluxGramIconPackListDetails">Версия %1$s · %2$s · %3$d иконок</string>
+    <string name="FluxGramIconPackManagementInfo">Нажмите пакет, чтобы включить или выключить его. Удерживайте строку для удаления и других действий.</string>
+    <string name="FluxGramActiveIconPacksInfo">Пакеты проверяются сверху вниз. Удерживайте строку, чтобы изменить приоритет или удалить пакет. Применение иконок к интерфейсу пока не подключено.</string>
+    <string name="FluxGramIconPackPriorityUp">Повысить приоритет</string>
+    <string name="FluxGramIconPackPriorityDown">Понизить приоритет</string>
+    <string name="FluxGramDeleteIconPack">Удалить пакет иконок?</string>
+    <string name="FluxGramDeleteIconPackConfirm">Удалить «%1$s» с устройства?</string>
+    <string name="FluxGramReloadIconPacks">Повторно загрузить пакеты</string>
+    <string name="FluxGramReloadIconPacksInfo">Список установленных пакетов может быть устаревшим. Попробуйте загрузить его снова.</string>
     <string name="FluxGramPlugins">Плагины</string>
     <string name="FluxGramInAppNotifications">Уведомления внутри приложения</string>
     <string name="FluxGramInAppNotificationsInfo">Карточки сообщений с аватарками чатов.Заменяет системные уведомления о сообщениях, пока приложение открыто.</string>

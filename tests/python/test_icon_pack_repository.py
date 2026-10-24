@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ICONS = ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/fluxgram/icons"
 REPOSITORY_STUBS = ROOT / "tests/java/icon_pack_repository_stubs"
 ANDROID_STUBS = ROOT / "tests/java/icon_pack_android_stubs"
+SETTINGS_STUBS = ROOT / "tests/java/icon_pack_settings_stubs"
 
 
 class IconPackRepositoryTest(unittest.TestCase):
@@ -34,6 +35,7 @@ class IconPackRepositoryTest(unittest.TestCase):
             classes = root / "classes"
             first = self.write_archive(root, "first.icons", "1.0")
             update = self.write_archive(root, "update.icons", "2.0")
+            other = self.write_archive(root, "other.icons", "1.0", "other.pack")
             invalid = root / "invalid.icons"
             invalid.write_text("invalid")
             oversized = root / "oversized.icons"
@@ -41,6 +43,7 @@ class IconPackRepositoryTest(unittest.TestCase):
 
             sources = [str(path) for path in REPOSITORY_STUBS.rglob("*.java")]
             sources.extend(str(path) for path in (ANDROID_STUBS / "android").rglob("*.java"))
+            sources.extend(str(path) for path in SETTINGS_STUBS.rglob("*.java"))
             sources.extend(
                 [
                     str(ANDROID_STUBS / "org/telegram/messenger/R.java"),
@@ -49,12 +52,13 @@ class IconPackRepositoryTest(unittest.TestCase):
                     str(ICONS / "IconPackArchiveValidator.java"),
                     str(ICONS / "IconPackStore.java"),
                     str(ICONS / "IconPackAndroidCatalog.java"),
+                    str(ICONS / "IconPackSettings.java"),
                     str(ICONS / "IconPackRepository.java"),
                     str(ROOT / "tests/java/IconPackRepositoryCheck.java"),
                 ]
             )
 
-            subprocess.run(
+            compilation = subprocess.run(
                 [
                     "javac",
                     "--release",
@@ -65,10 +69,12 @@ class IconPackRepositoryTest(unittest.TestCase):
                     classes,
                     *sources,
                 ],
-                check=True,
                 capture_output=True,
+                text=True,
             )
-            subprocess.run(
+            self.assertEqual(0, compilation.returncode, compilation.stderr)
+
+            result = subprocess.run(
                 [
                     "java",
                     "-cp",
@@ -77,30 +83,38 @@ class IconPackRepositoryTest(unittest.TestCase):
                     root / "app",
                     first,
                     update,
+                    other,
                     invalid,
                     oversized,
                 ],
-                check=True,
                 capture_output=True,
+                text=True,
                 timeout=30,
             )
+            self.assertEqual(0, result.returncode, result.stderr)
 
         repository = (ICONS / "IconPackRepository.java").read_text()
         settings = (
             ROOT
-            / "TMessagesProj/src/main/java/org/telegram/ui/FluxGramSettingsActivity.java"
+            / "TMessagesProj/src/main/java/org/telegram/ui/FluxGramIconPackSettingsActivity.java"
         ).read_text()
 
-        self.assertNotIn("IconPackSettings", repository)
+        self.assertIn("IconPackSettings.setActiveIds", repository)
+        self.assertIn("IconPackSettings.delete", repository)
         self.assertIn("showDialog(dialog, ignored ->", settings)
         self.assertNotIn("dialog.setOnDismissListener", settings)
+        self.assertIn("loadFailed = true", settings)
+        self.assertIn("item.id == RETRY", settings)
+        self.assertIn("state.withActive(pack.id, active)", settings)
+        self.assertIn("state = optimisticState", settings)
+        self.assertIn("state = previousState", settings)
 
     @staticmethod
-    def write_archive(root, name, version):
+    def write_archive(root, name, version, pack_id="example.pack"):
         path = root / name
         metadata = {
             "packName": "Example",
-            "packId": "example.pack",
+            "packId": pack_id,
             "author": "FluxGram",
             "version": version,
             "icons": {"msg_add": "icons/add.svg"},
