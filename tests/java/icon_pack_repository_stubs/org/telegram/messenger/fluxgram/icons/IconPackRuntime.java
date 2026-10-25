@@ -125,6 +125,11 @@ public final class IconPackRuntime {
         demandListener.run();
     }
 
+    public static void resetPublishedState() {
+        publishedActiveIds = null;
+        publishedRequestId = 0;
+    }
+
     public static void refreshUi() {
         if (Theme.reloadCount <= refreshCount) {
             throw new AssertionError("Theme resources must reload before runtime UI");

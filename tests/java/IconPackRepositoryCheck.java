@@ -72,16 +72,22 @@ public final class IconPackRepositoryCheck {
         awaitIconPackChanges(1);
         require(NotificationCenter.iconPackChangedCount == 1);
 
+        IconPackRuntime.resetPublishedState();
+        NotificationCenter.resetIconPackChanges();
+        IconPackRepository.initializeRuntime();
+        awaitRefreshCount(1);
+        require(NotificationCenter.iconPackChangedCount == 0);
+
         IconPackRuntime.demand();
         IconPackRuntime.demand();
-        awaitIconPackChanges(2);
-        require(NotificationCenter.iconPackChangedCount == 2);
+        awaitRefreshCount(2);
+        require(NotificationCenter.iconPackChangedCount == 0);
         require(IconPackRuntime.decodeCount == 1);
 
         require(setActive("example.pack", true).error == null);
         IconPackRuntime.demand();
-        awaitIconPackChanges(3);
-        require(NotificationCenter.iconPackChangedCount == 3);
+        awaitRefreshCount(3);
+        require(NotificationCenter.iconPackChangedCount == 0);
         require(IconPackRuntime.decodeCount == 2);
 
         AndroidUtilities.setUiDeferred(true);
@@ -90,10 +96,11 @@ public final class IconPackRepositoryCheck {
         IconPackRuntime.demand();
         awaitDecodeCount(4);
         require(AndroidUtilities.pendingUiCount() == 1);
-        require(NotificationCenter.iconPackChangedCount == 3);
+        require(NotificationCenter.iconPackChangedCount == 0);
         AndroidUtilities.drainUi();
         AndroidUtilities.setUiDeferred(false);
-        require(NotificationCenter.iconPackChangedCount == 4);
+        require(IconPackRuntime.refreshCount == 4);
+        require(NotificationCenter.iconPackChangedCount == 0);
 
         Outcome<IconPackRepository.Review> update = review(new File(args[2]));
         require(update.error == null);
@@ -198,6 +205,17 @@ public final class IconPackRepositoryCheck {
         }
 
         require(IconPackRuntime.decodeCount >= count);
+    }
+
+    private static void awaitRefreshCount(int count) throws Exception {
+        long deadline = System.currentTimeMillis() + 5_000;
+
+        while (IconPackRuntime.refreshCount < count
+                && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
+
+        require(IconPackRuntime.refreshCount >= count);
     }
 
     private static Outcome<IconPackRepository.Review> review(File archive) throws Exception {

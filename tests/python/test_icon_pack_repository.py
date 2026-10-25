@@ -122,6 +122,15 @@ class IconPackRepositoryTest(unittest.TestCase):
         self.assertIn("RUNTIME_DEMAND_DELAY_MS = 16", repository)
         self.assertIn("RUNTIME_DRAIN_SCHEDULED.compareAndSet(false, true)", repository)
         self.assertIn("RUNTIME_UI_REFRESH_SCHEDULED.compareAndSet(false, true)", repository)
+        self.assertIn("RUNTIME_FRAGMENT_REBUILD_REQUESTED.getAndSet(false)", repository)
+        startup = repository.split("public static void initializeRuntime()", 1)[1].split(
+            "public static void load", 1
+        )[0]
+        self.assertIn(
+            "requestRuntime(currentStore, installedSnapshot, activeSnapshot, false)",
+            startup,
+        )
+        self.assertIn("publishRuntimeChange(false)", startup)
         self.assertIn("IconPackRuntime.decodePending", repository)
         self.assertIn(
             "Theme.reloadAllResources(ApplicationLoader.applicationContext)", repository

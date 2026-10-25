@@ -163,6 +163,7 @@ public final class IconPackRepository {
     private static final AtomicLong RUNTIME_REQUEST = new AtomicLong();
     private static final AtomicBoolean RUNTIME_DRAIN_SCHEDULED = new AtomicBoolean();
     private static final AtomicBoolean RUNTIME_UI_REFRESH_SCHEDULED = new AtomicBoolean();
+    private static final AtomicBoolean RUNTIME_FRAGMENT_REBUILD_REQUESTED = new AtomicBoolean();
     private static final Object RUNTIME_REQUEST_LOCK = new Object();
     private static final long RUNTIME_DEMAND_DELAY_MS = 16;
     private static volatile long appliedRuntimeRevision = -1;
@@ -285,7 +286,7 @@ public final class IconPackRepository {
                 publishInventory(
                         installedSnapshot,
                         IconPackSettings.getActiveIdsForInstalled(installedSnapshot));
-                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot, true);
             } catch (Exception error) {
                 failure = error;
             } finally {
@@ -325,13 +326,13 @@ public final class IconPackRepository {
                         RUNTIME_REQUEST_LOCK);
 
                 if (changed) {
-                    publishRuntimeChange();
+                    publishRuntimeChange(false);
                 }
 
                 return;
             }
 
-            requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+            requestRuntime(currentStore, installedSnapshot, activeSnapshot, false);
         });
     }
 
@@ -391,7 +392,7 @@ public final class IconPackRepository {
 
                 IconPackSettings.setActiveIdsForInstalled(updated, installedSnapshot);
                 publishInventory(installedSnapshot, updated);
-                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot, true);
                 value = stateSnapshot;
             } catch (Exception error) {
                 failure = error;
@@ -426,7 +427,7 @@ public final class IconPackRepository {
                 updated.add(target, id);
                 IconPackSettings.setActiveIdsForInstalled(updated, installedSnapshot);
                 publishInventory(installedSnapshot, updated);
-                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot, true);
                 value = stateSnapshot;
             } catch (Exception error) {
                 failure = error;
@@ -457,7 +458,7 @@ public final class IconPackRepository {
                 ArrayList<String> active = new ArrayList<>(activeSnapshot);
                 active.remove(id);
                 publishInventory(remaining, active);
-                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot, true);
                 value = stateSnapshot;
             } catch (Exception error) {
                 failure = error;
@@ -542,7 +543,7 @@ public final class IconPackRepository {
         try {
             List<IconPackStore.Installed> installed = currentStore.list();
             publishInventory(installed, IconPackSettings.getActiveIdsForInstalled(installed));
-            requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+            requestRuntime(currentStore, installedSnapshot, activeSnapshot, true);
         } catch (Exception ignored) {
         }
     }
@@ -550,7 +551,8 @@ public final class IconPackRepository {
     private static void requestRuntime(
             IconPackStore currentStore,
             List<IconPackStore.Installed> installed,
-            List<String> activeIds) {
+            List<String> activeIds,
+            boolean rebuildFragments) {
         long request;
 
         synchronized (RUNTIME_REQUEST_LOCK) {
@@ -578,7 +580,7 @@ public final class IconPackRepository {
             }
 
             if (changed) {
-                publishRuntimeChange();
+                publishRuntimeChange(rebuildFragments);
             }
             if (IconPackRuntime.hasPendingDemands()) {
                 requestRuntimeDemandDrain();
@@ -600,7 +602,7 @@ public final class IconPackRepository {
                         RUNTIME_REQUEST_LOCK);
 
                 if (changed) {
-                    publishRuntimeChange();
+                    publishRuntimeChange(false);
                 }
             } finally {
                 RUNTIME_DRAIN_SCHEDULED.set(false);
@@ -612,7 +614,10 @@ public final class IconPackRepository {
         }, RUNTIME_DEMAND_DELAY_MS, TimeUnit.MILLISECONDS);
     }
 
-    private static void publishRuntimeChange() {
+    private static void publishRuntimeChange(boolean rebuildFragments) {
+        if (rebuildFragments) {
+            RUNTIME_FRAGMENT_REBUILD_REQUESTED.set(true);
+        }
         if (!RUNTIME_UI_REFRESH_SCHEDULED.compareAndSet(false, true)) {
             return;
         }
@@ -624,15 +629,17 @@ public final class IconPackRepository {
                 if (appliedRuntimeRevision != revision) {
                     Theme.reloadAllResources(ApplicationLoader.applicationContext);
                     IconPackRuntime.refreshUi();
-                    NotificationCenter.getGlobalInstance().postNotificationName(
-                            NotificationCenter.fluxgramIconPackChanged);
+                    if (RUNTIME_FRAGMENT_REBUILD_REQUESTED.getAndSet(false)) {
+                        NotificationCenter.getGlobalInstance().postNotificationName(
+                                NotificationCenter.fluxgramIconPackChanged);
+                    }
                     appliedRuntimeRevision = revision;
                 }
             } finally {
                 RUNTIME_UI_REFRESH_SCHEDULED.set(false);
 
                 if (IconPackRuntime.revision() != revision) {
-                    publishRuntimeChange();
+                    publishRuntimeChange(false);
                 }
             }
         });
