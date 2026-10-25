@@ -940,11 +940,12 @@ class ChatSettingsTest(unittest.TestCase):
             "TLRPC.TL_messageMediaPhoto",
             "message.isPhoto()",
             "message.type == MessageObject.TYPE_VIDEO",
+            "message.type == MessageObject.TYPE_GIF",
             "TLRPC.TL_messageMediaDocument",
             "message.isVideo()",
-            "!message.isRoundVideo()",
-            "!message.isGif()",
-            "!message.isAnyKindOfSticker()",
+            "message.isGif()",
+            "message.isRoundVideo()",
+            "message.isAnyKindOfSticker()",
         ):
             self.assertIn(gate, ordinary_media)
         self.assertNotIn("MessageObject.getMedia", ordinary_media)
@@ -977,6 +978,7 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("shouldUseWideChannelMediaAlbum(groupedMessages, isFiltered)", bind)
         self.assertIn("messageCell.setWideTextPost(wideTextPost)", bind)
         self.assertIn("messageCell.setWideMediaPost(wideMediaPost)", bind)
+        self.assertIn("messageCell.setWideMediaAlbum(wideMediaAlbum)", bind)
         self.assertIn("ChatSettings.showsMessageTails() && !wideTextPost", bind)
         self.assertIn(
             "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum",
@@ -988,19 +990,21 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("AndroidUtilities.getMinTabletSide()", cell)
         self.assertIn("linkPreviewMaxWidth = maxWidth", cell)
         self.assertIn("drawSideButton != 0 && !wideTextPost", cell)
-        self.assertIn("backgroundWidth = maxWidth + dp(31)", cell)
+        self.assertIn("getWidePostContentWidth() + dp(mediaBackground ? 22 : 31)", cell)
+        self.assertIn("backgroundWidth = getWidePostBackgroundWidth(false)", cell)
         self.assertIn("cell.setWideTextPost(wideTextPost)", cell)
         self.assertIn("cell.wideMediaPost = wideMediaPost", cell)
         self.assertIn("else if (wideMediaPost)", cell)
-        self.assertIn("photoWidth = getWidePostContentWidth()", cell)
+        self.assertIn("photoWidth = getWidePostBackgroundWidth(mediaBackground) - dp(8)", cell)
         self.assertIn("useFullWidth = true", cell)
         self.assertIn("wideMediaPost && imageH > imageW", cell)
+        self.assertIn("photoWidth = getWidePostBackgroundWidth(mediaBackground) - dp(mediaBackground ? 8 : 17)", cell)
+        self.assertIn("wideMediaAlbum && (currentPosition.flags & MessageObject.POSITION_FLAG_RIGHT) != 0 ? 18 : 9", cell)
         self.assertIn(
             "photoHeight = Math.min(defaultPhotoWidth + dp(100), AndroidUtilities.getPhotoSize())",
             cell,
         )
-        self.assertIn("int fittedPhotoWidth = w", cell)
-        self.assertIn("wideMediaPost && photoWidth > fittedPhotoWidth", cell)
+        self.assertIn("wideMediaPost && photoWidth > w", cell)
         self.assertIn("photoImage.setAspectFit(true)", cell)
 
         dummy = chat.split(
@@ -1015,6 +1019,7 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("shouldUseWideChannelMediaAlbum(groupedMessages, filtered)", dummy)
         self.assertIn("dummyMessageCell.setWideTextPost(wideTextPost)", dummy)
         self.assertIn("dummyMessageCell.setWideMediaPost(wideMediaPost)", dummy)
+        self.assertIn("dummyMessageCell.setWideMediaAlbum(wideMediaAlbum)", dummy)
         self.assertIn(
             "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum",
             dummy,
@@ -1027,7 +1032,7 @@ class ChatSettingsTest(unittest.TestCase):
         grouped_layout = message.split("public static class GroupedMessages", 1)[1]
         grouped_layout = grouped_layout.split("public int getMaxEditDate()", 1)[0]
         self.assertIn("public boolean setLayoutWidth(int width)", grouped_layout)
-        self.assertIn("Math.max(800, Math.min(900, width))", grouped_layout)
+        self.assertIn("Math.max(800, Math.min(1000, width))", grouped_layout)
         self.assertIn("maxSizeWidth = layoutWidth", grouped_layout)
         self.assertIn("firstSpanAdditionalSize = 1000 - maxSizeWidth", grouped_layout)
         self.assertIn("needShare && layoutWidth == 800", grouped_layout)
@@ -1038,7 +1043,7 @@ class ChatSettingsTest(unittest.TestCase):
             "private void calculateGroupedMessages(", 1
         )[1].split("\n    }", 1)[0]
         self.assertIn("shouldUseWideChannelMediaAlbum", calculate_group)
-        self.assertIn("? 900 : 800", calculate_group)
+        self.assertIn("? 1000 : 800", calculate_group)
         self.assertIn("cachedWidthForCaption = -1", calculate_group)
         self.assertIn("groupedMessages.calculate()", calculate_group)
 

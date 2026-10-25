@@ -1302,7 +1302,7 @@ public class MessageObject {
         private int maxSizeWidth = 800;
 
         public boolean setLayoutWidth(int width) {
-            int boundedWidth = Math.max(800, Math.min(900, width));
+            int boundedWidth = Math.max(800, Math.min(1000, width));
             if (layoutWidth == boundedWidth) {
                 return false;
             }

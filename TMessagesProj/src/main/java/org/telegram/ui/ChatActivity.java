@@ -19631,6 +19631,7 @@ public class ChatActivity extends BaseFragment implements
         boolean wideMediaAlbum = shouldUseWideChannelMediaAlbum(groupedMessages, filtered);
         dummyMessageCell.setWideTextPost(wideTextPost);
         dummyMessageCell.setWideMediaPost(wideMediaPost);
+        dummyMessageCell.setWideMediaAlbum(wideMediaAlbum);
         dummyMessageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
         dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum);
         return dummyMessageCell.computeHeight(object, groupedMessages, withGroupCaption);
@@ -41223,6 +41224,7 @@ public class ChatActivity extends BaseFragment implements
                     boolean wideMediaAlbum = shouldUseWideChannelMediaAlbum(groupedMessages, isFiltered);
                     messageCell.setWideTextPost(wideTextPost);
                     messageCell.setWideMediaPost(wideMediaPost);
+                    messageCell.setWideMediaAlbum(wideMediaAlbum);
                     messageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
                     messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum);
                     messageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser) || UserObject.isReplyUser(currentUser) || (chatMode == MODE_SEARCH);
@@ -42286,12 +42288,14 @@ public class ChatActivity extends BaseFragment implements
             return media instanceof TLRPC.TL_messageMediaPhoto && message.isPhoto();
         }
 
-        return message.type == MessageObject.TYPE_VIDEO
-                && media instanceof TLRPC.TL_messageMediaDocument
-                && message.isVideo()
-                && !message.isRoundVideo()
-                && !message.isGif()
-                && !message.isAnyKindOfSticker();
+        if (!(media instanceof TLRPC.TL_messageMediaDocument)
+                || message.isRoundVideo()
+                || message.isAnyKindOfSticker()) {
+            return false;
+        }
+
+        return (message.type == MessageObject.TYPE_VIDEO && message.isVideo() && !message.isGif())
+                || (message.type == MessageObject.TYPE_GIF && message.isGif());
     }
 
     private boolean shouldUseWideChannelMediaAlbum(
@@ -42329,7 +42333,7 @@ public class ChatActivity extends BaseFragment implements
         }
 
         groupedMessages.cachedWidthForCaption = -1;
-        groupedMessages.setLayoutWidth(shouldUseWideChannelMediaAlbum(groupedMessages, filtered) ? 900 : 800);
+        groupedMessages.setLayoutWidth(shouldUseWideChannelMediaAlbum(groupedMessages, filtered) ? 1000 : 800);
         groupedMessages.calculate();
     }
 
@@ -42364,7 +42368,7 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
 
-        int layoutWidth = shouldUseWideChannelMediaAlbum(groupedMessages, filtered) ? 900 : 800;
+        int layoutWidth = shouldUseWideChannelMediaAlbum(groupedMessages, filtered) ? 1000 : 800;
         if (groupedMessages.setLayoutWidth(layoutWidth)) {
             groupedMessages.calculate();
         }
