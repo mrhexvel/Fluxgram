@@ -119,6 +119,10 @@ class IconPackRepositoryTest(unittest.TestCase):
         self.assertIn("loadState(false)", settings)
         self.assertIn("private static volatile State stateSnapshot", repository)
         self.assertIn("FluxGramIconPackRuntime", repository)
+        self.assertIn("RUNTIME_DEMAND_DELAY_MS = 16", repository)
+        self.assertIn("RUNTIME_DRAIN_SCHEDULED.compareAndSet(false, true)", repository)
+        self.assertIn("RUNTIME_UI_REFRESH_SCHEDULED.compareAndSet(false, true)", repository)
+        self.assertIn("IconPackRuntime.decodePending", repository)
         self.assertIn(
             "Theme.reloadAllResources(ApplicationLoader.applicationContext)", repository
         )

@@ -12,17 +12,24 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.BooleanSupplier;
 
 public final class IconPackRuntime {
     private static final int FALLBACK_ICON_SIZE_DP = 24;
     private static final int MAX_CACHE_BYTES = 32 * 1024 * 1024;
-    private static volatile Snapshot snapshot = Snapshot.empty();
+    private static final Object DEMAND_LOCK = new Object();
+    private static volatile State state = State.empty();
     private static volatile long revision;
+    private static volatile Runnable demandListener;
+    private static final LinkedHashSet<Demand> demanded = new LinkedHashSet<>();
+    private static final LinkedHashSet<Demand> pendingDemands = new LinkedHashSet<>();
     private static final LinkedHashMap<String, Bitmap> bitmapCache =
             new LinkedHashMap<>(16, 0.75f, true);
     private static final WeakHashMap<ImageView, ImageBinding> imageBindings = new WeakHashMap<>();
@@ -41,21 +48,21 @@ public final class IconPackRuntime {
             return null;
         }
 
-        Snapshot current = snapshot;
-
-        if (current.densityDpi != resources.getDisplayMetrics().densityDpi) {
-            return null;
-        }
-
-        Bitmap bitmap = current.bitmaps.get(drawableId);
+        Demand demand = Demand.drawable(drawableId);
+        State current = state;
+        Bitmap bitmap = current.snapshot.bitmap(demand, resources.getDisplayMetrics().densityDpi);
 
         if (bitmap == null || bitmap.isRecycled()) {
+            recordDemand(demand);
+
             return null;
         }
 
         try {
             return new BitmapDrawable(resources, bitmap);
         } catch (RuntimeException | OutOfMemoryError error) {
+            recordDemand(demand);
+
             return null;
         }
     }
@@ -65,22 +72,65 @@ public final class IconPackRuntime {
             return null;
         }
 
-        Snapshot current = snapshot;
-
-        if (current.densityDpi != resources.getDisplayMetrics().densityDpi) {
-            return null;
-        }
-
-        Bitmap bitmap = current.namedBitmaps.get(resourceName);
+        Demand demand = Demand.named(resourceName);
+        State current = state;
+        Bitmap bitmap = current.snapshot.bitmap(demand, resources.getDisplayMetrics().densityDpi);
 
         if (bitmap == null || bitmap.isRecycled()) {
+            recordDemand(demand);
+
             return null;
         }
 
         try {
             return new BitmapDrawable(resources, bitmap);
         } catch (RuntimeException | OutOfMemoryError error) {
+            recordDemand(demand);
+
             return null;
+        }
+    }
+
+    private static void recordDemand(Demand demand) {
+        Runnable listener = null;
+
+        synchronized (DEMAND_LOCK) {
+            State current = state;
+            demanded.add(demand);
+
+            if (current.snapshot.bitmaps.containsKey(demand) || current.negatives.contains(demand)) {
+                return;
+            }
+
+            if (pendingDemands.add(demand)) {
+                listener = current.plan == null ? null : demandListener;
+            }
+        }
+
+        if (listener != null) {
+            listener.run();
+        }
+    }
+
+    static void setDemandListener(Runnable listener) {
+        demandListener = listener;
+    }
+
+    static boolean hasPendingDemands() {
+        synchronized (DEMAND_LOCK) {
+            return state.plan != null && !pendingDemands.isEmpty();
+        }
+    }
+
+    static int pendingDemandCount() {
+        synchronized (DEMAND_LOCK) {
+            return pendingDemands.size();
+        }
+    }
+
+    static int bitmapCacheBytes() {
+        synchronized (IconPackRuntime.class) {
+            return bitmapCacheBytes;
         }
     }
 
@@ -269,8 +319,26 @@ public final class IconPackRuntime {
             List<String> activeIds,
             BooleanSupplier currentRequest,
             Object publicationLock) {
+        return rebuild(
+                resources,
+                store,
+                installed,
+                activeIds,
+                0,
+                currentRequest,
+                publicationLock);
+    }
+
+    static boolean rebuild(
+            Resources resources,
+            IconPackStore store,
+            List<IconPackStore.Installed> installed,
+            List<String> activeIds,
+            long requestId,
+            BooleanSupplier currentRequest,
+            Object publicationLock) {
         if (resources == null || store == null || installed == null || activeIds == null) {
-            return publishIfCurrent(Snapshot.empty(), currentRequest, publicationLock);
+            return clearIfCurrent(currentRequest, publicationLock);
         }
 
         HashMap<String, IconPackStore.Installed> byId = new HashMap<>();
@@ -279,108 +347,214 @@ public final class IconPackRuntime {
             byId.put(pack.manifest.id, pack);
         }
 
-        int densityDpi = resources.getDisplayMetrics().densityDpi;
-        int fallbackSize = Math.max(1, Math.round(FALLBACK_ICON_SIZE_DP * densityDpi
-                / (float) DisplayMetrics.DENSITY_DEFAULT));
-        IconPackAndroidCatalog catalog = new IconPackAndroidCatalog(resources);
-        HashMap<Integer, Bitmap> bitmaps = new HashMap<>();
-        HashMap<String, Bitmap> namedBitmaps = new HashMap<>();
-        HashMap<String, String> sources = new HashMap<>();
+        ArrayList<IconPackStore.Installed> active = new ArrayList<>();
 
         for (String id : activeIds) {
+            IconPackStore.Installed pack = byId.get(id);
+
+            if (pack != null) {
+                active.add(pack);
+            }
+        }
+
+        Plan plan = new Plan(resources, store, active, requestId);
+        List<Demand> requested;
+
+        synchronized (DEMAND_LOCK) {
+            requested = new ArrayList<>(demanded);
+        }
+
+        Decoded decoded = decode(plan, requested, currentRequest);
+
+        if (decoded == null) {
+            return false;
+        }
+
+        synchronized (publicationLock) {
             if (!currentRequest.getAsBoolean()) {
                 return false;
             }
 
-            IconPackStore.Installed pack = byId.get(id);
+            boolean changed = publish(new State(
+                    plan,
+                    decoded.resolutions,
+                    decoded.negatives,
+                    snapshot(plan, decoded.resolutions)));
 
-            if (pack == null) {
-                continue;
+            synchronized (DEMAND_LOCK) {
+                pendingDemands.removeAll(requested);
             }
 
-            for (Map.Entry<String, String> entry : pack.manifest.icons.entrySet()) {
-                if (!currentRequest.getAsBoolean()) {
-                    return false;
-                }
-
-                String resourceName = entry.getKey();
-                int drawableId = catalog.drawableId(resourceName);
-
-                if (!catalog.contains(resourceName)
-                        || namedBitmaps.containsKey(resourceName)
-                        || drawableId != 0 && bitmaps.containsKey(drawableId)) {
-                    continue;
-                }
-
-                int width = fallbackSize;
-                int height = fallbackSize;
-
-                if (drawableId != 0) {
-                    Drawable original = originalDrawable(resources, drawableId, densityDpi);
-
-                    if (original != null
-                            && original.getIntrinsicWidth() > 0
-                            && original.getIntrinsicHeight() > 0) {
-                        width = original.getIntrinsicWidth();
-                        height = original.getIntrinsicHeight();
-                    }
-                }
-
-                String source = source(pack, resourceName, densityDpi, width, height);
-
-                if (source == null) {
-                    continue;
-                }
-
-                Bitmap bitmap = cached(source);
-
-                if (bitmap == null) {
-                    Drawable drawable = IconPackAndroidDrawableDecoder.resolve(
-                            resources,
-                            store,
-                            pack,
-                            resourceName);
-                    bitmap = render(drawable, width, height, densityDpi);
-
-                    if (bitmap != null) {
-                        cache(source, bitmap);
-                    }
-                }
-
-                if (bitmap != null) {
-                    namedBitmaps.put(resourceName, bitmap);
-
-                    if (drawableId != 0) {
-                        bitmaps.put(drawableId, bitmap);
-                    }
-
-                    sources.put(
-                            resourceName,
-                            source);
-                }
-            }
+            return changed;
         }
+    }
 
-        if (!currentRequest.getAsBoolean()) {
+    static boolean decodePending(BooleanSupplier currentRequest, Object publicationLock) {
+        return decodePending(0, currentRequest, publicationLock);
+    }
+
+    static boolean decodePending(
+            long requestId,
+            BooleanSupplier currentRequest,
+            Object publicationLock) {
+        State current = state;
+        Plan plan = current.plan;
+
+        if (plan == null || plan.requestId != requestId) {
             return false;
         }
 
-        if (namedBitmaps.isEmpty()) {
-            return publishIfCurrent(Snapshot.empty(), currentRequest, publicationLock);
+        List<Demand> requested;
+
+        synchronized (DEMAND_LOCK) {
+            if (pendingDemands.isEmpty()) {
+                return false;
+            }
+
+            requested = new ArrayList<>(pendingDemands);
         }
 
-        return publishIfCurrent(
-                new Snapshot(densityDpi, bitmaps, namedBitmaps, sources),
-                currentRequest,
-                publicationLock);
+        Decoded decoded = decode(plan, requested, currentRequest);
+
+        if (decoded == null) {
+            return false;
+        }
+
+        synchronized (publicationLock) {
+            if (!currentRequest.getAsBoolean()
+                    || state.plan != plan
+                    || plan.requestId != requestId) {
+                return false;
+            }
+
+            HashMap<Demand, Resolution> resolutions = new HashMap<>(state.resolutions);
+            HashSet<Demand> negatives = new HashSet<>(state.negatives);
+            resolutions.putAll(decoded.resolutions);
+            negatives.removeAll(requested);
+            negatives.addAll(decoded.negatives);
+            State next = new State(plan, resolutions, negatives, snapshot(plan, resolutions));
+            boolean changed = publish(next);
+
+            synchronized (DEMAND_LOCK) {
+                pendingDemands.removeAll(requested);
+            }
+
+            return changed;
+        }
     }
 
     static boolean clear() {
-        return publish(Snapshot.empty());
+        return clearIfCurrent(() -> true, IconPackRuntime.class);
     }
 
     static boolean clearIfCurrent(BooleanSupplier currentRequest, Object publicationLock) {
-        return publishIfCurrent(Snapshot.empty(), currentRequest, publicationLock);
+        synchronized (publicationLock) {
+            if (!currentRequest.getAsBoolean()) {
+                return false;
+            }
+
+            synchronized (DEMAND_LOCK) {
+                pendingDemands.addAll(demanded);
+            }
+
+            return publish(State.empty());
+        }
+    }
+
+    private static Decoded decode(
+            Plan plan,
+            List<Demand> requested,
+            BooleanSupplier currentRequest) {
+        HashMap<Demand, Resolution> resolutions = new HashMap<>();
+        HashSet<Demand> negatives = new HashSet<>();
+
+        for (Demand demand : requested) {
+            if (!currentRequest.getAsBoolean()) {
+                return null;
+            }
+
+            Resolution resolution = decode(plan, demand, currentRequest);
+
+            if (resolution == null) {
+                if (!currentRequest.getAsBoolean()) {
+                    return null;
+                }
+
+                negatives.add(demand);
+            } else {
+                resolutions.put(demand, resolution);
+            }
+        }
+
+        return new Decoded(resolutions, negatives);
+    }
+
+    private static Resolution decode(
+            Plan plan,
+            Demand demand,
+            BooleanSupplier currentRequest) {
+        String resourceName = demand.resourceName;
+        int drawableId = demand.drawableId;
+
+        if (resourceName == null) {
+            resourceName = plan.catalog.resourceName(drawableId);
+        } else {
+            drawableId = plan.catalog.drawableId(resourceName);
+        }
+
+        if (resourceName == null || !plan.catalog.contains(resourceName)) {
+            return null;
+        }
+
+        int width = plan.fallbackSize;
+        int height = plan.fallbackSize;
+
+        if (drawableId != 0) {
+            Drawable original = originalDrawable(plan.resources, drawableId, plan.densityDpi);
+
+            if (original != null
+                    && original.getIntrinsicWidth() > 0
+                    && original.getIntrinsicHeight() > 0) {
+                width = original.getIntrinsicWidth();
+                height = original.getIntrinsicHeight();
+            }
+        }
+
+        for (IconPackStore.Installed pack : plan.active) {
+            if (!currentRequest.getAsBoolean()) {
+                return null;
+            }
+            if (!pack.manifest.icons.containsKey(resourceName)) {
+                continue;
+            }
+
+            String source = source(pack, resourceName, plan.densityDpi, width, height);
+
+            if (source == null) {
+                continue;
+            }
+
+            Bitmap bitmap = cached(source);
+
+            if (bitmap == null) {
+                Drawable drawable = IconPackAndroidDrawableDecoder.resolve(
+                        plan.resources,
+                        plan.store,
+                        pack,
+                        resourceName);
+                bitmap = render(drawable, width, height, plan.densityDpi);
+
+                if (bitmap != null) {
+                    cache(source, bitmap);
+                }
+            }
+
+            if (bitmap != null && isCached(source, bitmap)) {
+                return new Resolution(source);
+            }
+        }
+
+        return null;
     }
 
     private static Drawable originalDrawable(Resources resources, int drawableId, int densityDpi) {
@@ -489,6 +663,10 @@ public final class IconPackRuntime {
         return bitmap;
     }
 
+    private static synchronized boolean isCached(String source, Bitmap bitmap) {
+        return bitmapCache.get(source) == bitmap;
+    }
+
     private static synchronized void cache(String source, Bitmap bitmap) {
         Bitmap previous = bitmapCache.put(source, bitmap);
 
@@ -511,6 +689,37 @@ public final class IconPackRuntime {
         return (int) Math.min(Integer.MAX_VALUE, bytes);
     }
 
+    private static synchronized Snapshot snapshot(
+            Plan plan,
+            Map<Demand, Resolution> resolutions) {
+        HashMap<Demand, Bitmap> bitmaps = new HashMap<>();
+        HashMap<String, String> sources = new HashMap<>();
+
+        for (Map.Entry<Demand, Resolution> entry : resolutions.entrySet()) {
+            Resolution resolution = entry.getValue();
+            Bitmap cached = bitmapCache.get(resolution.source);
+
+            if (cached != null && !cached.isRecycled()) {
+                bitmaps.put(entry.getKey(), cached);
+                sources.put(entry.getKey().key, resolution.source);
+            }
+        }
+
+        return new Snapshot(plan.densityDpi, bitmaps, sources);
+    }
+
+    private static synchronized boolean publish(State next) {
+        State current = state;
+        boolean changed = !current.snapshot.sameContent(next.snapshot);
+        state = next;
+
+        if (changed) {
+            revision++;
+        }
+
+        return changed;
+    }
+
     private static final class ImageBinding {
         private final int drawableId;
         private final long runtimeRevision;
@@ -528,51 +737,132 @@ public final class IconPackRuntime {
         }
     }
 
-    private static boolean publishIfCurrent(
-            Snapshot next,
-            BooleanSupplier currentRequest,
-            Object publicationLock) {
-        synchronized (publicationLock) {
-            return currentRequest.getAsBoolean() && publish(next);
+    private static final class Plan {
+        private final Resources resources;
+        private final IconPackStore store;
+        private final List<IconPackStore.Installed> active;
+        private final IconPackAndroidCatalog catalog;
+        private final int densityDpi;
+        private final int fallbackSize;
+        private final long requestId;
+
+        private Plan(
+                Resources resources,
+                IconPackStore store,
+                List<IconPackStore.Installed> active,
+                long requestId) {
+            this.resources = resources;
+            this.store = store;
+            this.active = Collections.unmodifiableList(new ArrayList<>(active));
+            this.catalog = new IconPackAndroidCatalog(resources);
+            this.densityDpi = resources.getDisplayMetrics().densityDpi;
+            this.fallbackSize = Math.max(1, Math.round(FALLBACK_ICON_SIZE_DP * densityDpi
+                    / (float) DisplayMetrics.DENSITY_DEFAULT));
+            this.requestId = requestId;
         }
     }
 
-    private static synchronized boolean publish(Snapshot next) {
-        Snapshot current = snapshot;
+    private static final class State {
+        private final Plan plan;
+        private final Map<Demand, Resolution> resolutions;
+        private final Set<Demand> negatives;
+        private final Snapshot snapshot;
 
-        if (current.densityDpi == next.densityDpi && current.sources.equals(next.sources)) {
-            return false;
+        private State(
+                Plan plan,
+                Map<Demand, Resolution> resolutions,
+                Set<Demand> negatives,
+                Snapshot snapshot) {
+            this.plan = plan;
+            this.resolutions = Collections.unmodifiableMap(new HashMap<>(resolutions));
+            this.negatives = Collections.unmodifiableSet(new HashSet<>(negatives));
+            this.snapshot = snapshot;
         }
 
-        snapshot = next;
-        revision++;
+        private static State empty() {
+            return new State(
+                    null,
+                    Collections.emptyMap(),
+                    Collections.emptySet(),
+                    Snapshot.empty());
+        }
+    }
 
-        return true;
+    private static final class Demand {
+        private final int drawableId;
+        private final String resourceName;
+        private final String key;
+
+        private Demand(int drawableId, String resourceName, String key) {
+            this.drawableId = drawableId;
+            this.resourceName = resourceName;
+            this.key = key;
+        }
+
+        private static Demand drawable(int drawableId) {
+            return new Demand(drawableId, null, "drawable:" + drawableId);
+        }
+
+        private static Demand named(String resourceName) {
+            return new Demand(0, resourceName, "name:" + resourceName);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Demand && key.equals(((Demand) other).key);
+        }
+
+        @Override
+        public int hashCode() {
+            return key.hashCode();
+        }
+    }
+
+    private static final class Resolution {
+        private final String source;
+
+        private Resolution(String source) {
+            this.source = source;
+        }
+    }
+
+    private static final class Decoded {
+        private final Map<Demand, Resolution> resolutions;
+        private final Set<Demand> negatives;
+
+        private Decoded(
+                Map<Demand, Resolution> resolutions,
+                Set<Demand> negatives) {
+            this.resolutions = resolutions;
+            this.negatives = negatives;
+        }
     }
 
     private static final class Snapshot {
         private final int densityDpi;
-        private final Map<Integer, Bitmap> bitmaps;
-        private final Map<String, Bitmap> namedBitmaps;
+        private final Map<Demand, Bitmap> bitmaps;
         private final Map<String, String> sources;
 
         private Snapshot(
                 int densityDpi,
-                Map<Integer, Bitmap> bitmaps,
-                Map<String, Bitmap> namedBitmaps,
+                Map<Demand, Bitmap> bitmaps,
                 Map<String, String> sources) {
             this.densityDpi = densityDpi;
             this.bitmaps = Collections.unmodifiableMap(new HashMap<>(bitmaps));
-            this.namedBitmaps = Collections.unmodifiableMap(new HashMap<>(namedBitmaps));
             this.sources = Collections.unmodifiableMap(new HashMap<>(sources));
         }
 
+        private Bitmap bitmap(Demand demand, int requestedDensityDpi) {
+            return densityDpi == requestedDensityDpi ? bitmaps.get(demand) : null;
+        }
+
+        private boolean sameContent(Snapshot other) {
+            return sources.equals(other.sources)
+                    && (sources.isEmpty() || densityDpi == other.densityDpi);
+        }
+
         private static Snapshot empty() {
-            return new Snapshot(
-                    0,
-                    Collections.emptyMap(),
-                    Collections.emptyMap(),
-                    Collections.emptyMap());
+            return new Snapshot(0, Collections.emptyMap(), Collections.emptyMap());
         }
     }
 }

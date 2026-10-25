@@ -192,6 +192,8 @@ public final class IconPackAndroidCheck {
         require(wrapped.getOriginalDrawableForDensity(11, 160, null).getIntrinsicHeight() == 18);
         Map<String, String> firstIcons = new LinkedHashMap<>();
         firstIcons.put("msg_add", "first.png");
+        firstIcons.put("msg_copy", "first.png");
+        firstIcons.put("msg_share", "first.png");
         firstIcons.put("msg_settings", "first.png");
         firstIcons.put("boosts", "first.png");
         firstIcons.put("tabs_chats_24", "first.png");
@@ -222,29 +224,25 @@ public final class IconPackAndroidCheck {
                         .getBytes(StandardCharsets.UTF_8));
         store.setPayload(fallback, "raster:32:24".getBytes(StandardCharsets.UTF_8));
 
-        require(IconPackRuntime.rebuild(
-                resources,
-                store,
-                Arrays.asList(transparent, fallback),
-                Arrays.asList("transparent.pack", "fallback.pack")));
-        require(IconPackRuntime.resolve(resources, 1) instanceof BitmapDrawable);
-        require(store.lastResolved == fallback);
-        IconPackRuntime.clear();
-
+        store.resolveCount = 0;
         long initialRevision = IconPackRuntime.revision();
         require(!IconPackRuntime.rebuild(
                 resources,
                 store,
                 Arrays.asList(first, second),
-                Collections.emptyList()));
-        require(IconPackRuntime.revision() == initialRevision);
-        require(IconPackRuntime.rebuild(
-                wrapped,
-                store,
-                Arrays.asList(first, second),
                 Arrays.asList("first.pack", "second.pack")));
+        require(store.resolveCount == 0);
+        require(IconPackRuntime.revision() == initialRevision);
+        require(IconPackRuntime.resolve(resources, 1) == null);
+        require(IconPackRuntime.resolve(resources, 11) == null);
+        require(IconPackRuntime.resolve(resources, "boosts") == null);
+        require(IconPackRuntime.resolve(resources, "tabs_chats_24") == null);
+        require(IconPackRuntime.pendingDemandCount() == 4);
+        require(store.resolveCount == 0);
+        require(IconPackRuntime.decodePending(() -> true, new Object()));
         require(IconPackRuntime.revision() == initialRevision + 1);
-        require(store.lastResolved == first);
+        require(IconPackRuntime.pendingDemandCount() == 0);
+        require(store.resolveCount == 4);
 
         Drawable firstDrawable = IconPackRuntime.resolve(resources, 1);
         Drawable secondDrawable = IconPackRuntime.resolve(resources, 1);
@@ -264,6 +262,16 @@ public final class IconPackAndroidCheck {
         require(IconPackRuntime.resolve(resources, "tabs_chats_24") instanceof BitmapDrawable);
         require(IconPackRuntime.resolve(resources, "tabs_missing_24") == null);
         require(IconPackRuntime.resolve(resources, 13) == null);
+        require(IconPackRuntime.pendingDemandCount() == 2);
+        require(!IconPackRuntime.decodePending(() -> true, new Object()));
+        require(IconPackRuntime.pendingDemandCount() == 0);
+        int negativeResolveCount = store.resolveCount;
+        require(IconPackRuntime.resolve(resources, "tabs_missing_24") == null);
+        require(IconPackRuntime.resolve(resources, 13) == null);
+        require(IconPackRuntime.pendingDemandCount() == 0);
+        require(store.resolveCount == negativeResolveCount);
+        require(!IconPackRuntime.decodePending(() -> true, new Object()));
+        require(IconPackRuntime.revision() == initialRevision + 1);
 
         require(wrapped.getDrawableForDensity(1, 0, null) instanceof BitmapDrawable);
         require(!(wrapped.getDrawableForDensity(1, 320, null) instanceof BitmapDrawable));
@@ -278,13 +286,14 @@ public final class IconPackAndroidCheck {
         require(imageView.drawable == null);
         require(imageView.resourceId == 13);
 
-        require(!IconPackRuntime.rebuild(
+        require(IconPackRuntime.rebuild(
                 resources,
                 store,
-                Arrays.asList(first, second),
-                Arrays.asList("first.pack", "second.pack")));
-        require(IconPackRuntime.revision() == initialRevision + 1);
-        require(!Bitmap.lastCreated.isRecycled());
+                Arrays.asList(transparent, fallback),
+                Arrays.asList("transparent.pack", "fallback.pack")));
+        require(IconPackRuntime.resolve(resources, 1) instanceof BitmapDrawable);
+        require(store.lastResolved == fallback);
+        require(IconPackRuntime.revision() == initialRevision + 2);
 
         int[] refreshes = {0};
         IconPackRuntime.Listener listener = () -> refreshes[0]++;
@@ -328,14 +337,91 @@ public final class IconPackAndroidCheck {
         IconPackRuntime.refreshUi();
         require(imageView.drawable == customDrawable);
 
-        require(!IconPackRuntime.rebuild(
+        IconPackStore.Installed updatedFirst = new IconPackStore.Installed(
+                new IconPackManifest("first.pack", firstIcons),
+                "updated-generation");
+        store.setPayload(updatedFirst, "raster:32:24".getBytes(StandardCharsets.UTF_8));
+        require(IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(updatedFirst, second),
+                Collections.singletonList("first.pack")));
+        Bitmap updatedBitmap = ((BitmapDrawable) IconPackRuntime.resolve(resources, 1)).getBitmap();
+        require(updatedBitmap != ((BitmapDrawable) firstDrawable).getBitmap());
+        require(updatedBitmap.getWidth() == 24);
+        require(updatedBitmap.getHeight() == 24);
+
+        require(IconPackRuntime.resolve(resources, 2) == null);
+        require(IconPackRuntime.decodePending(() -> true, new Object()));
+        require(IconPackRuntime.resolve(resources, 2) instanceof BitmapDrawable);
+        require(IconPackRuntime.clear());
+        require(IconPackRuntime.resolve(resources, 1) == null);
+        require(IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(first, second),
+                Collections.singletonList("second.pack")));
+        require(IconPackRuntime.resolve(resources, 1) instanceof BitmapDrawable);
+
+        require(IconPackRuntime.rebuild(
                 resources,
                 store,
                 Arrays.asList(first, second),
                 Collections.singletonList("first.pack")));
-        require(((BitmapDrawable) IconPackRuntime.resolve(resources, 1)).getBitmap()
-                == ((BitmapDrawable) firstDrawable).getBitmap());
-        require(IconPackRuntime.revision() == initialRevision + 3);
+        require(IconPackRuntime.resolve(resources, 2) instanceof BitmapDrawable);
+
+        require(!IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(first, second),
+                Collections.singletonList("first.pack"),
+                42,
+                () -> true,
+                new Object()));
+        require(IconPackRuntime.resolve(resources, 12) == null);
+        require(IconPackRuntime.pendingDemandCount() == 1);
+        int staleDrainResolveCount = store.resolveCount;
+        require(!IconPackRuntime.decodePending(41, () -> true, new Object()));
+        require(IconPackRuntime.pendingDemandCount() == 1);
+        require(store.resolveCount == staleDrainResolveCount);
+        require(IconPackRuntime.decodePending(42, () -> true, new Object()));
+        require(IconPackRuntime.resolve(resources, 12) instanceof BitmapDrawable);
+
+        IconPackRuntime.clear();
+        require(IconPackRuntime.resolve(resources, 2) == null);
+        require(IconPackRuntime.pendingDemandCount() > 0);
+        require(IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(first, second),
+                Collections.singletonList("first.pack")));
+        require(IconPackRuntime.resolve(resources, 2) instanceof BitmapDrawable);
+
+        IconPackRuntime.clear();
+        require(IconPackRuntime.resolve(resources, 2) == null);
+        IconPackStore.Installed staleFirst = new IconPackStore.Installed(
+                new IconPackManifest("first.pack", firstIcons),
+                "stale-generation");
+        store.setPayload(staleFirst, raster);
+        final boolean[] currentRequest = {true};
+        store.resolveHook = () -> currentRequest[0] = false;
+        require(!IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(staleFirst, second),
+                Collections.singletonList("first.pack"),
+                () -> currentRequest[0],
+                new Object()));
+        require(IconPackRuntime.resolve(resources, 2) == null);
+        require(IconPackRuntime.pendingDemandCount() > 0);
+        store.resolveHook = null;
+        currentRequest[0] = true;
+        require(IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(first, second),
+                Collections.singletonList("first.pack")));
+        require(IconPackRuntime.resolve(resources, 2) instanceof BitmapDrawable);
 
         resources.getDisplayMetrics().densityDpi = 320;
         require(IconPackRuntime.resolve(resources, 1) == null);
@@ -348,9 +434,9 @@ public final class IconPackAndroidCheck {
         require(densityBitmap.getWidth() == 48);
         require(densityBitmap.getHeight() == 48);
         require(densityBitmap.getDensity() == 320);
+        require(IconPackRuntime.bitmapCacheBytes() <= 32 * 1024 * 1024);
 
         require(IconPackRuntime.clear());
-        require(IconPackRuntime.revision() == initialRevision + 5);
         require(IconPackRuntime.resolve(resources, 1) == null);
     }
 

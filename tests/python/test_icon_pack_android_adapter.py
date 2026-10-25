@@ -54,7 +54,11 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         self.assertIn("SVG.getFromString", catalog)
         self.assertIn("hasVisiblePixels", catalog)
         self.assertNotIn("SvgHelper", catalog)
-        self.assertIn("private static volatile Snapshot snapshot", runtime)
+        self.assertIn("private static volatile State state", runtime)
+        self.assertIn("private static final LinkedHashSet<Demand> demanded", runtime)
+        self.assertIn("private static final LinkedHashSet<Demand> pendingDemands", runtime)
+        self.assertIn("static boolean decodePending", runtime)
+        self.assertIn("plan.requestId != requestId", runtime)
         self.assertIn("Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)", runtime)
         self.assertIn("getOriginalDrawableForDensity", runtime)
         self.assertIn("public static Drawable resolve(Resources resources, String resourceName)", runtime)
@@ -64,7 +68,15 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         self.assertIn("BooleanSupplier currentRequest", runtime)
         self.assertIn("source.recycle()", runtime)
         self.assertIn("IconPackAndroidCatalog.hasVisiblePixels(result)", runtime)
-        self.assertNotIn("store.resolve", runtime.split("public static Drawable resolve", 1)[1].split("static boolean rebuild", 1)[0])
+        resolve_paths = runtime.split("public static Drawable resolve", 1)[1].split("static boolean rebuild", 1)[0]
+        self.assertNotIn("store.resolve", resolve_paths)
+        self.assertNotIn("IconPackAndroidDrawableDecoder", resolve_paths)
+        self.assertNotIn("Bitmap.createBitmap", resolve_paths)
+        self.assertNotIn("pack.manifest.icons.entrySet()", runtime)
+        resolution = runtime.split("private static final class Resolution", 1)[1].split(
+            "private static final class Decoded", 1
+        )[0]
+        self.assertNotIn("Bitmap bitmap", resolution)
 
         build = (ROOT / "TMessagesProj/build.gradle").read_text()
         self.assertIn("com.caverock:androidsvg-aar:1.4", build)

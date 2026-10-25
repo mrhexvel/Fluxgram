@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class IconPackRepository {
@@ -160,12 +161,20 @@ public final class IconPackRepository {
             Executors.newSingleThreadScheduledExecutor(
                     runnable -> new Thread(runnable, "FluxGramIconPackRuntime"));
     private static final AtomicLong RUNTIME_REQUEST = new AtomicLong();
+    private static final AtomicBoolean RUNTIME_DRAIN_SCHEDULED = new AtomicBoolean();
+    private static final AtomicBoolean RUNTIME_UI_REFRESH_SCHEDULED = new AtomicBoolean();
     private static final Object RUNTIME_REQUEST_LOCK = new Object();
+    private static final long RUNTIME_DEMAND_DELAY_MS = 16;
+    private static volatile long appliedRuntimeRevision = -1;
 
     private static IconPackStore store;
     private static List<IconPackStore.Installed> installedSnapshot;
     private static List<String> activeSnapshot = Collections.emptyList();
     private static volatile State stateSnapshot;
+
+    static {
+        IconPackRuntime.setDemandListener(IconPackRepository::requestRuntimeDemandDrain);
+    }
 
     private IconPackRepository() {
     }
@@ -316,7 +325,7 @@ public final class IconPackRepository {
                         RUNTIME_REQUEST_LOCK);
 
                 if (changed) {
-                    AndroidUtilities.runOnUIThread(IconPackRuntime::refreshUi);
+                    publishRuntimeChange();
                 }
 
                 return;
@@ -559,6 +568,7 @@ public final class IconPackRepository {
                         currentStore,
                         installedCopy,
                         activeCopy,
+                        request,
                         () -> RUNTIME_REQUEST.get() == request,
                         RUNTIME_REQUEST_LOCK);
             } catch (Exception error) {
@@ -568,12 +578,62 @@ public final class IconPackRepository {
             }
 
             if (changed) {
-                AndroidUtilities.runOnUIThread(() -> {
+                publishRuntimeChange();
+            }
+            if (IconPackRuntime.hasPendingDemands()) {
+                requestRuntimeDemandDrain();
+            }
+        });
+    }
+
+    private static void requestRuntimeDemandDrain() {
+        if (!RUNTIME_DRAIN_SCHEDULED.compareAndSet(false, true)) {
+            return;
+        }
+
+        RUNTIME_WORKER.schedule(() -> {
+            try {
+                long request = RUNTIME_REQUEST.get();
+                boolean changed = IconPackRuntime.decodePending(
+                        request,
+                        () -> RUNTIME_REQUEST.get() == request,
+                        RUNTIME_REQUEST_LOCK);
+
+                if (changed) {
+                    publishRuntimeChange();
+                }
+            } finally {
+                RUNTIME_DRAIN_SCHEDULED.set(false);
+
+                if (IconPackRuntime.hasPendingDemands()) {
+                    requestRuntimeDemandDrain();
+                }
+            }
+        }, RUNTIME_DEMAND_DELAY_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private static void publishRuntimeChange() {
+        if (!RUNTIME_UI_REFRESH_SCHEDULED.compareAndSet(false, true)) {
+            return;
+        }
+
+        AndroidUtilities.runOnUIThread(() -> {
+            long revision = IconPackRuntime.revision();
+
+            try {
+                if (appliedRuntimeRevision != revision) {
                     Theme.reloadAllResources(ApplicationLoader.applicationContext);
                     IconPackRuntime.refreshUi();
                     NotificationCenter.getGlobalInstance().postNotificationName(
                             NotificationCenter.fluxgramIconPackChanged);
-                });
+                    appliedRuntimeRevision = revision;
+                }
+            } finally {
+                RUNTIME_UI_REFRESH_SCHEDULED.set(false);
+
+                if (IconPackRuntime.revision() != revision) {
+                    publishRuntimeChange();
+                }
             }
         });
     }

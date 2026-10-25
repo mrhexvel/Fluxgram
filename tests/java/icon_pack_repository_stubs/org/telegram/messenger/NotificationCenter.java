@@ -29,5 +29,6 @@ public final class NotificationCenter {
         iconPackChangedCount = 0;
         Theme.reloadCount = 0;
         IconPackRuntime.refreshCount = 0;
+        IconPackRuntime.decodeCount = 0;
     }
 }

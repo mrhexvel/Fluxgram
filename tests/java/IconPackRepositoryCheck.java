@@ -5,6 +5,7 @@ import android.content.MemorySharedPreferences;
 import android.net.Uri;
 
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 
@@ -71,9 +72,28 @@ public final class IconPackRepositoryCheck {
         awaitIconPackChanges(1);
         require(NotificationCenter.iconPackChangedCount == 1);
 
+        IconPackRuntime.demand();
+        IconPackRuntime.demand();
+        awaitIconPackChanges(2);
+        require(NotificationCenter.iconPackChangedCount == 2);
+        require(IconPackRuntime.decodeCount == 1);
+
         require(setActive("example.pack", true).error == null);
-        Thread.sleep(100);
-        require(NotificationCenter.iconPackChangedCount == 1);
+        IconPackRuntime.demand();
+        awaitIconPackChanges(3);
+        require(NotificationCenter.iconPackChangedCount == 3);
+        require(IconPackRuntime.decodeCount == 2);
+
+        AndroidUtilities.setUiDeferred(true);
+        IconPackRuntime.demand();
+        awaitDecodeCount(3);
+        IconPackRuntime.demand();
+        awaitDecodeCount(4);
+        require(AndroidUtilities.pendingUiCount() == 1);
+        require(NotificationCenter.iconPackChangedCount == 3);
+        AndroidUtilities.drainUi();
+        AndroidUtilities.setUiDeferred(false);
+        require(NotificationCenter.iconPackChangedCount == 4);
 
         Outcome<IconPackRepository.Review> update = review(new File(args[2]));
         require(update.error == null);
@@ -167,6 +187,17 @@ public final class IconPackRepositoryCheck {
                 && System.currentTimeMillis() < deadline) {
             Thread.sleep(10);
         }
+    }
+
+    private static void awaitDecodeCount(int count) throws Exception {
+        long deadline = System.currentTimeMillis() + 5_000;
+
+        while (IconPackRuntime.decodeCount < count
+                && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
+
+        require(IconPackRuntime.decodeCount >= count);
     }
 
     private static Outcome<IconPackRepository.Review> review(File archive) throws Exception {

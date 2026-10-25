@@ -32,6 +32,8 @@ public class IconPackStore {
     private byte[] payload;
     private final Map<Installed, byte[]> payloads = new IdentityHashMap<>();
     public Installed lastResolved;
+    public int resolveCount;
+    public Runnable resolveHook;
 
     public void setPayload(byte[] payload) {
         this.payload = payload;
@@ -43,6 +45,11 @@ public class IconPackStore {
 
     public byte[] resolve(Installed installed, String resourceName) throws IOException {
         lastResolved = installed;
+        resolveCount++;
+
+        if (resolveHook != null) {
+            resolveHook.run();
+        }
 
         return payloads.containsKey(installed) ? payloads.get(installed) : payload;
     }
