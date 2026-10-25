@@ -94,6 +94,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.SvgHelper;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.time.SunDate;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
@@ -8277,10 +8278,22 @@ public class Theme {
                 chat_psaHelpDrawable[a] = resources.getDrawable(R.drawable.msg_psa).mutate();
             }
 
-            calllog_msgCallUpRedDrawable = resources.getDrawable(R.drawable.mini_call_out_16).mutate();
-            calllog_msgCallUpGreenDrawable = resources.getDrawable(R.drawable.mini_call_out_16).mutate();
-            calllog_msgCallDownRedDrawable = resources.getDrawable(R.drawable.mini_call_in_16).mutate();
-            calllog_msgCallDownGreenDrawable = resources.getDrawable(R.drawable.mini_call_in_16).mutate();
+            calllog_msgCallUpRedDrawable = getIconPackDrawable(
+                    resources,
+                    "ic_call_made_green_18dp",
+                    R.drawable.mini_call_out_16);
+            calllog_msgCallUpGreenDrawable = getIconPackDrawable(
+                    resources,
+                    "ic_call_made_green_18dp",
+                    R.drawable.mini_call_out_16);
+            calllog_msgCallDownRedDrawable = getIconPackDrawable(
+                    resources,
+                    "ic_call_received_green_18dp",
+                    R.drawable.mini_call_in_16);
+            calllog_msgCallDownGreenDrawable = getIconPackDrawable(
+                    resources,
+                    "ic_call_received_green_18dp",
+                    R.drawable.mini_call_in_16);
 
             chat_inlineResultFile = resources.getDrawable(R.drawable.bot_file);
             chat_inlineResultAudio = resources.getDrawable(R.drawable.bot_music);
@@ -8881,6 +8894,19 @@ public class Theme {
             chat_messageBackgroundSelectedPaint.setColorFilter(null);
             chat_messageBackgroundSelectedPaint.setShader(null);
         }
+    }
+
+    private static Drawable getIconPackDrawable(
+            Resources resources,
+            String resourceName,
+            int fallbackResourceId) {
+        Drawable drawable = IconPackRuntime.resolve(resources, resourceName);
+
+        if (drawable == null) {
+            drawable = resources.getDrawable(fallbackResourceId);
+        }
+
+        return drawable.mutate();
     }
 
     public static void createProfileResources(Context context) {

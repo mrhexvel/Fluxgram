@@ -51,6 +51,10 @@ public final class IconPackAndroidCheck {
         require(catalog.drawableId("boosts") == 0);
         require(catalog.contains("fab_compose_small"));
         require(catalog.drawableId("fab_compose_small") == 0);
+        require(catalog.contains("ic_call_made_green_18dp"));
+        require(catalog.drawableId("ic_call_made_green_18dp") == 0);
+        require(catalog.contains("ic_call_received_green_18dp"));
+        require(catalog.drawableId("ic_call_received_green_18dp") == 0);
         require(catalog.contains("instant_camera"));
         require(catalog.drawableId("instant_camera") == 0);
         require(catalog.contains("msg2_night_auto"));
