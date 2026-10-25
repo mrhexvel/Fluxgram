@@ -45,6 +45,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsCompat;
 
@@ -59,6 +60,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.SendMessageChatArguments;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.SharedConfig;
@@ -1449,7 +1451,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
             this.resourcesProvider = resourcesProvider;
 
             if (icon != 0) {
-                setImageResource(icon);
+                IconPackRuntime.setImageResource(this, icon);
             }
             setScaleType(ScaleType.CENTER);
             ScaleStateListAnimator.apply(this);
@@ -1507,7 +1509,10 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
             if (premium) {
                 AndroidUtilities.updateImageViewImageAnimated(this, wrapPremium(newIcon));
             } else {
-                AndroidUtilities.updateImageViewImageAnimated(this, newIcon);
+                Drawable drawable = IconPackRuntime.resolve(getResources(), newIcon);
+                AndroidUtilities.updateImageViewImageAnimated(
+                        this,
+                        drawable != null ? drawable : ContextCompat.getDrawable(getContext(), newIcon));
             }
         }
 

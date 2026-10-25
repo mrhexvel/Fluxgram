@@ -42,6 +42,7 @@ import androidx.core.math.MathUtils;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.Theme;
@@ -1205,10 +1206,24 @@ public class ProfileActionsView extends View {
             } else {
                 drawableAnimated = null;
             }
-            drawableFilled = filledRes != 0 ? getResources().getDrawable(filledRes).mutate() : null;
-            drawableOutline = outlineRes != 0 ? getResources().getDrawable(outlineRes).mutate() : null;
+            drawableFilled = resolveDrawable(filledRes);
+            drawableOutline = resolveDrawable(outlineRes);
 
             checkBounds();
+        }
+
+        private Drawable resolveDrawable(@DrawableRes int resId) {
+            if (resId == 0) {
+                return null;
+            }
+
+            Drawable drawable = IconPackRuntime.resolve(getResources(), resId);
+
+            if (drawable == null) {
+                drawable = getResources().getDrawable(resId);
+            }
+
+            return drawable.mutate();
         }
     }
 

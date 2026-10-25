@@ -108,6 +108,7 @@ class IconPackRepositoryTest(unittest.TestCase):
         self.assertIn("state.withActive(pack.id, active)", settings)
         self.assertIn("state = optimisticState", settings)
         self.assertIn("state = previousState", settings)
+        self.assertIn("loadState(false)", settings)
 
     @staticmethod
     def write_archive(root, name, version, pack_id="example.pack"):

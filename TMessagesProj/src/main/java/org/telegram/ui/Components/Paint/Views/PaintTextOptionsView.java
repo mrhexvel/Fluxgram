@@ -23,6 +23,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.ChatActivityEnterViewAnimatedIconView;
 import org.telegram.ui.Components.LayoutHelper;
@@ -87,7 +88,7 @@ public class PaintTextOptionsView extends FrameLayout implements NotificationCen
         addView(outlineView, LayoutHelper.createFrame(28, 28, Gravity.CENTER_VERTICAL, 0, 0, 16, 0));
 
         plusView = new ImageView(context);
-        plusView.setImageResource(R.drawable.msg_add);
+        IconPackRuntime.setImageResource(plusView, R.drawable.msg_add);
         plusView.setColorFilter(new PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN));
         plusView.setBackground(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR));
         plusView.setOnClickListener(v -> delegate.onNewTextSelected());

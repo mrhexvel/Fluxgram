@@ -22,6 +22,7 @@ import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.Components.AnimatedEmojiSpan;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.CheckBox2;
@@ -178,7 +179,7 @@ public class ActionBarMenuSubItem extends FrameLayout {
             rightIcon.setVisibility(View.GONE);
         } else {
             rightIcon.setVisibility(View.VISIBLE);
-            rightIcon.setImageResource(icon);
+            IconPackRuntime.setImageResource(rightIcon, icon);
         }
     }
 
@@ -211,7 +212,7 @@ public class ActionBarMenuSubItem extends FrameLayout {
                 imageView.setImageDrawable(iconDrawable);
             } else {
                 iconResId = icon;
-                imageView.setImageResource(icon);
+                IconPackRuntime.setImageResource(imageView, icon);
             }
             imageView.setVisibility(VISIBLE);
             textView.setPadding(checkViewLeft ? (checkView != null ? dp(43) : 0) : dp(icon != 0 || iconDrawable != null ? 43 : 0), 0, checkViewLeft ? dp(icon != 0 || iconDrawable != null ? 43 : 0) : (checkView != null ? dp(43) : 0), 0);
@@ -324,7 +325,8 @@ public class ActionBarMenuSubItem extends FrameLayout {
     }
 
     public void setIcon(int resId) {
-        imageView.setImageResource(iconResId = resId);
+        iconResId = resId;
+        IconPackRuntime.setImageResource(imageView, resId);
     }
 
     public void setIcon(Drawable drawable) {

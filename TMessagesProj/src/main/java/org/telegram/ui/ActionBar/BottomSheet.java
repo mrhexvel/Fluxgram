@@ -61,6 +61,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.FileLog;
@@ -1126,7 +1127,7 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
                 if (drawable != null) {
                     imageView.setImageDrawable(drawable);
                 } else {
-                    imageView.setImageResource(icon);
+                    IconPackRuntime.setImageResource(imageView, icon);
                 }
                 imageView.setVisibility(VISIBLE);
                 if (bigTitle) {

@@ -32,6 +32,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.AvatarSpan;
 import org.telegram.ui.Components.AnimationProperties;
@@ -171,7 +172,7 @@ public class TextCheckCell extends FrameLayout {
         valueParams.rightMargin = LocaleController.isRTL ? textPadding : valueParams.rightMargin;
 
         imageView.setVisibility(VISIBLE);
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
         imageView.setPadding(0, 0, 0, 0);
         imageView.setBackground(null);
         imageView.setColorFilter(new PorterDuffColorFilter(
@@ -484,7 +485,7 @@ public class TextCheckCell extends FrameLayout {
         }
         imageView.setVisibility(VISIBLE);
         imageView.setPadding(AndroidUtilities.dp(2), AndroidUtilities.dp(2), AndroidUtilities.dp(2), AndroidUtilities.dp(2));
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
         imageView.setColorFilter(new PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN));
         imageView.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(9), color));
     }

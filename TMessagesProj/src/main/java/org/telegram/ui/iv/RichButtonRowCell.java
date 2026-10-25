@@ -20,6 +20,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.RichMessageLayout;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.tgnet.tl.TL_iv;
@@ -129,7 +130,13 @@ public class RichButtonRowCell extends RichBlockCell implements Theme.Colorable 
         emptyAddButton.setTextColor(accent);
         emptyAddButton.setBackground(Theme.createRadSelectorDrawable(
             normal, Theme.multAlpha(accent, .16f), dp(19), dp(19)));
-        final Drawable icon = getContext().getResources().getDrawable(R.drawable.msg_add).mutate();
+        Drawable icon = IconPackRuntime.resolve(getResources(), R.drawable.msg_add);
+
+        if (icon == null) {
+            icon = getContext().getResources().getDrawable(R.drawable.msg_add);
+        }
+
+        icon = icon.mutate();
         icon.setColorFilter(new PorterDuffColorFilter(accent, PorterDuff.Mode.SRC_IN));
         emptyAddButton.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null);
     }

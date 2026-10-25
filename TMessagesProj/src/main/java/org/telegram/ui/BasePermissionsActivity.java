@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.net.Uri;
 
 import androidx.annotation.RawRes;
@@ -19,6 +21,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.camera.CameraController;
+import org.telegram.messenger.fluxgram.icons.IconPackResources;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AlertsCreator;
@@ -36,6 +39,24 @@ public class BasePermissionsActivity extends FragmentActivity {
             REQUEST_CODE_MEDIA_GEO = 211;
 
     protected int currentAccount = -1;
+    private Resources iconPackResources;
+
+    @Override
+    public Resources getResources() {
+        Resources resources = super.getResources();
+
+        if (iconPackResources == null) {
+            iconPackResources = new IconPackResources(resources);
+        }
+
+        return iconPackResources;
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        iconPackResources = null;
+    }
 
     protected boolean checkPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (grantResults == null) {

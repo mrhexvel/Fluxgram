@@ -5,6 +5,7 @@ import android.net.Uri;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.NotificationCenter;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -189,7 +190,7 @@ public final class IconPackRepository {
                     snapshot = IconPackArchiveValidator.snapshot(
                             selected,
                             cache,
-                            new IconPackAndroidCatalog());
+                            new IconPackAndroidCatalog(context.getResources()));
                 } catch (IconPackArchiveValidator.InvalidArchiveException error) {
                     throw new ImportException(Failure.INVALID, error);
                 } catch (Exception error) {
@@ -252,12 +253,15 @@ public final class IconPackRepository {
         WORKER.execute(() -> {
             IconPackStore.Installed installed = null;
             Exception failure = null;
+            boolean runtimeChanged = false;
 
             try {
                 File archive = review.claim();
-                installed = store(ApplicationLoader.applicationContext).install(
+                IconPackStore currentStore = store(ApplicationLoader.applicationContext);
+                installed = currentStore.install(
                         archive,
                         review.result.sha256);
+                runtimeChanged = refreshRuntimeSafely(currentStore);
             } catch (Exception error) {
                 failure = error;
             } finally {
@@ -274,7 +278,28 @@ public final class IconPackRepository {
 
             IconPackStore.Installed value = installed;
             Exception error = failure;
-            AndroidUtilities.runOnUIThread(() -> callback.complete(value, error));
+            boolean notifyRuntime = runtimeChanged;
+            AndroidUtilities.runOnUIThread(() -> {
+                callback.complete(value, error);
+                notifyRuntimeChanged(notifyRuntime);
+            });
+        });
+    }
+
+    public static void initializeRuntime() {
+        WORKER.execute(() -> {
+            IconPackStore currentStore;
+
+            try {
+                currentStore = store(ApplicationLoader.applicationContext);
+            } catch (IOException error) {
+                IconPackRuntime.clear();
+
+                return;
+            }
+
+            boolean changed = refreshRuntimeSafely(currentStore);
+            AndroidUtilities.runOnUIThread(() -> notifyRuntimeChanged(changed));
         });
     }
 
@@ -382,23 +407,60 @@ public final class IconPackRepository {
         WORKER.execute(() -> {
             State state = null;
             Exception failure = null;
+            boolean runtimeChanged = false;
+            IconPackStore currentStore = null;
 
             try {
-                IconPackStore currentStore = store(ApplicationLoader.applicationContext);
+                currentStore = store(ApplicationLoader.applicationContext);
 
                 if (operation != null) {
                     operation.run(currentStore);
                 }
 
                 state = state(currentStore);
+                runtimeChanged = refreshRuntimeSafely(currentStore);
             } catch (Exception error) {
                 failure = error;
+
+                if (currentStore != null) {
+                    runtimeChanged = refreshRuntimeSafely(currentStore);
+                }
             }
 
             State value = state;
             Exception error = failure;
-            AndroidUtilities.runOnUIThread(() -> callback.complete(value, error));
+            boolean notifyRuntime = runtimeChanged;
+            AndroidUtilities.runOnUIThread(() -> {
+                callback.complete(value, error);
+                notifyRuntimeChanged(notifyRuntime);
+            });
         });
+    }
+
+    private static boolean refreshRuntime(IconPackStore store) throws IOException {
+        List<IconPackStore.Installed> installed = store.list();
+        List<String> activeIds = IconPackSettings.getActiveIds(store);
+
+        return IconPackRuntime.rebuild(
+                ApplicationLoader.applicationContext.getResources(),
+                store,
+                installed,
+                activeIds);
+    }
+
+    private static boolean refreshRuntimeSafely(IconPackStore store) {
+        try {
+            return refreshRuntime(store);
+        } catch (Exception error) {
+            return IconPackRuntime.clear();
+        }
+    }
+
+    private static void notifyRuntimeChanged(boolean changed) {
+        if (changed) {
+            NotificationCenter.getGlobalInstance().postNotificationName(
+                    NotificationCenter.reloadInterface);
+        }
     }
 
     private static State state(IconPackStore store) throws IOException {
@@ -447,7 +509,7 @@ public final class IconPackRepository {
             store = new IconPackStore(
                     new File(context.getNoBackupFilesDir(), "fluxgram/icon_packs"),
                     cacheDirectory(context),
-                    new IconPackAndroidCatalog());
+                    new IconPackAndroidCatalog(context.getResources()));
         }
 
         return store;

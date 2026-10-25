@@ -50,6 +50,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.TopicsController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
@@ -394,7 +395,7 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
 
     private ImageView createButton(Context context, @DrawableRes int iconRes, View.OnClickListener onClickListener) {
         ImageView button = new ImageView(context);
-        button.setImageResource(iconRes);
+        IconPackRuntime.setImageResource(button, iconRes);
         button.setScaleType(ImageView.ScaleType.CENTER);
         button.setOnClickListener(onClickListener);
         ScaleStateListAnimator.apply(button);

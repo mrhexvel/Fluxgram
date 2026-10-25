@@ -57,6 +57,7 @@ import androidx.annotation.Nullable;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LiteMode;
@@ -281,7 +282,7 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
         public void setTextAndIcon(CharSequence text, int icon) {
             textView.setText(text);
             if (icon != 0) {
-                imageView.setImageResource(icon);
+                IconPackRuntime.setImageResource(imageView, icon);
                 imageView.setVisibility(VISIBLE);
                 textView.setPadding(LocaleController.isRTL ? 0 : dp(56), 0, LocaleController.isRTL ? dp(56) : 0, 0);
             } else {

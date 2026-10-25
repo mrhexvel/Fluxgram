@@ -1,11 +1,14 @@
 package android.content;
 
+import android.content.res.Resources;
+
 import java.io.File;
 
 public class Context {
     private final File noBackupFilesDir;
     private final File cacheDir;
     private final ContentResolver contentResolver = new ContentResolver();
+    private final Resources resources = new Resources();
 
     public Context(File noBackupFilesDir, File cacheDir) {
         this.noBackupFilesDir = noBackupFilesDir;
@@ -22,5 +25,9 @@ public class Context {
 
     public ContentResolver getContentResolver() {
         return contentResolver;
+    }
+
+    public Resources getResources() {
+        return resources;
     }
 }

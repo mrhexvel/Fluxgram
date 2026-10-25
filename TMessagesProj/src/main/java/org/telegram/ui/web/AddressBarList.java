@@ -48,6 +48,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
@@ -131,7 +132,7 @@ public class AddressBarList extends FrameLayout {
         currentCopyView = new ImageView(context);
         ScaleStateListAnimator.apply(currentCopyView);
         currentCopyView.setScaleType(ImageView.ScaleType.CENTER);
-        currentCopyView.setImageResource(R.drawable.msg_copy);
+        IconPackRuntime.setImageResource(currentCopyView, R.drawable.msg_copy);
         currentCopyView.setBackground(currentCopyBackground = Theme.createRadSelectorDrawable(0, 0, 6, 6));
         currentView.addView(currentCopyView, LayoutHelper.createFrame(32, 32, Gravity.TOP | Gravity.RIGHT, 14, 14, 14, 14));
 
@@ -571,7 +572,9 @@ public class AddressBarList extends FrameLayout {
         public void set(int type, String query, View.OnClickListener onInsertClick, boolean top, boolean bottom, AddressBarList parent, boolean divider) {
             iconView.setVisibility(View.VISIBLE);
             setColors(parent.listBackgroundColor, parent.textColor);
-            iconView.setImageResource(type == 0 ? R.drawable.msg_clear_recent : R.drawable.msg_search);
+            IconPackRuntime.setImageResource(
+                    iconView,
+                    type == 0 ? R.drawable.msg_clear_recent : R.drawable.msg_search);
             textView.setText(query);
             insertView.setOnClickListener(onInsertClick);
             setTopBottom(parent.grayBackgroundColor, parent.rippleColor, top, bottom);

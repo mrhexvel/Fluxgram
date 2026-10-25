@@ -306,11 +306,16 @@ public final class FluxGramIconPackSettingsActivity extends BaseFragment {
                 loadFailed = true;
                 listView.adapter.update(true);
                 showError(R.string.FluxGramIconPackStorageFailed);
+                loadState(false);
             }
         });
     }
 
     private void loadState() {
+        loadState(true);
+    }
+
+    private void loadState(boolean showFailure) {
         int currentGeneration = generation;
         operationRunning = true;
         loadFailed = false;
@@ -328,7 +333,10 @@ public final class FluxGramIconPackSettingsActivity extends BaseFragment {
             } else {
                 loadFailed = true;
                 listView.adapter.update(true);
-                showError(R.string.FluxGramIconPackStorageFailed);
+
+                if (showFailure) {
+                    showError(R.string.FluxGramIconPackStorageFailed);
+                }
             }
         });
     }

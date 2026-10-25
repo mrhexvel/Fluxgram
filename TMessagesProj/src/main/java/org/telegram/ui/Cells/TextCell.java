@@ -34,6 +34,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.SimpleTextView;
@@ -366,7 +367,7 @@ public class TextCell extends FrameLayout {
         textView.setText(text);
         textView.setRightDrawable(null);
         valueTextView.setText(valueText = null, false);
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
         imageView.setVisibility(VISIBLE);
         valueTextView.setVisibility(GONE);
         valueSpoilersTextView.setVisibility(GONE);
@@ -536,7 +537,7 @@ public class TextCell extends FrameLayout {
         imageView.setTranslationX(0);
         imageView.setTranslationY(0);
         imageView.setPadding(0, dp(7), 0, 0);
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
         needDivider = divider;
         setWillNotDraw(!needDivider);
         if (checkBox != null) {
@@ -589,7 +590,7 @@ public class TextCell extends FrameLayout {
         imageView.setTranslationX(0);
         imageView.setTranslationY(0);
         imageView.setPadding(0, dp(7), 0, 0);
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
         needDivider = divider;
         setWillNotDraw(!needDivider);
         if (checkBox != null) {
@@ -627,7 +628,7 @@ public class TextCell extends FrameLayout {
         imageView.setVisibility(VISIBLE);
         imageView.setPadding(dp(2), dp(2), dp(2), dp(2));
         imageView.setTranslationX(dp(LocaleController.isRTL ? 0 : -3));
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
         imageView.setColorFilter(new PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN));
 
         final boolean border = resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark();
@@ -669,7 +670,7 @@ public class TextCell extends FrameLayout {
         }
         imageView.setVisibility(VISIBLE);
         imageView.setPadding(0, dp(7), 0, 0);
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
         needDivider = divider;
         setWillNotDraw(!needDivider);
         if (emojiDrawable != null) {

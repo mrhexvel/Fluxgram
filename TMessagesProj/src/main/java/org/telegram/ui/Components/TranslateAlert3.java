@@ -41,6 +41,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.TranslateController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
@@ -742,7 +743,7 @@ public class TranslateAlert3 extends BottomSheetWithRecyclerListView {
             addView(textView, textViewLayoutParams = LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
             copyButton = new ImageView(context);
-            copyButton.setImageResource(R.drawable.msg_copy);
+            IconPackRuntime.setImageResource(copyButton, R.drawable.msg_copy);
             copyButton.setScaleType(ImageView.ScaleType.CENTER);
             copyButton.setContentDescription(getString(R.string.Copy));
             ScaleStateListAnimator.apply(copyButton);

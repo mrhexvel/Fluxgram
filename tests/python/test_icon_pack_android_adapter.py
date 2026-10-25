@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21,6 +22,8 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
                 [
                     str(ICONS / "IconPackAndroidCatalog.java"),
                     str(ICONS / "IconPackAndroidDrawableDecoder.java"),
+                    str(ICONS / "IconPackResources.java"),
+                    str(ICONS / "IconPackRuntime.java"),
                     str(ROOT / "tests/java/IconPackAndroidCheck.java"),
                 ]
             )
@@ -42,9 +45,73 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
             )
 
         validator = (ICONS / "IconPackArchiveValidator.java").read_text()
+        runtime = (ICONS / "IconPackRuntime.java").read_text()
 
         self.assertIn("catalog.decodesSvg(bytes, path)", validator)
-        self.assertNotIn("getIdentifier", (ICONS / "IconPackAndroidCatalog.java").read_text())
+        catalog = (ICONS / "IconPackAndroidCatalog.java").read_text()
+        self.assertIn('getIdentifier(resourceName, "drawable", packageName)', catalog)
+        self.assertNotIn('drawables.put("msg_add"', catalog)
+        self.assertIn("private static volatile Snapshot snapshot", runtime)
+        self.assertIn("Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)", runtime)
+        self.assertIn("source.recycle()", runtime)
+        self.assertNotIn("store.resolve", runtime.split("public static Drawable resolve", 1)[1].split("static boolean rebuild", 1)[0])
+
+        application = (ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/ApplicationLoader.java").read_text()
+        activity = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/BasePermissionsActivity.java").read_text()
+
+        self.assertIn("new IconPackResources(resources)", application)
+        self.assertIn("new IconPackResources(resources)", activity)
+
+        hook_files = [
+            "ui/ActionBar/ActionBarMenuSubItem.java",
+            "ui/ActionBar/ActionBarMenu.java",
+            "ui/ActionBar/ActionBarMenuItem.java",
+            "ui/ActionBar/BottomSheet.java",
+            "ui/ActionBar/AlertDialog.java",
+            "ui/Cells/TextCell.java",
+            "ui/Cells/TextSettingsCell.java",
+            "ui/Cells/TextCheckCell.java",
+            "ui/Cells/SessionCell.java",
+            "ui/Components/FluxGramMessageMenuActionRow.java",
+            "ui/Components/ProfileActionsView.java",
+            "ui/Components/TopicsTabsView.java",
+            "ui/Components/chat/buttons/ChatActivityBlurredRoundButton.java",
+            "ui/iv/RichEditor.java",
+        ]
+
+        for relative in hook_files:
+            source = (ROOT / "TMessagesProj/src/main/java/org/telegram" / relative).read_text()
+            self.assertIn("IconPackRuntime", source, relative)
+
+        names = "|".join(
+            (
+                "msg_add",
+                "msg_copy",
+                "msg_delete",
+                "msg_download",
+                "msg_edit",
+                "msg_forward",
+                "msg_gallery",
+                "msg_search",
+                "msg_select",
+                "msg_send",
+                "msg_settings",
+                "msg_share",
+            )
+        )
+        direct_load = re.compile(
+            rf"setImageResource\(\s*R\.drawable\.(?:{names})\s*\)"
+        )
+        sources_root = ROOT / "TMessagesProj/src/main/java/org/telegram"
+        bypasses = []
+
+        for path in sources_root.rglob("*.java"):
+            if path.name == "IconPackRuntime.java":
+                continue
+            if direct_load.search(path.read_text()):
+                bypasses.append(str(path.relative_to(ROOT)))
+
+        self.assertEqual([], bypasses)
 
 
 if __name__ == "__main__":

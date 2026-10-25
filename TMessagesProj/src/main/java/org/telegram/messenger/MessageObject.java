@@ -54,6 +54,7 @@ import org.telegram.messenger.fluxgram.ArchivedMessageCopy;
 import org.telegram.messenger.fluxgram.GhostModeReadState;
 import org.telegram.messenger.fluxgram.ZalgoDisplayFilter;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.ringtone.RingtoneDataStore;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.messenger.utils.tlutils.TLKeyboardHelper;
@@ -1015,6 +1016,7 @@ public class MessageObject {
         public boolean hasCodeCopyButton;
         public int copyIconColor;
         public Drawable copyIcon;
+        private long copyIconRevision = -1;
         public Text copyText;
         public int copySelectorColor;
         public Drawable copySelector;
@@ -1069,8 +1071,7 @@ public class MessageObject {
             hasCodeCopyButton = codeLength >= 75 && !noforwards;
             if (hasCodeCopyButton) {
                 copyText = new Text(getString(R.string.CopyCode).toUpperCase(), SharedConfig.fontSize - 3, AndroidUtilities.bold());
-                copyIcon = ApplicationLoader.applicationContext.getResources().getDrawable(R.drawable.msg_copy).mutate();
-                copyIcon.setColorFilter(new PorterDuffColorFilter(copyIconColor, PorterDuff.Mode.SRC_IN));
+                updateCopyIcon();
                 copySelector = Theme.createRadSelectorDrawable(copySelectorColor, 0, 0, Math.min(5, SharedConfig.bubbleRadius), 0);
                 copySeparator = new Paint(Paint.ANTI_ALIAS_FLAG);
             }
@@ -1091,6 +1092,10 @@ public class MessageObject {
         public void drawCopyCodeButton(Canvas canvas, RectF bounds, int textColor, int backgroundColor, float alpha) {
             if (!hasCodeCopyButton) {
                 return;
+            }
+
+            if (copyIconRevision != IconPackRuntime.revision()) {
+                updateCopyIcon();
             }
 
             final int selectorColor = Theme.multAlpha(textColor, .10f);
@@ -1127,6 +1132,21 @@ public class MessageObject {
             copyText
                 .ellipsize((int) (contentWidth - (copyIcon.getIntrinsicWidth() * iconScale + dp(5))) + dp(12))
                 .draw(canvas, x, cy, textColor, alpha);
+        }
+
+        private void updateCopyIcon() {
+            copyIconRevision = IconPackRuntime.revision();
+            copyIcon = IconPackRuntime.resolve(
+                    ApplicationLoader.applicationContext.getResources(),
+                    R.drawable.msg_copy);
+
+            if (copyIcon == null) {
+                copyIcon = ApplicationLoader.applicationContext.getResources()
+                        .getDrawable(R.drawable.msg_copy);
+            }
+
+            copyIcon = copyIcon.mutate();
+            copyIcon.setColorFilter(new PorterDuffColorFilter(copyIconColor, PorterDuff.Mode.SRC_IN));
         }
 
         public static String capitalizeLanguage(String lng) {

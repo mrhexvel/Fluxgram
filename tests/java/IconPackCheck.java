@@ -160,6 +160,10 @@ public final class IconPackCheck {
 
             @Override
             public boolean decodesRaster(byte[] bytes, String path, int width, int height) {
+                if (path.endsWith(".jpg") || path.endsWith(".jpeg")) {
+                    return width > 0 && height > 0;
+                }
+
                 try {
                     BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
 

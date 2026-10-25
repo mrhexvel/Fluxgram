@@ -17,6 +17,7 @@ import android.widget.LinearLayout;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Paint.Brush;
@@ -66,7 +67,7 @@ public class PaintToolsView extends LinearLayout {
                     delegate.onBrushSelected(brush);
                 });
             } else if (i == Brush.BRUSHES_LIST.size() + 1) {
-                buttons[a].setImageResource(R.drawable.msg_add);
+                IconPackRuntime.setImageResource(buttons[a], R.drawable.msg_add);
                 buttons[a].setOnClickListener(v -> delegate.onAddButtonPressed(v));
             }
             addView(buttons[a]);

@@ -37,6 +37,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
@@ -135,7 +136,7 @@ public class TableView extends TableLayout {
         }
         if (copyButton != null) {
             ImageView copyView = new ImageView(getContext());
-            copyView.setImageResource(R.drawable.msg_copy);
+            IconPackRuntime.setImageResource(copyView, R.drawable.msg_copy);
             copyView.setScaleType(ImageView.ScaleType.CENTER);
             copyView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlueIcon, resourcesProvider), PorterDuff.Mode.SRC_IN));
             copyView.setOnClickListener(v -> {

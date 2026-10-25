@@ -23,6 +23,7 @@ import androidx.annotation.Nullable;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.Adapters.FiltersView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.RLottieDrawable;
@@ -135,7 +136,7 @@ public class ActionBarMenu extends LinearLayout {
                     menuItem.iconView.setImageDrawable(drawable);
                 }
             } else if (icon != 0) {
-                menuItem.iconView.setImageResource(icon);
+                IconPackRuntime.setImageResource(menuItem.iconView, icon);
             }
             addView(menuItem, index, new LinearLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT));
         }

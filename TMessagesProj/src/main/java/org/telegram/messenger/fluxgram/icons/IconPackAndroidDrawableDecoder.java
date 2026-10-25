@@ -9,8 +9,6 @@ import java.io.IOException;
 import java.util.Locale;
 
 public final class IconPackAndroidDrawableDecoder {
-    private static final IconPackAndroidCatalog CATALOG = new IconPackAndroidCatalog();
-
     private IconPackAndroidDrawableDecoder() {}
 
     public static Drawable resolve(
@@ -21,7 +19,7 @@ public final class IconPackAndroidDrawableDecoder {
         if (resources == null
                 || store == null
                 || installed == null
-                || !CATALOG.contains(resourceName)) {
+                || !new IconPackAndroidCatalog(resources).contains(resourceName)) {
             return null;
         }
 
@@ -52,7 +50,10 @@ public final class IconPackAndroidDrawableDecoder {
         if (normalized.endsWith(".svg")) {
             return IconPackAndroidCatalog.decodeSvg(bytes, path);
         }
-        if (!normalized.endsWith(".png") && !normalized.endsWith(".webp")) {
+        if (!normalized.endsWith(".png")
+                && !normalized.endsWith(".webp")
+                && !normalized.endsWith(".jpg")
+                && !normalized.endsWith(".jpeg")) {
             return null;
         }
 

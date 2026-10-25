@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.ActionBar.Theme;
 
 public class FluxGramMessageMenuActionRow extends FrameLayout {
@@ -75,7 +76,7 @@ public class FluxGramMessageMenuActionRow extends FrameLayout {
     ) {
         ImageView button = new ImageView(getContext());
         button.setScaleType(ImageView.ScaleType.CENTER);
-        button.setImageResource(icon);
+        IconPackRuntime.setImageResource(button, icon);
         button.setColorFilter(new PorterDuffColorFilter(
                 Theme.getColor(Theme.key_actionBarDefaultSubmenuItemIcon, resourcesProvider),
                 PorterDuff.Mode.SRC_IN

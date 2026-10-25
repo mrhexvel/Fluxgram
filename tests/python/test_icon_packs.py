@@ -122,6 +122,14 @@ class IconPacksTest(unittest.TestCase):
             + chunk(b"IEND", b"")
         )
 
+    def jpeg(self):
+        return bytes.fromhex(
+            "ffd8"
+            "ffc0000b080001000101011100"
+            "ffda0008010100003f00"
+            "00ffd9"
+        )
+
     def run_check(self, *args, accepted=True):
         result = subprocess.run(
             ["java", "-cp", self.classpath, "IconPackCheck", *map(str, args)],
@@ -175,6 +183,45 @@ class IconPacksTest(unittest.TestCase):
             )
         )
         self.inspect(self.archive(), allowed="msg_delete", accepted=False)
+
+    def test_accepts_jpeg_icons_and_ignores_unknown_jpeg_mapping(self):
+        jpeg = self.jpeg()
+
+        for suffix in ("jpg", "jpeg"):
+            self.inspect(
+                self.archive(
+                    icons={"msg_add": f"icons/add.{suffix}"},
+                    files={f"icons/add.{suffix}": jpeg},
+                )
+            )
+
+        self.inspect(
+            self.archive(
+                icons={
+                    "msg_add": "icons/add.svg",
+                    "upstream_only": "icons/photo.jpg",
+                },
+                files={
+                    "icons/add.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h2v2z"/></svg>',
+                    "icons/photo.jpg": jpeg,
+                },
+            )
+        )
+
+    def test_rejects_invalid_jpeg_icons(self):
+        jpeg = self.jpeg()
+        frame = jpeg.index(b"\xff\xc0")
+        oversized = bytearray(jpeg)
+        oversized[frame + 7 : frame + 9] = (2049).to_bytes(2, "big")
+
+        for payload in (jpeg[:-2], bytes(oversized)):
+            self.inspect(
+                self.archive(
+                    icons={"msg_add": "icons/add.jpg"},
+                    files={"icons/add.jpg": payload},
+                ),
+                accepted=False,
+            )
 
     def test_rejects_missing_payload_and_unsafe_svg(self):
         self.inspect(

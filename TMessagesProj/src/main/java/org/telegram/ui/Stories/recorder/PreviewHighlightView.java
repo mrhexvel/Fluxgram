@@ -26,6 +26,7 @@ import org.telegram.messenger.Emoji;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
@@ -100,7 +101,7 @@ public class PreviewHighlightView extends FrameLayout {
 //        bottom.addView(shareButton, LayoutHelper.createFrame(40, 40, Gravity.BOTTOM | Gravity.RIGHT, 10, 10, 10, 64));
 
         ImageView shareButton = new ImageView(context);
-        shareButton.setImageResource(R.drawable.msg_share);
+        IconPackRuntime.setImageResource(shareButton, R.drawable.msg_share);
         shareButton.setColorFilter(new PorterDuffColorFilter(0xffffffff, PorterDuff.Mode.MULTIPLY));
         bottom.addView(shareButton, LayoutHelper.createFrame(28, 28, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 12, 16));
 

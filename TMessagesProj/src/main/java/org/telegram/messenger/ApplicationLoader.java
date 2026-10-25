@@ -21,6 +21,7 @@ import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -39,6 +40,8 @@ import com.google.android.gms.common.GooglePlayServicesUtil;
 
 import org.json.JSONObject;
 import org.telegram.messenger.fluxgram.FontSettings;
+import org.telegram.messenger.fluxgram.icons.IconPackRepository;
+import org.telegram.messenger.fluxgram.icons.IconPackResources;
 import org.telegram.messenger.plugins.ExternalPlugins;
 import org.telegram.messenger.plugins.PluginManager;
 import org.telegram.messenger.plugins.PluginCrashRecovery;
@@ -71,6 +74,8 @@ public class ApplicationLoader extends Application {
     private static long lastNetworkCheckTypeTime;
     private static int lastKnownNetworkType = -1;
 
+    private Resources iconPackResources;
+
     public static long startTime;
 
     public static volatile boolean isScreenOn = false;
@@ -88,6 +93,17 @@ public class ApplicationLoader extends Application {
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
+    }
+
+    @Override
+    public Resources getResources() {
+        Resources resources = super.getResources();
+
+        if (iconPackResources == null) {
+            iconPackResources = new IconPackResources(resources);
+        }
+
+        return iconPackResources;
     }
 
     public static ILocationServiceProvider getLocationServiceProvider() {
@@ -271,6 +287,7 @@ public class ApplicationLoader extends Application {
                 SendMessagesHelper.getInstance(a).checkUnsentMessages();
             }
         }
+        IconPackRepository.initializeRuntime();
 
         PluginStorageMaintenance.initialize(applicationContext);
         ExternalPlugins.initialize(applicationContext);
@@ -407,9 +424,11 @@ public class ApplicationLoader extends Application {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        iconPackResources = null;
         try {
             LocaleController.getInstance().onDeviceConfigurationChange(newConfig);
             AndroidUtilities.checkDisplaySize(applicationContext, newConfig);
+            IconPackRepository.initializeRuntime();
             VideoCapturerDevice.checkScreenCapturerSize();
             AndroidUtilities.resetTabletFlag();
         } catch (Exception e) {

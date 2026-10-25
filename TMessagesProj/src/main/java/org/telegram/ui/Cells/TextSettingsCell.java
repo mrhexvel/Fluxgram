@@ -28,6 +28,7 @@ import android.widget.TextView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedTextView;
@@ -223,7 +224,7 @@ public class TextSettingsCell extends FrameLayout {
         valueTextView.setVisibility(INVISIBLE);
         if (resId != 0) {
             valueImageView.setVisibility(VISIBLE);
-            valueImageView.setImageResource(resId);
+            IconPackRuntime.setImageResource(valueImageView, resId);
         } else {
             valueImageView.setVisibility(INVISIBLE);
         }
@@ -246,7 +247,7 @@ public class TextSettingsCell extends FrameLayout {
                 params.leftMargin = AndroidUtilities.dp(this.padding);
             }
         } else {
-            imageView.setImageResource(resId);
+            IconPackRuntime.setImageResource(imageView, resId);
             imageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon, resourcesProvider), PorterDuff.Mode.MULTIPLY));
             imageView.setBackground(null);
             imageView.setVisibility(VISIBLE);
@@ -270,7 +271,7 @@ public class TextSettingsCell extends FrameLayout {
             }
         } else {
             imageView.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(8), color));
-            imageView.setImageResource(resId);
+            IconPackRuntime.setImageResource(imageView, resId);
             imageView.setColorFilter(new PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.MULTIPLY));
             imageView.setVisibility(VISIBLE);
             if (LocaleController.isRTL) {

@@ -1,5 +1,6 @@
 package org.telegram.messenger.fluxgram.icons;
 
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 
@@ -11,42 +12,49 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
 
 public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Catalog {
-    private static final Map<String, Integer> DRAWABLES;
+    private final Resources resources;
+    private final String packageName;
 
-    static {
-        LinkedHashMap<String, Integer> drawables = new LinkedHashMap<>();
+    public IconPackAndroidCatalog(Resources resources) {
+        if (resources == null) {
+            throw new IllegalArgumentException("Resources are required");
+        }
 
-        drawables.put("msg_add", R.drawable.msg_add);
-        drawables.put("msg_copy", R.drawable.msg_copy);
-        drawables.put("msg_delete", R.drawable.msg_delete);
-        drawables.put("msg_download", R.drawable.msg_download);
-        drawables.put("msg_edit", R.drawable.msg_edit);
-        drawables.put("msg_forward", R.drawable.msg_forward);
-        drawables.put("msg_gallery", R.drawable.msg_gallery);
-        drawables.put("msg_search", R.drawable.msg_search);
-        drawables.put("msg_select", R.drawable.msg_select);
-        drawables.put("msg_send", R.drawable.msg_send);
-        drawables.put("msg_settings", R.drawable.msg_settings);
-        drawables.put("msg_share", R.drawable.msg_share);
-
-        DRAWABLES = Collections.unmodifiableMap(drawables);
+        this.resources = resources;
+        this.packageName = resources.getResourcePackageName(R.drawable.msg_add);
     }
 
     @Override
     public boolean contains(String resourceName) {
-        return DRAWABLES.containsKey(resourceName);
+        return drawableId(resourceName) != 0;
     }
 
     public int drawableId(String resourceName) {
-        Integer drawable = DRAWABLES.get(resourceName);
+        if (!IconPackManifest.isValidResourceName(resourceName)) {
+            return 0;
+        }
 
-        return drawable == null ? 0 : drawable;
+        return resources.getIdentifier(resourceName, "drawable", packageName);
+    }
+
+    public String resourceName(int drawableId) {
+        if (drawableId == 0) {
+            return null;
+        }
+
+        try {
+            if (!"drawable".equals(resources.getResourceTypeName(drawableId))
+                    || !packageName.equals(resources.getResourcePackageName(drawableId))) {
+                return null;
+            }
+
+            return resources.getResourceEntryName(drawableId);
+        } catch (Resources.NotFoundException error) {
+            return null;
+        }
     }
 
     @Override
@@ -139,6 +147,9 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
 
         String normalized = path.toLowerCase(Locale.ROOT);
 
-        return normalized.endsWith(".png") || normalized.endsWith(".webp");
+        return normalized.endsWith(".png")
+                || normalized.endsWith(".webp")
+                || normalized.endsWith(".jpg")
+                || normalized.endsWith(".jpeg");
     }
 }

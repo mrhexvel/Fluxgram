@@ -11275,7 +11275,7 @@
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
     <string name="FluxGramSettings">FluxGram Settings</string>
     <string name="FluxGramInterfaceIcons">Interface icons</string>
-    <string name="FluxGramInterfaceIconsInfo">Install external icon packs and configure their future application order. Interface resource replacement is not connected yet.</string>
+    <string name="FluxGramInterfaceIconsInfo">Install external icon packs and configure their application order.</string>
     <string name="FluxGramImportIconPack">Import icon pack</string>
     <string name="FluxGramImportIconPackInfo">Select a compatible .icons archive. Imported packs are stored but not enabled automatically.</string>
     <string name="FluxGramIconPackChecking">Checking…</string>
@@ -11296,7 +11296,7 @@
     <string name="FluxGramNoInstalledIconPacks">No icon packs installed</string>
     <string name="FluxGramIconPackListDetails">Version %1$s · %2$s · %3$d icons</string>
     <string name="FluxGramIconPackManagementInfo">Tap a pack to enable or disable it. Touch and hold for deletion and other actions.</string>
-    <string name="FluxGramActiveIconPacksInfo">Packs are checked from top to bottom. Touch and hold a pack to change its priority or delete it. Applying icons to the interface is not connected yet.</string>
+    <string name="FluxGramActiveIconPacksInfo">Packs are checked from top to bottom. Touch and hold a pack to change its priority or delete it.</string>
     <string name="FluxGramIconPackPriorityUp">Increase priority</string>
     <string name="FluxGramIconPackPriorityDown">Decrease priority</string>
     <string name="FluxGramDeleteIconPack">Delete icon pack?</string>

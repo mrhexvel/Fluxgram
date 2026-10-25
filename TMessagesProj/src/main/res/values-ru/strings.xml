@@ -265,7 +265,7 @@
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
     <string name="FluxGramSettings">Настройки FluxGram</string>
     <string name="FluxGramInterfaceIcons">Иконки интерфейса</string>
-    <string name="FluxGramInterfaceIconsInfo">Установка внешних пакетов и настройка порядка их будущего применения. Подмена иконок интерфейса пока не подключена.</string>
+    <string name="FluxGramInterfaceIconsInfo">Установка внешних пакетов и настройка порядка их применения.</string>
     <string name="FluxGramImportIconPack">Импортировать пакет иконок</string>
     <string name="FluxGramImportIconPackInfo">Выберите совместимый архив .icons. Импортированный пакет будет сохранён, но не включится автоматически.</string>
     <string name="FluxGramIconPackChecking">Проверка…</string>
@@ -286,7 +286,7 @@
     <string name="FluxGramNoInstalledIconPacks">Нет установленных пакетов иконок</string>
     <string name="FluxGramIconPackListDetails">Версия %1$s · %2$s · %3$d иконок</string>
     <string name="FluxGramIconPackManagementInfo">Нажмите пакет, чтобы включить или выключить его. Удерживайте строку для удаления и других действий.</string>
-    <string name="FluxGramActiveIconPacksInfo">Пакеты проверяются сверху вниз. Удерживайте строку, чтобы изменить приоритет или удалить пакет. Применение иконок к интерфейсу пока не подключено.</string>
+    <string name="FluxGramActiveIconPacksInfo">Пакеты проверяются сверху вниз. Удерживайте строку, чтобы изменить приоритет или удалить пакет.</string>
     <string name="FluxGramIconPackPriorityUp">Повысить приоритет</string>
     <string name="FluxGramIconPackPriorityDown">Понизить приоритет</string>
     <string name="FluxGramDeleteIconPack">Удалить пакет иконок?</string>

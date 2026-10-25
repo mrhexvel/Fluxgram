@@ -155,7 +155,11 @@ public final class IconPackManifest {
         String lower = path.toLowerCase(Locale.ROOT);
 
         require(
-                lower.endsWith(".svg") || lower.endsWith(".png") || lower.endsWith(".webp"),
+                lower.endsWith(".svg")
+                        || lower.endsWith(".png")
+                        || lower.endsWith(".webp")
+                        || lower.endsWith(".jpg")
+                        || lower.endsWith(".jpeg"),
                 "Unsupported icon format");
 
         return path;

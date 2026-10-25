@@ -40,6 +40,7 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLObject;
@@ -401,7 +402,15 @@ public class SessionCell extends FrameLayout {
             colorKey = Theme.key_avatar_backgroundPink;
             colorKey2 = Theme.key_avatar_background2Pink;
         }
-        Drawable iconDrawable = ContextCompat.getDrawable(ApplicationLoader.applicationContext, iconId).mutate();
+        Drawable iconDrawable = IconPackRuntime.resolve(
+                ApplicationLoader.applicationContext.getResources(),
+                iconId);
+
+        if (iconDrawable == null) {
+            iconDrawable = ContextCompat.getDrawable(ApplicationLoader.applicationContext, iconId);
+        }
+
+        iconDrawable = iconDrawable.mutate();
         iconDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_avatar_text), PorterDuff.Mode.SRC_IN));
         Drawable bgDrawable = new CircleGradientDrawable(dp(sz), colorKey == -1 ? 0xFF000000 : Theme.getColor(colorKey), colorKey2 == -1 ? 0xFF000000 : Theme.getColor(colorKey2));
         CombinedDrawable drawable = new CombinedDrawable(bgDrawable, iconDrawable);

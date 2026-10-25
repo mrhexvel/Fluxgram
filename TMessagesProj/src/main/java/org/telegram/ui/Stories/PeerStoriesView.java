@@ -94,6 +94,7 @@ import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.SavedMessagesController;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.SharedConfig;
@@ -8217,7 +8218,13 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             likeDrawableFilled.setColorFilter(new PorterDuffColorFilter(0xFFFF2E38, PorterDuff.Mode.MULTIPLY));
             optionsDrawable = ContextCompat.getDrawable(context, R.drawable.media_more);
             pipDrawable = ContextCompat.getDrawable(context, R.drawable.menu_stream_pip);
-            deleteDrawable = ContextCompat.getDrawable(context, R.drawable.msg_delete);
+            deleteDrawable = IconPackRuntime.resolve(
+                    context.getResources(),
+                    R.drawable.msg_delete);
+
+            if (deleteDrawable == null) {
+                deleteDrawable = ContextCompat.getDrawable(context, R.drawable.msg_delete);
+            }
             muteDrawable = new RLottieDrawable(R.raw.media_mute_unmute, AndroidUtilities.dp(28), AndroidUtilities.dp(28), true, null);
            // muteDrawable = new ReplaceableIconDrawable(context);
             noSoundDrawable = new RLottieDrawable(R.raw.media_mute_unmute, AndroidUtilities.dp(28), AndroidUtilities.dp(28), true, null);

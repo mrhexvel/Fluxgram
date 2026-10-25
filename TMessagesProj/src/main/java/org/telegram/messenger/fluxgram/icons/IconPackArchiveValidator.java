@@ -354,6 +354,13 @@ public final class IconPackArchiveValidator {
                     catalog != null
                             && catalog.decodesRaster(bytes, path, dimensions[0], dimensions[1]),
                     "WebP icon cannot be decoded");
+        } else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            int[] dimensions = validateJpeg(bytes);
+
+            IconPackManifest.require(
+                    catalog != null
+                            && catalog.decodesRaster(bytes, path, dimensions[0], dimensions[1]),
+                    "JPEG icon cannot be decoded");
         } else {
             String svg = decodeUtf8(bytes);
             String normalized = svg.trim().toLowerCase(Locale.ROOT);
@@ -595,6 +602,96 @@ public final class IconPackArchiveValidator {
         checkDimensions(width, height);
 
         return new int[] {width, height};
+    }
+
+    private static int[] validateJpeg(byte[] bytes) throws IOException {
+        IconPackManifest.require(
+                bytes.length >= 4
+                        && (bytes[0] & 0xff) == 0xff
+                        && (bytes[1] & 0xff) == 0xd8,
+                "Invalid JPEG icon");
+
+        int width = 0;
+        int height = 0;
+        int offset = 2;
+        int scanOffset = -1;
+
+        while (offset < bytes.length) {
+            IconPackManifest.require((bytes[offset] & 0xff) == 0xff, "Invalid JPEG marker");
+
+            while (offset < bytes.length && (bytes[offset] & 0xff) == 0xff) {
+                offset++;
+            }
+
+            IconPackManifest.require(offset < bytes.length, "Truncated JPEG marker");
+
+            int marker = bytes[offset++] & 0xff;
+
+            IconPackManifest.require(marker != 0x00, "Invalid JPEG marker");
+
+            if (marker == 0xd9) {
+                break;
+            }
+            if (marker == 0x01 || marker >= 0xd0 && marker <= 0xd7) {
+                continue;
+            }
+
+            IconPackManifest.require(offset + 2 <= bytes.length, "Truncated JPEG segment");
+
+            int length = (int) number(bytes, offset, 2, false);
+
+            IconPackManifest.require(length >= 2 && length <= bytes.length - offset, "Invalid JPEG segment");
+
+            if (isJpegStartOfFrame(marker)) {
+                IconPackManifest.require(length >= 8, "Invalid JPEG frame");
+                height = (int) number(bytes, offset + 3, 2, false);
+                width = (int) number(bytes, offset + 5, 2, false);
+                checkDimensions(width, height);
+            }
+
+            offset += length;
+
+            if (marker == 0xda) {
+                scanOffset = offset;
+                break;
+            }
+        }
+
+        IconPackManifest.require(width > 0 && height > 0 && scanOffset >= 0, "Incomplete JPEG icon");
+
+        boolean end = false;
+
+        for (int i = scanOffset; i + 1 < bytes.length; i++) {
+            if ((bytes[i] & 0xff) != 0xff) {
+                continue;
+            }
+
+            int marker = bytes[++i] & 0xff;
+
+            while (marker == 0xff && i + 1 < bytes.length) {
+                marker = bytes[++i] & 0xff;
+            }
+
+            if (marker == 0x00 || marker >= 0xd0 && marker <= 0xd7) {
+                continue;
+            }
+            if (marker == 0xd9) {
+                end = true;
+                break;
+            }
+        }
+
+        IconPackManifest.require(end, "Incomplete JPEG icon");
+
+        return new int[] {width, height};
+    }
+
+    private static boolean isJpegStartOfFrame(int marker) {
+        return marker >= 0xc0
+                && marker <= 0xcf
+                && marker != 0xc4
+                && marker != 0xc8
+                && marker != 0xcc;
     }
 
     private static void validateSvg(byte[] bytes) throws IOException {

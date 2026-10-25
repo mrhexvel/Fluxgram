@@ -27,6 +27,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.tgnet.ConnectionsManager;
@@ -316,7 +317,15 @@ public class CreateRtmpStreamBottomSheet extends BottomSheetWithRecyclerListView
         public TextDetailCell createView(Context context, RecyclerListView listView, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
             TextDetailCell view = new TextDetailCell(context, resourcesProvider, true, false);
             view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
-            Drawable drawable = ContextCompat.getDrawable(context, R.drawable.msg_copy).mutate();
+            Drawable drawable = IconPackRuntime.resolve(
+                    context.getResources(),
+                    R.drawable.msg_copy);
+
+            if (drawable == null) {
+                drawable = ContextCompat.getDrawable(context, R.drawable.msg_copy);
+            }
+
+            drawable = drawable.mutate();
             drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader, resourcesProvider), PorterDuff.Mode.MULTIPLY));
             view.setImage(drawable);
             view.setImageClickListener(v -> copyRtmpValue(context, view.textView.getText().toString()));

@@ -62,6 +62,7 @@ import androidx.core.graphics.ColorUtils;
 import androidx.core.view.WindowInsetsCompat;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.LocaleController;
@@ -1251,7 +1252,8 @@ public class ActionBarMenuItem extends FrameLayout {
         if (iconView == null) {
             return;
         }
-        iconView.setImageResource(iconViewResId = resId);
+        iconViewResId = resId;
+        IconPackRuntime.setImageResource(iconView, resId);
     }
 
     public void setIcon(int resId, boolean animated) {
@@ -1259,9 +1261,16 @@ public class ActionBarMenuItem extends FrameLayout {
             return;
         }
         if (animated) {
-            AndroidUtilities.updateImageViewImageAnimated(iconView, iconViewResId = resId);
+            iconViewResId = resId;
+            Drawable drawable = IconPackRuntime.resolve(iconView.getResources(), resId);
+            AndroidUtilities.updateImageViewImageAnimated(
+                    iconView,
+                    drawable != null
+                            ? drawable
+                            : ContextCompat.getDrawable(iconView.getContext(), resId));
         } else {
-            iconView.setImageResource(iconViewResId = resId);
+            iconViewResId = resId;
+            IconPackRuntime.setImageResource(iconView, resId);
         }
     }
 

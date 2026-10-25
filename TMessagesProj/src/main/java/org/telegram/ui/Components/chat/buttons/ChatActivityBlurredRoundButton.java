@@ -19,6 +19,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CircularProgressDrawable;
 import org.telegram.ui.Components.CubicBezierInterpolator;
@@ -81,7 +82,7 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
             checkUi_IconViewVisibility();
         }
 
-        imageView.setImageResource(resId);
+        IconPackRuntime.setImageResource(imageView, resId);
     }
 
     public void setIconPadding(int paddingTop) {
