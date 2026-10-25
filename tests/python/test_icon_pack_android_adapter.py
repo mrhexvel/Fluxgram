@@ -110,11 +110,18 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
 
         composer = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterViewAnimatedIconView.java").read_text()
         chat = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java").read_text()
+        dialogs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java").read_text()
         topics = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/TopicsFragment.java").read_text()
         tabs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/glass/GlassTabView.java").read_text()
 
         self.assertIn('IconPackRuntime.resolve(headerItem.getResources(), "boosts")', chat)
         self.assertIn("new RLottieDrawable(R.raw.boosts", chat)
+        self.assertIn(
+            'IconPackRuntime.resolve(floatingButton3.getResources(), "fab_compose_small")',
+            dialogs,
+        )
+        self.assertIn("usesFluxGramRootDialogsAppearance()", dialogs)
+        self.assertIn("floatingButton3.setImageResource(R.drawable.filled_fab_compose_32)", dialogs)
         self.assertIn('IconPackRuntime.resolve(other.getResources(), "boosts")', topics)
         self.assertIn("new RLottieDrawable(", topics)
         self.assertIn("R.raw.boosts", topics)

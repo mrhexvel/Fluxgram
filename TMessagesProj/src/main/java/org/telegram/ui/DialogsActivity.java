@@ -138,6 +138,7 @@ import org.telegram.messenger.fluxgram.MainMenuPolicy;
 import org.telegram.messenger.fluxgram.MainMenuSettings;
 import org.telegram.messenger.fluxgram.RootNavigationSnapshot;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.utils.FBool;
 import org.telegram.messenger.utils.GradientProtectionDrawable;
 import org.telegram.messenger.utils.SearchTextWatcher;
@@ -9249,7 +9250,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             floatingButton3.setImageResource(R.drawable.floating_check);
             floatingButton3.setContentDescription(LocaleController.getString(R.string.Done));
         } else {
-            floatingButton3.setImageResource(R.drawable.filled_fab_compose_32);
+            Drawable composeDrawable = usesFluxGramRootDialogsAppearance()
+                    ? IconPackRuntime.resolve(floatingButton3.getResources(), "fab_compose_small")
+                    : null;
+
+            if (composeDrawable != null) {
+                floatingButton3.imageView.setImageDrawable(composeDrawable);
+            } else {
+                floatingButton3.setImageResource(R.drawable.filled_fab_compose_32);
+            }
+
             floatingButton3.setContentDescription(LocaleController.getString(R.string.NewMessageTitle));
         }
     }
