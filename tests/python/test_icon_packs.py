@@ -447,6 +447,223 @@ class IconPacksTest(unittest.TestCase):
             ).stdout.strip(),
         )
 
+    def test_store_uses_index_and_repairs_legacy_or_corrupt_metadata(self):
+        data = self.archive()
+        archive = self.write_archive(data)
+
+        self.run_check(
+            "install",
+            self.store,
+            self.cache,
+            "msg_add",
+            archive,
+            hashlib.sha256(data).hexdigest(),
+        )
+
+        installed = self.installed_dir()
+        identity = installed / ".fluxgram-identity"
+        index = installed / ".fluxgram-index"
+
+        self.assertEqual(168, identity.stat().st_size)
+        self.assertTrue(index.is_file())
+        self.assertEqual(
+            ["example.pack:1.0", "0"],
+            self.run_check(
+                "list-callbacks", self.store, self.cache, "msg_add"
+            ).stdout.splitlines(),
+        )
+
+        version, digest, generation, index_digest = identity.read_text().split("\n")
+        self.assertEqual("2", version)
+        self.assertEqual(hashlib.sha256(index.read_bytes()).hexdigest(), index_digest)
+        identity.write_text(f"{digest}\n{generation}")
+        index.unlink()
+
+        self.assertEqual(
+            ["example.pack:1.0", "1"],
+            self.run_check(
+                "list-callbacks", self.store, self.cache, "msg_add"
+            ).stdout.splitlines(),
+        )
+        self.assertEqual(168, identity.stat().st_size)
+        self.assertTrue(index.is_file())
+
+        index.write_bytes(b"corrupt")
+        self.assertEqual(
+            ["example.pack:1.0", "1"],
+            self.run_check(
+                "list-callbacks", self.store, self.cache, "msg_add"
+            ).stdout.splitlines(),
+        )
+        self.assertEqual(
+            ["example.pack:1.0", "0"],
+            self.run_check(
+                "list-callbacks", self.store, self.cache, "msg_add"
+            ).stdout.splitlines(),
+        )
+
+    def test_store_revalidates_when_validation_contract_changes(self):
+        data = self.archive()
+        archive = self.write_archive(data)
+
+        self.run_check(
+            "install",
+            self.store,
+            self.cache,
+            "msg_add",
+            archive,
+            hashlib.sha256(data).hexdigest(),
+        )
+
+        first = self.run_check(
+            "list-validation", self.store, self.cache, "msg_add", "2"
+        )
+        second = self.run_check(
+            "list-validation", self.store, self.cache, "msg_add", "2"
+        )
+
+        self.assertEqual(["1", "1"], first.stdout.splitlines())
+        self.assertEqual(["1", "0"], second.stdout.splitlines())
+
+    def test_store_revalidates_when_supported_catalog_changes(self):
+        data = self.archive(
+            icons={
+                "msg_add": "icons/add.svg",
+                "msg_delete": "icons/delete.svg",
+            },
+            files={
+                "icons/add.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h2v2z"/></svg>',
+                "icons/delete.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 3h4v4z"/></svg>',
+            },
+        )
+        archive = self.write_archive(data)
+
+        self.run_check(
+            "install",
+            self.store,
+            self.cache,
+            "msg_add",
+            archive,
+            hashlib.sha256(data).hexdigest(),
+        )
+
+        first = self.run_check(
+            "list-callbacks", self.store, self.cache, "msg_add,msg_delete"
+        )
+        second = self.run_check(
+            "list-callbacks", self.store, self.cache, "msg_add,msg_delete"
+        )
+
+        self.assertEqual(["example.pack:1.0", "2"], first.stdout.splitlines())
+        self.assertEqual(["example.pack:1.0", "0"], second.stdout.splitlines())
+
+    def test_store_caches_rejection_for_unchanged_validation_contract(self):
+        data = self.archive(
+            icons={
+                "msg_add": "icons/add.svg",
+                "msg_delete": "icons/delete.svg",
+            },
+            files={
+                "icons/add.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h2v2z"/></svg>',
+                "icons/delete.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 3h4v4z"/></svg>',
+            },
+        )
+        archive = self.write_archive(data)
+
+        self.run_check(
+            "install",
+            self.store,
+            self.cache,
+            "msg_add",
+            archive,
+            hashlib.sha256(data).hexdigest(),
+        )
+
+        first = self.run_check(
+            "list-rejected",
+            self.store,
+            self.cache,
+            "msg_add,msg_delete",
+            "icons/delete.svg",
+            "2",
+        )
+        second = self.run_check(
+            "list-rejected",
+            self.store,
+            self.cache,
+            "msg_add,msg_delete",
+            "icons/delete.svg",
+            "2",
+        )
+        changed = self.run_check(
+            "list-rejected",
+            self.store,
+            self.cache,
+            "msg_add,msg_delete",
+            "icons/delete.svg",
+            "3",
+        )
+
+        self.assertEqual(["0", "2"], first.stdout.splitlines())
+        self.assertEqual(["0", "0"], second.stdout.splitlines())
+        self.assertEqual(["0", "2"], changed.stdout.splitlines())
+
+    def test_store_indexes_multibyte_icon_path(self):
+        path = "иконки/" + "я" * 100 + ".svg"
+        data = self.archive(
+            icons={"msg_add": path},
+            files={
+                path: b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h2v2z"/></svg>'
+            },
+        )
+        archive = self.write_archive(data)
+
+        self.run_check(
+            "install",
+            self.store,
+            self.cache,
+            "msg_add",
+            archive,
+            hashlib.sha256(data).hexdigest(),
+        )
+
+        self.assertEqual(
+            ["example.pack:1.0", "0"],
+            self.run_check(
+                "list-callbacks", self.store, self.cache, "msg_add"
+            ).stdout.splitlines(),
+        )
+
+    def test_store_does_not_accept_replaced_source_archive(self):
+        first = self.archive(version="1.0")
+        first_path = self.write_archive(first, "first.icons")
+
+        self.run_check(
+            "install",
+            self.store,
+            self.cache,
+            "msg_add",
+            first_path,
+            hashlib.sha256(first).hexdigest(),
+        )
+
+        second = self.archive(
+            version="2.0",
+            files={
+                "icons/add.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 2h4v4z"/></svg>'
+            },
+        )
+        installed = self.installed_dir()
+        (installed / ".fluxgram-source.icons").write_bytes(second)
+        (installed / "icons/add.svg").write_bytes(
+            b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 2h4v4z"/></svg>'
+        )
+
+        self.assertEqual(
+            "",
+            self.run_check("list", self.store, self.cache, "msg_add").stdout.strip(),
+        )
+
     def test_resolver_normalizes_order_and_uses_first_available_pack(self):
         one = self.archive(pack_id="pack.one", version="1")
         two = self.archive(
@@ -517,6 +734,10 @@ class IconPacksTest(unittest.TestCase):
         self.assertTrue(backup.exists())
 
         shutil.rmtree(destination)
+        identity = backup / ".fluxgram-identity"
+        _, digest, generation, _ = identity.read_text().split("\n")
+        identity.write_text(f"{digest}\n{generation}")
+        (backup / ".fluxgram-index").unlink()
 
         self.assertEqual(
             "example.pack:1.0",

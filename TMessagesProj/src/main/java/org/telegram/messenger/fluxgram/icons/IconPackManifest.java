@@ -3,9 +3,11 @@ package org.telegram.messenger.fluxgram.icons;
 import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -116,6 +118,29 @@ public final class IconPackManifest {
                 author,
                 version,
                 icons);
+    }
+
+    static String serialize(IconPackManifest manifest) throws IOException {
+        StringWriter output = new StringWriter();
+        JsonWriter writer = new JsonWriter(output);
+
+        writer.beginObject();
+        writer.name("schemaVersion").value(manifest.schemaVersion);
+        writer.name("packId").value(manifest.id);
+        writer.name("packName").value(manifest.name);
+        writer.name("author").value(manifest.author);
+        writer.name("version").value(manifest.version);
+        writer.name("icons").beginObject();
+
+        for (Map.Entry<String, String> icon : manifest.icons.entrySet()) {
+            writer.name(icon.getKey()).value(icon.getValue());
+        }
+
+        writer.endObject();
+        writer.endObject();
+        writer.close();
+
+        return output.toString();
     }
 
     public static boolean isValidResourceName(String name) {

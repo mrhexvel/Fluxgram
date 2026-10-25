@@ -43,6 +43,38 @@ public final class IconPackCheck {
             }
 
             System.out.println(String.join(",", ids));
+        } else if (command.equals("list-callbacks")) {
+            AtomicInteger callbacks = new AtomicInteger();
+            IconPackStore store = new IconPackStore(
+                    new File(args[1]),
+                    new File(args[2]),
+                    catalog(args[3], callbacks, IconPackArchiveValidator.VALIDATION_VERSION));
+            ArrayList<String> ids = new ArrayList<>();
+
+            for (IconPackStore.Installed installed : store.list()) {
+                ids.add(installed.manifest.id + ":" + installed.manifest.version);
+            }
+
+            System.out.println(String.join(",", ids));
+            System.out.println(callbacks.get());
+        } else if (command.equals("list-validation")) {
+            AtomicInteger callbacks = new AtomicInteger();
+            IconPackStore store = new IconPackStore(
+                    new File(args[1]),
+                    new File(args[2]),
+                    catalog(args[3], callbacks, Integer.parseInt(args[4])));
+
+            System.out.println(store.list().size());
+            System.out.println(callbacks.get());
+        } else if (command.equals("list-rejected")) {
+            AtomicInteger callbacks = new AtomicInteger();
+            IconPackStore store = new IconPackStore(
+                    new File(args[1]),
+                    new File(args[2]),
+                    rejectingCatalog(args[3], args[4], callbacks, Integer.parseInt(args[5])));
+
+            System.out.println(store.list().size());
+            System.out.println(callbacks.get());
         } else if (command.equals("resolve")) {
             IconPackStore store = store(args);
             List<String> active = args[4].isEmpty()
@@ -150,12 +182,30 @@ public final class IconPackCheck {
     }
 
     private static IconPackArchiveValidator.Catalog catalog(String value) {
+        return catalog(
+                value,
+                new AtomicInteger(),
+                IconPackArchiveValidator.VALIDATION_VERSION);
+    }
+
+    private static IconPackArchiveValidator.Catalog catalog(
+            String value,
+            AtomicInteger callbacks,
+            int validationVersion) {
         Set<String> allowed = new HashSet<>(Arrays.asList(value.split(",")));
 
         return new IconPackArchiveValidator.Catalog() {
             @Override
             public boolean contains(String resourceName) {
                 return allowed.contains(resourceName);
+            }
+
+            @Override
+            public int validationVersion() {
+                int combined = 31 * validationVersion + allowed.hashCode();
+                int positive = combined & Integer.MAX_VALUE;
+
+                return positive == 0 ? 1 : positive;
             }
 
             @Override
@@ -177,7 +227,34 @@ public final class IconPackCheck {
 
             @Override
             public boolean decodesSvg(byte[] bytes, String path) {
+                callbacks.incrementAndGet();
                 return true;
+            }
+        };
+    }
+
+    private static IconPackArchiveValidator.Catalog rejectingCatalog(
+            String value,
+            String rejectedPath,
+            AtomicInteger callbacks,
+            int validationVersion) {
+        Set<String> allowed = new HashSet<>(Arrays.asList(value.split(",")));
+
+        return new IconPackArchiveValidator.Catalog() {
+            @Override
+            public boolean contains(String resourceName) {
+                return allowed.contains(resourceName);
+            }
+
+            @Override
+            public int validationVersion() {
+                return validationVersion;
+            }
+
+            @Override
+            public boolean decodesSvg(byte[] bytes, String path) {
+                callbacks.incrementAndGet();
+                return !path.equals(rejectedPath);
             }
         };
     }

@@ -1,6 +1,9 @@
 package org.telegram.messenger.fluxgram.icons;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -18,8 +21,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -27,8 +33,19 @@ import java.util.zip.ZipFile;
 public final class IconPackStore {
     public static final String SOURCE_ARCHIVE = ".fluxgram-source.icons";
     public static final String IDENTITY_FILE = ".fluxgram-identity";
+    public static final String INDEX_FILE = ".fluxgram-index";
     public static final int MAX_PACKS = 32;
     public static final long MAX_STORAGE_BYTES = 256L * 1024 * 1024;
+
+    private static final int INDEX_MAGIC = 0x46474958;
+    private static final int INDEX_VERSION = 1;
+    private static final String REJECTED_FILE = ".fluxgram-rejected";
+    private static final int REJECTED_MAGIC = 0x4647524a;
+    private static final int REJECTED_VERSION = 1;
+    private static final int MAX_REJECTED_BYTES = 256;
+    private static final int MAX_INDEX_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_INDEX_MANIFEST_BYTES = 128 * 1024;
+    private static final int MAX_INDEX_PATH_BYTES = 720;
 
     private static final Object STORAGE_LOCK = new Object();
     private static final HashMap<String, String> ACTIVE_GENERATIONS = new HashMap<>();
@@ -130,7 +147,7 @@ public final class IconPackStore {
             }
 
             verifyPayload(staging, checked.iconHashes);
-            writeIdentity(staging, checked.sha256, generation);
+            writeInstallationMetadata(staging, checked, generation);
             checkStorageLimit(destination, staging);
 
             reviewed.close();
@@ -382,21 +399,100 @@ public final class IconPackStore {
 
     private Installed readInstalled(File directory, String expectedId, boolean verifyStorageName)
             throws IOException {
-        if (!directory.isDirectory() || !directory.getCanonicalFile().equals(directory.getAbsoluteFile())) {
-            throw new IOException("Invalid icon pack installation");
+        try {
+            if (!directory.isDirectory()
+                    || !directory.getCanonicalFile().equals(directory.getAbsoluteFile())) {
+                throw new IOException("Invalid icon pack installation");
+            }
+
+            Identity identity = readIdentity(directory);
+
+            if (identity.indexSha256 != null) {
+                try {
+                    return readIndexedInstallation(directory, expectedId, verifyStorageName, identity);
+                } catch (IOException ignored) {
+                }
+            }
+
+            if (isRejectedInstallation(directory, identity)) {
+                throw new IconPackArchiveValidator.InvalidArchiveException(
+                        "Icon pack failed the current validation contract");
+            }
+
+            return readFullyValidatedInstallation(directory, expectedId, verifyStorageName, identity);
+        } catch (IOException error) {
+            try {
+                ACTIVE_GENERATIONS.remove(directory.getCanonicalPath());
+            } catch (IOException ignored) {
+            }
+
+            throw error;
+        }
+    }
+
+    private Installed readIndexedInstallation(
+            File directory,
+            String expectedId,
+            boolean verifyStorageName,
+            Identity identity) throws IOException {
+        File indexFile = internalFile(directory, INDEX_FILE);
+        byte[] indexBytes = readBytes(indexFile, MAX_INDEX_BYTES);
+
+        IconPackManifest.require(
+                identity.indexSha256.equals(hash(indexBytes)),
+                "Icon pack index does not match identity");
+
+        InstallationIndex index = decodeIndex(indexBytes);
+
+        IconPackManifest.require(
+                index.validationVersion == catalog.validationVersion(),
+                "Icon pack validation version changed");
+        IconPackManifest.require(
+                index.archiveSha256.equals(identity.sha256)
+                        && index.generation.equals(identity.generation),
+                "Icon pack index does not match identity");
+
+        File source = internalFile(directory, SOURCE_ARCHIVE);
+
+        IconPackManifest.require(
+                source.length() == index.archiveBytes
+                        && source.length() <= IconPackArchiveValidator.MAX_ARCHIVE_BYTES
+                        && index.archiveSha256.equals(
+                                hash(source, IconPackArchiveValidator.MAX_ARCHIVE_BYTES)),
+                "Icon pack source archive changed");
+        validateInstallationIdentity(directory, expectedId, verifyStorageName, index.manifest);
+        validateIndexedPaths(index.manifest, index.iconHashes);
+        verifyPayload(directory, index.iconHashes);
+
+        Installed installed = new Installed(
+                index.manifest,
+                directory,
+                root.getPath(),
+                index.archiveSha256,
+                index.generation,
+                index.iconHashes);
+
+        ACTIVE_GENERATIONS.put(directory.getCanonicalPath(), index.generation);
+
+        return installed;
+    }
+
+    private Installed readFullyValidatedInstallation(
+            File directory,
+            String expectedId,
+            boolean verifyStorageName,
+            Identity identity) throws IOException {
+        File source = internalFile(directory, SOURCE_ARCHIVE);
+        IconPackArchiveValidator.Result checked;
+
+        try {
+            checked = IconPackArchiveValidator.inspect(source, cache, catalog);
+        } catch (IconPackArchiveValidator.InvalidArchiveException error) {
+            rememberRejectedInstallation(directory, identity, source);
+            throw error;
         }
 
-        File source = new File(directory, SOURCE_ARCHIVE);
-        IconPackArchiveValidator.Result checked =
-                IconPackArchiveValidator.inspect(source, cache, catalog);
-
-        IconPackManifest.require(
-                expectedId == null || checked.manifest.id.equals(expectedId),
-                "Icon pack directory does not match manifest");
-        IconPackManifest.require(
-                !verifyStorageName || directory.getName().equals(storageName(checked.manifest.id)),
-                "Icon pack storage key does not match manifest");
-        Identity identity = readIdentity(directory);
+        validateInstallationIdentity(directory, expectedId, verifyStorageName, checked.manifest);
 
         IconPackManifest.require(
                 checked.sha256.equals(identity.sha256),
@@ -412,8 +508,32 @@ public final class IconPackStore {
 
         verifyPayload(directory, checked.iconHashes);
         ACTIVE_GENERATIONS.put(directory.getCanonicalPath(), identity.generation);
+        repairInstallationMetadata(directory, checked, identity.generation);
 
         return installed;
+    }
+
+    private void validateInstallationIdentity(
+            File directory,
+            String expectedId,
+            boolean verifyStorageName,
+            IconPackManifest manifest) throws IOException {
+        IconPackManifest.require(
+                expectedId == null || manifest.id.equals(expectedId),
+                "Icon pack directory does not match manifest");
+        IconPackManifest.require(
+                !verifyStorageName || directory.getName().equals(storageName(manifest.id)),
+                "Icon pack storage key does not match manifest");
+    }
+
+    private static void validateIndexedPaths(
+            IconPackManifest manifest,
+            Map<String, String> indexedHashes) throws IOException {
+        Set<String> manifestPaths = new HashSet<>(manifest.icons.values());
+
+        IconPackManifest.require(
+                !indexedHashes.isEmpty() && manifestPaths.containsAll(indexedHashes.keySet()),
+                "Icon pack index does not match manifest");
     }
 
     private void extract(File archive, File destination) throws IOException {
@@ -514,26 +634,57 @@ public final class IconPackStore {
     private static void verifyPayload(File directory, Map<String, String> hashes)
             throws IOException {
         File canonicalDirectory = directory.getCanonicalFile();
+        long total = 0;
 
         for (Map.Entry<String, String> expected : hashes.entrySet()) {
             File icon = iconFile(canonicalDirectory, expected.getKey());
 
             IconPackManifest.require(icon != null, "Installed icon file is missing");
+            total += icon.length();
             IconPackManifest.require(
-                    expected.getValue().equals(hash(icon)),
+                    total <= IconPackArchiveValidator.MAX_UNPACKED_BYTES,
+                    "Installed icon files exceed size limit");
+            IconPackManifest.require(
+                    expected.getValue().equals(
+                            hash(icon, IconPackArchiveValidator.MAX_ICON_BYTES)),
                     "Installed icon file does not match source archive");
         }
     }
 
     private static File iconFile(File directory, String relative) throws IOException {
-        File icon = new File(directory, relative).getCanonicalFile();
+        File requested = new File(directory, relative).getAbsoluteFile();
+        File icon = requested.getCanonicalFile();
 
-        if (!icon.getPath().startsWith(directory.getPath() + File.separator)
+        if (!icon.equals(requested)
+                || !icon.getPath().startsWith(directory.getPath() + File.separator)
                 || !icon.isFile()) {
             return null;
         }
 
         return icon;
+    }
+
+    private static File internalFile(File directory, String name) throws IOException {
+        File file = directChild(directory, name);
+
+        if (!file.isFile()) {
+            throw new IOException("Missing icon pack internal file");
+        }
+
+        return file;
+    }
+
+    private static File directChild(File directory, String name) throws IOException {
+        File canonicalDirectory = directory.getCanonicalFile();
+        File file = new File(canonicalDirectory, name).getAbsoluteFile();
+
+        IconPackManifest.require(
+                file.getParentFile() != null
+                        && file.getParentFile().equals(canonicalDirectory)
+                        && file.getCanonicalFile().equals(file),
+                "Invalid icon pack internal path");
+
+        return file;
     }
 
     private static byte[] readBytes(File file, long limit) throws IOException {
@@ -616,25 +767,278 @@ public final class IconPackStore {
         return total;
     }
 
-    private static void writeIdentity(File directory, String sha256, String generation)
-            throws IOException {
-        File identity = new File(directory, IDENTITY_FILE);
-        String value = sha256 + "\n" + generation;
+    private void writeInstallationMetadata(
+            File directory,
+            IconPackArchiveValidator.Result checked,
+            String generation) throws IOException {
+        byte[] index = encodeIndex(checked, generation);
+        String indexSha256 = hash(index);
 
-        try (FileOutputStream output = new FileOutputStream(identity)) {
-            output.write(value.getBytes(StandardCharsets.US_ASCII));
-            output.getFD().sync();
+        clearRejectedMetadata(directory);
+        writeAtomic(directory, INDEX_FILE, index);
+        writeIdentity(directory, checked.sha256, generation, indexSha256);
+    }
+
+    private boolean isRejectedInstallation(File directory, Identity identity) throws IOException {
+        File rejected = directChild(directory, REJECTED_FILE);
+
+        if (!rejected.exists()) {
+            return false;
+        }
+
+        if (!rejected.isFile()) {
+            throw new IOException("Invalid icon pack rejection marker");
+        }
+
+        RejectedInstallation stored;
+
+        try {
+            stored = decodeRejectedInstallation(readBytes(rejected, MAX_REJECTED_BYTES));
+        } catch (IOException error) {
+            clearRejectedMetadata(directory);
+            return false;
+        }
+
+        if (stored.validationVersion != catalog.validationVersion()
+                || !stored.generation.equals(identity.generation)) {
+            clearRejectedMetadata(directory);
+            return false;
+        }
+
+        File source = internalFile(directory, SOURCE_ARCHIVE);
+
+        if (source.length() != stored.archiveBytes
+                || !stored.archiveSha256.equals(
+                        hash(source, IconPackArchiveValidator.MAX_ARCHIVE_BYTES))) {
+            clearRejectedMetadata(directory);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void rememberRejectedInstallation(
+            File directory,
+            Identity identity,
+            File source) {
+        try {
+            long archiveBytes = source.length();
+            String archiveSha256 = hash(source, IconPackArchiveValidator.MAX_ARCHIVE_BYTES);
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+            try (DataOutputStream output = new DataOutputStream(bytes)) {
+                output.writeInt(REJECTED_MAGIC);
+                output.writeInt(REJECTED_VERSION);
+                output.writeInt(catalog.validationVersion());
+                output.writeLong(archiveBytes);
+                writeString(output, archiveSha256, 64);
+                writeString(output, identity.generation, 36);
+            }
+
+            writeAtomic(directory, REJECTED_FILE, bytes.toByteArray());
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static RejectedInstallation decodeRejectedInstallation(byte[] bytes)
+            throws IOException {
+        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes))) {
+            IconPackManifest.require(
+                    input.readInt() == REJECTED_MAGIC
+                            && input.readInt() == REJECTED_VERSION,
+                    "Invalid icon pack rejection marker");
+
+            int validationVersion = input.readInt();
+            long archiveBytes = input.readLong();
+            String archiveSha256 = readString(input, 64);
+            String generation = readString(input, 36);
+
+            IconPackManifest.require(
+                    validationVersion > 0
+                            && archiveBytes > 0
+                            && archiveBytes <= IconPackArchiveValidator.MAX_ARCHIVE_BYTES
+                            && isSha256(archiveSha256)
+                            && isCanonicalGeneration(generation)
+                            && input.read() == -1,
+                    "Invalid icon pack rejection marker");
+
+            return new RejectedInstallation(
+                    validationVersion,
+                    archiveBytes,
+                    archiveSha256,
+                    generation);
+        }
+    }
+
+    private static void clearRejectedMetadata(File directory) throws IOException {
+        File rejected = directChild(directory, REJECTED_FILE);
+
+        if (rejected.exists() && !rejected.delete()) {
+            throw new IOException("Cannot clear icon pack rejection marker");
+        }
+    }
+
+    private void repairInstallationMetadata(
+            File directory,
+            IconPackArchiveValidator.Result checked,
+            String generation) {
+        try {
+            writeInstallationMetadata(directory, checked, generation);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private byte[] encodeIndex(
+            IconPackArchiveValidator.Result checked,
+            String generation) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
+            output.writeInt(INDEX_MAGIC);
+            output.writeInt(INDEX_VERSION);
+            output.writeInt(catalog.validationVersion());
+            output.writeLong(checked.archiveBytes);
+            writeString(output, checked.sha256, 64);
+            writeString(output, generation, 36);
+            writeString(
+                    output,
+                    IconPackManifest.serialize(checked.manifest),
+                    MAX_INDEX_MANIFEST_BYTES);
+
+            ArrayList<String> paths = new ArrayList<>(checked.iconHashes.keySet());
+            Collections.sort(paths);
+            output.writeInt(paths.size());
+
+            for (String path : paths) {
+                writeString(output, path, MAX_INDEX_PATH_BYTES);
+                writeString(output, checked.iconHashes.get(path), 64);
+            }
+        }
+
+        IconPackManifest.require(bytes.size() <= MAX_INDEX_BYTES, "Icon pack index is too large");
+
+        return bytes.toByteArray();
+    }
+
+    private static InstallationIndex decodeIndex(byte[] bytes) throws IOException {
+        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes))) {
+            IconPackManifest.require(input.readInt() == INDEX_MAGIC, "Invalid icon pack index");
+            IconPackManifest.require(
+                    input.readInt() == INDEX_VERSION,
+                    "Unsupported icon pack index");
+
+            int validationVersion = input.readInt();
+            long archiveBytes = input.readLong();
+            String archiveSha256 = readString(input, 64);
+            String generation = readString(input, 36);
+            String manifestJson = readString(input, MAX_INDEX_MANIFEST_BYTES);
+            IconPackManifest manifest = IconPackManifest.parse(manifestJson);
+            int count = input.readInt();
+
+            IconPackManifest.require(
+                    validationVersion > 0
+                            && archiveBytes > 0
+                            && archiveBytes <= IconPackArchiveValidator.MAX_ARCHIVE_BYTES
+                            && isSha256(archiveSha256)
+                            && isCanonicalGeneration(generation)
+                            && count > 0
+                            && count <= IconPackManifest.MAX_ICONS,
+                    "Invalid icon pack index");
+
+            LinkedHashMap<String, String> iconHashes = new LinkedHashMap<>();
+
+            for (int i = 0; i < count; i++) {
+                String path = IconPackManifest.validateIconPath(
+                        readString(input, MAX_INDEX_PATH_BYTES));
+                String sha256 = readString(input, 64);
+
+                IconPackManifest.require(
+                        isSha256(sha256) && iconHashes.put(path, sha256) == null,
+                        "Invalid icon pack index");
+            }
+
+            IconPackManifest.require(input.read() == -1, "Trailing icon pack index data");
+
+            return new InstallationIndex(
+                    validationVersion,
+                    archiveBytes,
+                    archiveSha256,
+                    generation,
+                    manifest,
+                    iconHashes);
+        }
+    }
+
+    private static void writeString(DataOutputStream output, String value, int maxBytes)
+            throws IOException {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+
+        IconPackManifest.require(bytes.length <= maxBytes, "Icon pack index field is too large");
+        output.writeInt(bytes.length);
+        output.write(bytes);
+    }
+
+    private static String readString(DataInputStream input, int maxBytes) throws IOException {
+        int length = input.readInt();
+
+        IconPackManifest.require(length >= 0 && length <= maxBytes, "Invalid icon pack index field");
+
+        byte[] bytes = new byte[length];
+        input.readFully(bytes);
+
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Invalid icon pack index text", error);
+        }
+    }
+
+    private static void writeIdentity(
+            File directory,
+            String sha256,
+            String generation,
+            String indexSha256) throws IOException {
+        String value = "2\n" + sha256 + "\n" + generation + "\n" + indexSha256;
+
+        writeAtomic(directory, IDENTITY_FILE, value.getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private static void writeAtomic(File directory, String name, byte[] bytes) throws IOException {
+        File target = directChild(directory, name);
+        File temporary = directChild(directory, name + ".new");
+
+        if (temporary.exists() && !temporary.delete()) {
+            throw new IOException("Cannot replace icon pack metadata temporary file");
+        }
+
+        try {
+            try (FileOutputStream output = new FileOutputStream(temporary)) {
+                output.write(bytes);
+                output.getFD().sync();
+            }
+
+            if (!temporary.renameTo(target)) {
+                throw new IOException("Cannot publish icon pack metadata");
+            }
+        } finally {
+            if (temporary.exists()) {
+                temporary.delete();
+            }
         }
     }
 
     private static Identity readIdentity(File directory) throws IOException {
-        File identity = new File(directory, IDENTITY_FILE);
+        File identity = internalFile(directory, IDENTITY_FILE);
 
-        if (!identity.isFile() || identity.length() != 101) {
+        if (identity.length() != 101 && identity.length() != 168) {
             throw new IOException("Invalid icon pack identity");
         }
 
-        byte[] bytes = new byte[101];
+        byte[] bytes = new byte[(int) identity.length()];
 
         try (InputStream input = new FileInputStream(identity)) {
             int offset = 0;
@@ -655,33 +1059,89 @@ public final class IconPackStore {
         }
 
         String value = new String(bytes, StandardCharsets.US_ASCII);
-        int separator = value.indexOf('\n');
+        if (bytes.length == 101) {
+            String sha256 = value.substring(0, 64);
+            String generation = value.substring(65);
 
-        IconPackManifest.require(separator == 64, "Invalid icon pack identity");
+            IconPackManifest.require(value.charAt(64) == '\n', "Invalid icon pack identity");
+            IconPackManifest.require(
+                    isSha256(sha256) && isCanonicalGeneration(generation),
+                    "Invalid icon pack identity");
 
-        String sha256 = value.substring(0, separator);
-        String generation = value.substring(separator + 1);
-
-        try {
-            UUID.fromString(generation);
-        } catch (IllegalArgumentException error) {
-            throw new IOException("Invalid icon pack generation", error);
+            return new Identity(sha256, generation, null);
         }
 
-        return new Identity(sha256, generation);
+        String sha256 = value.substring(2, 66);
+        String generation = value.substring(67, 103);
+        String indexSha256 = value.substring(104);
+
+        IconPackManifest.require(
+                value.startsWith("2\n")
+                        && value.charAt(66) == '\n'
+                        && value.charAt(103) == '\n'
+                        && isSha256(sha256)
+                        && isCanonicalGeneration(generation)
+                        && isSha256(indexSha256),
+                "Invalid icon pack identity");
+
+        return new Identity(sha256, generation, indexSha256);
     }
 
     private static final class Identity {
         final String sha256;
         final String generation;
+        final String indexSha256;
 
-        Identity(String sha256, String generation) {
+        Identity(String sha256, String generation, String indexSha256) {
             this.sha256 = sha256;
+            this.generation = generation;
+            this.indexSha256 = indexSha256;
+        }
+    }
+
+    private static final class InstallationIndex {
+        final int validationVersion;
+        final long archiveBytes;
+        final String archiveSha256;
+        final String generation;
+        final IconPackManifest manifest;
+        final Map<String, String> iconHashes;
+
+        InstallationIndex(
+                int validationVersion,
+                long archiveBytes,
+                String archiveSha256,
+                String generation,
+                IconPackManifest manifest,
+                Map<String, String> iconHashes) {
+            this.validationVersion = validationVersion;
+            this.archiveBytes = archiveBytes;
+            this.archiveSha256 = archiveSha256;
+            this.generation = generation;
+            this.manifest = manifest;
+            this.iconHashes = Collections.unmodifiableMap(new LinkedHashMap<>(iconHashes));
+        }
+    }
+
+    private static final class RejectedInstallation {
+        final int validationVersion;
+        final long archiveBytes;
+        final String archiveSha256;
+        final String generation;
+
+        RejectedInstallation(
+                int validationVersion,
+                long archiveBytes,
+                String archiveSha256,
+                String generation) {
+            this.validationVersion = validationVersion;
+            this.archiveBytes = archiveBytes;
+            this.archiveSha256 = archiveSha256;
             this.generation = generation;
         }
     }
 
-    private static String hash(File file) throws IOException {
+    private static String hash(File file, long limit) throws IOException {
         MessageDigest digest;
 
         try {
@@ -693,9 +1153,12 @@ public final class IconPackStore {
         byte[] buffer = new byte[8192];
 
         try (InputStream input = new FileInputStream(file)) {
+            long total = 0;
             int read;
 
             while ((read = input.read(buffer)) != -1) {
+                total += read;
+                IconPackManifest.require(total <= limit, "File exceeds size limit");
                 digest.update(buffer, 0, read);
             }
         }
@@ -707,6 +1170,18 @@ public final class IconPackStore {
         }
 
         return result.toString();
+    }
+
+    private static boolean isSha256(String value) {
+        return value != null && value.matches("[0-9a-f]{64}");
+    }
+
+    private static boolean isCanonicalGeneration(String value) {
+        try {
+            return value != null && UUID.fromString(value).toString().equals(value);
+        } catch (IllegalArgumentException error) {
+            return false;
+        }
     }
 
     private static String hash(byte[] bytes) throws IOException {

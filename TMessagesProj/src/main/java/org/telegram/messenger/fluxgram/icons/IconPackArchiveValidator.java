@@ -36,6 +36,8 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public final class IconPackArchiveValidator {
+    public static final int VALIDATION_VERSION = 1;
+
     public static final class InvalidArchiveException extends IOException {
         InvalidArchiveException(String message) {
             super(message);
@@ -64,6 +66,10 @@ public final class IconPackArchiveValidator {
 
     public interface Catalog {
         boolean contains(String resourceName);
+
+        default int validationVersion() {
+            return VALIDATION_VERSION;
+        }
 
         default boolean decodesRaster(byte[] bytes, String path, int width, int height) {
             return false;

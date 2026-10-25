@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Catalog {
+    private static final int CATALOG_VALIDATION_VERSION = 1;
     private static final int SVG_RENDER_SIZE = 256;
     private static final Set<String> HOST_MANAGED_NAMES = new HashSet<>(Arrays.asList(
             "boosts",
@@ -52,6 +53,11 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
     @Override
     public boolean contains(String resourceName) {
         return drawableId(resourceName) != 0 || HOST_MANAGED_NAMES.contains(resourceName);
+    }
+
+    @Override
+    public int validationVersion() {
+        return 31 * IconPackArchiveValidator.VALIDATION_VERSION + CATALOG_VALIDATION_VERSION;
     }
 
     public int drawableId(String resourceName) {
