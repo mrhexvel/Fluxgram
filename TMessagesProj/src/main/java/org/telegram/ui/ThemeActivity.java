@@ -63,6 +63,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.time.SunDate;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
@@ -1400,7 +1401,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         }
                         value = type + " " + value;
                     }
-                    checkCell.setTextAndValueAndIconAndCheck(getString("AutoNightTheme", R.string.AutoNightTheme), value, R.drawable.menu_night_mode_24, enabled, 0, false, true);
+                    setAutoNightThemeCell(checkCell, value, enabled);
                 } else {
                     presentFragment(new ThemeActivity(THEME_TYPE_NIGHT));
                 }
@@ -2043,6 +2044,25 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         }
     }
 
+    private void setAutoNightThemeCell(
+            NotificationsCheckCell cell,
+            CharSequence value,
+            boolean enabled) {
+        cell.setTextAndValueAndIconAndCheck(
+                getString("AutoNightTheme", R.string.AutoNightTheme),
+                value,
+                R.drawable.menu_night_mode_24,
+                enabled,
+                0,
+                false,
+                true);
+        Drawable drawable = IconPackRuntime.resolve(cell.getResources(), "msg2_night_auto");
+
+        if (drawable != null) {
+            cell.setIconDrawable(drawable);
+        }
+    }
+
     private class ListAdapter extends RecyclerListView.SelectionAdapter {
         private final static int TYPE_TEXT_SETTING = 1;
         private final static int TYPE_TEXT_INFO_PRIVACY = 2;
@@ -2639,7 +2659,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                             }
                             value = type + " " + value;
                         }
-                        checkCell.setTextAndValueAndIconAndCheck(getString("AutoNightTheme", R.string.AutoNightTheme), value, R.drawable.menu_night_mode_24, enabled, 0, false, true);
+                        setAutoNightThemeCell(checkCell, value, enabled);
                     } else if (position == browserRow) {
                         checkCell.setTextAndValueAndIconAndCheck(getString(R.string.InappBrowser), getString(R.string.InappBrowserInfo), R.drawable.msg2_language, getMessagesController().isWebBrowserInAppEnabled(), 0, false, true);
                     }

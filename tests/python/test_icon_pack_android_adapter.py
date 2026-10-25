@@ -112,6 +112,8 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         chat = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java").read_text()
         dialogs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java").read_text()
         proxy = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/ProxyDrawable.java").read_text()
+        theme = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/ThemeActivity.java").read_text()
+        notifications_check = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Cells/NotificationsCheckCell.java").read_text()
         topics = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/TopicsFragment.java").read_text()
         tabs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/glass/GlassTabView.java").read_text()
 
@@ -139,6 +141,9 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         self.assertIn('"msg2_proxy_on"', proxy)
         self.assertIn("R.drawable.outline_shield_plain_24", proxy)
         self.assertIn("R.drawable.outline_shield_check", proxy)
+        self.assertIn('IconPackRuntime.resolve(cell.getResources(), "msg2_night_auto")', theme)
+        self.assertIn("R.drawable.menu_night_mode_24", theme)
+        self.assertIn("public void setIconDrawable(Drawable drawable)", notifications_check)
         for name in (
             "tabs_contact_active_24",
             "tabs_contacts_24",

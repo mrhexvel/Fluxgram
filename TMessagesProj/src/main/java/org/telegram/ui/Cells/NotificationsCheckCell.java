@@ -14,6 +14,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -120,6 +121,17 @@ public class NotificationsCheckCell extends FrameLayout {
 
     public Switch getCheckBox() {
         return checkBox;
+    }
+
+    public void setIconDrawable(Drawable drawable) {
+        if (imageView == null) {
+            return;
+        }
+
+        imageView.setImageDrawable(drawable);
+        imageView.setColorFilter(new PorterDuffColorFilter(
+                Theme.getColor(Theme.key_dialogIcon),
+                PorterDuff.Mode.MULTIPLY));
     }
 
     protected int processColor(int color) {
