@@ -15,6 +15,7 @@ import androidx.annotation.NonNull;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 
 public class ProxyDrawable extends Drawable {
 
@@ -33,8 +34,18 @@ public class ProxyDrawable extends Drawable {
 
     public ProxyDrawable(Context context) {
         super();
-        emptyDrawable = context.getResources().getDrawable(R.drawable.outline_shield_plain_24).mutate();
-        fullDrawable = context.getResources().getDrawable(R.drawable.outline_shield_check).mutate();
+        Drawable iconPackEmptyDrawable = IconPackRuntime.resolve(
+                context.getResources(),
+                "msg2_proxy_off");
+        Drawable iconPackFullDrawable = IconPackRuntime.resolve(
+                context.getResources(),
+                "msg2_proxy_on");
+        emptyDrawable = (iconPackEmptyDrawable != null
+                ? iconPackEmptyDrawable
+                : context.getResources().getDrawable(R.drawable.outline_shield_plain_24)).mutate();
+        fullDrawable = (iconPackFullDrawable != null
+                ? iconPackFullDrawable
+                : context.getResources().getDrawable(R.drawable.outline_shield_check)).mutate();
 
         outerPaint.setColor(Color.WHITE);
         outerPaint.setStyle(Paint.Style.STROKE);

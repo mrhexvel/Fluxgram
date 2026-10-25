@@ -53,6 +53,10 @@ public final class IconPackAndroidCheck {
         require(catalog.drawableId("fab_compose_small") == 0);
         require(catalog.contains("instant_camera"));
         require(catalog.drawableId("instant_camera") == 0);
+        require(catalog.contains("msg2_proxy_off"));
+        require(catalog.drawableId("msg2_proxy_off") == 0);
+        require(catalog.contains("msg2_proxy_on"));
+        require(catalog.drawableId("msg2_proxy_on") == 0);
         require(catalog.contains("tabs_chats_24"));
         require(catalog.drawableId("tabs_chats_24") == 0);
         require(catalog.contains("tabs_calls_active_24"));

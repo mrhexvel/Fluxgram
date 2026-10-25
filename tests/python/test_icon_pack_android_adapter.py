@@ -111,6 +111,7 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         composer = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterViewAnimatedIconView.java").read_text()
         chat = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java").read_text()
         dialogs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java").read_text()
+        proxy = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/ProxyDrawable.java").read_text()
         topics = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/TopicsFragment.java").read_text()
         tabs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/glass/GlassTabView.java").read_text()
 
@@ -134,6 +135,10 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         )
         self.assertIn("state == State.VIDEO", composer)
         self.assertIn("R.raw.voice_and_video", composer)
+        self.assertIn('"msg2_proxy_off"', proxy)
+        self.assertIn('"msg2_proxy_on"', proxy)
+        self.assertIn("R.drawable.outline_shield_plain_24", proxy)
+        self.assertIn("R.drawable.outline_shield_check", proxy)
         for name in (
             "tabs_contact_active_24",
             "tabs_contacts_24",

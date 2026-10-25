@@ -25,6 +25,8 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
             "boosts",
             "fab_compose_small",
             "instant_camera",
+            "msg2_proxy_off",
+            "msg2_proxy_on",
             "tabs_contact_active_24",
             "tabs_contacts_24",
             "tabs_chats_24",
