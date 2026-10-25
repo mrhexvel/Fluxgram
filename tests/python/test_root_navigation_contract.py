@@ -187,6 +187,21 @@ class RootNavigationContractTest(unittest.TestCase):
         self.assertIn("page.setScaleY(scale)", transform)
         self.assertNotIn("tabsView.setAlpha", transform)
         self.assertNotIn("tabsView.setScale", transform)
+        self.assertIn("return 240L;", pager)
+
+    def test_settings_blur_sources_are_recorded_only_when_invalidated(self):
+        settings = (JAVA / "ui/SettingsActivity.java").read_text()
+        draw = settings.split("protected void dispatchDraw(Canvas canvas)", 1)[1].split(
+            "super.dispatchDraw(canvas)", 1
+        )[0]
+        colors = settings.split("public void updateColors()", 1)[1].split(
+            "private boolean actionBarVisible", 1
+        )[0]
+
+        self.assertIn("iBlur3SourceGlassFrosted.needUpdateDisplayList(width, height) || iBlur3Invalidated", draw)
+        self.assertIn("iBlur3SourceGlass.needUpdateDisplayList(width, height) || iBlur3Invalidated", draw)
+        self.assertIn("private boolean iBlur3Invalidated = true;", settings)
+        self.assertIn("iBlur3Invalidated = true;", colors)
 
     def test_root_glass_capture_uses_the_same_page_transform(self):
         activity = (JAVA / "ui/MainTabsActivity.java").read_text()

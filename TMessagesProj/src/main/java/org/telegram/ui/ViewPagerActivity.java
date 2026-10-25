@@ -499,7 +499,7 @@ public abstract class ViewPagerActivity extends BaseFragment {
 
         @Override
         protected long getManualScrollDuration() {
-            return 320L;
+            return 240L;
         }
 
         @Override
