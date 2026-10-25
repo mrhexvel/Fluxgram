@@ -61,13 +61,20 @@ public final class BitmapFactory {
             return new Bitmap(width + 1, height);
         }
 
-        return parts[0].equals("raster")
+        Bitmap bitmap = parts[0].equals("raster")
+                        || parts[0].equals("transparent")
                         || parts[0].equals("bounds-runtime")
                         || parts[0].equals("bounds-oom")
                         || parts[0].equals("decode-runtime")
                         || parts[0].equals("decode-oom")
                 ? new Bitmap(width, height)
                 : null;
+
+        if (bitmap != null && parts[0].equals("transparent")) {
+            bitmap.markTransparent();
+        }
+
+        return bitmap;
     }
 
     private BitmapFactory() {}

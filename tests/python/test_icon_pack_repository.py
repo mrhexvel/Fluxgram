@@ -43,6 +43,7 @@ class IconPackRepositoryTest(unittest.TestCase):
 
             sources = [str(path) for path in REPOSITORY_STUBS.rglob("*.java")]
             sources.extend(str(path) for path in (ANDROID_STUBS / "android").rglob("*.java"))
+            sources.extend(str(path) for path in (ANDROID_STUBS / "com").rglob("*.java"))
             sources.extend(str(path) for path in SETTINGS_STUBS.rglob("*.java"))
             sources.extend(
                 [

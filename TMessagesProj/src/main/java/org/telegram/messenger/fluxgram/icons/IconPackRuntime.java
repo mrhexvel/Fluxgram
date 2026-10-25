@@ -19,7 +19,7 @@ import java.util.WeakHashMap;
 import java.util.function.BooleanSupplier;
 
 public final class IconPackRuntime {
-    private static final int ICON_SIZE_DP = 24;
+    private static final int FALLBACK_ICON_SIZE_DP = 24;
     private static final int MAX_CACHE_BYTES = 32 * 1024 * 1024;
     private static volatile Snapshot snapshot = Snapshot.empty();
     private static volatile long revision;
@@ -280,7 +280,7 @@ public final class IconPackRuntime {
         }
 
         int densityDpi = resources.getDisplayMetrics().densityDpi;
-        int size = Math.max(1, Math.round(ICON_SIZE_DP * densityDpi
+        int fallbackSize = Math.max(1, Math.round(FALLBACK_ICON_SIZE_DP * densityDpi
                 / (float) DisplayMetrics.DENSITY_DEFAULT));
         IconPackAndroidCatalog catalog = new IconPackAndroidCatalog(resources);
         HashMap<Integer, Bitmap> bitmaps = new HashMap<>();
@@ -312,7 +312,21 @@ public final class IconPackRuntime {
                     continue;
                 }
 
-                String source = source(pack, resourceName, densityDpi, size);
+                int width = fallbackSize;
+                int height = fallbackSize;
+
+                if (drawableId != 0) {
+                    Drawable original = originalDrawable(resources, drawableId, densityDpi);
+
+                    if (original != null
+                            && original.getIntrinsicWidth() > 0
+                            && original.getIntrinsicHeight() > 0) {
+                        width = original.getIntrinsicWidth();
+                        height = original.getIntrinsicHeight();
+                    }
+                }
+
+                String source = source(pack, resourceName, densityDpi, width, height);
 
                 if (source == null) {
                     continue;
@@ -326,7 +340,7 @@ public final class IconPackRuntime {
                             store,
                             pack,
                             resourceName);
-                    bitmap = render(drawable, size, densityDpi);
+                    bitmap = render(drawable, width, height, densityDpi);
 
                     if (bitmap != null) {
                         cache(source, bitmap);
@@ -369,31 +383,59 @@ public final class IconPackRuntime {
         return publishIfCurrent(Snapshot.empty(), currentRequest, publicationLock);
     }
 
-    private static Bitmap render(Drawable drawable, int size, int densityDpi) {
-        if (drawable == null) {
+    private static Drawable originalDrawable(Resources resources, int drawableId, int densityDpi) {
+        try {
+            if (resources instanceof IconPackResources) {
+                return ((IconPackResources) resources).getOriginalDrawableForDensity(
+                        drawableId,
+                        densityDpi,
+                        null);
+            }
+
+            return resources.getDrawableForDensity(drawableId, densityDpi, null);
+        } catch (RuntimeException | OutOfMemoryError error) {
+            return null;
+        }
+    }
+
+    private static Bitmap render(
+            Drawable drawable,
+            int width,
+            int height,
+            int densityDpi) {
+        if (drawable == null || width <= 0 || height <= 0) {
             return null;
         }
 
         Bitmap result = null;
 
         try {
-            result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             result.setDensity(densityDpi);
             Canvas canvas = new Canvas(result);
-            int width = drawable.getIntrinsicWidth();
-            int height = drawable.getIntrinsicHeight();
+            int sourceWidth = drawable.getIntrinsicWidth();
+            int sourceHeight = drawable.getIntrinsicHeight();
 
-            if (width <= 0 || height <= 0) {
-                width = height = size;
+            if (sourceWidth <= 0 || sourceHeight <= 0) {
+                sourceWidth = width;
+                sourceHeight = height;
             }
 
-            float scale = Math.min(size / (float) width, size / (float) height);
-            int targetWidth = Math.max(1, Math.round(width * scale));
-            int targetHeight = Math.max(1, Math.round(height * scale));
-            int left = (size - targetWidth) / 2;
-            int top = (size - targetHeight) / 2;
+            float scale = Math.min(
+                    width / (float) sourceWidth,
+                    height / (float) sourceHeight);
+            int targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+            int targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+            int left = (width - targetWidth) / 2;
+            int top = (height - targetHeight) / 2;
             drawable.setBounds(left, top, left + targetWidth, top + targetHeight);
             drawable.draw(canvas);
+
+            if (!IconPackAndroidCatalog.hasVisiblePixels(result)) {
+                result.recycle();
+
+                return null;
+            }
 
             return result;
         } catch (RuntimeException | OutOfMemoryError error) {
@@ -417,7 +459,8 @@ public final class IconPackRuntime {
             IconPackStore.Installed pack,
             String resourceName,
             int densityDpi,
-            int size) {
+            int width,
+            int height) {
         String hash = pack.iconHash(resourceName);
 
         if (hash == null) {
@@ -429,7 +472,8 @@ public final class IconPackRuntime {
                 + resourceName + "\n"
                 + hash + "\n"
                 + densityDpi + "\n"
-                + size;
+                + width + "\n"
+                + height;
     }
 
     private static synchronized Bitmap cached(String source) {

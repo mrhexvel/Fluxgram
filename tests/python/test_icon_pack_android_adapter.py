@@ -51,15 +51,23 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         catalog = (ICONS / "IconPackAndroidCatalog.java").read_text()
         self.assertIn('getIdentifier(resourceName, "drawable", packageName)', catalog)
         self.assertNotIn('drawables.put("msg_add"', catalog)
+        self.assertIn("SVG.getFromString", catalog)
+        self.assertIn("hasVisiblePixels", catalog)
+        self.assertNotIn("SvgHelper", catalog)
         self.assertIn("private static volatile Snapshot snapshot", runtime)
-        self.assertIn("Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)", runtime)
+        self.assertIn("Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)", runtime)
+        self.assertIn("getOriginalDrawableForDensity", runtime)
         self.assertIn("public static Drawable resolve(Resources resources, String resourceName)", runtime)
         self.assertIn("MAX_CACHE_BYTES", runtime)
         self.assertIn("WeakHashMap<ImageView, ImageBinding>", runtime)
         self.assertIn("binding.drawable.get() != imageView.getDrawable()", runtime)
         self.assertIn("BooleanSupplier currentRequest", runtime)
         self.assertIn("source.recycle()", runtime)
+        self.assertIn("IconPackAndroidCatalog.hasVisiblePixels(result)", runtime)
         self.assertNotIn("store.resolve", runtime.split("public static Drawable resolve", 1)[1].split("static boolean rebuild", 1)[0])
+
+        build = (ROOT / "TMessagesProj/build.gradle").read_text()
+        self.assertIn("com.caverock:androidsvg-aar:1.4", build)
 
         application = (ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/ApplicationLoader.java").read_text()
         activity = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/BasePermissionsActivity.java").read_text()
@@ -89,8 +97,11 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
             self.assertIn("IconPackRuntime", source, relative)
 
         composer = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterViewAnimatedIconView.java").read_text()
+        chat = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java").read_text()
         tabs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/glass/GlassTabView.java").read_text()
 
+        self.assertIn('IconPackRuntime.resolve(headerItem.getResources(), "boosts")', chat)
+        self.assertIn("new RLottieDrawable(R.raw.boosts", chat)
         for name in ("msg_sticker", "input_keyboard", "input_smile", "msg_gif"):
             self.assertIn(f"R.drawable.{name}", composer)
         for name in (

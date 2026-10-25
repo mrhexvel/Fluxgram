@@ -106,7 +106,7 @@ class IconPacksTest(unittest.TestCase):
         path.write_bytes(data)
         return path
 
-    def png(self, pixels):
+    def png(self, pixels, width=1, height=1):
         def chunk(name, content):
             return (
                 struct.pack(">I", len(content))
@@ -117,7 +117,7 @@ class IconPacksTest(unittest.TestCase):
 
         return (
             b"\x89PNG\r\n\x1a\n"
-            + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0))
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
             + chunk(b"IDAT", pixels)
             + chunk(b"IEND", b"")
         )
@@ -208,11 +208,54 @@ class IconPacksTest(unittest.TestCase):
             )
         )
 
+    def test_accepts_bounded_portrait_raster_and_local_svg_masks(self):
+        self.inspect(
+            self.archive(
+                icons={"msg_add": "icons/add.png"},
+                files={
+                    "icons/add.png": self.png(
+                        zlib.compress((b"\x00" + b"\x00" * (1440 * 4)) * 2088),
+                        width=1440,
+                        height=2088,
+                    )
+                },
+            )
+        )
+        self.inspect(
+            self.archive(
+                files={
+                    "icons/add.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><mask id="m" maskUnits="userSpaceOnUse"><path d="M0 0h512v512z" fill="white"/></mask><g mask="url(#m)"><path d="M1 1h2v2z"/></g></svg>'
+                }
+            )
+        )
+        self.inspect(
+            self.archive(
+                files={
+                    "icons/add.svg": b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><mask id="m"><path d="M0 0h24v24z"/></mask><g mask="url(https://example.com/mask.svg#m)"><path d="M1 1h2v2z"/></g></svg>'
+                }
+            ),
+            accepted=False,
+        )
+
+        self.inspect(
+            self.archive(
+                icons={"msg_add": "icons/add.png"},
+                files={
+                    "icons/add.png": self.png(
+                        zlib.compress((b"\x00" + b"\x00" * (2049 * 4)) * 2049),
+                        width=2049,
+                        height=2049,
+                    )
+                },
+            ),
+            accepted=False,
+        )
+
     def test_rejects_invalid_jpeg_icons(self):
         jpeg = self.jpeg()
         frame = jpeg.index(b"\xff\xc0")
         oversized = bytearray(jpeg)
-        oversized[frame + 7 : frame + 9] = (2049).to_bytes(2, "big")
+        oversized[frame + 7 : frame + 9] = (4097).to_bytes(2, "big")
 
         for payload in (jpeg[:-2], bytes(oversized)):
             self.inspect(

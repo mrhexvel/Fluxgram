@@ -130,6 +130,7 @@ import org.telegram.messenger.fluxgram.GreetingStickerPolicy;
 import org.telegram.messenger.fluxgram.ReadTimeArchive;
 import org.telegram.messenger.fluxgram.ReplyAppearanceSettings;
 import org.telegram.messenger.fluxgram.StickerSettings;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.ui.fluxgram.MessageMenuMetadataController;
 import org.telegram.ui.fluxgram.FluxGramComposerController;
 import org.telegram.ui.fluxgram.ChatSelectionActionController;
@@ -6767,7 +6768,12 @@ public class ChatActivity extends BaseFragment implements
                 updateFluxGramAdminShortcutsVisibility();
             }
             if (ChatObject.isBoostSupported(currentChat) && (getUserConfig().isPremium() || ChatObject.isBoosted(chatInfo) || ChatObject.hasAdminRights(currentChat))) {
-                RLottieDrawable drawable = new RLottieDrawable(R.raw.boosts, dp(24), dp(24));
+                Drawable drawable = IconPackRuntime.resolve(headerItem.getResources(), "boosts");
+
+                if (drawable == null) {
+                    drawable = new RLottieDrawable(R.raw.boosts, dp(24), dp(24));
+                }
+
                 headerItem.lazilyAddSubItem(boost_group, drawable, LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.BoostingBoostChannelMenu : R.string.BoostingBoostGroupMenu));
             }
             translateItem = headerItem.lazilyAddSubItem(translate, R.drawable.msg_translate, LocaleController.getString(R.string.TranslateMessage));

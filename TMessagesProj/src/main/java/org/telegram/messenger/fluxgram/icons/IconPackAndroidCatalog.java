@@ -3,13 +3,15 @@ package org.telegram.messenger.fluxgram.icons;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.RectF;
+
+import com.caverock.androidsvg.SVG;
 
 import org.telegram.messenger.R;
-import org.telegram.messenger.SvgHelper;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -18,7 +20,9 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Catalog {
+    private static final int SVG_RENDER_SIZE = 256;
     private static final Set<String> HOST_MANAGED_NAMES = new HashSet<>(Arrays.asList(
+            "boosts",
             "tabs_contact_active_24",
             "tabs_contacts_24",
             "tabs_chats_24",
@@ -83,7 +87,15 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
 
     @Override
     public boolean decodesSvg(byte[] bytes, String path) {
-        return decodeSvg(bytes, path) != null;
+        Bitmap bitmap = decodeSvg(bytes, path);
+
+        if (bitmap == null) {
+            return false;
+        }
+
+        bitmap.recycle();
+
+        return true;
     }
 
     static Bitmap decodeRaster(byte[] bytes, String path, int expectedWidth, int expectedHeight) {
@@ -107,8 +119,10 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
                                     || bounds.outHeight != expectedHeight))
                     || bounds.outWidth <= 0
                     || bounds.outHeight <= 0
-                    || bounds.outWidth > 2048
-                    || bounds.outHeight > 2048) {
+                    || bounds.outWidth > IconPackArchiveValidator.MAX_RASTER_DIMENSION
+                    || bounds.outHeight > IconPackArchiveValidator.MAX_RASTER_DIMENSION
+                    || (long) bounds.outWidth * bounds.outHeight
+                            > IconPackArchiveValidator.MAX_RASTER_PIXELS) {
                 return null;
             }
 
@@ -116,7 +130,8 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
 
             if (bitmap == null
                     || bitmap.getWidth() != bounds.outWidth
-                    || bitmap.getHeight() != bounds.outHeight) {
+                    || bitmap.getHeight() != bounds.outHeight
+                    || !hasVisiblePixels(bitmap)) {
                 if (bitmap != null) {
                     bitmap.recycle();
                 }
@@ -130,7 +145,7 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
         }
     }
 
-    static SvgHelper.SvgDrawable decodeSvg(byte[] bytes, String path) {
+    static Bitmap decodeSvg(byte[] bytes, String path) {
         if (bytes == null
                 || bytes.length == 0
                 || bytes.length > IconPackArchiveValidator.MAX_ICON_BYTES
@@ -139,16 +154,62 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
             return null;
         }
 
+        Bitmap bitmap = null;
+
         try {
             CharBuffer decoded = StandardCharsets.UTF_8.newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(bytes));
+            SVG svg = SVG.getFromString(decoded.toString());
+            svg.setDocumentWidth(SVG_RENDER_SIZE);
+            svg.setDocumentHeight(SVG_RENDER_SIZE);
+            bitmap = Bitmap.createBitmap(
+                    SVG_RENDER_SIZE,
+                    SVG_RENDER_SIZE,
+                    Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
 
-            return SvgHelper.getDrawable(decoded.toString());
-        } catch (CharacterCodingException | RuntimeException | OutOfMemoryError error) {
+            svg.renderToCanvas(
+                    canvas,
+                    new RectF(0, 0, SVG_RENDER_SIZE, SVG_RENDER_SIZE));
+
+            if (!hasVisiblePixels(bitmap)) {
+                bitmap.recycle();
+
+                return null;
+            }
+
+            return bitmap;
+        } catch (Exception | OutOfMemoryError | StackOverflowError error) {
+            if (bitmap != null && !bitmap.isRecycled()) {
+                bitmap.recycle();
+            }
+
             return null;
         }
+    }
+
+    static boolean hasVisiblePixels(Bitmap bitmap) {
+        try {
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            int[] row = new int[width];
+
+            for (int y = 0; y < height; y++) {
+                bitmap.getPixels(row, 0, width, 0, y, width, 1);
+
+                for (int pixel : row) {
+                    if ((pixel >>> 24) != 0) {
+                        return true;
+                    }
+                }
+            }
+        } catch (RuntimeException | OutOfMemoryError error) {
+            return false;
+        }
+
+        return false;
     }
 
     private static boolean isRasterPath(String path) {

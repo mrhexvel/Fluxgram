@@ -48,7 +48,19 @@ public final class IconPackAndroidDrawableDecoder {
         String normalized = path.toLowerCase(Locale.ROOT);
 
         if (normalized.endsWith(".svg")) {
-            return IconPackAndroidCatalog.decodeSvg(bytes, path);
+            Bitmap bitmap = IconPackAndroidCatalog.decodeSvg(bytes, path);
+
+            if (bitmap == null) {
+                return null;
+            }
+
+            try {
+                return new BitmapDrawable(resources, bitmap);
+            } catch (RuntimeException | OutOfMemoryError error) {
+                bitmap.recycle();
+
+                return null;
+            }
         }
         if (!normalized.endsWith(".png")
                 && !normalized.endsWith(".webp")

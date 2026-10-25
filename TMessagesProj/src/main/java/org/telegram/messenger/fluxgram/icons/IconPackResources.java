@@ -24,4 +24,9 @@ public final class IconPackResources extends Resources {
 
         return resources.getDrawableForDensity(id, density, theme);
     }
+
+    Drawable getOriginalDrawableForDensity(int id, int density, Theme theme)
+            throws NotFoundException {
+        return resources.getDrawableForDensity(id, density, theme);
+    }
 }

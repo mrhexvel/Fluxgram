@@ -52,6 +52,8 @@ public final class IconPackArchiveValidator {
     public static final long MAX_ICON_BYTES = 2L * 1024 * 1024;
     public static final int MAX_METADATA_BYTES = 64 * 1024;
     public static final int MAX_ENTRIES = 4096;
+    public static final int MAX_RASTER_DIMENSION = 4096;
+    public static final long MAX_RASTER_PIXELS = 2048L * 2048;
     public static final double MAX_COMPRESSION_RATIO = 250.0;
 
     private static final String SNAPSHOT_PREFIX = "icon-pack-review-";
@@ -824,7 +826,6 @@ public final class IconPackArchiveValidator {
                         && !normalizedName.equals("image")
                         && !normalizedName.equals("use")
                         && !normalizedName.equals("filter")
-                        && !normalizedName.equals("mask")
                         && !normalizedName.equals("pattern")
                         && !normalizedName.equals("foreignobject")
                         && !normalizedName.equals("animate")
@@ -912,8 +913,12 @@ public final class IconPackArchiveValidator {
 
     private static void checkDimensions(int width, int height) throws IOException {
         IconPackManifest.require(
-                width > 0 && height > 0 && width <= 2048 && height <= 2048,
-                "Icon dimensions must be between 1 and 2048 pixels");
+                width > 0
+                        && height > 0
+                        && width <= MAX_RASTER_DIMENSION
+                        && height <= MAX_RASTER_DIMENSION
+                        && (long) width * height <= MAX_RASTER_PIXELS,
+                "Icon dimensions exceed the decode limit");
     }
 
     private static long number(byte[] bytes, int offset, int length, boolean littleEndian) {

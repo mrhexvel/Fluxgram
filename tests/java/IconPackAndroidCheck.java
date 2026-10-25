@@ -6,7 +6,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.widget.ImageView;
 
-import org.telegram.messenger.SvgHelper;
+import com.caverock.androidsvg.SVG;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -47,6 +47,8 @@ public final class IconPackAndroidCheck {
         require(catalog.drawableId("msg_unknown") == 0);
         require(catalog.resourceName(0) == null);
         require(catalog.resourceName(15) == null);
+        require(catalog.contains("boosts"));
+        require(catalog.drawableId("boosts") == 0);
         require(catalog.contains("tabs_chats_24"));
         require(catalog.drawableId("tabs_chats_24") == 0);
         require(catalog.contains("tabs_calls_active_24"));
@@ -55,6 +57,12 @@ public final class IconPackAndroidCheck {
 
         require(catalog.decodesRaster(raster, "icon.png", 24, 32));
         require(catalog.decodesRaster(raster, "icon.jpg", 24, 32));
+        require(Bitmap.lastCreated.isRecycled());
+        require(!catalog.decodesRaster(
+                "transparent:24:32".getBytes(StandardCharsets.UTF_8),
+                "icon.png",
+                24,
+                32));
         require(Bitmap.lastCreated.isRecycled());
         require(!catalog.decodesRaster(raster, "icon.png", 32, 24));
         require(!catalog.decodesRaster(
@@ -73,11 +81,21 @@ public final class IconPackAndroidCheck {
                 "icon.png",
                 2048,
                 2048));
+        require(catalog.decodesRaster(
+                "raster:1440:2088".getBytes(StandardCharsets.UTF_8),
+                "icon.png",
+                1440,
+                2088));
         require(!catalog.decodesRaster(
-                "raster:2049:2048".getBytes(StandardCharsets.UTF_8),
+                "raster:2049:2049".getBytes(StandardCharsets.UTF_8),
                 "icon.png",
                 2049,
-                2048));
+                2049));
+        require(!catalog.decodesRaster(
+                "raster:4097:1".getBytes(StandardCharsets.UTF_8),
+                "icon.png",
+                4097,
+                1));
         require(!catalog.decodesRaster(
                 "bounds-runtime:24:32".getBytes(StandardCharsets.UTF_8),
                 "icon.png",
@@ -104,13 +122,31 @@ public final class IconPackAndroidCheck {
                 24,
                 32));
 
-        byte[] svg = "<svg viewBox=\"0 0 24 24\"/>".getBytes(StandardCharsets.UTF_8);
+        byte[] svg = "<svg viewBox=\"0 0 24 24\"><path d=\"M1 1h2v2z\"/></svg>"
+                .getBytes(StandardCharsets.UTF_8);
 
         require(catalog.decodesSvg(svg, "icon.svg"));
+        require(SVG.lastDocumentWidth == 256);
+        require(SVG.lastDocumentHeight == 256);
+        byte[] maskedSvg = ("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">"
+                + "<defs><linearGradient id=\"g\"><stop stop-color=\"white\"/></linearGradient>"
+                + "<mask id=\"m\"><path d=\"M0 0h24v24z\" fill=\"white\"/></mask></defs>"
+                + "<g mask=\"url(#m)\"><path fill=\"url(#g)\" d=\"M1 1h2v2z\"/></g></svg>")
+                .getBytes(StandardCharsets.UTF_8);
+
+        require(catalog.decodesSvg(maskedSvg, "icon.svg"));
+        require(SVG.lastXml.contains("<linearGradient"));
+        require(SVG.lastXml.contains("<mask"));
+        require(SVG.lastXml.contains("mask=\"url(#m)\""));
+        require(!catalog.decodesSvg(
+                "<svg viewBox=\"0 0 24 24\"><path transparent=\"true\"/></svg>"
+                        .getBytes(StandardCharsets.UTF_8),
+                "icon.svg"));
         require(!catalog.decodesSvg(new byte[] {(byte) 0xc3, 0x28}, "icon.svg"));
-        require(!catalog.decodesSvg("unsupported".getBytes(StandardCharsets.UTF_8), "icon.svg"));
-        require(!catalog.decodesSvg("runtime".getBytes(StandardCharsets.UTF_8), "icon.svg"));
+        require(!catalog.decodesSvg("parse-error".getBytes(StandardCharsets.UTF_8), "icon.svg"));
+        require(!catalog.decodesSvg("render-error".getBytes(StandardCharsets.UTF_8), "icon.svg"));
         require(!catalog.decodesSvg("out-of-memory".getBytes(StandardCharsets.UTF_8), "icon.svg"));
+        require(!catalog.decodesSvg("stack-overflow".getBytes(StandardCharsets.UTF_8), "icon.svg"));
 
         Drawable rasterDrawable = IconPackAndroidDrawableDecoder.decodeVerified(
                 resources,
@@ -122,7 +158,7 @@ public final class IconPackAndroidCheck {
                 instanceof BitmapDrawable);
         require(!((BitmapDrawable) rasterDrawable).getBitmap().isRecycled());
         require(IconPackAndroidDrawableDecoder.decodeVerified(resources, svg, "icon.svg")
-                instanceof SvgHelper.SvgDrawable);
+                instanceof BitmapDrawable);
         require(IconPackAndroidDrawableDecoder.decodeVerified(resources, svg, "icon.txt") == null);
         require(IconPackAndroidDrawableDecoder.decodeVerified(null, svg, "icon.svg") == null);
 
@@ -151,8 +187,13 @@ public final class IconPackAndroidCheck {
                 "msg_unknown") == null);
 
         IconPackRuntime.clear();
+        IconPackResources wrapped = new IconPackResources(resources);
+        require(wrapped.getOriginalDrawableForDensity(11, 160, null).getIntrinsicWidth() == 32);
+        require(wrapped.getOriginalDrawableForDensity(11, 160, null).getIntrinsicHeight() == 18);
         Map<String, String> firstIcons = new LinkedHashMap<>();
         firstIcons.put("msg_add", "first.png");
+        firstIcons.put("msg_settings", "first.png");
+        firstIcons.put("boosts", "first.png");
         firstIcons.put("tabs_chats_24", "first.png");
         IconPackStore.Installed first = new IconPackStore.Installed(
                 new IconPackManifest("first.pack", firstIcons),
@@ -165,6 +206,31 @@ public final class IconPackAndroidCheck {
         store.setPayload(first, raster);
         store.setPayload(second, "raster:32:24".getBytes(StandardCharsets.UTF_8));
 
+        IconPackStore.Installed transparent = new IconPackStore.Installed(
+                new IconPackManifest(
+                        "transparent.pack",
+                        Collections.singletonMap("msg_add", "transparent.svg")),
+                "transparent-generation");
+        IconPackStore.Installed fallback = new IconPackStore.Installed(
+                new IconPackManifest(
+                        "fallback.pack",
+                        Collections.singletonMap("msg_add", "fallback.png")),
+                "fallback-generation");
+        store.setPayload(
+                transparent,
+                "<svg viewBox=\"0 0 24 24\"><path transparent=\"true\"/></svg>"
+                        .getBytes(StandardCharsets.UTF_8));
+        store.setPayload(fallback, "raster:32:24".getBytes(StandardCharsets.UTF_8));
+
+        require(IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(transparent, fallback),
+                Arrays.asList("transparent.pack", "fallback.pack")));
+        require(IconPackRuntime.resolve(resources, 1) instanceof BitmapDrawable);
+        require(store.lastResolved == fallback);
+        IconPackRuntime.clear();
+
         long initialRevision = IconPackRuntime.revision();
         require(!IconPackRuntime.rebuild(
                 resources,
@@ -173,7 +239,7 @@ public final class IconPackAndroidCheck {
                 Collections.emptyList()));
         require(IconPackRuntime.revision() == initialRevision);
         require(IconPackRuntime.rebuild(
-                resources,
+                wrapped,
                 store,
                 Arrays.asList(first, second),
                 Arrays.asList("first.pack", "second.pack")));
@@ -190,11 +256,15 @@ public final class IconPackAndroidCheck {
         require(((BitmapDrawable) firstDrawable).getBitmap().getWidth() == 24);
         require(((BitmapDrawable) firstDrawable).getBitmap().getHeight() == 24);
         require(((BitmapDrawable) firstDrawable).getBitmap().getDensity() == 160);
+        Drawable settingsDrawable = IconPackRuntime.resolve(resources, 11);
+        require(settingsDrawable instanceof BitmapDrawable);
+        require(((BitmapDrawable) settingsDrawable).getBitmap().getWidth() == 32);
+        require(((BitmapDrawable) settingsDrawable).getBitmap().getHeight() == 18);
+        require(IconPackRuntime.resolve(resources, "boosts") instanceof BitmapDrawable);
         require(IconPackRuntime.resolve(resources, "tabs_chats_24") instanceof BitmapDrawable);
         require(IconPackRuntime.resolve(resources, "tabs_missing_24") == null);
         require(IconPackRuntime.resolve(resources, 13) == null);
 
-        IconPackResources wrapped = new IconPackResources(resources);
         require(wrapped.getDrawableForDensity(1, 0, null) instanceof BitmapDrawable);
         require(!(wrapped.getDrawableForDensity(1, 320, null) instanceof BitmapDrawable));
         require(resources.lastDrawableId == 1);

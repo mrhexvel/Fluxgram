@@ -58,6 +58,7 @@ dependencies {
     implementation "androidx.mediarouter:mediarouter:1.7.0"
     implementation 'com.google.zxing:core:3.5.4'
     implementation 'com.neovisionaries:nv-websocket-client:2.14'
+    implementation 'com.caverock:androidsvg-aar:1.4'
 
     implementation 'androidx.car.app:app:1.4.0'
     implementation 'androidx.car.app:app-projected:1.4.0'

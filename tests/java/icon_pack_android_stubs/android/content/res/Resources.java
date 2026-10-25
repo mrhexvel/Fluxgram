@@ -89,8 +89,19 @@ public class Resources {
     public Drawable getDrawableForDensity(int id, int density, Theme theme) {
         require(id);
         lastDrawableId = id;
+        int targetDensity = density == 0 ? displayMetrics.densityDpi : density;
+        float scale = targetDensity / 160.0f;
 
         return new Drawable() {
+            @Override
+            public int getIntrinsicWidth() {
+                return Math.round((id == 11 ? 32 : 24) * scale);
+            }
+
+            @Override
+            public int getIntrinsicHeight() {
+                return Math.round((id == 11 ? 18 : 24) * scale);
+            }
         };
     }
 

@@ -2,6 +2,7 @@ package android.graphics.drawable;
 
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 
 public class BitmapDrawable extends Drawable {
     public static boolean throwRuntime;
@@ -27,5 +28,22 @@ public class BitmapDrawable extends Drawable {
 
     public Bitmap getBitmap() {
         return bitmap;
+    }
+
+    @Override
+    public int getIntrinsicWidth() {
+        return bitmap.getWidth();
+    }
+
+    @Override
+    public int getIntrinsicHeight() {
+        return bitmap.getHeight();
+    }
+
+    @Override
+    public void draw(Canvas canvas) {
+        if (bitmap.hasVisiblePixels()) {
+            canvas.markVisible();
+        }
     }
 }
