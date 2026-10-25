@@ -361,12 +361,33 @@ class AppearanceSettingsTest(unittest.TestCase):
         height = source.split("private int getSearchFieldHeight()", 1)[1].split(
             "private void configureFluxGramAppearance", 1
         )[0]
+        apply = source.split("private void applyFluxGramDialogsAppearance()", 1)[1].split(
+            "private void ensureStoryHint", 1
+        )[0]
 
-        self.assertIn("AppearanceSettings.hidesDialogsSearchBar(currentAccount)", height)
+        self.assertIn("fluxGramHideDialogsSearchBar", height)
+        self.assertNotIn("AppearanceSettings.hidesDialogsSearchBar(currentAccount)", height)
+        self.assertIn("AppearanceSettings.hidesDialogsSearchBar(currentAccount)", apply)
         self.assertIn("animatorSearchVisible.getFloatValue()", height)
         self.assertIn("h += getSearchFieldHeight()", source)
         self.assertIn("return dp(DialogStoriesCell.HEIGHT_IN_DP) + getSearchFieldHeight()", source)
         self.assertIn("fragmentView.requestLayout();", source)
+
+    def test_dialogs_blur_capture_is_coalesced_per_frame(self):
+        source = (JAVA / "ui/DialogsActivity.java").read_text()
+        invalidate = source.split("private void blur3_InvalidateBlur()", 1)[1].split(
+            "private void blur3_CancelInvalidate()", 1
+        )[0]
+        update = source.split("private void blur3_UpdateBlur()", 1)[1].split(
+            "private int calculateListViewPaddingBottom()", 1
+        )[0]
+
+        self.assertIn("owner.postOnAnimation(iBlur3InvalidateRunnable)", invalidate)
+        self.assertIn("if (iBlur3InvalidateOwner == owner)", invalidate)
+        self.assertNotIn("invalidateResultRenderNodes", invalidate)
+        self.assertIn("invalidateResultRenderNodes", update)
+        self.assertIn("blur3_CancelInvalidate();\n        super.clearViews();", source)
+        self.assertIn("blur3_CancelInvalidate();\n        super.onPause();", source)
 
     def test_sender_avatars_are_owned_by_opt_in_cell(self):
         base = (JAVA / "ui/Cells/DialogCell.java").read_text()

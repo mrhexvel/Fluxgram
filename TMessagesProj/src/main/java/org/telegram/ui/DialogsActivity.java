@@ -514,6 +514,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private ViewPage[] viewPages;
     private FluxGramDialogListAppearanceController fluxGramAppearanceController;
     private FluxGramDialogListAppearanceController fluxGramSearchAppearanceController;
+    private boolean fluxGramHideDialogsSearchBar;
     private ActionBarMenuItem passcodeItem;
     private ActionBarMenuItem downloadsItem;
     private DownloadProgressIcon downloadProgressIcon;
@@ -3115,6 +3116,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public void onFragmentDestroy() {
+        blur3_CancelInvalidate();
+
         if (fluxGramAppearanceController != null) {
             fluxGramAppearanceController.destroy();
             fluxGramAppearanceController = null;
@@ -3146,6 +3149,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         notificationsLocker.unlock();
         delegate = null;
         SuggestClearDatabaseBottomSheet.dismissDialog();
+    }
+
+    @Override
+    public void clearViews() {
+        blur3_CancelInvalidate();
+        super.clearViews();
     }
 
     @Override
@@ -3254,6 +3263,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public View createView(final Context context) {
+        blur3_CancelInvalidate();
+        fluxGramHideDialogsSearchBar = usesFluxGramRootDialogsAppearance()
+                && AppearanceSettings.hidesDialogsSearchBar(currentAccount);
+
         if (fluxGramAppearanceController != null) {
             fluxGramAppearanceController.destroy();
             fluxGramAppearanceController = null;
@@ -7231,6 +7244,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
         }
         applyFluxGramDialogsAppearance();
+        blur3_InvalidateBlur();
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }
@@ -7456,8 +7470,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private int getSearchFieldHeight() {
-        if (usesFluxGramRootDialogsAppearance()
-                && AppearanceSettings.hidesDialogsSearchBar(currentAccount)) {
+        if (fluxGramHideDialogsSearchBar) {
             return (int) (dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue());
         }
 
@@ -7474,6 +7487,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void applyFluxGramDialogsAppearance() {
+        fluxGramHideDialogsSearchBar = usesFluxGramRootDialogsAppearance()
+                && AppearanceSettings.hidesDialogsSearchBar(currentAccount);
+
         boolean hideStories = usesFluxGramRootDialogsAppearance()
                 && AppearanceSettings.hidesStories(currentAccount);
         if (hideStories && storyHint != null) {
@@ -7566,6 +7582,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public void onPause() {
+        blur3_CancelInvalidate();
         super.onPause();
         if (storiesBulletin != null) {
             storiesBulletin.hide();
@@ -14857,6 +14874,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
 
     private IBlur3Capture iBlur3Capture;
+    private boolean iBlur3InvalidateScheduled;
+    private View iBlur3InvalidateOwner;
+    private final Runnable iBlur3InvalidateRunnable = () -> {
+        View owner = iBlur3InvalidateOwner;
+        iBlur3InvalidateScheduled = false;
+        iBlur3InvalidateOwner = null;
+
+        if (owner != null && owner == fragmentView && owner.isAttachedToWindow()) {
+            blur3_UpdateBlur();
+        }
+    };
 
     private final ArrayList<RectF> iBlur3Positions = new ArrayList<>();
     private final RectF iBlur3PositionActionBar = new RectF();
@@ -14866,6 +14894,34 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void blur3_InvalidateBlur() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || scrollableViewNoiseSuppressor == null || fragmentView == null || actionBar == null) {
+            return;
+        }
+
+        View owner = fragmentView;
+        if (iBlur3InvalidateScheduled) {
+            if (iBlur3InvalidateOwner == owner) {
+                return;
+            }
+            blur3_CancelInvalidate();
+        }
+
+        iBlur3InvalidateScheduled = true;
+        iBlur3InvalidateOwner = owner;
+        owner.postOnAnimation(iBlur3InvalidateRunnable);
+    }
+
+    private void blur3_CancelInvalidate() {
+        View owner = iBlur3InvalidateOwner;
+        iBlur3InvalidateScheduled = false;
+        iBlur3InvalidateOwner = null;
+
+        if (owner != null) {
+            owner.removeCallbacks(iBlur3InvalidateRunnable);
+        }
+    }
+
+    private void blur3_UpdateBlur() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || scrollableViewNoiseSuppressor == null || fragmentView == null || actionBar == null) {
             return;
         }
