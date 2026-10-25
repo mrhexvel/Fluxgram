@@ -128,6 +128,12 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         self.assertIn('BOOSTS(R.raw.boosts, 25, 49, "boosts")', tabs)
         for name in ("msg_sticker", "input_keyboard", "input_smile", "msg_gif"):
             self.assertIn(f"R.drawable.{name}", composer)
+        self.assertIn(
+            'IconPackRuntime.resolve(getResources(), "instant_camera")',
+            composer,
+        )
+        self.assertIn("state == State.VIDEO", composer)
+        self.assertIn("R.raw.voice_and_video", composer)
         for name in (
             "tabs_contact_active_24",
             "tabs_contacts_24",

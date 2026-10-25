@@ -74,9 +74,9 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView
         State fromState = currentState;
         currentState = state;
         iconPackRevision = currentIconPackRevision;
-        Drawable iconPackDrawable = IconPackRuntime.resolve(
-                getResources(),
-                getIconPackResource(state));
+        Drawable iconPackDrawable = state == State.VIDEO
+                ? IconPackRuntime.resolve(getResources(), "instant_camera")
+                : IconPackRuntime.resolve(getResources(), getIconPackResource(state));
 
         if (iconPackDrawable != null) {
             animatingState = null;

@@ -24,6 +24,7 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
     private static final Set<String> HOST_MANAGED_NAMES = new HashSet<>(Arrays.asList(
             "boosts",
             "fab_compose_small",
+            "instant_camera",
             "tabs_contact_active_24",
             "tabs_contacts_24",
             "tabs_chats_24",
