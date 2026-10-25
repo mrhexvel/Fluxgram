@@ -53,6 +53,7 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         self.assertNotIn('drawables.put("msg_add"', catalog)
         self.assertIn("private static volatile Snapshot snapshot", runtime)
         self.assertIn("Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)", runtime)
+        self.assertIn("public static Drawable resolve(Resources resources, String resourceName)", runtime)
         self.assertIn("source.recycle()", runtime)
         self.assertNotIn("store.resolve", runtime.split("public static Drawable resolve", 1)[1].split("static boolean rebuild", 1)[0])
 
@@ -82,6 +83,21 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         for relative in hook_files:
             source = (ROOT / "TMessagesProj/src/main/java/org/telegram" / relative).read_text()
             self.assertIn("IconPackRuntime", source, relative)
+
+        composer = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterViewAnimatedIconView.java").read_text()
+        tabs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/glass/GlassTabView.java").read_text()
+
+        for name in ("msg_sticker", "input_keyboard", "input_smile", "msg_gif"):
+            self.assertIn(f"R.drawable.{name}", composer)
+        for name in (
+            "tabs_contact_active_24",
+            "tabs_contacts_24",
+            "tabs_chats_24",
+            "tabs_chats_active_24",
+            "tabs_calls_active_24",
+            "tabs_calls_24",
+        ):
+            self.assertIn(f'"{name}"', tabs)
 
         names = "|".join(
             (

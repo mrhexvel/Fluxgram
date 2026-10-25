@@ -35,6 +35,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedTextView;
@@ -265,6 +266,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     }
 
     public void updateColorsLottie() {
+        checkPlayAnimation(false);
         colorDefault = Theme.getColor(Theme.key_glass_tabUnselected, resourcesProvider);
         colorSelected = Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider);
         colorSelectedText = Theme.getColor(Theme.key_glass_tabSelectedText, resourcesProvider);
@@ -276,6 +278,9 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     private boolean lastIsSelected;
     private int lastIconAnimationRaw;
     private long lastBotIconId;
+    private long iconPackRevision = Long.MIN_VALUE;
+    private boolean iconPackSelected;
+    private boolean usesIconPack;
 
     private void checkPlayAnimation(boolean animated) {
         final boolean isSelected = isSelectedAnimator.getValue();
@@ -308,6 +313,43 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
 
         if (tabAnimation == null) {
             return;
+        }
+
+        long currentIconPackRevision = IconPackRuntime.revision();
+        String iconPackName = isSelected
+                ? tabAnimation.iconPackFilled
+                : tabAnimation.iconPackOutline;
+        Drawable iconPackDrawable = IconPackRuntime.resolve(
+                getResources(),
+                iconPackName);
+
+        if (iconPackDrawable == null
+                && isSelected
+                && !TextUtils.equals(tabAnimation.iconPackFilled, tabAnimation.iconPackOutline)) {
+            iconPackDrawable = IconPackRuntime.resolve(
+                    getResources(),
+                    tabAnimation.iconPackOutline);
+        }
+
+        if (iconPackDrawable != null) {
+            if (!usesIconPack
+                    || iconPackRevision != currentIconPackRevision
+                    || iconPackSelected != isSelected) {
+                imageView.clearAnimationDrawable();
+                imageView.setImageDrawable(iconPackDrawable);
+                usesIconPack = true;
+                iconPackRevision = currentIconPackRevision;
+                iconPackSelected = isSelected;
+            }
+
+            updateColors();
+            return;
+        }
+
+        if (usesIconPack) {
+            usesIconPack = false;
+            lastIconAnimationRaw = 0;
+            imageView.clearAnimationDrawable();
         }
 
         if (tabAnimation.iconStatic != -1) {
@@ -543,10 +585,10 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     }
 
     public enum TabAnimation {
-        CONTACTS(R.raw.tab_contacts),
-        CALLS(R.raw.tab_calls),
-        CHATS(R.raw.tab_chats),
-        SETTINGS(R.raw.tab_settings),
+        CONTACTS(R.raw.tab_contacts, "tabs_contact_active_24", "tabs_contacts_24"),
+        CALLS(R.raw.tab_calls, "tabs_calls_active_24", "tabs_calls_24"),
+        CHATS(R.raw.tab_chats, "tabs_chats_active_24", "tabs_chats_24"),
+        SETTINGS(R.raw.tab_settings, "filled_profile_settings", "outline_profile_settings"),
 
         CHECKLIST(R.raw.tab_checklist, R.raw.tab_checklist_reverse),
         COLORS(R.raw.tab_colors, R.raw.tab_colors_reverse),
@@ -573,6 +615,17 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         public final @RawRes int iconToOutline;
         public final @DrawableRes int iconStatic;
         public final int endFrameMid, endFrameEnd;
+        public final String iconPackFilled, iconPackOutline;
+
+        TabAnimation(int iconRes, String iconPackFilled, String iconPackOutline) {
+            this.iconToFilled = iconRes;
+            this.iconToOutline = iconRes;
+            this.endFrameMid = -1;
+            this.endFrameEnd = -1;
+            this.iconStatic = -1;
+            this.iconPackFilled = iconPackFilled;
+            this.iconPackOutline = iconPackOutline;
+        }
 
         TabAnimation(int iconRes, int endFrameMid, int endFrameEnd) {
             this.iconToFilled = iconRes;
@@ -580,6 +633,8 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
             this.endFrameMid = endFrameMid;
             this.endFrameEnd = endFrameEnd;
             this.iconStatic = -1;
+            this.iconPackFilled = null;
+            this.iconPackOutline = null;
         }
 
         TabAnimation(TabAnimationType type, int icon) {
@@ -594,6 +649,8 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
             }
             this.endFrameMid = -1;
             this.endFrameEnd = -1;
+            this.iconPackFilled = null;
+            this.iconPackOutline = null;
         }
 
         TabAnimation(int iconRes) {
@@ -602,6 +659,8 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
             this.endFrameMid = -1;
             this.endFrameEnd = -1;
             this.iconStatic = -1;
+            this.iconPackFilled = null;
+            this.iconPackOutline = null;
         }
 
         TabAnimation(int iconToFilled, int iconToOutline) {
@@ -610,6 +669,8 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
             this.endFrameMid = -1;
             this.endFrameEnd = -1;
             this.iconStatic = -1;
+            this.iconPackFilled = null;
+            this.iconPackOutline = null;
         }
     }
 

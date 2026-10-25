@@ -1,12 +1,14 @@
 package org.telegram.ui.Components;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 
 import androidx.annotation.Nullable;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,6 +17,7 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
     private State currentState;
     private TransitState animatingState;
     private final int sizeDp;
+    private long iconPackRevision = Long.MIN_VALUE;
 
     private final Map<TransitState, RLottieDrawable> stateMap = new HashMap<TransitState, RLottieDrawable>() {
         @Nullable
@@ -42,12 +45,24 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
     }
 
     public void setState(State state, boolean animate) {
-        if (animate && state == currentState) {
+        long currentIconPackRevision = IconPackRuntime.revision();
+
+        if (animate && state == currentState && iconPackRevision == currentIconPackRevision) {
             return;
         }
+
         State fromState = currentState;
         currentState = state;
-        if (!animate || fromState == null || getState(fromState, currentState) == null) {
+        iconPackRevision = currentIconPackRevision;
+        Drawable iconPackDrawable = IconPackRuntime.resolve(
+                getResources(),
+                getIconPackResource(state));
+
+        if (iconPackDrawable != null) {
+            animatingState = null;
+            clearAnimationDrawable();
+            setImageDrawable(iconPackDrawable);
+        } else if (!animate || fromState == null || getState(fromState, currentState) == null) {
             RLottieDrawable drawable = stateMap.get(getAnyState(currentState));
             drawable.stop();
 
@@ -84,6 +99,21 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
             case VIDEO:
                 setContentDescription(LocaleController.getString(R.string.AccDescrVideoMessage));
                 break;
+        }
+    }
+
+    private int getIconPackResource(State state) {
+        switch (state) {
+            case STICKER:
+                return R.drawable.msg_sticker;
+            case KEYBOARD:
+                return R.drawable.input_keyboard;
+            case SMILE:
+                return R.drawable.input_smile;
+            case GIF:
+                return R.drawable.msg_gif;
+            default:
+                return 0;
         }
     }
 

@@ -11,6 +11,8 @@ import org.telegram.messenger.SvgHelper;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class IconPackAndroidCheck {
     private static final String[] NAMES = {
@@ -45,6 +47,9 @@ public final class IconPackAndroidCheck {
         require(catalog.drawableId("msg_unknown") == 0);
         require(catalog.resourceName(0) == null);
         require(catalog.resourceName(15) == null);
+        require(catalog.contains("tabs_chats_24"));
+        require(catalog.drawableId("tabs_chats_24") == 0);
+        require(catalog.contains("tabs_calls_active_24"));
 
         byte[] raster = "raster:24:32".getBytes(StandardCharsets.UTF_8);
 
@@ -146,10 +151,11 @@ public final class IconPackAndroidCheck {
                 "msg_unknown") == null);
 
         IconPackRuntime.clear();
+        Map<String, String> firstIcons = new LinkedHashMap<>();
+        firstIcons.put("msg_add", "first.png");
+        firstIcons.put("tabs_chats_24", "first.png");
         IconPackStore.Installed first = new IconPackStore.Installed(
-                new IconPackManifest(
-                        "first.pack",
-                        Collections.singletonMap("msg_add", "first.png")),
+                new IconPackManifest("first.pack", firstIcons),
                 "first-generation");
         IconPackStore.Installed second = new IconPackStore.Installed(
                 new IconPackManifest(
@@ -184,6 +190,8 @@ public final class IconPackAndroidCheck {
         require(((BitmapDrawable) firstDrawable).getBitmap().getWidth() == 24);
         require(((BitmapDrawable) firstDrawable).getBitmap().getHeight() == 24);
         require(((BitmapDrawable) firstDrawable).getBitmap().getDensity() == 160);
+        require(IconPackRuntime.resolve(resources, "tabs_chats_24") instanceof BitmapDrawable);
+        require(IconPackRuntime.resolve(resources, "tabs_missing_24") == null);
         require(IconPackRuntime.resolve(resources, 13) == null);
 
         IconPackResources wrapped = new IconPackResources(resources);
@@ -215,6 +223,7 @@ public final class IconPackAndroidCheck {
                 Collections.singletonList("second.pack")));
         require(store.lastResolved == second);
         require(!((BitmapDrawable) firstDrawable).getBitmap().isRecycled());
+        require(IconPackRuntime.resolve(resources, "tabs_chats_24") == null);
 
         resources.getDisplayMetrics().densityDpi = 320;
         require(IconPackRuntime.resolve(resources, 1) == null);

@@ -12,9 +12,20 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Catalog {
+    private static final Set<String> HOST_MANAGED_NAMES = new HashSet<>(Arrays.asList(
+            "tabs_contact_active_24",
+            "tabs_contacts_24",
+            "tabs_chats_24",
+            "tabs_chats_active_24",
+            "tabs_calls_active_24",
+            "tabs_calls_24"));
+
     private final Resources resources;
     private final String packageName;
 
@@ -29,7 +40,7 @@ public final class IconPackAndroidCatalog implements IconPackArchiveValidator.Ca
 
     @Override
     public boolean contains(String resourceName) {
-        return drawableId(resourceName) != 0;
+        return drawableId(resourceName) != 0 || HOST_MANAGED_NAMES.contains(resourceName);
     }
 
     public int drawableId(String resourceName) {
