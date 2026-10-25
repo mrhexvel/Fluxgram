@@ -35,7 +35,7 @@ import org.telegram.ui.Components.UniversalRecyclerView;
 import java.util.ArrayList;
 
 /** Editable horizontal row of page buttons. Rendering is delegated to RichMessageLayout.RichButton. */
-public class RichButtonRowCell extends RichBlockCell implements Theme.Colorable {
+public class RichButtonRowCell extends RichBlockCell implements Theme.Colorable, IconPackRuntime.Listener {
 
     public static final int MAX_BUTTONS = 8;
 
@@ -139,6 +139,23 @@ public class RichButtonRowCell extends RichBlockCell implements Theme.Colorable 
         icon = icon.mutate();
         icon.setColorFilter(new PorterDuffColorFilter(accent, PorterDuff.Mode.SRC_IN));
         emptyAddButton.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        IconPackRuntime.addListener(this);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        IconPackRuntime.removeListener(this);
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    public void onIconPackRuntimeChanged() {
+        updateAddButtonColors();
     }
 
     @Override

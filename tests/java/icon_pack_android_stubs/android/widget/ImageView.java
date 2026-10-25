@@ -16,6 +16,10 @@ public class ImageView {
         return resources;
     }
 
+    public Drawable getDrawable() {
+        return drawable;
+    }
+
     public void setImageDrawable(Drawable drawable) {
         this.drawable = drawable;
         resourceId = 0;
@@ -25,4 +29,9 @@ public class ImageView {
         drawable = null;
         this.resourceId = resourceId;
     }
+
+    public void postOnAnimation(Runnable runnable) {
+        runnable.run();
+    }
+
 }

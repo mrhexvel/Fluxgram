@@ -5,7 +5,6 @@ import android.net.Uri;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
-import org.telegram.messenger.NotificationCenter;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -18,6 +17,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class IconPackRepository {
     public enum Failure {
@@ -154,8 +154,16 @@ public final class IconPackRepository {
 
     private static final ScheduledExecutorService WORKER = Executors.newSingleThreadScheduledExecutor(
             runnable -> new Thread(runnable, "FluxGramIconPacks"));
+    private static final ScheduledExecutorService RUNTIME_WORKER =
+            Executors.newSingleThreadScheduledExecutor(
+                    runnable -> new Thread(runnable, "FluxGramIconPackRuntime"));
+    private static final AtomicLong RUNTIME_REQUEST = new AtomicLong();
+    private static final Object RUNTIME_REQUEST_LOCK = new Object();
 
     private static IconPackStore store;
+    private static List<IconPackStore.Installed> installedSnapshot;
+    private static List<String> activeSnapshot = Collections.emptyList();
+    private static volatile State stateSnapshot;
 
     private IconPackRepository() {
     }
@@ -200,8 +208,9 @@ public final class IconPackRepository {
                 String previousVersion;
 
                 try {
+                    ensureInventory(currentStore);
                     previousVersion = installedVersion(
-                            currentStore.list(),
+                            installedSnapshot,
                             snapshot.result.manifest.id);
                 } catch (Exception error) {
                     throw new ImportException(Failure.STORAGE, error);
@@ -253,7 +262,6 @@ public final class IconPackRepository {
         WORKER.execute(() -> {
             IconPackStore.Installed installed = null;
             Exception failure = null;
-            boolean runtimeChanged = false;
 
             try {
                 File archive = review.claim();
@@ -261,7 +269,12 @@ public final class IconPackRepository {
                 installed = currentStore.install(
                         archive,
                         review.result.sha256);
-                runtimeChanged = refreshRuntimeSafely(currentStore);
+                ensureInventory(currentStore);
+                replaceInstalled(installed);
+                publishInventory(
+                        installedSnapshot,
+                        IconPackSettings.getActiveIdsForInstalled(installedSnapshot));
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
             } catch (Exception error) {
                 failure = error;
             } finally {
@@ -278,11 +291,7 @@ public final class IconPackRepository {
 
             IconPackStore.Installed value = installed;
             Exception error = failure;
-            boolean notifyRuntime = runtimeChanged;
-            AndroidUtilities.runOnUIThread(() -> {
-                callback.complete(value, error);
-                notifyRuntimeChanged(notifyRuntime);
-            });
+            AndroidUtilities.runOnUIThread(() -> callback.complete(value, error));
         });
     }
 
@@ -292,20 +301,55 @@ public final class IconPackRepository {
 
             try {
                 currentStore = store(ApplicationLoader.applicationContext);
+                ensureInventory(currentStore);
             } catch (IOException error) {
-                IconPackRuntime.clear();
+                long request;
+
+                synchronized (RUNTIME_REQUEST_LOCK) {
+                    request = RUNTIME_REQUEST.incrementAndGet();
+                }
+
+                boolean changed = IconPackRuntime.clearIfCurrent(
+                        () -> RUNTIME_REQUEST.get() == request,
+                        RUNTIME_REQUEST_LOCK);
+
+                if (changed) {
+                    AndroidUtilities.runOnUIThread(IconPackRuntime::refreshUi);
+                }
 
                 return;
             }
 
-            boolean changed = refreshRuntimeSafely(currentStore);
-            AndroidUtilities.runOnUIThread(() -> notifyRuntimeChanged(changed));
+            requestRuntime(currentStore, installedSnapshot, activeSnapshot);
         });
     }
 
     public static void load(Callback<State> callback) {
         requireCallback(callback);
-        submitStateOperation(null, callback);
+        State current = stateSnapshot;
+
+        if (current != null) {
+            AndroidUtilities.runOnUIThread(() -> callback.complete(current, null));
+
+            return;
+        }
+
+        WORKER.execute(() -> {
+            State value = null;
+            Exception failure = null;
+
+            try {
+                IconPackStore currentStore = store(ApplicationLoader.applicationContext);
+                ensureInventory(currentStore);
+                value = stateSnapshot;
+            } catch (Exception error) {
+                failure = error;
+            }
+
+            State result = value;
+            Exception error = failure;
+            AndroidUtilities.runOnUIThread(() -> callback.complete(result, error));
+        });
     }
 
     public static void setActive(String id, boolean active, Callback<State> callback) {
@@ -314,23 +358,36 @@ public final class IconPackRepository {
         }
 
         requireCallback(callback);
-        submitStateOperation(currentStore -> {
-            List<String> current = IconPackSettings.getActiveIds(currentStore);
-            ArrayList<String> updated = new ArrayList<>(current);
+        WORKER.execute(() -> {
+            State value = null;
+            Exception failure = null;
 
-            if (active) {
-                if (!contains(currentStore.list(), id)) {
-                    throw new IOException("Icon pack is not installed");
+            try {
+                IconPackStore currentStore = store(ApplicationLoader.applicationContext);
+                ensureInventory(currentStore);
+                ArrayList<String> updated = new ArrayList<>(activeSnapshot);
+
+                if (active) {
+                    if (!contains(installedSnapshot, id)) {
+                        throw new IOException("Icon pack is not installed");
+                    }
+                    if (!updated.contains(id)) {
+                        updated.add(id);
+                    }
+                } else {
+                    updated.remove(id);
                 }
-                if (!updated.contains(id)) {
-                    updated.add(id);
-                }
-            } else {
-                updated.remove(id);
+
+                IconPackSettings.setActiveIdsForInstalled(updated, installedSnapshot);
+                publishInventory(installedSnapshot, updated);
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+                value = stateSnapshot;
+            } catch (Exception error) {
+                failure = error;
             }
 
-            IconPackSettings.setActiveIds(updated, currentStore);
-        }, callback);
+            complete(callback, value, failure);
+        });
     }
 
     public static void move(String id, int direction, Callback<State> callback) {
@@ -339,19 +396,33 @@ public final class IconPackRepository {
         }
 
         requireCallback(callback);
-        submitStateOperation(currentStore -> {
-            ArrayList<String> active = new ArrayList<>(IconPackSettings.getActiveIds(currentStore));
-            int index = active.indexOf(id);
-            int target = index + direction;
+        WORKER.execute(() -> {
+            State value = null;
+            Exception failure = null;
 
-            if (index < 0 || target < 0 || target >= active.size()) {
-                throw new IOException("Icon pack priority cannot be changed");
+            try {
+                IconPackStore currentStore = store(ApplicationLoader.applicationContext);
+                ensureInventory(currentStore);
+                ArrayList<String> updated = new ArrayList<>(activeSnapshot);
+                int index = updated.indexOf(id);
+                int target = index + direction;
+
+                if (index < 0 || target < 0 || target >= updated.size()) {
+                    throw new IOException("Icon pack priority cannot be changed");
+                }
+
+                updated.remove(index);
+                updated.add(target, id);
+                IconPackSettings.setActiveIdsForInstalled(updated, installedSnapshot);
+                publishInventory(installedSnapshot, updated);
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+                value = stateSnapshot;
+            } catch (Exception error) {
+                failure = error;
             }
 
-            active.remove(index);
-            active.add(target, id);
-            IconPackSettings.setActiveIds(active, currentStore);
-        }, callback);
+            complete(callback, value, failure);
+        });
     }
 
     public static void delete(String id, Callback<State> callback) {
@@ -360,7 +431,33 @@ public final class IconPackRepository {
         }
 
         requireCallback(callback);
-        submitStateOperation(currentStore -> IconPackSettings.delete(currentStore, id), callback);
+        WORKER.execute(() -> {
+            State value = null;
+            Exception failure = null;
+            IconPackStore currentStore = null;
+
+            try {
+                currentStore = store(ApplicationLoader.applicationContext);
+                ensureInventory(currentStore);
+                IconPackSettings.deleteWithInstalled(currentStore, id, installedSnapshot);
+                ArrayList<IconPackStore.Installed> remaining =
+                        new ArrayList<>(installedSnapshot);
+                remaining.removeIf(pack -> pack.manifest.id.equals(id));
+                ArrayList<String> active = new ArrayList<>(activeSnapshot);
+                active.remove(id);
+                publishInventory(remaining, active);
+                requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+                value = stateSnapshot;
+            } catch (Exception error) {
+                failure = error;
+
+                if (currentStore != null) {
+                    reconcile(currentStore);
+                }
+            }
+
+            complete(callback, value, failure);
+        });
     }
 
     public static void discard(Review review) {
@@ -397,75 +494,90 @@ public final class IconPackRepository {
         }, 1, TimeUnit.SECONDS);
     }
 
-    private interface StateOperation {
-        void run(IconPackStore store) throws Exception;
+    private static void ensureInventory(IconPackStore currentStore) throws IOException {
+        if (installedSnapshot != null) {
+            return;
+        }
+
+        List<IconPackStore.Installed> installed = currentStore.list();
+        publishInventory(installed, IconPackSettings.getActiveIdsForInstalled(installed));
     }
 
-    private static void submitStateOperation(
-            StateOperation operation,
-            Callback<State> callback) {
-        WORKER.execute(() -> {
-            State state = null;
-            Exception failure = null;
-            boolean runtimeChanged = false;
-            IconPackStore currentStore = null;
+    private static void publishInventory(
+            List<IconPackStore.Installed> installed,
+            List<String> activeIds) {
+        installedSnapshot = Collections.unmodifiableList(new ArrayList<>(installed));
+        activeSnapshot = Collections.unmodifiableList(new ArrayList<>(activeIds));
+        stateSnapshot = state(installedSnapshot, activeSnapshot);
+    }
+
+    private static void replaceInstalled(IconPackStore.Installed installed) {
+        ArrayList<IconPackStore.Installed> updated = new ArrayList<>(installedSnapshot);
+
+        for (int index = 0; index < updated.size(); index++) {
+            if (updated.get(index).manifest.id.equals(installed.manifest.id)) {
+                updated.set(index, installed);
+                installedSnapshot = Collections.unmodifiableList(updated);
+
+                return;
+            }
+        }
+
+        updated.add(installed);
+        installedSnapshot = Collections.unmodifiableList(updated);
+    }
+
+    private static void reconcile(IconPackStore currentStore) {
+        try {
+            List<IconPackStore.Installed> installed = currentStore.list();
+            publishInventory(installed, IconPackSettings.getActiveIdsForInstalled(installed));
+            requestRuntime(currentStore, installedSnapshot, activeSnapshot);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void requestRuntime(
+            IconPackStore currentStore,
+            List<IconPackStore.Installed> installed,
+            List<String> activeIds) {
+        long request;
+
+        synchronized (RUNTIME_REQUEST_LOCK) {
+            request = RUNTIME_REQUEST.incrementAndGet();
+        }
+        List<IconPackStore.Installed> installedCopy = new ArrayList<>(installed);
+        List<String> activeCopy = new ArrayList<>(activeIds);
+
+        RUNTIME_WORKER.execute(() -> {
+            boolean changed;
 
             try {
-                currentStore = store(ApplicationLoader.applicationContext);
-
-                if (operation != null) {
-                    operation.run(currentStore);
-                }
-
-                state = state(currentStore);
-                runtimeChanged = refreshRuntimeSafely(currentStore);
+                changed = IconPackRuntime.rebuild(
+                        ApplicationLoader.applicationContext.getResources(),
+                        currentStore,
+                        installedCopy,
+                        activeCopy,
+                        () -> RUNTIME_REQUEST.get() == request,
+                        RUNTIME_REQUEST_LOCK);
             } catch (Exception error) {
-                failure = error;
-
-                if (currentStore != null) {
-                    runtimeChanged = refreshRuntimeSafely(currentStore);
-                }
+                changed = IconPackRuntime.clearIfCurrent(
+                        () -> RUNTIME_REQUEST.get() == request,
+                        RUNTIME_REQUEST_LOCK);
             }
 
-            State value = state;
-            Exception error = failure;
-            boolean notifyRuntime = runtimeChanged;
-            AndroidUtilities.runOnUIThread(() -> {
-                callback.complete(value, error);
-                notifyRuntimeChanged(notifyRuntime);
-            });
+            if (changed) {
+                AndroidUtilities.runOnUIThread(IconPackRuntime::refreshUi);
+            }
         });
     }
 
-    private static boolean refreshRuntime(IconPackStore store) throws IOException {
-        List<IconPackStore.Installed> installed = store.list();
-        List<String> activeIds = IconPackSettings.getActiveIds(store);
-
-        return IconPackRuntime.rebuild(
-                ApplicationLoader.applicationContext.getResources(),
-                store,
-                installed,
-                activeIds);
+    private static <T> void complete(Callback<T> callback, T value, Exception error) {
+        AndroidUtilities.runOnUIThread(() -> callback.complete(value, error));
     }
 
-    private static boolean refreshRuntimeSafely(IconPackStore store) {
-        try {
-            return refreshRuntime(store);
-        } catch (Exception error) {
-            return IconPackRuntime.clear();
-        }
-    }
-
-    private static void notifyRuntimeChanged(boolean changed) {
-        if (changed) {
-            NotificationCenter.getGlobalInstance().postNotificationName(
-                    NotificationCenter.reloadInterface);
-        }
-    }
-
-    private static State state(IconPackStore store) throws IOException {
-        List<IconPackStore.Installed> installed = store.list();
-        List<String> activeIds = IconPackSettings.getActiveIds(store);
+    private static State state(
+            List<IconPackStore.Installed> installed,
+            List<String> activeIds) {
         ArrayList<Pack> packs = new ArrayList<>();
         HashSet<String> added = new HashSet<>();
 

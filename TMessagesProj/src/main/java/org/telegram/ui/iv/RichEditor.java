@@ -1461,6 +1461,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
 
         public Button setPremium() {
             premium = true;
+            IconPackRuntime.unbindImageView(this);
             setImageDrawable(wrapPremium(currentIcon));
             return this;
         }
@@ -1507,12 +1508,15 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
             if (currentIcon == newIcon) return;
             currentIcon = newIcon;
             if (premium) {
+                IconPackRuntime.unbindImageView(this);
                 AndroidUtilities.updateImageViewImageAnimated(this, wrapPremium(newIcon));
             } else {
                 Drawable drawable = IconPackRuntime.resolve(getResources(), newIcon);
-                AndroidUtilities.updateImageViewImageAnimated(
-                        this,
-                        drawable != null ? drawable : ContextCompat.getDrawable(getContext(), newIcon));
+                Drawable target = drawable != null
+                        ? drawable
+                        : ContextCompat.getDrawable(getContext(), newIcon);
+                AndroidUtilities.updateImageViewImageAnimated(this, target);
+                IconPackRuntime.trackAnimatedImageResource(this, newIcon, target);
             }
         }
 

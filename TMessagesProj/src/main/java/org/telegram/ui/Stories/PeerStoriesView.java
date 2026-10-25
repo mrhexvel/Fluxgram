@@ -8183,7 +8183,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         }
     }
 
-    public static class SharedResources {
+    public static class SharedResources implements IconPackRuntime.Listener {
 
         public final Paint barPaint;
         public final Paint selectedBarPaint;
@@ -8209,8 +8209,10 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         public RLottieDrawable noSoundDrawable;
        // public ReplaceableIconDrawable muteDrawable;
         public RLottieDrawable muteDrawable;
+        private final Context context;
 
         SharedResources(Context context) {
+            this.context = context;
             shareDrawable = ContextCompat.getDrawable(context, R.drawable.media_share);
             likeDrawable = ContextCompat.getDrawable(context, R.drawable.media_like);
             repostDrawable = ContextCompat.getDrawable(context, R.drawable.media_repost);
@@ -8218,13 +8220,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             likeDrawableFilled.setColorFilter(new PorterDuffColorFilter(0xFFFF2E38, PorterDuff.Mode.MULTIPLY));
             optionsDrawable = ContextCompat.getDrawable(context, R.drawable.media_more);
             pipDrawable = ContextCompat.getDrawable(context, R.drawable.menu_stream_pip);
-            deleteDrawable = IconPackRuntime.resolve(
-                    context.getResources(),
-                    R.drawable.msg_delete);
-
-            if (deleteDrawable == null) {
-                deleteDrawable = ContextCompat.getDrawable(context, R.drawable.msg_delete);
-            }
+            updateDeleteDrawable();
             muteDrawable = new RLottieDrawable(R.raw.media_mute_unmute, AndroidUtilities.dp(28), AndroidUtilities.dp(28), true, null);
            // muteDrawable = new ReplaceableIconDrawable(context);
             noSoundDrawable = new RLottieDrawable(R.raw.media_mute_unmute, AndroidUtilities.dp(28), AndroidUtilities.dp(28), true, null);
@@ -8246,6 +8242,22 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             gradientBackgroundPaint.setColor(gradientColor);
 
             imageBackgroundDrawable = new ColorDrawable(ColorUtils.blendARGB(Color.BLACK, Color.WHITE, 0.1f));
+            IconPackRuntime.addListener(this);
+        }
+
+        @Override
+        public void onIconPackRuntimeChanged() {
+            updateDeleteDrawable();
+        }
+
+        private void updateDeleteDrawable() {
+            deleteDrawable = IconPackRuntime.resolve(
+                    context.getResources(),
+                    R.drawable.msg_delete);
+
+            if (deleteDrawable == null) {
+                deleteDrawable = ContextCompat.getDrawable(context, R.drawable.msg_delete);
+            }
         }
 
         public void setIconMuted(boolean muted, boolean animated) {

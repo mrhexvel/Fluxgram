@@ -59,6 +59,12 @@ public final class IconPackStore {
         String generation() {
             return generation;
         }
+
+        String iconHash(String resourceName) {
+            String path = manifest.icons.get(resourceName);
+
+            return path == null ? null : iconHashes.get(path);
+        }
     }
 
     private final File root;

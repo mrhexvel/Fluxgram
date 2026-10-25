@@ -89,6 +89,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.WebFile;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLObject;
@@ -1465,7 +1466,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         }
     }
 
-    public static class StarsTransactionView extends LinearLayout {
+    public static class StarsTransactionView extends LinearLayout implements IconPackRuntime.Listener {
 
         private final int currentAccount;
 
@@ -1486,6 +1487,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         private final SpannableString ton;
 
         private boolean threeLines;
+        private String currentPlatformIcon;
 
         public StarsTransactionView(Context context, int currentAccount, Theme.ResourcesProvider resourcesProvider) {
             super(context);
@@ -1565,11 +1567,17 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         }
 
         public static HashMap<String, CombinedDrawable> cachedPlatformDrawables;
+        private static long cachedPlatformDrawablesRevision = -1;
         public static CombinedDrawable getPlatformDrawable(String platform) {
             return getPlatformDrawable(platform, 44);
         }
         public static CombinedDrawable getPlatformDrawable(String platform, int sz) {
             if (sz != 44) return SessionCell.createDrawable(sz, platform);
+            long revision = IconPackRuntime.revision();
+            if (cachedPlatformDrawablesRevision != revision) {
+                cachedPlatformDrawablesRevision = revision;
+                cachedPlatformDrawables = null;
+            }
             if (cachedPlatformDrawables == null) {
                 cachedPlatformDrawables = new HashMap<>();
             }
@@ -1583,6 +1591,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         private Runnable cancelCurrentGift;
         private boolean needDivider;
         public void set(TL_stars.StarsTransaction transaction, boolean bot, boolean divider) {
+            currentPlatformIcon = null;
             long did = DialogObject.getPeerDialogId(transaction.peer.peer);
 
             final boolean isTon = transaction.amount instanceof TL_stars.TL_starsTonAmount;
@@ -1620,7 +1629,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                 titleTextView.setText(getString(R.string.Gift2TransactionRemovedDescription));
                 subtitleTextView.setVisibility(GONE);
             } else if (transaction.posts_search) {
-                imageView.setImageDrawable(getPlatformDrawable("search"));
+                setPlatformIcon("search");
                 titleTextView.setText(getString(R.string.StarsTransactionPostsSearch));
                 subtitleTextView.setVisibility(GONE);
             } else if (did != 0) {
@@ -1628,7 +1637,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                 String username;
                 if (UserObject.isService(did)) {
                     username = getString(R.string.StarsTransactionUnknown);
-                    imageView.setImageDrawable(getPlatformDrawable("fragment"));
+                    setPlatformIcon("fragment");
                 } else if (did >= 0) {
                     TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(did);
                     deleted = user == null;
@@ -1764,13 +1773,13 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
             } else if (transaction.floodskip) {
                 titleTextView.setText(getString(R.string.StarsTransactionFloodskip));
                 subtitleTextView.setText(LocaleController.formatPluralStringComma("StarsTransactionFloodskipMessages", transaction.floodskip_number));
-                imageView.setImageDrawable(getPlatformDrawable("api"));
+                setPlatformIcon("api");
             } else if (transaction.peer instanceof TL_stars.TL_starsTransactionPeerAppStore) {
                 titleTextView.setText(getString(R.string.StarsTransactionInApp));
-                imageView.setImageDrawable(getPlatformDrawable("ios"));
+                setPlatformIcon("ios");
             } else if (transaction.peer instanceof TL_stars.TL_starsTransactionPeerPlayMarket) {
                 titleTextView.setText(getString(R.string.StarsTransactionInApp));
-                imageView.setImageDrawable(getPlatformDrawable("android"));
+                setPlatformIcon("android");
             } else if (transaction.peer instanceof TL_stars.TL_starsTransactionPeerFragment) {
                 if (transaction.gift) {
                     titleTextView.setText(LocaleController.getString(R.string.StarsGiftReceived));
@@ -1779,16 +1788,16 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                 } else {
                     titleTextView.setText(getString(bot || (transaction.refund ? transaction.amount.positive() : transaction.amount.negative()) ? R.string.StarsTransactionWithdrawFragment : R.string.StarsTransactionFragment));
                 }
-                imageView.setImageDrawable(getPlatformDrawable("fragment"));
+                setPlatformIcon("fragment");
             } else if (transaction.peer instanceof TL_stars.TL_starsTransactionPeerPremiumBot) {
                 titleTextView.setText(getString(R.string.StarsTransactionBot));
-                imageView.setImageDrawable(getPlatformDrawable("premiumbot"));
+                setPlatformIcon("premiumbot");
             } else if (transaction.peer instanceof TL_stars.TL_starsTransactionPeerUnsupported) {
                 titleTextView.setText(getString(R.string.StarsTransactionUnsupported));
-                imageView.setImageDrawable(getPlatformDrawable("?"));
+                setPlatformIcon("?");
             } else if (transaction.peer instanceof TL_stars.TL_starsTransactionPeerAds) {
                 titleTextView.setText(getString(R.string.StarsTransactionAds));
-                imageView.setImageDrawable(getPlatformDrawable("ads"));
+                setPlatformIcon("ads");
             } else {
                 titleTextView.setText("");
                 imageView.setImageDrawable(null);
@@ -1807,6 +1816,30 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
             }
 
             setWillNotDraw(!(needDivider = divider));
+        }
+
+        private void setPlatformIcon(String platform) {
+            currentPlatformIcon = platform;
+            imageView.setImageDrawable(getPlatformDrawable(platform));
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            IconPackRuntime.addListener(this);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            IconPackRuntime.removeListener(this);
+            super.onDetachedFromWindow();
+        }
+
+        @Override
+        public void onIconPackRuntimeChanged() {
+            if (currentPlatformIcon != null) {
+                imageView.setImageDrawable(getPlatformDrawable(currentPlatformIcon));
+            }
         }
 
         public void setLoading() {

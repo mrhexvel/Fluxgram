@@ -54,6 +54,10 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
         self.assertIn("private static volatile Snapshot snapshot", runtime)
         self.assertIn("Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)", runtime)
         self.assertIn("public static Drawable resolve(Resources resources, String resourceName)", runtime)
+        self.assertIn("MAX_CACHE_BYTES", runtime)
+        self.assertIn("WeakHashMap<ImageView, ImageBinding>", runtime)
+        self.assertIn("binding.drawable.get() != imageView.getDrawable()", runtime)
+        self.assertIn("BooleanSupplier currentRequest", runtime)
         self.assertIn("source.recycle()", runtime)
         self.assertNotIn("store.resolve", runtime.split("public static Drawable resolve", 1)[1].split("static boolean rebuild", 1)[0])
 

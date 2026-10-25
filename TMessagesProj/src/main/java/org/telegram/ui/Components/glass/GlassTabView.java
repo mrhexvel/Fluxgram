@@ -53,7 +53,8 @@ import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.animator.BoolAnimator;
 import me.vkryl.android.animator.FactorAnimator;
 
-public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, FactorAnimator.Target {
+public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, FactorAnimator.Target,
+        IconPackRuntime.Listener {
     private final TextView textView;
     private final RLottieImageView imageView;
     private BackupImageView backupImageView;
@@ -102,6 +103,23 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         counter.setGravity(Gravity.CENTER);
         counter.setTextColor(Color.WHITE);
         counter.setTextSize(dp(10));
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        IconPackRuntime.addListener(this);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        IconPackRuntime.removeListener(this);
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    public void onIconPackRuntimeChanged() {
+        checkPlayAnimation(false);
     }
 
     private boolean hasVisualWidth;

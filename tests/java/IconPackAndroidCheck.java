@@ -214,8 +214,13 @@ public final class IconPackAndroidCheck {
                 Arrays.asList(first, second),
                 Arrays.asList("first.pack", "second.pack")));
         require(IconPackRuntime.revision() == initialRevision + 1);
-        require(Bitmap.lastCreated.isRecycled());
+        require(!Bitmap.lastCreated.isRecycled());
 
+        int[] refreshes = {0};
+        IconPackRuntime.Listener listener = () -> refreshes[0]++;
+        IconPackRuntime.addListener(listener);
+        require(refreshes[0] == 1);
+        IconPackRuntime.setImageResource(imageView, 1);
         require(IconPackRuntime.rebuild(
                 resources,
                 store,
@@ -224,6 +229,43 @@ public final class IconPackAndroidCheck {
         require(store.lastResolved == second);
         require(!((BitmapDrawable) firstDrawable).getBitmap().isRecycled());
         require(IconPackRuntime.resolve(resources, "tabs_chats_24") == null);
+        IconPackRuntime.refreshUi();
+        require(refreshes[0] == 2);
+        require(imageView.drawable instanceof BitmapDrawable);
+        require(((BitmapDrawable) imageView.drawable).getBitmap()
+                == ((BitmapDrawable) IconPackRuntime.resolve(resources, 1)).getBitmap());
+        IconPackRuntime.removeListener(listener);
+
+        Drawable customDrawable = new Drawable() {
+        };
+        imageView.setImageDrawable(customDrawable);
+        IconPackRuntime.refreshUi();
+        require(imageView.drawable == customDrawable);
+
+        IconPackRuntime.trackImageResource(imageView, 1);
+        require(IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(first, second),
+                Collections.singletonList("first.pack")));
+        IconPackRuntime.refreshUi();
+        require(imageView.drawable instanceof BitmapDrawable);
+
+        IconPackRuntime.unbindImageView(imageView);
+        customDrawable = new Drawable() {
+        };
+        imageView.setImageDrawable(customDrawable);
+        IconPackRuntime.refreshUi();
+        require(imageView.drawable == customDrawable);
+
+        require(!IconPackRuntime.rebuild(
+                resources,
+                store,
+                Arrays.asList(first, second),
+                Collections.singletonList("first.pack")));
+        require(((BitmapDrawable) IconPackRuntime.resolve(resources, 1)).getBitmap()
+                == ((BitmapDrawable) firstDrawable).getBitmap());
+        require(IconPackRuntime.revision() == initialRevision + 3);
 
         resources.getDisplayMetrics().densityDpi = 320;
         require(IconPackRuntime.resolve(resources, 1) == null);
@@ -238,7 +280,7 @@ public final class IconPackAndroidCheck {
         require(densityBitmap.getDensity() == 320);
 
         require(IconPackRuntime.clear());
-        require(IconPackRuntime.revision() == initialRevision + 4);
+        require(IconPackRuntime.revision() == initialRevision + 5);
         require(IconPackRuntime.resolve(resources, 1) == null);
     }
 

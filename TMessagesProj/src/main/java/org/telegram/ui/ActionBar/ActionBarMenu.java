@@ -130,6 +130,7 @@ public class ActionBarMenu extends LinearLayout {
             addView(menuItem, index, layoutParams);
         } else {
             if (drawable != null) {
+                IconPackRuntime.unbindImageView(menuItem.iconView);
                 if (drawable instanceof RLottieDrawable) {
                     menuItem.iconView.setAnimation((RLottieDrawable) drawable);
                 } else {

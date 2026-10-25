@@ -109,6 +109,10 @@ class IconPackRepositoryTest(unittest.TestCase):
         self.assertIn("state = optimisticState", settings)
         self.assertIn("state = previousState", settings)
         self.assertIn("loadState(false)", settings)
+        self.assertIn("private static volatile State stateSnapshot", repository)
+        self.assertIn("FluxGramIconPackRuntime", repository)
+        self.assertIn("IconPackRuntime::refreshUi", repository)
+        self.assertNotIn("NotificationCenter.reloadInterface", repository)
 
     @staticmethod
     def write_archive(root, name, version, pack_id="example.pack"):

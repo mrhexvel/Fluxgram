@@ -21,6 +21,12 @@ public class IconPackStore {
         String generation() {
             return generation;
         }
+
+        String iconHash(String resourceName) {
+            String path = manifest.icons.get(resourceName);
+
+            return path == null ? null : "hash:" + path;
+        }
     }
 
     private byte[] payload;

@@ -55,7 +55,7 @@ import java.util.List;
 import java.util.Set;
 
 @SuppressLint("ViewConstructor")
-public class ProfileActionsView extends View {
+public class ProfileActionsView extends View implements IconPackRuntime.Listener {
 
     private final List<Action> actions = new ArrayList<>();
     private final Paint paint = new Paint();
@@ -142,6 +142,27 @@ public class ProfileActionsView extends View {
         setBackgroundColor(0);
 
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        IconPackRuntime.addListener(this);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        IconPackRuntime.removeListener(this);
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    public void onIconPackRuntimeChanged() {
+        for (Action action : actions) {
+            action.refreshIconPackDrawables();
+        }
+
+        invalidate();
     }
 
     public void drawingBlur(boolean drawing) {
@@ -1007,6 +1028,8 @@ public class ProfileActionsView extends View {
         private Drawable drawableFilled;
         private Drawable drawableOutline;
         private RLottieDrawable drawableAnimated;
+        private int drawableFilledRes;
+        private int drawableOutlineRes;
         private Text text;
         private float textScale = 1.0f;
 
@@ -1198,6 +1221,9 @@ public class ProfileActionsView extends View {
 
         @SuppressLint("UseCompatLoadingForDrawables")
         public void updateDrawable(@RawRes int animatedRes, @DrawableRes int filledRes, @DrawableRes int outlineRes) {
+            drawableFilledRes = filledRes;
+            drawableOutlineRes = outlineRes;
+
             if (animatedRes != 0) {
                 RLottieDrawable drawable = new RLottieDrawable(animatedRes, dp(56), dp(56), false, null);
                 drawable.setMasterParent(ProfileActionsView.this);
@@ -1209,6 +1235,12 @@ public class ProfileActionsView extends View {
             drawableFilled = resolveDrawable(filledRes);
             drawableOutline = resolveDrawable(outlineRes);
 
+            checkBounds();
+        }
+
+        private void refreshIconPackDrawables() {
+            drawableFilled = resolveDrawable(drawableFilledRes);
+            drawableOutline = resolveDrawable(drawableOutlineRes);
             checkBounds();
         }
 

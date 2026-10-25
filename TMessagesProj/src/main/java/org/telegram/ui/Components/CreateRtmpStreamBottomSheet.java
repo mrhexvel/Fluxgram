@@ -325,9 +325,9 @@ public class CreateRtmpStreamBottomSheet extends BottomSheetWithRecyclerListView
                 drawable = ContextCompat.getDrawable(context, R.drawable.msg_copy);
             }
 
-            drawable = drawable.mutate();
-            drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader, resourcesProvider), PorterDuff.Mode.MULTIPLY));
             view.setImage(drawable);
+            view.getImageView().setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader, resourcesProvider), PorterDuff.Mode.MULTIPLY));
+            IconPackRuntime.trackImageResource(view.getImageView(), R.drawable.msg_copy);
             view.setImageClickListener(v -> copyRtmpValue(context, view.textView.getText().toString()));
             return view;
         }

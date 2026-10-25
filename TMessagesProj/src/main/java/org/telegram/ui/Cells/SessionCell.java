@@ -55,7 +55,7 @@ import org.telegram.ui.Components.DotDividerSpan;
 import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.LayoutHelper;
 
-public class SessionCell extends FrameLayout {
+public class SessionCell extends FrameLayout implements IconPackRuntime.Listener {
 
     private int currentType;
     private TextView nameTextView;
@@ -72,6 +72,7 @@ public class SessionCell extends FrameLayout {
     LinearLayout linearLayout;
 
     private int currentAccount = UserConfig.selectedAccount;
+    private TLRPC.TL_authorization currentAuthorization;
 
     public SessionCell(Context context, int type) {
         super(context);
@@ -190,6 +191,9 @@ public class SessionCell extends FrameLayout {
 
     public void setSession(TLObject object, boolean divider) {
         needDivider = divider;
+        currentAuthorization = object instanceof TLRPC.TL_authorization
+                ? (TLRPC.TL_authorization) object
+                : null;
 
         imageView.setRoundRadius(dp(10));
 
@@ -309,6 +313,25 @@ public class SessionCell extends FrameLayout {
         }
     }
 
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        IconPackRuntime.addListener(this);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        IconPackRuntime.removeListener(this);
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    public void onIconPackRuntimeChanged() {
+        if (currentAuthorization != null && !showStub) {
+            imageView.setImageDrawable(createDrawable(42, currentAuthorization));
+        }
+    }
+
     public static CombinedDrawable createDrawable(int sz, String platform) {
         TLRPC.TL_authorization auth = new TLRPC.TL_authorization();
         auth.device_model = platform;
@@ -402,6 +425,16 @@ public class SessionCell extends FrameLayout {
             colorKey = Theme.key_avatar_backgroundPink;
             colorKey2 = Theme.key_avatar_background2Pink;
         }
+        Drawable iconDrawable = resolveIcon(iconId);
+        Drawable bgDrawable = new CircleGradientDrawable(dp(sz), colorKey == -1 ? 0xFF000000 : Theme.getColor(colorKey), colorKey2 == -1 ? 0xFF000000 : Theme.getColor(colorKey2));
+        CombinedDrawable drawable = new RuntimeCombinedDrawable(bgDrawable, iconDrawable, iconId);
+        if (platform != null && platform.contains("fragment")) {
+            drawable.setIconSize((int) (iconDrawable.getIntrinsicWidth() / 44.0f * sz), (int) (iconDrawable.getIntrinsicHeight() / 44.0f * sz));
+        }
+        return drawable;
+    }
+
+    private static Drawable resolveIcon(int iconId) {
         Drawable iconDrawable = IconPackRuntime.resolve(
                 ApplicationLoader.applicationContext.getResources(),
                 iconId);
@@ -412,12 +445,29 @@ public class SessionCell extends FrameLayout {
 
         iconDrawable = iconDrawable.mutate();
         iconDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_avatar_text), PorterDuff.Mode.SRC_IN));
-        Drawable bgDrawable = new CircleGradientDrawable(dp(sz), colorKey == -1 ? 0xFF000000 : Theme.getColor(colorKey), colorKey2 == -1 ? 0xFF000000 : Theme.getColor(colorKey2));
-        CombinedDrawable drawable = new CombinedDrawable(bgDrawable, iconDrawable);
-        if (platform != null && platform.contains("fragment")) {
-            drawable.setIconSize((int) (iconDrawable.getIntrinsicWidth() / 44.0f * sz), (int) (iconDrawable.getIntrinsicHeight() / 44.0f * sz));
+
+        return iconDrawable;
+    }
+
+    private static class RuntimeCombinedDrawable extends CombinedDrawable
+            implements IconPackRuntime.Listener {
+        private final int iconId;
+
+        private RuntimeCombinedDrawable(
+                Drawable backgroundDrawable,
+                Drawable iconDrawable,
+                int iconId) {
+            super(backgroundDrawable, iconDrawable);
+            this.iconId = iconId;
+            IconPackRuntime.addListener(this);
         }
-        return drawable;
+
+        @Override
+        public void onIconPackRuntimeChanged() {
+            Drawable iconDrawable = resolveIcon(iconId);
+            iconDrawable.setCallback(this);
+            setIconDrawable(iconDrawable);
+        }
     }
 
     public static class CircleGradientDrawable extends Drawable {

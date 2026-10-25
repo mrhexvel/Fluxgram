@@ -27,8 +27,14 @@ public final class IconPackSettings {
     public static synchronized List<String> getActiveIds(IconPackStore store) throws IOException {
         require(store != null, "Icon pack store is required");
 
+        return getActiveIdsForInstalled(store.list());
+    }
+
+    static synchronized List<String> getActiveIdsForInstalled(
+            List<IconPackStore.Installed> installed) throws IOException {
+        require(installed != null, "Installed icon packs are required");
+
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-        List<IconPackStore.Installed> installed = store.list();
         recoverPendingDelete(preferences, installed);
         List<String> stored = read(preferences);
         List<String> normalized = normalize(stored, installed);
@@ -47,8 +53,16 @@ public final class IconPackSettings {
         require(activeIds != null, "Active icon pack IDs are required");
         require(store != null, "Icon pack store is required");
 
+        setActiveIdsForInstalled(activeIds, store.list());
+    }
+
+    static synchronized void setActiveIdsForInstalled(
+            Collection<String> activeIds,
+            List<IconPackStore.Installed> installed) throws IOException {
+        require(activeIds != null, "Active icon pack IDs are required");
+        require(installed != null, "Installed icon packs are required");
+
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-        List<IconPackStore.Installed> installed = store.list();
         recoverPendingDelete(preferences, installed);
         List<String> normalized = normalize(activeIds, installed);
 
@@ -59,8 +73,18 @@ public final class IconPackSettings {
         require(store != null, "Icon pack store is required");
         require(IconPackManifest.isValidId(id), "Valid icon pack ID is required");
 
+        deleteWithInstalled(store, id, store.list());
+    }
+
+    static synchronized void deleteWithInstalled(
+            IconPackStore store,
+            String id,
+            List<IconPackStore.Installed> installed) throws IOException {
+        require(store != null, "Icon pack store is required");
+        require(IconPackManifest.isValidId(id), "Valid icon pack ID is required");
+        require(installed != null, "Installed icon packs are required");
+
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-        List<IconPackStore.Installed> installed = store.list();
         recoverPendingDelete(preferences, installed);
         List<String> previous = normalize(read(preferences), installed);
         ArrayList<String> remaining = new ArrayList<>(previous);

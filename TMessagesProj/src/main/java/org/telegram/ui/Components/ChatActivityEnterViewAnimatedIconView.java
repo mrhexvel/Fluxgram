@@ -13,7 +13,8 @@ import org.telegram.messenger.fluxgram.icons.IconPackRuntime;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
+public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView
+        implements IconPackRuntime.Listener {
     private State currentState;
     private TransitState animatingState;
     private final int sizeDp;
@@ -42,6 +43,25 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
     public ChatActivityEnterViewAnimatedIconView(Context context, int sizeDp) {
         super(context);
         this.sizeDp = sizeDp;
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        IconPackRuntime.addListener(this);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        IconPackRuntime.removeListener(this);
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    public void onIconPackRuntimeChanged() {
+        if (currentState != null) {
+            setState(currentState, false);
+        }
     }
 
     public void setState(State state, boolean animate) {

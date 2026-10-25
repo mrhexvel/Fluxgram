@@ -209,6 +209,7 @@ public class ActionBarMenuSubItem extends FrameLayout {
         if (icon != 0 || iconDrawable != null || checkView != null) {
             if (iconDrawable != null) {
                 iconResId = 0;
+                IconPackRuntime.unbindImageView(imageView);
                 imageView.setImageDrawable(iconDrawable);
             } else {
                 iconResId = icon;
@@ -218,6 +219,7 @@ public class ActionBarMenuSubItem extends FrameLayout {
             textView.setPadding(checkViewLeft ? (checkView != null ? dp(43) : 0) : dp(icon != 0 || iconDrawable != null ? 43 : 0), 0, checkViewLeft ? dp(icon != 0 || iconDrawable != null ? 43 : 0) : (checkView != null ? dp(43) : 0), 0);
         } else {
             iconResId = 0;
+            IconPackRuntime.unbindImageView(imageView);
             imageView.setVisibility(INVISIBLE);
             textView.setPadding(0, 0, 0, 0);
         }
@@ -232,6 +234,7 @@ public class ActionBarMenuSubItem extends FrameLayout {
             addView(backupImageView, LayoutHelper.createFrame(28, 28, Gravity.CENTER_VERTICAL | (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT)));
         }
         imageView.setVisibility(INVISIBLE);
+        IconPackRuntime.unbindImageView(imageView);
         backupImageView.setImage(imageLocation, imageFilter, thumb, parentObject);
     }
 
@@ -331,11 +334,13 @@ public class ActionBarMenuSubItem extends FrameLayout {
 
     public void setIcon(Drawable drawable) {
         iconResId = 0;
+        IconPackRuntime.unbindImageView(imageView);
         imageView.setImageDrawable(drawable);
     }
 
     public void setAnimatedIcon(int resId) {
         iconResId = 0;
+        IconPackRuntime.unbindImageView(imageView);
         imageView.setAnimation(resId, 24, 24);
     }
 

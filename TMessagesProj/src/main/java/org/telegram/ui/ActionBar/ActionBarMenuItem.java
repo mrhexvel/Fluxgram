@@ -1232,6 +1232,7 @@ public class ActionBarMenuItem extends FrameLayout {
         if (iconView == null) {
             return;
         }
+        IconPackRuntime.unbindImageView(iconView);
         if (drawable instanceof RLottieDrawable) {
             iconView.setAnimation((RLottieDrawable) drawable);
         } else {
@@ -1263,11 +1264,11 @@ public class ActionBarMenuItem extends FrameLayout {
         if (animated) {
             iconViewResId = resId;
             Drawable drawable = IconPackRuntime.resolve(iconView.getResources(), resId);
-            AndroidUtilities.updateImageViewImageAnimated(
-                    iconView,
-                    drawable != null
-                            ? drawable
-                            : ContextCompat.getDrawable(iconView.getContext(), resId));
+            Drawable target = drawable != null
+                    ? drawable
+                    : ContextCompat.getDrawable(iconView.getContext(), resId);
+            AndroidUtilities.updateImageViewImageAnimated(iconView, target);
+            IconPackRuntime.trackAnimatedImageResource(iconView, resId, target);
         } else {
             iconViewResId = resId;
             IconPackRuntime.setImageResource(iconView, resId);
