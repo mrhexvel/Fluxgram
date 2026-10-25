@@ -304,6 +304,7 @@ public class NotificationCenter {
     public static final int cameraInitied = totalEvents++;
     public static final int didReplacedPhotoInMemCache = totalEvents++;
     public static final int didSetNewTheme = totalEvents++;
+    public static final int fluxgramIconPackChanged = totalEvents++;
     public static final int themeListUpdated = totalEvents++;
     public static final int didApplyNewTheme = totalEvents++;
     public static final int themeAccentListUpdated = totalEvents++;

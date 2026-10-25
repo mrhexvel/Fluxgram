@@ -6,6 +6,7 @@ import android.net.Uri;
 
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.NotificationCenter;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -63,9 +64,16 @@ public final class IconPackRepositoryCheck {
         require(setActive("missing.pack", true).error != null);
         require(move("example.pack", -1).error != null);
 
+        NotificationCenter.resetIconPackChanges();
         Outcome<IconPackRepository.State> active = setActive("example.pack", true);
         require(active.error == null);
         require(active.value.activeIds.equals(Collections.singletonList("example.pack")));
+        awaitIconPackChanges(1);
+        require(NotificationCenter.iconPackChangedCount == 1);
+
+        require(setActive("example.pack", true).error == null);
+        Thread.sleep(100);
+        require(NotificationCenter.iconPackChangedCount == 1);
 
         Outcome<IconPackRepository.Review> update = review(new File(args[2]));
         require(update.error == null);
@@ -150,6 +158,15 @@ public final class IconPackRepositoryCheck {
                 (IconPackArchiveValidator.Snapshot) field.get(review);
 
         return snapshot.archive();
+    }
+
+    private static void awaitIconPackChanges(int count) throws Exception {
+        long deadline = System.currentTimeMillis() + 5_000;
+
+        while (NotificationCenter.iconPackChangedCount < count
+                && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
     }
 
     private static Outcome<IconPackRepository.Review> review(File archive) throws Exception {

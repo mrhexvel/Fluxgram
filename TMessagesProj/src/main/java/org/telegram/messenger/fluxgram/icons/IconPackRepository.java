@@ -5,6 +5,8 @@ import android.net.Uri;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.NotificationCenter;
+import org.telegram.ui.ActionBar.Theme;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -566,7 +568,12 @@ public final class IconPackRepository {
             }
 
             if (changed) {
-                AndroidUtilities.runOnUIThread(IconPackRuntime::refreshUi);
+                AndroidUtilities.runOnUIThread(() -> {
+                    Theme.reloadAllResources(ApplicationLoader.applicationContext);
+                    IconPackRuntime.refreshUi();
+                    NotificationCenter.getGlobalInstance().postNotificationName(
+                            NotificationCenter.fluxgramIconPackChanged);
+                });
             }
         });
     }

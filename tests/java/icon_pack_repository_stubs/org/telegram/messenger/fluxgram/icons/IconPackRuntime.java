@@ -1,9 +1,14 @@
 package org.telegram.messenger.fluxgram.icons;
 
+import org.telegram.ui.ActionBar.Theme;
+
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
 public final class IconPackRuntime {
+    public static volatile int refreshCount;
+    private static List<String> publishedActiveIds;
+
     public static boolean rebuild(
             Object resources,
             IconPackStore store,
@@ -29,7 +34,13 @@ public final class IconPackRuntime {
             BooleanSupplier currentRequest,
             Object publicationLock) {
         synchronized (publicationLock) {
-            return currentRequest.getAsBoolean();
+            if (!currentRequest.getAsBoolean() || activeIds.equals(publishedActiveIds)) {
+                return false;
+            }
+
+            publishedActiveIds = new java.util.ArrayList<>(activeIds);
+
+            return true;
         }
     }
 
@@ -46,5 +57,10 @@ public final class IconPackRuntime {
     }
 
     public static void refreshUi() {
+        if (Theme.reloadCount <= refreshCount) {
+            throw new AssertionError("Theme resources must reload before runtime UI");
+        }
+
+        refreshCount++;
     }
 }

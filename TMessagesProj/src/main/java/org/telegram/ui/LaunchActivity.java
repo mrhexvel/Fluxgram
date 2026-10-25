@@ -577,6 +577,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             .createObserversGroup(this)
             .add(NotificationCenter.needShowAlert)
             .add(NotificationCenter.reloadInterface)
+            .add(NotificationCenter.fluxgramIconPackChanged)
             .add(NotificationCenter.suggestedLangpack)
             .add(NotificationCenter.didSetNewTheme)
             .add(NotificationCenter.needSetDayNightTheme)
@@ -7322,6 +7323,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 }
             }
             rebuildAllFragments(last);
+        } else if (id == NotificationCenter.fluxgramIconPackChanged) {
+            rebuildAllFragments(true);
         } else if (id == NotificationCenter.suggestedLangpack) {
             showLanguageAlert(false);
         } else if (id == NotificationCenter.openArticle) {

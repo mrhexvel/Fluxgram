@@ -95,6 +95,13 @@ class IconPackRepositoryTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
 
         repository = (ICONS / "IconPackRepository.java").read_text()
+        notification_center = (
+            ROOT
+            / "TMessagesProj/src/main/java/org/telegram/messenger/NotificationCenter.java"
+        ).read_text()
+        launch = (
+            ROOT / "TMessagesProj/src/main/java/org/telegram/ui/LaunchActivity.java"
+        ).read_text()
         settings = (
             ROOT
             / "TMessagesProj/src/main/java/org/telegram/ui/FluxGramIconPackSettingsActivity.java"
@@ -112,8 +119,18 @@ class IconPackRepositoryTest(unittest.TestCase):
         self.assertIn("loadState(false)", settings)
         self.assertIn("private static volatile State stateSnapshot", repository)
         self.assertIn("FluxGramIconPackRuntime", repository)
-        self.assertIn("IconPackRuntime::refreshUi", repository)
+        self.assertIn(
+            "Theme.reloadAllResources(ApplicationLoader.applicationContext)", repository
+        )
+        self.assertIn("IconPackRuntime.refreshUi()", repository)
+        self.assertIn("NotificationCenter.fluxgramIconPackChanged", repository)
         self.assertNotIn("NotificationCenter.reloadInterface", repository)
+        self.assertIn("fluxgramIconPackChanged = totalEvents++", notification_center)
+        self.assertIn(".add(NotificationCenter.fluxgramIconPackChanged)", launch)
+        refresh = launch.split(
+            "id == NotificationCenter.fluxgramIconPackChanged", 1
+        )[1].split("NotificationCenter.suggestedLangpack", 1)[0]
+        self.assertIn("rebuildAllFragments(true)", refresh)
 
     @staticmethod
     def write_archive(root, name, version, pack_id="example.pack"):
