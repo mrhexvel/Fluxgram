@@ -110,10 +110,15 @@ class IconPackAndroidAdapterTest(unittest.TestCase):
 
         composer = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterViewAnimatedIconView.java").read_text()
         chat = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java").read_text()
+        topics = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/TopicsFragment.java").read_text()
         tabs = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/Components/glass/GlassTabView.java").read_text()
 
         self.assertIn('IconPackRuntime.resolve(headerItem.getResources(), "boosts")', chat)
         self.assertIn("new RLottieDrawable(R.raw.boosts", chat)
+        self.assertIn('IconPackRuntime.resolve(other.getResources(), "boosts")', topics)
+        self.assertIn("new RLottieDrawable(", topics)
+        self.assertIn("R.raw.boosts", topics)
+        self.assertIn('BOOSTS(R.raw.boosts, 25, 49, "boosts")', tabs)
         for name in ("msg_sticker", "input_keyboard", "input_smile", "msg_gif"):
             self.assertIn(f"R.drawable.{name}", composer)
         for name in (

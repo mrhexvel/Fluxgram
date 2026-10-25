@@ -626,7 +626,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         ARTICLE(R.raw.tab_article, R.raw.tab_article_reverse),
         GRAM(R.raw.gram, R.raw.gram_reverse),
 
-        BOOSTS(R.raw.boosts, 25, 49),
+        BOOSTS(R.raw.boosts, 25, 49, "boosts"),
         MONETIZATION(R.raw.monetize, 19, 45);
 
         public final @RawRes int iconToFilled;
@@ -653,6 +653,16 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
             this.iconStatic = -1;
             this.iconPackFilled = null;
             this.iconPackOutline = null;
+        }
+
+        TabAnimation(int iconRes, int endFrameMid, int endFrameEnd, String iconPackName) {
+            this.iconToFilled = iconRes;
+            this.iconToOutline = iconRes;
+            this.endFrameMid = endFrameMid;
+            this.endFrameEnd = endFrameEnd;
+            this.iconStatic = -1;
+            this.iconPackFilled = iconPackName;
+            this.iconPackOutline = iconPackName;
         }
 
         TabAnimation(TabAnimationType type, int icon) {
