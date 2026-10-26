@@ -11399,6 +11399,10 @@
     <string name="FluxGramChatId">Chat ID</string>
     <string name="FluxGramProfileIdCopied">ID copied to clipboard</string>
     <string name="FluxGramProfilePhotoDc">Profile photo DC</string>
+    <string name="FluxGramRegistrationDate">Registration: %1$s</string>
+    <string name="FluxGramRegistrationDateApproximate">Registration: approximately %1$s</string>
+    <string name="FluxGramRegistrationDateAfter">Registration: after %1$s</string>
+    <string name="FluxGramRegistrationDateUnavailable">Registration date is unavailable</string>
     <string name="FluxGramAppearance">Appearance</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Fonts</string>

@@ -362,6 +362,10 @@
     <string name="FluxGramChatId">ID чата</string>
     <string name="FluxGramProfileIdCopied">ID скопирован в буфер обмена</string>
     <string name="FluxGramProfilePhotoDc">DC фотографии профиля</string>
+    <string name="FluxGramRegistrationDate">Регистрация: %1$s</string>
+    <string name="FluxGramRegistrationDateApproximate">Регистрация: примерно %1$s</string>
+    <string name="FluxGramRegistrationDateAfter">Регистрация: после %1$s</string>
+    <string name="FluxGramRegistrationDateUnavailable">Дата регистрации недоступна</string>
     <string name="FluxGramAppearance">Внешний вид</string>
     <string name="FluxGramAppName">FluxGram</string>
     <string name="FluxGramFonts">Шрифты</string>

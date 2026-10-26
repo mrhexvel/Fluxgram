@@ -6601,6 +6601,7 @@ public class MessagesController extends BaseController implements NotificationCe
         printingStringsTypes.clear();
         onlinePrivacy.clear();
         loadingPeerSettings.clear();
+        userPeerSettings.clear();
         deletingDialogs.clear();
         clearingHistoryDialogs.clear();
         lastPrintingStringCount = 0;
@@ -8090,7 +8091,26 @@ public class MessagesController extends BaseController implements NotificationCe
         if (settings == null) {
             return;
         }
+        if (TextUtils.isEmpty(settings.registration_month)) {
+            TLRPC.PeerSettings cachedSettings = userPeerSettings.get(dialogId);
+            if (cachedSettings != null && !TextUtils.isEmpty(cachedSettings.registration_month)) {
+                settings.registration_month = cachedSettings.registration_month;
+            } else {
+                settings.registration_month = notificationsPreferences.getString("fluxgram_registration_month_" + dialogId, null);
+            }
+        }
+        TLRPC.UserFull userFull = fullUsers.get(dialogId);
+        if (userFull != null && !TextUtils.isEmpty(settings.registration_month)) {
+            if (userFull.settings == null) {
+                userFull.settings = settings;
+            } else {
+                userFull.settings.registration_month = settings.registration_month;
+            }
+        }
         final SharedPreferences.Editor editor = notificationsPreferences.edit();
+        if (!TextUtils.isEmpty(settings.registration_month)) {
+            editor.putString("fluxgram_registration_month_" + dialogId, settings.registration_month);
+        }
         if (settings.business_bot_id != 0) {
             editor.putLong("dialog_botid" + dialogId, settings.business_bot_id);
             editor.putString("dialog_boturl" + dialogId, settings.business_bot_manage_url);
@@ -8142,6 +8162,20 @@ public class MessagesController extends BaseController implements NotificationCe
             return userFull.settings;
         }
         return userPeerSettings.get(dialogId);
+    }
+
+    public String getPeerRegistrationMonth(long dialogId) {
+        TLRPC.PeerSettings settings = userPeerSettings.get(dialogId);
+        if (settings != null && !TextUtils.isEmpty(settings.registration_month)) {
+            return settings.registration_month;
+        }
+
+        TLRPC.UserFull userFull = getUserFull(dialogId);
+        if (userFull != null && userFull.settings != null && !TextUtils.isEmpty(userFull.settings.registration_month)) {
+            return userFull.settings.registration_month;
+        }
+
+        return notificationsPreferences.getString("fluxgram_registration_month_" + dialogId, null);
     }
 
     public void loadPeerSettings(TLRPC.User currentUser, TLRPC.Chat currentChat) {

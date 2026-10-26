@@ -170,6 +170,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.AvatarGeometry;
 import org.telegram.messenger.fluxgram.ProfileDisplaySettings;
+import org.telegram.messenger.fluxgram.RegistrationDateLookup;
 import org.telegram.messenger.fluxgram.appearance.AppearanceRepositories;
 import org.telegram.messenger.fluxgram.appearance.FluxGramPeerKey;
 import org.telegram.messenger.fluxgram.appearance.ProfileBadge;
@@ -220,6 +221,7 @@ import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextDetailCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.UserCell;
+import org.telegram.ui.Cells.UserInfoCell;
 import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.AnimatedColor;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
@@ -341,6 +343,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.ArrayList;
@@ -403,6 +406,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private RLottieDrawable cellCameraDrawable;
 
     private HintView fwdRestrictedHint;
+    private HintView2 registrationDateHint;
+    private View registrationDateRequestAnchor;
+    private boolean registrationDateLoaded;
 //    private ProfileMetaballView metaball;
     private FrameLayout avatarContainer;
     private FrameLayout avatarContainer2;
@@ -2162,6 +2168,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().addObserver(this, NotificationCenter.blockedUsersDidLoad);
             getNotificationCenter().addObserver(this, NotificationCenter.botInfoDidLoad);
             getNotificationCenter().addObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().addObserver(this, NotificationCenter.peerSettingsDidLoad);
             getNotificationCenter().addObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.reloadInterface);
 
@@ -2390,6 +2397,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        hideRegistrationDateHint(false);
         if (fluxGramAppearanceController != null) {
             fluxGramAppearanceController.destroy();
             fluxGramAppearanceController = null;
@@ -2444,6 +2452,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().removeObserver(this, NotificationCenter.blockedUsersDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.botInfoDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().removeObserver(this, NotificationCenter.peerSettingsDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.reloadInterface);
             getMessagesController().cancelLoadFullUser(userId);
@@ -5896,6 +5905,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 if (fwdRestrictedHint != null) {
                     fwdRestrictedHint.hide();
+                }
+                if (dx != 0 || dy != 0) {
+                    hideRegistrationDateHint(true);
                 }
                 checkListViewScroll();
                 if (participantsMap != null && !usersEndReached && layoutManager.findLastVisibleItemPosition() > membersEndRow - 8) {
@@ -9461,6 +9473,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (info.user_id == userId) {
                 botInfo = info;
                 updateListAnimated(false);
+            }
+        } else if (id == NotificationCenter.peerSettingsDidLoad) {
+            final long uid = (Long) args[0];
+            if (uid == userId && registrationDateRequestAnchor != null) {
+                registrationDateLoaded = true;
+                View anchor = registrationDateRequestAnchor;
+                registrationDateRequestAnchor = null;
+                if (registrationDateHint != null && registrationDateHint.shown() && anchor.isAttachedToWindow()) {
+                    CharSequence text = getProfileRegistrationDate();
+                    if (text == null) {
+                        text = LocaleController.getString(R.string.FluxGramRegistrationDateUnavailable);
+                    }
+                    showRegistrationDateHint(anchor, text);
+                }
             }
         } else if (id == NotificationCenter.userInfoDidLoad) {
             final long uid = (Long) args[0];
@@ -13792,6 +13818,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     TextDetailCell detailCell = (TextDetailCell) holder.itemView;
                     boolean containsQr = false;
                     boolean containsGift = false;
+                    boolean containsRegistrationDate = position == profileIdRow && userId != 0;
                     if (position == birthdayRow) {
                         TLRPC.UserFull userFull = getMessagesController().getUserFull(userId);
                         if (userFull != null && userFull.birthday != null) {
@@ -13972,7 +13999,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         detailCell.setTextAndValue(text, value, true);
                         detailCell.setContentDescriptionValueFirst(true);
                     }
-                    if (containsGift) {
+                    if (containsRegistrationDate) {
+                        Drawable drawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                        drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_actionBarDefaultIcon), false), PorterDuff.Mode.MULTIPLY));
+                        detailCell.setImage(drawable, LocaleController.getString(R.string.ContactInfoRegistration));
+                        detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
+                    } else if (containsGift) {
                         Drawable drawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_input_gift);
                         drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                         if (UserObject.areGiftsDisabled(userInfo)) {
@@ -15863,7 +15895,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private void onTextDetailCellImageClicked(View view) {
         View parent = (View) view.getParent();
-        if (parent.getTag() != null && ((int) parent.getTag()) == usernameRow) {
+        if (parent.getTag() != null && ((int) parent.getTag()) == profileIdRow) {
+            showRegistrationDateHint(view);
+        } else if (parent.getTag() != null && ((int) parent.getTag()) == usernameRow) {
             Bundle args = new Bundle();
             args.putLong("chat_id", chatId);
             args.putLong("user_id", userId);
@@ -15878,6 +15912,110 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 return;
             }
             showDialog(new GiftSheet(getContext(), currentAccount, userId, null, null));
+        }
+    }
+
+    private void showRegistrationDateHint(View view) {
+        if (contentView == null || view == null || !view.isAttachedToWindow()) {
+            return;
+        }
+
+        CharSequence text = getProfileRegistrationDate();
+        if (text != null) {
+            showRegistrationDateHint(view, text);
+        } else if (registrationDateLoaded) {
+            showRegistrationDateHint(view, LocaleController.getString(R.string.FluxGramRegistrationDateUnavailable));
+            return;
+        } else {
+            showRegistrationDateHint(view, LocaleController.getString(R.string.Loading));
+        }
+
+        registrationDateRequestAnchor = view;
+
+        TLRPC.User user = getMessagesController().getUser(userId);
+        if (user != null) {
+            getMessagesController().loadPeerSettings(user, null, true);
+        }
+    }
+
+    private CharSequence getProfileRegistrationDate() {
+        String registrationMonth = getMessagesController().getPeerRegistrationMonth(userId);
+        if (!TextUtils.isEmpty(registrationMonth)) {
+            try {
+                return LocaleController.formatString(
+                        R.string.FluxGramRegistrationDate,
+                        UserInfoCell.displayDate(registrationMonth)
+                );
+            } catch (RuntimeException ignore) {
+            }
+        }
+
+        RegistrationDateLookup.Result result = RegistrationDateLookup.estimate(userId);
+        if (result == null) {
+            return null;
+        }
+
+        String date = new SimpleDateFormat("d MMMM, yyyy", Locale.getDefault())
+                .format(new Date(result.timestamp * 1000L));
+        if (result.kind == RegistrationDateLookup.Kind.APPROXIMATE) {
+            return LocaleController.formatString(R.string.FluxGramRegistrationDateApproximate, date);
+        }
+        if (result.kind == RegistrationDateLookup.Kind.AFTER) {
+            return LocaleController.formatString(R.string.FluxGramRegistrationDateAfter, date);
+        }
+        return LocaleController.formatString(R.string.FluxGramRegistrationDate, date);
+    }
+
+    private void showRegistrationDateHint(View view, CharSequence text) {
+        hideRegistrationDateHint(false);
+
+        HintView2 hint = new HintView2(getContext(), HintView2.DIRECTION_TOP)
+                .setMultilineText(true)
+                .setDuration(5000L)
+                .setBgColor(getThemedColor(Theme.key_undo_background))
+                .setTextColor(getThemedColor(Theme.key_undo_infoColor))
+                .setRounding(12f);
+        registrationDateHint = hint;
+        hint.setText(text);
+        hint.setMaxWidthPx(HintView2.cutInFancyHalf(hint.getText(), hint.getTextPaint()));
+        contentView.addView(hint, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 120, Gravity.TOP | Gravity.LEFT, 16, 0, 16, 0));
+        contentView.post(() -> {
+            if (registrationDateHint != hint || !view.isAttachedToWindow()) {
+                return;
+            }
+
+            float x = 0;
+            float y = 0;
+            View current = view;
+            while (current != null && current != contentView) {
+                x += current.getX();
+                y += current.getY();
+                if (!(current.getParent() instanceof View)) {
+                    return;
+                }
+                current = (View) current.getParent();
+            }
+            if (current != contentView) {
+                return;
+            }
+
+            hint.setTranslationY(y + view.getHeight());
+            hint.setJointPx(0f, -AndroidUtilities.dp(16) + x + view.getWidth() / 2f);
+            hint.show();
+        });
+    }
+
+    private void hideRegistrationDateHint(boolean animated) {
+        registrationDateRequestAnchor = null;
+        if (registrationDateHint == null) {
+            return;
+        }
+
+        HintView2 hint = registrationDateHint;
+        registrationDateHint = null;
+        hint.hide(animated);
+        if (contentView != null && hint.getParent() == contentView) {
+            contentView.removeView(hint);
         }
     }
 

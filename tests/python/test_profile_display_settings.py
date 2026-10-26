@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import unittest
 
 
@@ -53,6 +54,48 @@ class ProfileDisplaySettingsTest(unittest.TestCase):
         self.assertIn("AndroidUtilities.addToClipboard(String.valueOf(id));", profile)
         self.assertIn("R.string.FluxGramProfileIdCopied", profile)
         self.assertIn("if (position == profileDcRow)", profile)
+
+    def test_user_id_row_prefers_official_registration_month_with_local_fallback(self):
+        profile = (JAVA / "ui/ProfileActivity.java").read_text()
+        controller = (JAVA / "messenger/MessagesController.java").read_text()
+        lookup = (JAVA / "messenger/fluxgram/RegistrationDateLookup.java").read_text()
+        asset = ROOT / "TMessagesProj/src/main/assets/fluxgram/registration/id_date.json"
+
+        self.assertIn("position == profileIdRow && userId != 0", profile)
+        self.assertIn("R.drawable.msg_calendar2", profile)
+        self.assertIn("getMessagesController().getPeerRegistrationMonth(userId)", profile)
+        self.assertIn("UserInfoCell.displayDate(registrationMonth)", profile)
+        self.assertIn("RegistrationDateLookup.estimate(userId)", profile)
+        self.assertIn("RegistrationDateLookup.Kind.APPROXIMATE", profile)
+        self.assertIn("RegistrationDateLookup.Kind.AFTER", profile)
+        self.assertIn("getMessagesController().loadPeerSettings(user, null, true)", profile)
+        self.assertIn("NotificationCenter.peerSettingsDidLoad", profile)
+        self.assertIn("registrationDateRequestAnchor != null", profile)
+        self.assertIn("registrationDateLoaded = true", profile)
+        self.assertIn("R.string.FluxGramRegistrationDateUnavailable", profile)
+        self.assertIn("hideRegistrationDateHint(true);", profile)
+        self.assertIn("hideRegistrationDateHint(false);", profile)
+        self.assertNotIn("FluxGram registration", controller)
+        self.assertIn("public String getPeerRegistrationMonth(long dialogId)", controller)
+        self.assertIn('notificationsPreferences.getString("fluxgram_registration_month_" + dialogId, null)', controller)
+        self.assertIn('editor.putString("fluxgram_registration_month_" + dialogId, settings.registration_month)', controller)
+        self.assertIn("settings.registration_month = cachedSettings.registration_month", controller)
+        self.assertIn("userFull.settings.registration_month = settings.registration_month", controller)
+        self.assertIn("userPeerSettings.clear();", controller)
+        self.assertNotIn("exteraAuthBot", profile)
+        self.assertNotIn("id_date.json", profile)
+        self.assertIn('ASSET_PATH = "fluxgram/registration/id_date.json"', lookup)
+        self.assertIn("userId <= values[0][0]", lookup)
+        self.assertIn("userId <= next[0]", lookup)
+        self.assertIn("Kind.APPROXIMATE", lookup)
+        self.assertIn("Kind.AFTER", lookup)
+        self.assertTrue(asset.is_file())
+
+        anchors = json.loads(asset.read_text())["data"]
+        self.assertEqual(155, len(anchors))
+        self.assertEqual({"id": 1000000, "date": 1380326400}, anchors[0])
+        self.assertEqual({"id": 8461412540, "date": 1755628800}, anchors[-1])
+        self.assertEqual(sorted(anchor["id"] for anchor in anchors), [anchor["id"] for anchor in anchors])
 
 
 if __name__ == "__main__":
