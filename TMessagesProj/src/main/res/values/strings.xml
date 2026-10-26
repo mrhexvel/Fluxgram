@@ -11393,6 +11393,7 @@
     <string name="FluxGramFolderAccessError">FluxGram could not access this folder.</string>
     <string name="FluxGramProfile">Profile</string>
     <string name="FluxGramHideOwnPhone">Hide my phone number</string>
+    <string name="FluxGramHideProfilePhoneNumbers">Hide phone numbers in profiles</string>
     <string name="FluxGramShowProfileIdDc">Show profile ID and photo DC</string>
     <string name="FluxGramPhoneHiddenValue">Phone number hidden</string>
     <string name="FluxGramUserId">User ID</string>
@@ -11409,6 +11410,7 @@
     <string name="FluxGramFontsAndEmoji">Fonts and emoji</string>
     <string name="FluxGramUseSystemEmoji">Use system emoji</string>
     <string name="FluxGramGooeyAvatar">Gooey avatar</string>
+    <string name="FluxGramProfileBackgroundEmoji">Emoji in profile background</string>
     <string name="FluxGramCustomChatThemes">Custom chat themes</string>
     <string name="FluxGramFontMode">Font mode</string>
     <string name="FluxGramFontModeInfo">This setting is global for all accounts. The preview shows the saved selection. Fully restart FluxGram to apply it to the interface.</string>

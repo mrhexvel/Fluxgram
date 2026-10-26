@@ -13,10 +13,12 @@ import org.telegram.tgnet.TLRPC;
 
 public final class ProfileDisplaySettings {
     private static final String HIDE_OWN_PHONE = "fluxgram_hide_own_phone";
+    private static final String HIDE_PROFILE_PHONE_NUMBERS = "fluxgram_hide_profile_phone_numbers";
     private static final String SHOW_ID_AND_DC = "fluxgram_show_profile_id_dc";
 
     private static volatile boolean loaded;
     private static volatile boolean hideOwnPhone;
+    private static volatile boolean hideProfilePhoneNumbers;
     private static volatile boolean showIdAndDc;
 
     public static boolean hidesOwnPhone() {
@@ -34,6 +36,23 @@ public final class ProfileDisplaySettings {
                 .apply();
 
         hideOwnPhone = hidden;
+    }
+
+    public static boolean hidesProfilePhoneNumbers() {
+        ensureLoaded();
+
+        return hideProfilePhoneNumbers;
+    }
+
+    public static synchronized void setHidesProfilePhoneNumbers(boolean hidden) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(HIDE_PROFILE_PHONE_NUMBERS, hidden)
+                .apply();
+
+        hideProfilePhoneNumbers = hidden;
     }
 
     public static boolean showsIdAndDc() {
@@ -80,6 +99,34 @@ public final class ProfileDisplaySettings {
         return getProfilePhotoDc(chat.photo.dc_id, chat.photo.photo_big, chat.photo.photo_small);
     }
 
+    public static String getProfilePhotoDcDescription(int dc) {
+        switch (dc) {
+            case 1:
+            case 3:
+                return "DC" + dc + ", Miami, US";
+            case 2:
+            case 4:
+                return "DC" + dc + ", Amsterdam, NL";
+            case 5:
+                return "DC5, Singapore, SG";
+            default:
+                return dc > 0 ? "DC" + dc : LocaleController.getString(R.string.Unavailable);
+        }
+    }
+
+    public static String maskProfilePhone(String phone) {
+        if (phone == null) {
+            return null;
+        }
+
+        char[] pattern = {'\u280c', '\u2862', '\u2891', '\u2828', '\u2825', '\u282e', '\u2851'};
+        StringBuilder masked = new StringBuilder(phone.length());
+        for (int index = 0; index < phone.length(); index++) {
+            masked.append(pattern[index % pattern.length]);
+        }
+        return masked.toString();
+    }
+
     private static int getProfilePhotoDc(int dc, TLRPC.FileLocation big, TLRPC.FileLocation small) {
         if (dc > 0) {
             return dc;
@@ -106,6 +153,7 @@ public final class ProfileDisplaySettings {
 
             SharedPreferences preferences = MessagesController.getGlobalMainSettings();
             hideOwnPhone = preferences.getBoolean(HIDE_OWN_PHONE, false);
+            hideProfilePhoneNumbers = preferences.getBoolean(HIDE_PROFILE_PHONE_NUMBERS, true);
             showIdAndDc = preferences.getBoolean(SHOW_ID_AND_DC, false);
             loaded = true;
         }

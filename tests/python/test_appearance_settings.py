@@ -30,6 +30,7 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn('"glass_outline_style"', source)
         self.assertIn('"gooey_avatar"', source)
         self.assertIn('"custom_chat_themes"', source)
+        self.assertIn('"profile_background_emoji"', source)
 
     def test_title_modes_have_safe_fallbacks(self):
         source = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
@@ -142,6 +143,26 @@ class AppearanceSettingsTest(unittest.TestCase):
             theme_delegate,
         )
         self.assertNotIn("AppearanceSettings", controller)
+
+    def test_profile_background_emoji_toggle_controls_only_profile_input(self):
+        settings = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        profile = (JAVA / "ui/ProfileActivity.java").read_text()
+        patterns = (JAVA / "ui/Stars/StarGiftPatterns.java").read_text()
+
+        self.assertIn("getBoolean(account, PROFILE_BACKGROUND_EMOJI, true)", settings)
+        self.assertIn("AppearanceSettings.showsProfileBackgroundEmoji(currentAccount)", activity)
+        self.assertIn(
+            "AppearanceSettings.setShowsProfileBackgroundEmoji(currentAccount, shown)",
+            activity,
+        )
+        self.assertEqual(
+            2,
+            profile.count("AppearanceSettings.showsProfileBackgroundEmoji(currentAccount)"),
+        )
+        self.assertIn("UserObject.getProfileEmojiId(user)", profile)
+        self.assertIn("ChatObject.getProfileEmojiId(chat)", profile)
+        self.assertNotIn("AppearanceSettings", patterns)
 
     def test_main_dialogs_title_hook_is_fail_closed(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()

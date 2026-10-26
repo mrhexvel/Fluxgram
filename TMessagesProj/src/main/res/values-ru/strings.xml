@@ -356,6 +356,7 @@
     <string name="FluxGramPrivacy">Скрытность</string>
     <string name="FluxGramProfile">Профиль</string>
     <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>
+    <string name="FluxGramHideProfilePhoneNumbers">Скрывать номера телефонов в профилях</string>
     <string name="FluxGramShowProfileIdDc">Показывать ID профиля и DC фотографии</string>
     <string name="FluxGramPhoneHiddenValue">Номер телефона скрыт</string>
     <string name="FluxGramUserId">ID пользователя</string>
@@ -372,6 +373,7 @@
     <string name="FluxGramFontsAndEmoji">Шрифты и эмодзи</string>
     <string name="FluxGramUseSystemEmoji">Использовать системные эмодзи</string>
     <string name="FluxGramGooeyAvatar">Тягучая аватарка</string>
+    <string name="FluxGramProfileBackgroundEmoji">Эмодзи в фоне профиля</string>
     <string name="FluxGramCustomChatThemes">Различные темы в чатах</string>
     <string name="FluxGramFontMode">Режим шрифта</string>
     <string name="FluxGramFontModeInfo">Настройка общая для всех аккаунтов. Предпросмотр показывает сохранённый выбор. Полностью перезапустите FluxGram, чтобы применить его к интерфейсу.</string>

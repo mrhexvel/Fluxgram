@@ -162,6 +162,8 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int MIRROR_ATTACH_FRONT_PHOTOS = 84;
     private static final int RESET_ATTACH_CAMERA_ZOOM = 85;
     private static final int INTERFACE_ICONS = 86;
+    private static final int PROFILE_BACKGROUND_EMOJI = 87;
+    private static final int HIDE_PROFILE_PHONE_NUMBERS = 88;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -448,6 +450,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     LocaleController.getString(R.string.FluxGramHideOwnPhone)
             ).setChecked(ProfileDisplaySettings.hidesOwnPhone()));
             items.add(UItem.asCheck(
+                    HIDE_PROFILE_PHONE_NUMBERS,
+                    LocaleController.getString(R.string.FluxGramHideProfilePhoneNumbers)
+            ).setChecked(ProfileDisplaySettings.hidesProfilePhoneNumbers()));
+            items.add(UItem.asCheck(
                     SHOW_PROFILE_ID_DC,
                     LocaleController.getString(R.string.FluxGramShowProfileIdDc)
             ).setChecked(ProfileDisplaySettings.showsIdAndDc()));
@@ -552,6 +558,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     GOOEY_AVATAR,
                     LocaleController.getString(R.string.FluxGramGooeyAvatar)
             ).setChecked(AppearanceSettings.usesGooeyAvatar(currentAccount)));
+            items.add(UItem.asCheck(
+                    PROFILE_BACKGROUND_EMOJI,
+                    LocaleController.getString(R.string.FluxGramProfileBackgroundEmoji)
+            ).setChecked(AppearanceSettings.showsProfileBackgroundEmoji(currentAccount)));
             items.add(UItem.asCheck(
                     CUSTOM_CHAT_THEMES,
                     LocaleController.getString(R.string.FluxGramCustomChatThemes)
@@ -1080,6 +1090,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ProfileDisplaySettings.setHidesOwnPhone(hidden);
                 ((TextCheckCell) view).setChecked(hidden);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == HIDE_PROFILE_PHONE_NUMBERS) {
+                boolean hidden = !ProfileDisplaySettings.hidesProfilePhoneNumbers();
+                ProfileDisplaySettings.setHidesProfilePhoneNumbers(hidden);
+                ((TextCheckCell) view).setChecked(hidden);
+                parentLayout.rebuildFragments(0);
             } else if (item.id == SHOW_PROFILE_ID_DC) {
                 boolean shown = !ProfileDisplaySettings.showsIdAndDc();
                 ProfileDisplaySettings.setShowsIdAndDc(shown);
@@ -1335,6 +1350,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !AppearanceSettings.usesGooeyAvatar(currentAccount);
                 AppearanceSettings.setUsesGooeyAvatar(currentAccount, enabled);
                 ((TextCheckCell) view).setChecked(enabled);
+                scheduleAppearanceRebuild();
+            } else if (item.id == PROFILE_BACKGROUND_EMOJI) {
+                boolean shown = !AppearanceSettings.showsProfileBackgroundEmoji(currentAccount);
+                AppearanceSettings.setShowsProfileBackgroundEmoji(currentAccount, shown);
+                ((TextCheckCell) view).setChecked(shown);
                 scheduleAppearanceRebuild();
             } else if (item.id == CUSTOM_CHAT_THEMES) {
                 boolean enabled = !AppearanceSettings.usesCustomChatThemes(currentAccount);

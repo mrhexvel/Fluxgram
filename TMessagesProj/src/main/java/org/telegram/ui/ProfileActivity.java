@@ -680,7 +680,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int infoEndRowEmpty;
     private int phoneRow;
     private int profileIdRow;
-    private int profileDcRow;
     private int noteRow;
     private int locationRow;
     private int userInfoRow;
@@ -9476,11 +9475,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         } else if (id == NotificationCenter.peerSettingsDidLoad) {
             final long uid = (Long) args[0];
-            if (uid == userId && registrationDateRequestAnchor != null) {
+            if (uid == userId) {
                 registrationDateLoaded = true;
+            }
+            if (uid == userId && registrationDateRequestAnchor != null) {
                 View anchor = registrationDateRequestAnchor;
                 registrationDateRequestAnchor = null;
-                if (registrationDateHint != null && registrationDateHint.shown() && anchor.isAttachedToWindow()) {
+                if (contentView != null && anchor.isAttachedToWindow()) {
                     CharSequence text = getProfileRegistrationDate();
                     if (text == null) {
                         text = LocaleController.getString(R.string.FluxGramRegistrationDateUnavailable);
@@ -10784,7 +10785,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         infoEndRowEmpty = -1;
         phoneRow = -1;
         profileIdRow = -1;
-        profileDcRow = -1;
         noteRow = -1;
         userInfoRow = -1;
         locationRow = -1;
@@ -11003,7 +11003,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (ProfileDisplaySettings.showsIdAndDc()) {
                     profileIdRow = rowCount++;
-                    profileDcRow = rowCount++;
                 }
                 if (actionsView == null && userId != getUserConfig().getClientUserId()) {
                     notificationsRow = rowCount++;
@@ -11152,7 +11151,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (showProfileIdentity) {
                     profileIdRow = rowCount++;
-                    profileDcRow = rowCount++;
                 }
             }
             if (emptyRow < 0 && emptyRow2 < 0) {
@@ -11602,7 +11600,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 updatedPeerColor();
             }
             if (topView != null) {
-                topView.setBackgroundEmojiId(UserObject.getProfileEmojiId(user), user != null && user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible, true);
+                long backgroundEmojiId = AppearanceSettings.showsProfileBackgroundEmoji(currentAccount)
+                        ? UserObject.getProfileEmojiId(user)
+                        : 0;
+                topView.setBackgroundEmojiId(
+                        backgroundEmojiId,
+                        backgroundEmojiId != 0 && user != null && user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible,
+                        true
+                );
             }
             if (ratingView != null) {
                 ratingView.updateColors(peerColor);
@@ -11920,7 +11925,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 updatedPeerColor();
             }
             if (topView != null) {
-                topView.setBackgroundEmojiId(ChatObject.getProfileEmojiId(chat), chat != null && chat.emoji_status instanceof TLRPC.TL_emojiStatusCollectible, true);
+                long backgroundEmojiId = AppearanceSettings.showsProfileBackgroundEmoji(currentAccount)
+                        ? ChatObject.getProfileEmojiId(chat)
+                        : 0;
+                topView.setBackgroundEmojiId(
+                        backgroundEmojiId,
+                        backgroundEmojiId != 0 && chat != null && chat.emoji_status instanceof TLRPC.TL_emojiStatusCollectible,
+                        true
+                );
             }
             setCollectibleGiftStatus(chat.emoji_status instanceof TLRPC.TL_emojiStatusCollectible ? (TLRPC.TL_emojiStatusCollectible) chat.emoji_status : null);
 
@@ -13847,14 +13859,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             containsGift = !myProfile && today && !getMessagesController().premiumPurchaseBlocked();
                         }
                     } else if (position == phoneRow) {
-                        String text;
+                        CharSequence text;
                         TLRPC.User user = getMessagesController().getUser(userId);
                         String phoneNumber;
                         if (user != null && !TextUtils.isEmpty(vcardPhone)) {
                             text = PhoneFormat.getInstance().format("+" + vcardPhone);
                             phoneNumber = vcardPhone;
                         } else if (user != null && !TextUtils.isEmpty(user.phone)) {
-                            text = PhoneFormat.getInstance().format("+" + user.phone);
+                            String formattedPhone = PhoneFormat.getInstance().format("+ " + user.phone);
+                            text = ProfileDisplaySettings.hidesProfilePhoneNumbers()
+                                    ? ProfileDisplaySettings.maskProfilePhone(formattedPhone)
+                                    : formattedPhone;
                             phoneNumber = user.phone;
                         } else {
                             text = LocaleController.getString(R.string.PhoneHidden);
@@ -13864,14 +13879,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), false);
                     } else if (position == profileIdRow) {
                         long id = userId != 0 ? userId : chatId;
-                        int label = userId != 0 ? R.string.FluxGramUserId : R.string.FluxGramChatId;
-                        detailCell.setTextAndValue(String.valueOf(id), LocaleController.getString(label), false);
-                    } else if (position == profileDcRow) {
                         int dc = userId != 0
                                 ? ProfileDisplaySettings.getProfilePhotoDc(getMessagesController().getUser(userId))
                                 : ProfileDisplaySettings.getProfilePhotoDc(currentChat);
-                        String value = dc > 0 ? String.valueOf(dc) : LocaleController.getString(R.string.Unavailable);
-                        detailCell.setTextAndValue(value, LocaleController.getString(R.string.FluxGramProfilePhotoDc), false);
+                        DecimalFormat format = new DecimalFormat("#,###", new DecimalFormatSymbols(Locale.US));
+                        format.setGroupingSize(3);
+                        DecimalFormatSymbols symbols = format.getDecimalFormatSymbols();
+                        symbols.setGroupingSeparator(' ');
+                        format.setDecimalFormatSymbols(symbols);
+                        String formattedId = (userId == 0 ? "-100 " : "") + format.format(id);
+                        detailCell.setTextAndValue(
+                                "ID: " + formattedId,
+                                ProfileDisplaySettings.getProfilePhotoDcDescription(dc),
+                                false
+                        );
                     } else if (position == noteRow) {
                         final TLRPC.UserFull userInfo = getMessagesController().getUserFull(userId);
                         if (userInfo == null) return;
@@ -14650,9 +14671,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            if (position == profileDcRow) {
-                return false;
-            }
             if (position == profileIdRow) {
                 return true;
             }
@@ -14694,7 +14712,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
             } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow ||
-                    position == profileIdRow || position == profileDcRow) {
+                    position == profileIdRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -15920,21 +15938,32 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return;
         }
 
-        CharSequence text = getProfileRegistrationDate();
-        if (text != null) {
-            showRegistrationDateHint(view, text);
-        } else if (registrationDateLoaded) {
-            showRegistrationDateHint(view, LocaleController.getString(R.string.FluxGramRegistrationDateUnavailable));
+        String registrationMonth = getMessagesController().getPeerRegistrationMonth(userId);
+        if (!TextUtils.isEmpty(registrationMonth) || registrationDateLoaded) {
+            CharSequence text = getProfileRegistrationDate();
+            showRegistrationDateHint(
+                    view,
+                    text != null ? text : LocaleController.getString(R.string.FluxGramRegistrationDateUnavailable)
+            );
             return;
-        } else {
-            showRegistrationDateHint(view, LocaleController.getString(R.string.Loading));
         }
 
+        if (registrationDateRequestAnchor != null) {
+            return;
+        }
         registrationDateRequestAnchor = view;
 
         TLRPC.User user = getMessagesController().getUser(userId);
         if (user != null) {
             getMessagesController().loadPeerSettings(user, null, true);
+        } else {
+            registrationDateLoaded = true;
+            registrationDateRequestAnchor = null;
+            CharSequence text = getProfileRegistrationDate();
+            showRegistrationDateHint(
+                    view,
+                    text != null ? text : LocaleController.getString(R.string.FluxGramRegistrationDateUnavailable)
+            );
         }
     }
 
@@ -16001,6 +16030,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             hint.setTranslationY(y + view.getHeight());
             hint.setJointPx(0f, -AndroidUtilities.dp(16) + x + view.getWidth() / 2f);
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             hint.show();
         });
     }
@@ -16200,7 +16230,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, infoEndRowEmpty, sparseIntArray);
             put(++pointer, phoneRow, sparseIntArray);
             put(++pointer, profileIdRow, sparseIntArray);
-            put(++pointer, profileDcRow, sparseIntArray);
             put(++pointer, noteRow, sparseIntArray);
             put(++pointer, locationRow, sparseIntArray);
             put(++pointer, userInfoRow, sparseIntArray);
