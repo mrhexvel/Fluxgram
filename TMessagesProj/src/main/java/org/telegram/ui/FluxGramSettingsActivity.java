@@ -164,6 +164,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private static final int INTERFACE_ICONS = 86;
     private static final int PROFILE_BACKGROUND_EMOJI = 87;
     private static final int HIDE_PROFILE_PHONE_NUMBERS = 88;
+    private static final int PROFILE_BACKGROUND_COLOR = 89;
+    private static final int SHOW_PROFILE_CHANNEL = 90;
+    private static final int SHOW_PROFILE_BIRTHDAY = 91;
+    private static final int SHOW_PROFILE_BUSINESS = 92;
     private static final int DOWNLOADS_DIRECTORY_REQUEST = 1001;
 
     private final int section;
@@ -457,6 +461,18 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     SHOW_PROFILE_ID_DC,
                     LocaleController.getString(R.string.FluxGramShowProfileIdDc)
             ).setChecked(ProfileDisplaySettings.showsIdAndDc()));
+            items.add(UItem.asCheck(
+                    SHOW_PROFILE_CHANNEL,
+                    LocaleController.getString(R.string.FluxGramShowProfileChannel)
+            ).setChecked(ProfileDisplaySettings.showsProfileChannel()));
+            items.add(UItem.asCheck(
+                    SHOW_PROFILE_BIRTHDAY,
+                    LocaleController.getString(R.string.FluxGramShowProfileBirthday)
+            ).setChecked(ProfileDisplaySettings.showsProfileBirthday()));
+            items.add(UItem.asCheck(
+                    SHOW_PROFILE_BUSINESS,
+                    LocaleController.getString(R.string.FluxGramShowProfileBusiness)
+            ).setChecked(ProfileDisplaySettings.showsProfileBusiness()));
             items.add(UItem.asShadow(null));
 
             return;
@@ -558,6 +574,10 @@ public class FluxGramSettingsActivity extends BaseFragment {
                     GOOEY_AVATAR,
                     LocaleController.getString(R.string.FluxGramGooeyAvatar)
             ).setChecked(AppearanceSettings.usesGooeyAvatar(currentAccount)));
+            items.add(UItem.asCheck(
+                    PROFILE_BACKGROUND_COLOR,
+                    LocaleController.getString(R.string.FluxGramProfileBackgroundColor)
+            ).setChecked(AppearanceSettings.showsProfileBackgroundColor(currentAccount)));
             items.add(UItem.asCheck(
                     PROFILE_BACKGROUND_EMOJI,
                     LocaleController.getString(R.string.FluxGramProfileBackgroundEmoji)
@@ -1100,6 +1120,21 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 ProfileDisplaySettings.setShowsIdAndDc(shown);
                 ((TextCheckCell) view).setChecked(shown);
                 parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_PROFILE_CHANNEL) {
+                boolean shown = !ProfileDisplaySettings.showsProfileChannel();
+                ProfileDisplaySettings.setShowsProfileChannel(shown);
+                ((TextCheckCell) view).setChecked(shown);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_PROFILE_BIRTHDAY) {
+                boolean shown = !ProfileDisplaySettings.showsProfileBirthday();
+                ProfileDisplaySettings.setShowsProfileBirthday(shown);
+                ((TextCheckCell) view).setChecked(shown);
+                parentLayout.rebuildFragments(0);
+            } else if (item.id == SHOW_PROFILE_BUSINESS) {
+                boolean shown = !ProfileDisplaySettings.showsProfileBusiness();
+                ProfileDisplaySettings.setShowsProfileBusiness(shown);
+                ((TextCheckCell) view).setChecked(shown);
+                parentLayout.rebuildFragments(0);
             }
 
             return;
@@ -1350,6 +1385,11 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 boolean enabled = !AppearanceSettings.usesGooeyAvatar(currentAccount);
                 AppearanceSettings.setUsesGooeyAvatar(currentAccount, enabled);
                 ((TextCheckCell) view).setChecked(enabled);
+                scheduleAppearanceRebuild();
+            } else if (item.id == PROFILE_BACKGROUND_COLOR) {
+                boolean shown = !AppearanceSettings.showsProfileBackgroundColor(currentAccount);
+                AppearanceSettings.setShowsProfileBackgroundColor(currentAccount, shown);
+                ((TextCheckCell) view).setChecked(shown);
                 scheduleAppearanceRebuild();
             } else if (item.id == PROFILE_BACKGROUND_EMOJI) {
                 boolean shown = !AppearanceSettings.showsProfileBackgroundEmoji(currentAccount);

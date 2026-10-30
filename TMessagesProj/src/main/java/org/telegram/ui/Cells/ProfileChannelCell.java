@@ -27,6 +27,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.NativeByteBuffer;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -340,48 +341,59 @@ public class ProfileChannelCell extends FrameLayout implements Theme.Colorable {
                         }
                     }
 
-                    final TLRPC.TL_channels_getMessages req = new TLRPC.TL_channels_getMessages();
-                    req.channel = MessagesController.getInstance(currentAccount).getInputChannel(channel_id);
-                    for (int i = 10; i >= 0; --i) {
-                        final int id = message_id - i;
-                        if (id >= 0)
-                            req.id.add(id);
-                    }
-                    ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, err) -> AndroidUtilities.runOnUIThread(() -> {
-                        if (response instanceof TLRPC.messages_Messages) {
-                            final TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
-                            MessagesController.getInstance(currentAccount).putUsers(res.users, false);
-                            MessagesController.getInstance(currentAccount).putChats(res.chats, false);
-                            storage.putUsersAndChats(res.users, res.chats, true, true);
-                            storage.putMessages(res, -channel_id, MessagesController.LOAD_AROUND_MESSAGE, 0, false, 0, 0);
-
-                            if (thisSearchId != searchId) return;
-
-                            if (!res.messages.isEmpty()) {
-                                messageObjects.clear();
-                                Collections.sort(messages, Comparator.comparingInt(msg -> msg.id));
-                                final TLRPC.Message lastMessage = res.messages.get(res.messages.size() - 1);
-                                final long grouped_id = lastMessage.grouped_id;
-                                if (grouped_id != 0) {
-                                    for (TLRPC.Message message : res.messages) {
-                                        if (message.grouped_id == grouped_id) {
-                                            messageObjects.add(new MessageObject(currentAccount, message, false, true));
-                                        }
-                                    }
-                                } else {
-                                    messageObjects.add(new MessageObject(currentAccount, lastMessage, false, true));
-                                }
-
-                                if (!messageObjects.isEmpty()) {
-                                    done(false);
-                                }
+                    if (message_id <= 0) {
+                        final TLRPC.TL_messages_getHistory req = new TLRPC.TL_messages_getHistory();
+                        req.peer = MessagesController.getInstance(currentAccount).getInputPeer(-channel_id);
+                        req.limit = 10;
+                        ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, err) -> processResponse(thisSearchId, channel_id, storage, response));
+                    } else {
+                        final TLRPC.TL_channels_getMessages req = new TLRPC.TL_channels_getMessages();
+                        req.channel = MessagesController.getInstance(currentAccount).getInputChannel(channel_id);
+                        for (int i = 10; i >= 0; --i) {
+                            final int id = message_id - i;
+                            if (id > 0) {
+                                req.id.add(id);
                             }
-                        } else {
-                            if (thisSearchId != searchId) return;
-                            done(true);
                         }
-                    }));
+                        ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, err) -> processResponse(thisSearchId, channel_id, storage, response));
+                    }
                 });
+            });
+        }
+
+        private void processResponse(int thisSearchId, long channelId, MessagesStorage storage, TLObject response) {
+            AndroidUtilities.runOnUIThread(() -> {
+                if (thisSearchId != searchId) {
+                    return;
+                }
+                if (!(response instanceof TLRPC.messages_Messages)) {
+                    done(true);
+                    return;
+                }
+
+                final TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+                MessagesController.getInstance(currentAccount).putUsers(res.users, false);
+                MessagesController.getInstance(currentAccount).putChats(res.chats, false);
+                storage.putUsersAndChats(res.users, res.chats, true, true);
+                storage.putMessages(res, -channelId, MessagesController.LOAD_AROUND_MESSAGE, 0, false, 0, 0);
+
+                messageObjects.clear();
+                if (!res.messages.isEmpty()) {
+                    final ArrayList<TLRPC.Message> messages = new ArrayList<>(res.messages);
+                    Collections.sort(messages, Comparator.comparingInt(msg -> msg.id));
+                    final TLRPC.Message lastMessage = messages.get(messages.size() - 1);
+                    final long groupedId = lastMessage.grouped_id;
+                    if (groupedId != 0) {
+                        for (TLRPC.Message message : messages) {
+                            if (message.grouped_id == groupedId) {
+                                messageObjects.add(new MessageObject(currentAccount, message, false, true));
+                            }
+                        }
+                    } else {
+                        messageObjects.add(new MessageObject(currentAccount, lastMessage, false, true));
+                    }
+                }
+                done(false);
             });
         }
 

@@ -29,6 +29,7 @@ public final class AppearanceSettings {
     private static final String GLASS_OUTLINE_STYLE = "glass_outline_style";
     private static final String GOOEY_AVATAR = "gooey_avatar";
     private static final String CUSTOM_CHAT_THEMES = "custom_chat_themes";
+    private static final String PROFILE_BACKGROUND_COLOR = "profile_background_color";
     private static final String PROFILE_BACKGROUND_EMOJI = "profile_background_emoji";
 
     public static final int TITLE_APP_NAME = 0;
@@ -219,6 +220,14 @@ public final class AppearanceSettings {
 
     public static void setUsesCustomChatThemes(int account, boolean enabled) {
         setBoolean(account, CUSTOM_CHAT_THEMES, enabled);
+    }
+
+    public static boolean showsProfileBackgroundColor(int account) {
+        return getBoolean(account, PROFILE_BACKGROUND_COLOR, true);
+    }
+
+    public static void setShowsProfileBackgroundColor(int account, boolean shown) {
+        setBoolean(account, PROFILE_BACKGROUND_COLOR, shown);
     }
 
     public static boolean showsProfileBackgroundEmoji(int account) {

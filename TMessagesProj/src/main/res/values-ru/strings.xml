@@ -358,6 +358,9 @@
     <string name="FluxGramHideOwnPhone">Скрывать мой номер телефона</string>
     <string name="FluxGramHideProfilePhoneNumbers">Скрывать номера телефонов в профилях</string>
     <string name="FluxGramShowProfileIdDc">Показывать ID профиля и DC фотографии</string>
+    <string name="FluxGramShowProfileChannel">Показывать канал в профиле</string>
+    <string name="FluxGramShowProfileBirthday">Показывать дату рождения в профиле</string>
+    <string name="FluxGramShowProfileBusiness">Показывать бизнес-информацию в профиле</string>
     <string name="FluxGramPhoneHiddenValue">Номер телефона скрыт</string>
     <string name="FluxGramUserId">ID пользователя</string>
     <string name="FluxGramChatId">ID чата</string>
@@ -373,6 +376,7 @@
     <string name="FluxGramFontsAndEmoji">Шрифты и эмодзи</string>
     <string name="FluxGramUseSystemEmoji">Использовать системные эмодзи</string>
     <string name="FluxGramGooeyAvatar">Тягучая аватарка</string>
+    <string name="FluxGramProfileBackgroundColor">Цветной фон профиля</string>
     <string name="FluxGramProfileBackgroundEmoji">Эмодзи в фоне профиля</string>
     <string name="FluxGramCustomChatThemes">Различные темы в чатах</string>
     <string name="FluxGramFontMode">Режим шрифта</string>

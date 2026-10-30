@@ -15,11 +15,17 @@ public final class ProfileDisplaySettings {
     private static final String HIDE_OWN_PHONE = "fluxgram_hide_own_phone";
     private static final String HIDE_PROFILE_PHONE_NUMBERS = "fluxgram_hide_profile_phone_numbers";
     private static final String SHOW_ID_AND_DC = "fluxgram_show_profile_id_dc";
+    private static final String SHOW_PROFILE_CHANNEL = "fluxgram_show_profile_channel";
+    private static final String SHOW_PROFILE_BIRTHDAY = "fluxgram_show_profile_birthday";
+    private static final String SHOW_PROFILE_BUSINESS = "fluxgram_show_profile_business";
 
     private static volatile boolean loaded;
     private static volatile boolean hideOwnPhone;
     private static volatile boolean hideProfilePhoneNumbers;
     private static volatile boolean showIdAndDc;
+    private static volatile boolean showProfileChannel;
+    private static volatile boolean showProfileBirthday;
+    private static volatile boolean showProfileBusiness;
 
     public static boolean hidesOwnPhone() {
         ensureLoaded();
@@ -70,6 +76,57 @@ public final class ProfileDisplaySettings {
                 .apply();
 
         showIdAndDc = shown;
+    }
+
+    public static boolean showsProfileChannel() {
+        ensureLoaded();
+
+        return showProfileChannel;
+    }
+
+    public static synchronized void setShowsProfileChannel(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_PROFILE_CHANNEL, shown)
+                .apply();
+
+        showProfileChannel = shown;
+    }
+
+    public static boolean showsProfileBirthday() {
+        ensureLoaded();
+
+        return showProfileBirthday;
+    }
+
+    public static synchronized void setShowsProfileBirthday(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_PROFILE_BIRTHDAY, shown)
+                .apply();
+
+        showProfileBirthday = shown;
+    }
+
+    public static boolean showsProfileBusiness() {
+        ensureLoaded();
+
+        return showProfileBusiness;
+    }
+
+    public static synchronized void setShowsProfileBusiness(boolean shown) {
+        ensureLoaded();
+
+        MessagesController.getGlobalMainSettings()
+                .edit()
+                .putBoolean(SHOW_PROFILE_BUSINESS, shown)
+                .apply();
+
+        showProfileBusiness = shown;
     }
 
     public static String getNameWithoutPhone(TLRPC.User user) {
@@ -155,6 +212,9 @@ public final class ProfileDisplaySettings {
             hideOwnPhone = preferences.getBoolean(HIDE_OWN_PHONE, false);
             hideProfilePhoneNumbers = preferences.getBoolean(HIDE_PROFILE_PHONE_NUMBERS, true);
             showIdAndDc = preferences.getBoolean(SHOW_ID_AND_DC, false);
+            showProfileChannel = preferences.getBoolean(SHOW_PROFILE_CHANNEL, true);
+            showProfileBirthday = preferences.getBoolean(SHOW_PROFILE_BIRTHDAY, true);
+            showProfileBusiness = preferences.getBoolean(SHOW_PROFILE_BUSINESS, true);
             loaded = true;
         }
     }

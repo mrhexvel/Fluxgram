@@ -170,6 +170,32 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("new BitmapDrawable(getResources(), bitmap)", profile)
         self.assertNotIn("AppearanceSettings", patterns)
 
+    def test_profile_background_color_toggle_is_limited_to_header(self):
+        settings = (JAVA / "messenger/fluxgram/AppearanceSettings.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
+        profile = (JAVA / "ui/ProfileActivity.java").read_text()
+
+        self.assertIn("getBoolean(account, PROFILE_BACKGROUND_COLOR, true)", settings)
+        self.assertIn("AppearanceSettings.showsProfileBackgroundColor(currentAccount)", activity)
+        self.assertIn(
+            "AppearanceSettings.setShowsProfileBackgroundColor(currentAccount, shown)",
+            activity,
+        )
+        self.assertIn(
+            "profileBackgroundColorEnabled = AppearanceSettings.showsProfileBackgroundColor(currentAccount)",
+            profile,
+        )
+        self.assertIn(
+            "topView.setBackgroundColorId(peerColor, profileBackgroundColorEnabled",
+            profile,
+        )
+        self.assertIn("hasColorAnimated.set(hasProfileBackgroundColor)", profile)
+        self.assertIn("emoji.setColor(emojiColor);", profile)
+        self.assertIn("actionsView.setActionsColor(btnColor, hasColorById)", profile)
+        self.assertIn("musicView.setButtonColor(btnColor, hasColorById)", profile)
+        self.assertIn("actionBar && !profileBackgroundColorEnabled", profile)
+        self.assertIn("if (peerColor != null && Theme.hasHue(color1))", profile)
+
     def test_main_dialogs_title_hook_is_fail_closed(self):
         source = (JAVA / "ui/DialogsActivity.java").read_text()
         stories = (JAVA / "ui/fluxgram/appearance/FluxGramDialogStoriesCell.java").read_text()

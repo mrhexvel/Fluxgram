@@ -8,20 +8,65 @@ JAVA = ROOT / "TMessagesProj/src/main/java/org/telegram"
 
 
 class ProfileDisplaySettingsTest(unittest.TestCase):
-    def test_settings_are_global_and_disabled_by_default(self):
+    def test_settings_are_global_with_preserving_defaults(self):
         settings = (JAVA / "messenger/fluxgram/ProfileDisplaySettings.java").read_text()
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
 
         self.assertIn('HIDE_OWN_PHONE = "fluxgram_hide_own_phone"', settings)
         self.assertIn('HIDE_PROFILE_PHONE_NUMBERS = "fluxgram_hide_profile_phone_numbers"', settings)
         self.assertIn('SHOW_ID_AND_DC = "fluxgram_show_profile_id_dc"', settings)
+        self.assertIn('SHOW_PROFILE_CHANNEL = "fluxgram_show_profile_channel"', settings)
+        self.assertIn('SHOW_PROFILE_BIRTHDAY = "fluxgram_show_profile_birthday"', settings)
+        self.assertIn('SHOW_PROFILE_BUSINESS = "fluxgram_show_profile_business"', settings)
         self.assertIn("getBoolean(HIDE_OWN_PHONE, false)", settings)
         self.assertIn("getBoolean(HIDE_PROFILE_PHONE_NUMBERS, true)", settings)
         self.assertIn("getBoolean(SHOW_ID_AND_DC, false)", settings)
+        self.assertIn("getBoolean(SHOW_PROFILE_CHANNEL, true)", settings)
+        self.assertIn("getBoolean(SHOW_PROFILE_BIRTHDAY, true)", settings)
+        self.assertIn("getBoolean(SHOW_PROFILE_BUSINESS, true)", settings)
         self.assertIn("addSectionLabel(items, R.string.FluxGramProfile);", activity)
         self.assertIn(".setChecked(ProfileDisplaySettings.hidesOwnPhone())", activity)
         self.assertIn(".setChecked(ProfileDisplaySettings.hidesProfilePhoneNumbers())", activity)
         self.assertIn(".setChecked(ProfileDisplaySettings.showsIdAndDc())", activity)
+        self.assertIn(".setChecked(ProfileDisplaySettings.showsProfileChannel())", activity)
+        self.assertIn(".setChecked(ProfileDisplaySettings.showsProfileBirthday())", activity)
+        self.assertIn(".setChecked(ProfileDisplaySettings.showsProfileBusiness())", activity)
+
+    def test_profile_preview_policies_gate_production_rows(self):
+        profile = (JAVA / "ui/ProfileActivity.java").read_text()
+        channel_cell = (JAVA / "ui/Cells/ProfileChannelCell.java").read_text()
+
+        self.assertIn(
+            "ProfileDisplaySettings.showsProfileChannel() && userInfo != null",
+            profile,
+        )
+        self.assertIn(
+            "ProfileDisplaySettings.showsProfileBirthday() && userInfo.birthday != null",
+            profile,
+        )
+        self.assertEqual(
+            2,
+            profile.count("ProfileDisplaySettings.showsProfileBusiness() && userInfo.business_"),
+        )
+        self.assertIn("private void updateLinkedProfileChannelFetcher()", profile)
+        self.assertIn("!currentChat.megagroup", profile)
+        self.assertIn("ChatObject.isCommunity(currentChat)", profile)
+        self.assertIn("ChatObject.isMonoForum(currentChat)", profile)
+        self.assertIn("profileChannelMessageFetcher.fetch(chatInfo.linked_chat_id, 0)", profile)
+        self.assertIn("profileChannelMessageFetcher.channel_id", profile)
+        self.assertIn("openDiscussion();", profile)
+        self.assertIn("new TLRPC.TL_messages_getHistory()", channel_cell)
+        self.assertIn("req.limit = 10;", channel_cell)
+        self.assertIn("new ArrayList<>(res.messages)", channel_cell)
+        self.assertNotIn("Collections.sort(res.messages", channel_cell)
+        self.assertIn("Collections.sort(messages", channel_cell)
+        linked_fetch = profile.index("profileChannelMessageFetcher.fetch(chatInfo.linked_chat_id, 0)")
+        linked_subscribe = profile.index("profileChannelMessageFetcher.subscribe", linked_fetch)
+        self.assertGreater(linked_subscribe, linked_fetch)
+        user_fetch = profile.index("profileChannelMessageFetcher.fetch(userInfo);", profile.index("public void setUserInfo("))
+        user_subscribe = profile.index("profileChannelMessageFetcher.subscribe", user_fetch)
+        self.assertGreater(user_subscribe, user_fetch)
+        self.assertIn("done(false);", channel_cell)
 
     def test_own_phone_is_hidden_only_on_self_facing_surfaces(self):
         settings_activity = (JAVA / "ui/SettingsActivity.java").read_text()

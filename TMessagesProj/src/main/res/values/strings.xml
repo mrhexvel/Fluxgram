@@ -11395,6 +11395,9 @@
     <string name="FluxGramHideOwnPhone">Hide my phone number</string>
     <string name="FluxGramHideProfilePhoneNumbers">Hide phone numbers in profiles</string>
     <string name="FluxGramShowProfileIdDc">Show profile ID and photo DC</string>
+    <string name="FluxGramShowProfileChannel">Show channel in profile</string>
+    <string name="FluxGramShowProfileBirthday">Show birthday in profile</string>
+    <string name="FluxGramShowProfileBusiness">Show business information in profile</string>
     <string name="FluxGramPhoneHiddenValue">Phone number hidden</string>
     <string name="FluxGramUserId">User ID</string>
     <string name="FluxGramChatId">Chat ID</string>
@@ -11410,6 +11413,7 @@
     <string name="FluxGramFontsAndEmoji">Fonts and emoji</string>
     <string name="FluxGramUseSystemEmoji">Use system emoji</string>
     <string name="FluxGramGooeyAvatar">Gooey avatar</string>
+    <string name="FluxGramProfileBackgroundColor">Colored profile background</string>
     <string name="FluxGramProfileBackgroundEmoji">Emoji in profile background</string>
     <string name="FluxGramCustomChatThemes">Custom chat themes</string>
     <string name="FluxGramFontMode">Font mode</string>
