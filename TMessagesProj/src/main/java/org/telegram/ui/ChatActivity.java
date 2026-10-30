@@ -19629,11 +19629,13 @@ public class ChatActivity extends BaseFragment implements
                 filtered
         );
         boolean wideMediaAlbum = shouldUseWideChannelMediaAlbum(groupedMessages, filtered);
+        boolean wideDocumentPost = shouldUseWideChannelDocumentPost(object, groupedMessages, filtered);
         dummyMessageCell.setWideTextPost(wideTextPost);
         dummyMessageCell.setWideMediaPost(wideMediaPost);
         dummyMessageCell.setWideMediaAlbum(wideMediaAlbum);
+        dummyMessageCell.setWideDocumentPost(wideDocumentPost);
         dummyMessageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
-        dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum);
+        dummyMessageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum && !wideDocumentPost);
         return dummyMessageCell.computeHeight(object, groupedMessages, withGroupCaption);
     }
 
@@ -41222,11 +41224,13 @@ public class ChatActivity extends BaseFragment implements
                     boolean wideTextPost = shouldUseWideChannelTextPost(message, groupedMessages, isFiltered);
                     boolean wideMediaPost = shouldUseWideChannelMediaPost(message, groupedMessages, isFiltered);
                     boolean wideMediaAlbum = shouldUseWideChannelMediaAlbum(groupedMessages, isFiltered);
+                    boolean wideDocumentPost = shouldUseWideChannelDocumentPost(message, groupedMessages, isFiltered);
                     messageCell.setWideTextPost(wideTextPost);
                     messageCell.setWideMediaPost(wideMediaPost);
                     messageCell.setWideMediaAlbum(wideMediaAlbum);
+                    messageCell.setWideDocumentPost(wideDocumentPost);
                     messageCell.setDrawMessageTail(ChatSettings.showsMessageTails() && !wideTextPost);
-                    messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum);
+                    messageCell.setDrawMessageShareButton(ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum && !wideDocumentPost);
                     messageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser) || UserObject.isReplyUser(currentUser) || (chatMode == MODE_SEARCH);
                     messageCell.setSponsoredMessageVisible(true, false);
                     messageCell.isBotForum = UserObject.isBotForum(currentUser);
@@ -42296,6 +42300,26 @@ public class ChatActivity extends BaseFragment implements
 
         return (message.type == MessageObject.TYPE_VIDEO && message.isVideo() && !message.isGif())
                 || (message.type == MessageObject.TYPE_GIF && message.isGif());
+    }
+
+    private boolean shouldUseWideChannelDocumentPost(
+            MessageObject message,
+            MessageObject.GroupedMessages groupedMessages,
+            boolean filtered
+    ) {
+        if (!shouldUseWideChannelPostSurface(message, filtered)
+                || groupedMessages != null
+                || message.getGroupId() != 0
+                || message.type != MessageObject.TYPE_FILE
+                || message.isPaid()
+                || message.isPaidSuggestedPost()) {
+            return false;
+        }
+
+        TLRPC.MessageMedia media = message.messageOwner.media;
+        return media instanceof TLRPC.TL_messageMediaDocument
+                && media.document != null
+                && media.extended_media.isEmpty();
     }
 
     private boolean shouldUseWideChannelMediaAlbum(

@@ -950,6 +950,22 @@ class ChatSettingsTest(unittest.TestCase):
             self.assertIn(gate, ordinary_media)
         self.assertNotIn("MessageObject.getMedia", ordinary_media)
 
+        document_policy = chat.split(
+            "private boolean shouldUseWideChannelDocumentPost(", 1
+        )[1].split("\n    }", 1)[0]
+        for gate in (
+            "shouldUseWideChannelPostSurface",
+            "groupedMessages != null",
+            "message.getGroupId() != 0",
+            "message.type != MessageObject.TYPE_FILE",
+            "message.isPaid()",
+            "message.isPaidSuggestedPost()",
+            "TLRPC.TL_messageMediaDocument",
+            "media.document != null",
+            "media.extended_media.isEmpty()",
+        ):
+            self.assertIn(gate, document_policy)
+
         album_policy = chat.split(
             "private boolean shouldUseWideChannelMediaAlbum(", 1
         )[1].split("\n    }", 1)[0]
@@ -976,25 +992,36 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("shouldUseWideChannelTextPost(message, groupedMessages, isFiltered)", bind)
         self.assertIn("shouldUseWideChannelMediaPost(message, groupedMessages, isFiltered)", bind)
         self.assertIn("shouldUseWideChannelMediaAlbum(groupedMessages, isFiltered)", bind)
+        self.assertIn("shouldUseWideChannelDocumentPost(message, groupedMessages, isFiltered)", bind)
         self.assertIn("messageCell.setWideTextPost(wideTextPost)", bind)
         self.assertIn("messageCell.setWideMediaPost(wideMediaPost)", bind)
         self.assertIn("messageCell.setWideMediaAlbum(wideMediaAlbum)", bind)
+        self.assertIn("messageCell.setWideDocumentPost(wideDocumentPost)", bind)
         self.assertIn("ChatSettings.showsMessageTails() && !wideTextPost", bind)
         self.assertIn(
-            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum",
+            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum && !wideDocumentPost",
             bind,
         )
 
         self.assertNotIn("messageTextWidthOverride", message)
         self.assertNotIn("setMessageTextWidthOverride", cell)
         self.assertIn("AndroidUtilities.getMinTabletSide()", cell)
+        self.assertIn("private int getWidePostStartInset()", cell)
+        self.assertIn("if (isSideMenuEnabled)", cell)
+        self.assertIn("if (isAvatarVisible)", cell)
+        self.assertIn("availableWidth - dp(40) - getWidePostStartInset()", cell)
+        avatar_visibility = cell.index("isAvatarVisible = needDrawAvatar()")
+        wide_text_layout = cell.index("updateWideTextLayout();", avatar_visibility)
+        self.assertGreater(wide_text_layout, avatar_visibility)
         self.assertIn("linkPreviewMaxWidth = maxWidth", cell)
         self.assertIn("drawSideButton != 0 && !wideTextPost", cell)
         self.assertIn("getWidePostContentWidth() + dp(mediaBackground ? 22 : 31)", cell)
         self.assertIn("backgroundWidth = getWidePostBackgroundWidth(false)", cell)
         self.assertIn("cell.setWideTextPost(wideTextPost)", cell)
         self.assertIn("cell.wideMediaPost = wideMediaPost", cell)
+        self.assertIn("cell.wideDocumentPost = wideDocumentPost", cell)
         self.assertIn("else if (wideMediaPost)", cell)
+        self.assertIn("} else if (!wideMediaPost) {", cell)
         self.assertIn("photoWidth = getWidePostBackgroundWidth(mediaBackground) - dp(8)", cell)
         self.assertIn("useFullWidth = true", cell)
         self.assertIn("wideMediaPost && imageH > imageW", cell)
@@ -1006,6 +1033,13 @@ class ChatSettingsTest(unittest.TestCase):
         )
         self.assertIn("wideMediaPost && photoWidth > w", cell)
         self.assertIn("photoImage.setAspectFit(true)", cell)
+        self.assertIn("backgroundWidth = wideDocumentPost", cell)
+        self.assertIn("? getWidePostBackgroundWidth(false)", cell)
+        self.assertIn("captionFullWidth = wideDocumentPost", cell)
+        self.assertIn("? getWidePostContentWidth()", cell)
+        self.assertIn("if (wideDocumentPost) {", cell)
+        self.assertIn("maxWidth = backgroundWidth - dp(86 + 52)", cell)
+        self.assertIn("currentPosition == null && !wideDocumentPost", cell)
 
         dummy = chat.split(
             "private int getHeightForMessage(MessageObject object, boolean withGroupCaption)",
@@ -1017,11 +1051,13 @@ class ChatSettingsTest(unittest.TestCase):
         self.assertIn("shouldUseWideChannelTextPost(", dummy)
         self.assertIn("shouldUseWideChannelMediaPost(", dummy)
         self.assertIn("shouldUseWideChannelMediaAlbum(groupedMessages, filtered)", dummy)
+        self.assertIn("shouldUseWideChannelDocumentPost(object, groupedMessages, filtered)", dummy)
         self.assertIn("dummyMessageCell.setWideTextPost(wideTextPost)", dummy)
         self.assertIn("dummyMessageCell.setWideMediaPost(wideMediaPost)", dummy)
         self.assertIn("dummyMessageCell.setWideMediaAlbum(wideMediaAlbum)", dummy)
+        self.assertIn("dummyMessageCell.setWideDocumentPost(wideDocumentPost)", dummy)
         self.assertIn(
-            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum",
+            "ChatSettings.showsMessageShareButton() && !wideTextPost && !wideMediaPost && !wideMediaAlbum && !wideDocumentPost",
             dummy,
         )
         self.assertIn(
