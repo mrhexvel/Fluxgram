@@ -536,8 +536,7 @@
     <string name="FluxGramBottomNavigationRestartError">Не удалось сохранить режим нижней навигации или перезапустить FluxGram.</string>
     <string name="FluxGramTransitionStyle">Переходы между экранами</string>
     <string name="FluxGramTransitionStyleDefault">По умолчанию</string>
-    <string name="FluxGramTransitionStyleAosp">AOSP</string>
-    <string name="FluxGramTransitionStyleSpring">Пружина</string>
+    <string name="FluxGramTransitionStyleSpring">Spring</string>
     <string name="FluxGramPredictiveBack">Предиктивный жест «Назад»</string>
     <string name="FluxGramPredictiveBackLow">Низкая</string>
     <string name="FluxGramPredictiveBackFull">Полная</string>

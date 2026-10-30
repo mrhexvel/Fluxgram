@@ -25,8 +25,9 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
                 public final class NavigationSettingsCheck {
                     public static void main(String[] args) {
                         require(NavigationSettings.normalizeTransitionStyle(-1) == NavigationSettings.TRANSITION_DEFAULT);
+                        require(NavigationSettings.normalizeTransitionStyle(1) == NavigationSettings.TRANSITION_DEFAULT);
+                        require(NavigationSettings.normalizeTransitionStyle(2) == NavigationSettings.TRANSITION_SPRING);
                         require(NavigationSettings.normalizeTransitionStyle(3) == NavigationSettings.TRANSITION_DEFAULT);
-                        require(NavigationSettings.normalizeTransitionStyle(1) == NavigationSettings.TRANSITION_AOSP);
                     }
 
                     private static void require(boolean value) {
@@ -68,26 +69,16 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
         self.assertNotIn("rightActionBarLayout", setup)
         self.assertNotIn("layersActionBarLayout", setup)
 
-    def test_aosp_transition_uses_complete_window_pipeline(self):
+    def test_aosp_transition_is_removed(self):
         policy = (JAVA / "ui/fluxgram/NavigationTransitionPolicy.java").read_text()
         layout = (JAVA / "ui/ActionBar/ActionBarLayout.java").read_text()
-        renderer = (JAVA / "ui/ActionBar/AospWindowTransition.java").read_text()
+        activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
 
-        self.assertIn("ActionBarLayout.FALLBACK_TRANSITION_AOSP", policy)
-        self.assertIn("CubicBezierInterpolator.Emphasized,\n                    450,", policy)
+        self.assertFalse((JAVA / "ui/ActionBar/AospWindowTransition.java").exists())
         self.assertIn("ActionBarLayout.FALLBACK_TRANSITION_SPRING", policy)
-        self.assertIn("prepareAospTransition(true)", layout)
-        self.assertIn("prepareAospTransition(false)", layout)
-        self.assertIn("AospWindowTransition.drawBackground", layout)
-        self.assertIn("drawAospEdgeExtension(canvas, child)", layout)
-        self.assertIn("resetTransitionView(containerView)", layout)
-        self.assertIn("resetTransitionView(containerViewBack)", layout)
-        self.assertIn("clearAospTransition()", layout)
-        self.assertIn("Settings.Global.TRANSITION_ANIMATION_SCALE", renderer)
-        self.assertIn("AndroidUtilities.dp(96)", renderer)
-        self.assertIn("new RenderNode", renderer)
-        self.assertIn("discardDisplayList()", renderer)
-        self.assertNotIn("messenger.fluxgram", renderer)
+        self.assertNotIn("AOSP", policy)
+        self.assertNotIn("Aosp", layout)
+        self.assertNotIn("TRANSITION_AOSP", activity)
 
     def test_spring_transition_uses_physics_and_full_window_geometry(self):
         layout = (JAVA / "ui/ActionBar/ActionBarLayout.java").read_text()
@@ -102,10 +93,7 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
         self.assertIn("springTransitionProgress = animationProgress", layout)
         self.assertIn("clearSpringTransition()", layout)
         self.assertIn("if (!springTransitionActive && (translationX != 0", layout)
-        self.assertGreaterEqual(
-            layout.count("if (springTransitionActive || aospTransitionActive) {"),
-            2,
-        )
+        self.assertGreaterEqual(layout.count("if (springTransitionActive) {"), 3)
         self.assertIn("STIFFNESS = 900.0f", renderer)
         self.assertIn("DAMPING_RATIO = 1.0f", renderer)
         self.assertIn("AndroidUtilities.lerp(0.85f, 1.0f", renderer)
@@ -151,8 +139,8 @@ class NavigationTransitionSettingsTest(unittest.TestCase):
     def test_navigation_screen_applies_style_live_and_restarts_callback_mode(self):
         activity = (JAVA / "ui/FluxGramSettingsActivity.java").read_text()
 
-        self.assertIn("NavigationTransitionPolicy.apply(parentLayout, index)", activity)
-        live_style = activity.split("SharedConfig.setNavigationTransitionStyle(index)", 1)[1].split(
+        self.assertIn("NavigationTransitionPolicy.apply(parentLayout, style)", activity)
+        live_style = activity.split("SharedConfig.setNavigationTransitionStyle(style)", 1)[1].split(
             "listView.adapter.update(true)", 1
         )[0]
         self.assertIn("if (!AndroidUtilities.isTablet())", live_style)

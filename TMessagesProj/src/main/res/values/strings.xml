@@ -11573,7 +11573,6 @@
     <string name="FluxGramBottomNavigationRestartError">Could not save the bottom navigation setting or restart FluxGram.</string>
     <string name="FluxGramTransitionStyle">Screen transitions</string>
     <string name="FluxGramTransitionStyleDefault">Default</string>
-    <string name="FluxGramTransitionStyleAosp">AOSP</string>
     <string name="FluxGramTransitionStyleSpring">Spring</string>
     <string name="FluxGramPredictiveBack">Predictive back</string>
     <string name="FluxGramPredictiveBackLow">Low</string>

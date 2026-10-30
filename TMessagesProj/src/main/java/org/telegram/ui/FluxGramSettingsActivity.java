@@ -1814,9 +1814,6 @@ public class FluxGramSettingsActivity extends BaseFragment {
     }
 
     private String transitionStyleOption(int style) {
-        if (style == NavigationSettings.TRANSITION_AOSP) {
-            return LocaleController.getString(R.string.FluxGramTransitionStyleAosp);
-        }
         if (style == NavigationSettings.TRANSITION_SPRING) {
             return LocaleController.getString(R.string.FluxGramTransitionStyleSpring);
         }
@@ -1827,10 +1824,9 @@ public class FluxGramSettingsActivity extends BaseFragment {
     private void showTransitionStyleDialog() {
         CharSequence[] options = {
                 transitionStyleOption(NavigationSettings.TRANSITION_DEFAULT),
-                transitionStyleOption(NavigationSettings.TRANSITION_AOSP),
                 transitionStyleOption(NavigationSettings.TRANSITION_SPRING)
         };
-        int selected = SharedConfig.navigationTransitionStyle;
+        int selected = SharedConfig.navigationTransitionStyle == NavigationSettings.TRANSITION_SPRING ? 1 : 0;
 
         showDialog(AlertsCreator.createSingleChoiceDialog(
                 getParentActivity(),
@@ -1838,9 +1834,12 @@ public class FluxGramSettingsActivity extends BaseFragment {
                 LocaleController.getString(R.string.FluxGramTransitionStyle),
                 selected,
                 (dialog, index) -> {
-                    SharedConfig.setNavigationTransitionStyle(index);
+                    int style = index == 1
+                            ? NavigationSettings.TRANSITION_SPRING
+                            : NavigationSettings.TRANSITION_DEFAULT;
+                    SharedConfig.setNavigationTransitionStyle(style);
                     if (!AndroidUtilities.isTablet()) {
-                        NavigationTransitionPolicy.apply(parentLayout, index);
+                        NavigationTransitionPolicy.apply(parentLayout, style);
                     }
                     listView.adapter.update(true);
                 },

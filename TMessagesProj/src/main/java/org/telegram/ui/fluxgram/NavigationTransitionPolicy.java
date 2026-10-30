@@ -3,7 +3,6 @@ package org.telegram.ui.fluxgram;
 import org.telegram.messenger.fluxgram.NavigationSettings;
 import org.telegram.ui.ActionBar.ActionBarLayout;
 import org.telegram.ui.ActionBar.INavigationLayout;
-import org.telegram.ui.Components.CubicBezierInterpolator;
 
 public final class NavigationTransitionPolicy {
     private NavigationTransitionPolicy() {
@@ -17,14 +16,7 @@ public final class NavigationTransitionPolicy {
         ActionBarLayout actionBarLayout = (ActionBarLayout) layout;
         int normalizedStyle = NavigationSettings.normalizeTransitionStyle(style);
 
-        if (normalizedStyle == NavigationSettings.TRANSITION_AOSP) {
-            actionBarLayout.setFallbackTransitionAnimation(
-                    ActionBarLayout.FALLBACK_TRANSITION_AOSP,
-                    CubicBezierInterpolator.Emphasized,
-                    450,
-                    1.0f
-            );
-        } else if (normalizedStyle == NavigationSettings.TRANSITION_SPRING) {
+        if (normalizedStyle == NavigationSettings.TRANSITION_SPRING) {
             actionBarLayout.setFallbackTransitionAnimation(
                     ActionBarLayout.FALLBACK_TRANSITION_SPRING,
                     null,
