@@ -475,6 +475,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                     }
                 }
                 if (snowflakesEffect != null) {
+                    snowflakesEffect.setFrameDelayMillis(forceHolidayImage ? 16 : 0);
                     snowflakesEffect.onDraw(this, canvas);
                 } else if (fireworksEffect != null) {
                     fireworksEffect.onDraw(this, canvas);

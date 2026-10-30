@@ -81,6 +81,7 @@ public class SnowflakesEffect {
     private final ArrayList<Particle> freeParticles = new ArrayList<>();
 
     private int color;
+    private long frameDelayMillis;
 
     public SnowflakesEffect(int viewType) {
         this.viewType = viewType;
@@ -118,6 +119,10 @@ public class SnowflakesEffect {
     public void setColorKey(int key) {
         colorKey = key;
         updateColors();
+    }
+
+    public void setFrameDelayMillis(long frameDelayMillis) {
+        this.frameDelayMillis = Math.max(0, frameDelayMillis);
     }
 
     public void updateColors() {
@@ -240,7 +245,11 @@ public class SnowflakesEffect {
         long dt = Math.min(17, newTime - lastAnimationTime);
         updateParticles(dt);
         lastAnimationTime = newTime;
-        parent.invalidate();
+        if (frameDelayMillis > 0) {
+            parent.postInvalidateDelayed(frameDelayMillis);
+        } else {
+            parent.invalidate();
+        }
     }
 
 

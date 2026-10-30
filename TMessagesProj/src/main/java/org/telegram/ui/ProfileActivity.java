@@ -1315,7 +1315,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         @Override
         protected void onAttachedToWindow() {
             super.onAttachedToWindow();
-            emoji.attach();
+            if (!backgroundEmojiPaused) {
+                emoji.attach();
+            }
         }
 
         @Override
@@ -1329,16 +1331,51 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         public boolean hasEmoji;
         private boolean emojiIsCollectible;
+        private boolean backgroundEmojiPaused;
+        private BitmapDrawable backgroundEmojiSnapshot;
 
         public void setBackgroundEmojiId(long emojiId, boolean isCollectible, boolean animated) {
             emoji.set(emojiId, animated);
             emoji.setColor(emojiColor);
             emojiIsCollectible = isCollectible;
+            backgroundEmojiSnapshot = null;
             if (!animated) {
                 emojiFullT.force(isCollectible);
             }
             hasEmoji = hasEmoji || emojiId != 0 && emojiId != -1;
             invalidate();
+        }
+
+        public void setBackgroundEmojiPaused(boolean paused) {
+            if (backgroundEmojiPaused == paused) {
+                return;
+            }
+
+            backgroundEmojiPaused = paused;
+            backgroundEmojiSnapshot = null;
+            if (paused) {
+                emoji.detach();
+            } else if (isAttachedToWindow()) {
+                emoji.attach();
+                emoji.play();
+            }
+            invalidate();
+        }
+
+        private Drawable getBackgroundEmojiDrawable() {
+            if (!backgroundEmojiPaused || !emoji.isStable() || !isEmojiLoaded()) {
+                return emoji;
+            }
+            if (backgroundEmojiSnapshot == null) {
+                int size = dp(24);
+                Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                emoji.setBounds(0, 0, size, size);
+                emoji.setAlpha(0xFF);
+                emoji.draw(new Canvas(bitmap));
+                backgroundEmojiSnapshot = new BitmapDrawable(getResources(), bitmap);
+                backgroundEmojiSnapshot.setFilterBitmap(true);
+            }
+            return backgroundEmojiSnapshot;
         }
 
         private boolean emojiLoaded;
@@ -1405,7 +1442,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         canvas.clipRect(0, 0, getMeasuredWidth(), y1);
                         float atop = actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0;
                         float maxExpand = getHeaderOnlyExtraHeight() + atop + (actionBar.getHeight() - atop) / 2f;
-                        StarGiftPatterns.drawProfileAnimatedPattern(canvas, emoji, getMeasuredWidth(), maxExpand, calculateHeaderExtraDiff(), avatarContainer, 1.0f);
+                        StarGiftPatterns.drawProfileAnimatedPattern(canvas, getBackgroundEmojiDrawable(), getMeasuredWidth(), maxExpand, calculateHeaderExtraDiff(), avatarContainer, 1.0f);
                         canvas.restore();
                     }
                 }
@@ -5898,6 +5935,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     searchItem.setEnabled(!scrolling && !isPulledDown);
                 }
                 sharedMediaLayout.scrollingByUser = listView.scrollingByUser;
+                updateProfileBackgroundEmojiPaused();
             }
 
             @Override
@@ -6158,6 +6196,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             storyView.setAlpha(pullUpProgress > 0 ? lerp(1.0f, 0.0f, ilerp(pullUpProgress, 0, 0.5f)) : 1.0f);
         }
         avatarGooey.setVisibility(pullUpProgress >= 1.0f ? View.GONE : View.VISIBLE);
+    }
+
+    private void updateProfileBackgroundEmojiPaused() {
+        if (topView == null) {
+            return;
+        }
+
+        boolean scrolling = listView != null && listView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE;
+        topView.setBackgroundEmojiPaused(scrolling || transitionAnimationInProress || !fullyVisible);
     }
 
     private int getHeaderOnlyExtraHeight() {
@@ -9942,6 +9989,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         super.onBecomeFullyHidden();
         fullyVisible = false;
+        updateProfileBackgroundEmojiPaused();
     }
 
     public void setPlayProfileAnimation(int type) {
@@ -10002,6 +10050,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
         transitionAnimationInProress = true;
+        updateProfileBackgroundEmojiPaused();
         checkPhotoDescriptionAlpha();
     }
 
@@ -10051,6 +10100,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
         transitionAnimationInProress = false;
+        updateProfileBackgroundEmojiPaused();
         checkPhotoDescriptionAlpha();
     }
 
@@ -16056,6 +16106,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         super.onBecomeFullyVisible();
         writeButtonSetBackground();
         fullyVisible = true;
+        updateProfileBackgroundEmojiPaused();
         createBirthdayEffect();
     }
 

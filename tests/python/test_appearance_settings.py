@@ -162,6 +162,12 @@ class AppearanceSettingsTest(unittest.TestCase):
         )
         self.assertIn("UserObject.getProfileEmojiId(user)", profile)
         self.assertIn("ChatObject.getProfileEmojiId(chat)", profile)
+        self.assertIn("private void updateProfileBackgroundEmojiPaused()", profile)
+        self.assertIn("listView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE", profile)
+        self.assertIn("scrolling || transitionAnimationInProress || !fullyVisible", profile)
+        self.assertIn("emoji.detach();", profile)
+        self.assertIn("getBackgroundEmojiDrawable()", profile)
+        self.assertIn("new BitmapDrawable(getResources(), bitmap)", profile)
         self.assertNotIn("AppearanceSettings", patterns)
 
     def test_main_dialogs_title_hook_is_fail_closed(self):
@@ -428,7 +434,9 @@ class AppearanceSettingsTest(unittest.TestCase):
         dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
         chat = (JAVA / "ui/ChatActivity.java").read_text()
         frame = (JAVA / "ui/Components/SizeNotifierFrameLayout.java").read_text()
+        snow = (JAVA / "ui/Components/SnowflakesEffect.java").read_text()
         theme = (JAVA / "ui/ActionBar/Theme.java").read_text()
+        voip = (JAVA / "ui/Components/voip/VoIpSnowView.java").read_text()
 
         self.assertIn("public void setForceHolidayImage(boolean value)", action_bar)
         self.assertIn("forceHolidayImage ? forcedHolidayDrawable", action_bar)
@@ -449,6 +457,12 @@ class AppearanceSettingsTest(unittest.TestCase):
         self.assertIn("public void setForceSnowflakes(boolean forceSnowflakes)", frame)
         self.assertIn("forceSnowflakes || Theme.canStartHolidayAnimation()", frame)
         self.assertIn("LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)", frame)
+        self.assertIn("setFrameDelayMillis(forceHolidayImage ? 16 : 0)", action_bar)
+        self.assertIn("setFrameDelayMillis(forceSnowflakes ? 16 : 0)", frame)
+        self.assertIn("public void setFrameDelayMillis(long frameDelayMillis)", snow)
+        self.assertIn("parent.postInvalidateDelayed(frameDelayMillis);", snow)
+        self.assertIn("parent.invalidate();", snow)
+        self.assertNotIn("setFrameDelayMillis", voip)
         self.assertNotIn("AppearanceSettings", frame)
         self.assertNotIn("AppearanceSettings", theme)
 
