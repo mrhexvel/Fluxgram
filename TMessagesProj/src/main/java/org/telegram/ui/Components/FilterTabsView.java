@@ -1657,7 +1657,17 @@ public class FilterTabsView extends FrameLayout {
             manualScrollingToId = -1;
         }
         animatingIndicatorProgress = progress;
-        listView.invalidateViews();
+
+        RecyclerView.ViewHolder currentHolder = listView.findViewHolderForAdapterPosition(currentPosition);
+        if (currentHolder != null) {
+            currentHolder.itemView.invalidate();
+        }
+        if (position != currentPosition) {
+            RecyclerView.ViewHolder targetHolder = listView.findViewHolderForAdapterPosition(position);
+            if (targetHolder != null) {
+                targetHolder.itemView.invalidate();
+            }
+        }
         listView.invalidate();
         invalidate();
         scrollToChild(position);
