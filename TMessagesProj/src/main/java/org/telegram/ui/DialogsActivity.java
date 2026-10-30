@@ -133,6 +133,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fluxgram.ArchiveSettings;
 import org.telegram.messenger.fluxgram.AppearanceSettings;
 import org.telegram.messenger.fluxgram.BottomNavigationSettings;
+import org.telegram.messenger.fluxgram.FolderSwipeGesturePolicy;
 import org.telegram.messenger.fluxgram.FolderSettings;
 import org.telegram.messenger.fluxgram.MainMenuPolicy;
 import org.telegram.messenger.fluxgram.MainMenuSettings;
@@ -1478,7 +1479,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         velX = velocityTracker.getXVelocity();
                         velY = velocityTracker.getYVelocity();
                         if (!startedTracking) {
-                            if (Math.abs(velX) >= 3000 && Math.abs(velX) > Math.abs(velY)) {
+                            if (FolderSwipeGesturePolicy.shouldStart(velX, velY)) {
                                 prepareForMoving(ev, velX < 0);
                             }
                         }
@@ -1489,7 +1490,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     if (startedTracking) {
                         float x = viewPages[0].getX();
                         tabsAnimation = new AnimatorSet();
-                        if (viewPages[1].isLocked) {
+                        if (ev == null || ev.getAction() == MotionEvent.ACTION_CANCEL || viewPages[1].isLocked) {
                             backAnimation = true;
                         } else {
                             if (additionalOffset != 0) {
@@ -1503,7 +1504,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                     }
                                 }
                             } else {
-                                backAnimation = Math.abs(x) < viewPages[0].getMeasuredWidth() / 3.0f && (Math.abs(velX) < 3500 || Math.abs(velX) < Math.abs(velY));
+                                backAnimation = !FolderSwipeGesturePolicy.shouldCommit(
+                                        x,
+                                        viewPages[0].getMeasuredWidth(),
+                                        velX,
+                                        velY,
+                                        animatingForward
+                                );
                             }
                         }
                         float dx;
